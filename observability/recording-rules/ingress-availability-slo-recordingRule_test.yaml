@@ -24,6 +24,28 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
+  # Windowed (1h) record: 2 series x 6 samples (minutes 0-5) = 12 total, 0 failed.
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  - expr: errors:ingress_canary:total_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 12
+  # Windowed (5m, the fast tier's short window): 2 series x 6 samples = 12.
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 10
 # ========================================
 # Test 2: Half of observations unreachable — availability ratio = 0.5, error rate = 0.5
 # ========================================
@@ -44,6 +66,17 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
+  # Windowed (1h): 2 series x 6 samples = 12 total, 6 failed (the always-0 series).
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  - expr: errors:ingress_canary:failed_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:failed_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 6
 # ========================================
 # Test 3: All observations unreachable — availability ratio = 0, error rate = 1
 # ========================================
@@ -113,20 +146,23 @@ tests:
   - expr: errors:ingress_canary:error_rate
     eval_time: 5m
     exp_samples: []
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples: []
 # ========================================
 # Test 6: All canary checks fast — latency ratio = 1, error rate = 0
 # ========================================
 # Histogram counters increase by 1 each minute (1 check/min).
-# All checks land in le="200" bucket (within 200ms threshold).
+# All checks land in le="200.0" bucket (within 200ms threshold).
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="200.0"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="200.0"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
@@ -139,22 +175,28 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
+  # Windowed (1h): 2 instances x 1 check/min x 5m = 10 total checks, all fast.
+  - expr: errors:ingress_canary_latency:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
 # ========================================
 # Test 7: Half canary checks slow — latency ratio = 0.5, error rate = 0.5
 # ========================================
-# instance .1: all checks within 200ms (le="200" increments same as le="+Inf")
-# instance .2: all checks above 200ms (le="200" stays 0, le="+Inf" increments)
+# instance .1: all checks within 200ms (le="200.0" increments same as le="+inf")
+# instance .2: all checks above 200ms (le="200.0" stays 0, le="+inf" increments)
 - interval: 1m
   input_series:
   # instance .1: fast (within 200ms)
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="200.0"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+1x10"
   # instance .2: slow (above 200ms)
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="200.0"}'
     values: "0+0x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
@@ -166,6 +208,12 @@ tests:
     eval_time: 5m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  # Windowed (1h): instance .1 fast, instance .2 slow — 0.5 error rate persists.
+  - expr: errors:ingress_canary_latency:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
 # ========================================
 # Test 8: No histogram data — latency SLI returns empty
@@ -179,3 +227,202 @@ tests:
   - expr: errors:ingress_canary_latency:error_rate
     eval_time: 5m
     exp_samples: []
+  - expr: errors:ingress_canary_latency:error_rate_1h
+    eval_time: 5m
+    exp_samples: []
+# ========================================
+# Test 9: HA replica duplicates must not double-count windowed availability
+# ========================================
+# The same canary observation scraped by two Prometheus HA replicas
+# (prometheus_replica "a"/"b") must be collapsed by max without
+# (prometheus_replica) before the per-HCP sum, or every window's
+# succeeded/total count (and therefore its volume floor) would double.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", prometheus_replica="a"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", prometheus_replica="b"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:succeeded_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:succeeded_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+# ========================================
+# Test 10: HA replica duplicates must not double-count windowed latency
+# ========================================
+# Same dedup requirement as Test 9, for the increase()-based latency windows.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200.0", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200.0", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="b"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+# ========================================
+# Test 11: HA replica duplicates must not skew the instantaneous availability ratio
+# ========================================
+# "host-a" is healthy and scraped by both Prometheus HA replicas; "host-b" is
+# down and, due to a transient per-instance scrape gap, is only scraped by
+# one replica this cycle. Equal replica counts per instance cancel out of a
+# sum/count ratio (both sides double by the same factor), but an uneven
+# split like this does not: without max without (prometheus_replica)
+# dedup, host-a's double representation would overweight the ratio toward
+# "healthy" (2 good / 3 total = 0.667) instead of the true 1-of-2-instances
+# figure (0.5).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", prometheus_replica="a"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", prometheus_replica="b"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", prometheus_replica="a"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+# ========================================
+# Test 12: HA replica duplicates must not skew the instantaneous latency ratio
+# ========================================
+# Same asymmetric-replica-coverage scenario as Test 11, for the rate()-based
+# latency ratio: "host-a" is fast and scraped by both replicas, "host-b" is
+# slow and only scraped by one. Without dedup the fast host's double
+# representation pulls the ratio toward "fast" (2/3 = 0.667) instead of the
+# true 1-of-2-instances figure (0.5).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200.0", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200.0", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+inf", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="200.0", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="+inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+# ========================================
+# Test 13: HA replicas diverging at different scrape ticks must not be
+# compared as whole-window totals
+# ========================================
+# Both replicas scrape the same instance, but their individual observations
+# disagree at every tick (replica "a" fails on odd ticks where "b" succeeds,
+# and vice versa) -- genuine per-tick divergence, not simple double-counting
+# of an identical observation. At eval_time 5m the counted window is
+# minutes 1-5: replica "a" is 0,1,0,1,0 (sum 2) and replica "b" is 1,0,1,0,1
+# (sum 3). Deduping AFTER sum_over_time (comparing whole-window totals via
+# max(2, 3) = 3) would report 2 of 5 observations failed (error_rate 0.4),
+# even though at every single tick at least one replica saw success.
+# Deduping PER TICK before sum_over_time (this file's actual approach)
+# correctly reports all 5 ticks healthy (error_rate 0).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.divergent.example.io", instance="10.0.0.1:60000", prometheus_replica="a"}'
+    values: "1 0 1 0 1 0 1 0 1 0 1"
+  - series: 'ingress_canary_route_reachable{_id="divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.divergent.example.io", instance="10.0.0.1:60000", prometheus_replica="b"}'
+    values: "0 1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:succeeded_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:succeeded_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+# ========================================
+# Test 14: HA replicas diverging on latency buckets must not be paired
+# across replicas
+# ========================================
+# Replica "a" reports le="200.0" rate 4/min and le="+inf" rate 5/min (its
+# own ratio: 4/5 = 0.8, mostly fast). Replica "b" reports le="200.0" rate
+# 1/min and le="+inf" rate 10/min (its own ratio: 1/10 = 0.1, mostly
+# slow, but a much larger total volume). Deduping each bucket independently
+# with max without (prometheus_replica) would pick replica "a"'s larger
+# le="200.0" value (20 over the window) together with replica "b"'s larger
+# le="+inf" value (50 over the window), giving error_rate = (50-20)/50 =
+# 0.6 -- a figure that matches neither replica's actual observations and
+# that "20 of 50 fast" never occurred (replica "a" only ever saw 25 total
+# checks). topk(1, ...) on le="+inf" picks replica "b" as the more
+# complete scrape (50 > 25) and the on(..., prometheus_replica) join keeps
+# le="200.0" pinned to that same replica (5, not 20), giving error_rate =
+# (50-5)/50 = 0.9 -- exactly replica "b"'s own observed ratio.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="200.0", prometheus_replica="a"}'
+    values: "0+4x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="a"}'
+    values: "0+5x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="200.0", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="b"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 50
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0.9
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0.1
