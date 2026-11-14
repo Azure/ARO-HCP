@@ -4,17 +4,17 @@ go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.3
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/Azure/checkaccess-v2-go-sdk v0.0.4-0.20260707173829-4b27d1696d22
 	github.com/Azure/msi-dataplane v0.4.3
@@ -35,7 +35,7 @@ require (
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/sync v0.23.0
+	golang.org/x/sync v0.24.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
 	k8s.io/client-go v0.37.1
@@ -46,6 +46,17 @@ require (
 	sigs.k8s.io/secrets-store-csi-driver v1.6.0
 	sigs.k8s.io/secrets-store-sync-controller v0.0.5
 	sigs.k8s.io/yaml v1.6.0
+)
+
+require (
+	github.com/Azure/azure-sdk-for-go/sdk/storage/internal v0.1.0 // indirect
+	github.com/apache/arrow-go/v18 v18.7.0 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/google/flatbuffers v25.12.19+incompatible // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
+	github.com/pierrec/lz4/v4 v4.1.28 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
 )
 
 require (
@@ -135,14 +146,14 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/term v0.47.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
