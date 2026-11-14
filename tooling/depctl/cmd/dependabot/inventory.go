@@ -33,7 +33,9 @@ import (
 
 // readerFactory builds the read-only proposal reader.
 var readerFactory = func(repository string) (forge.Reader, error) {
-	return ghapi.New(repository)
+	return ghapi.NewWithPrefilter(repository, func(pull forge.PullRequest) bool {
+		return policy.IsSecurityProposal(policy.PullRequest{Title: pull.Title, Body: pull.Body, Labels: pull.Labels})
+	})
 }
 
 // InventoryOptions are the unvalidated inventory flags.
