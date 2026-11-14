@@ -182,6 +182,23 @@ func TestWithImmutableAttributes(t *testing.T) {
 			want: ocmCluster(t, ocmClusterDefaults(coreapitesting.TestLocation).FIPS(false)),
 		},
 		{
+			name: "with OutboundType set to UserDefinedRouting",
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OutboundType: metadataapi.OutboundTypeUserDefinedRouting,
+					},
+				},
+			},
+			want: ocmCluster(t,
+				ocmClusterDefaults(coreapitesting.TestLocation),
+				arohcpv1alpha1.NewCluster().
+					Azure(arohcpv1alpha1.NewAzure().
+						NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+							OutboundType("user_defined_routing"))),
+			),
+		},
+		{
 			name: "with ACR pull managed identity",
 			cluster: &coreapi.Cluster{
 				CustomerProperties: coreapi.ClusterCustomerProperties{

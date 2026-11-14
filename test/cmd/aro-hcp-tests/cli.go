@@ -174,6 +174,11 @@ func setupCli() (*cobra.Command, error) {
 			}()
 		})
 
+		// TODO: remove after PR validation — throwaway branch, isolates the
+		// zero-egress evidence-gathering run from the two already-proven
+		// UDR tests to keep this run's cost to a single cluster.
+		specs = specs.MustFilter([]string{`name.contains("zero egress")`})
+
 		// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 		// and AfterAll. "Each" functions must be thread safe.
 		//

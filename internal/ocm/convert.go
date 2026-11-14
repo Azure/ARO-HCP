@@ -133,6 +133,8 @@ func convertOutboundTypeRPToCS(outboundTypeRP metadataapi.OutboundType) (string,
 	switch outboundTypeRP {
 	case metadataapi.OutboundTypeLoadBalancer:
 		return csOutboundType, nil
+	case metadataapi.OutboundTypeUserDefinedRouting:
+		return "user_defined_routing", nil
 	default:
 		return "", conversionError[string](outboundTypeRP)
 	}
