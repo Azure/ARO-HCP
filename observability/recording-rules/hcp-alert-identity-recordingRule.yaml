@@ -1,0 +1,78 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-alert-identity
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-alert-identity
+    interval: 1m
+    rules:
+    # Examples below describe one alert: active since 1800000000, first observed
+    # firing at 1800000060, evaluated at 1800000120, with no prior firing observed.
+    # Numbers after label sets are sample values; AMW storage metadata is omitted.
+    # Contract for both records below:
+    # - resource_id identifies the owning HCP. Preserve source values and labels.
+    # - Exclude guest API signals carrying hostedcontrolplane, including guest node
+    #   metrics whose namespace is the control-plane namespace. Source alert rules
+    #   must preserve this provenance; absence alone cannot prove management origin.
+    # - Preserve existing HCP resource IDs without requiring a namespace mapping.
+    #   The resource-type selector distinguishes HCPs from other Azure resources;
+    #   it does not verify existence or ownership in Azure.
+    # - For missing resource_id, join cluster/region/namespace to the immutable,
+    #   trusted Namespace annotation. Missing mapping means no enriched sample.
+    # - These paths are disjoint: never overwrite an existing resource_id.
+    # - Enrichment is independent of alert name and workload type. Upgrade alert queries
+    #   group firing inputs generically by namespace + alertname.
+    # Example:
+    # hcp:alerts{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="mc-1",region="westus3",namespace="hcp-example",deployment="kube-apiserver",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/example"} 1
+    - record: hcp:alerts
+      expr: |
+        ALERTS{
+          resource_id=~"(?i)/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft[.]RedHatOpenShift/hcpOpenShiftClusters/[^/]+",
+          hostedcontrolplane=""
+        }
+        or
+        (
+          ALERTS{
+            cluster!="", region!="", namespace!="",
+            resource_id="", hostedcontrolplane=""
+          }
+          * on (cluster, region, namespace) group_left(resource_id)
+          max by (cluster, region, namespace, resource_id) (
+            label_replace(
+              kube_namespace_annotations{
+                cluster!="", region!="", namespace!="",
+                annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!=""
+              },
+              "resource_id", "$1",
+              "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.+)"
+            )
+          )
+        )
+    # Example:
+    # hcp:alerts_for_state{alertname="KubeDeploymentReplicasMismatch",cluster="mc-1",region="westus3",namespace="hcp-example",deployment="kube-apiserver",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/example"} 1800000000
+    - record: hcp:alerts_for_state
+      expr: |
+        ALERTS_FOR_STATE{
+          resource_id=~"(?i)/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft[.]RedHatOpenShift/hcpOpenShiftClusters/[^/]+",
+          hostedcontrolplane=""
+        }
+        or
+        (
+          ALERTS_FOR_STATE{
+            cluster!="", region!="", namespace!="",
+            resource_id="", hostedcontrolplane=""
+          }
+          * on (cluster, region, namespace) group_left(resource_id)
+          max by (cluster, region, namespace, resource_id) (
+            label_replace(
+              kube_namespace_annotations{
+                cluster!="", region!="", namespace!="",
+                annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!=""
+              },
+              "resource_id", "$1",
+              "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.+)"
+            )
+          )
+        )

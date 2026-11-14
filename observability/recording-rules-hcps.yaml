@@ -1,5 +1,7 @@
 prometheusRules:
   rulesFolders:
+  - recording-rules/hcp-alert-identity-recordingRule.yaml
+  - recording-rules/hcp-upgrade-recordingRule.yaml
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
   - alerts/HCPkasRecord-prometheusRule-latency.yaml

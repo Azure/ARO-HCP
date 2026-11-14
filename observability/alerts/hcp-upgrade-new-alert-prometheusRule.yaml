@@ -1,0 +1,157 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-upgrade-new-alert
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-upgrade-new-alert
+    interval: 1m
+    rules:
+    # Identity is HCP + version + attempt. Check every candidate in the five-entry
+    # KSM history independently; a later upgrade must not hide an earlier failure.
+    # Each branch checks current activation and excludes firing in [start-24h,start).
+    # Pin candidates to this evaluation with @ end(): historical alerts must use
+    # today's candidate set, even before the upgrade metrics existed.
+    # The 1m subquery resolution matches the hcp:alerts recording interval.
+    - alert: HCPUpgradeNewAlert
+      expr: |
+        max by (resource_id, version, attempt_started_at) (
+          (
+            (
+              max by (namespace, alertname, resource_id) (
+                hcp:alerts_for_state
+                and ignoring (alertstate)
+                hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"}
+              )
+              >= on (resource_id) group_left (version, attempt_started_at)
+              topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds)
+            )
+            unless on (namespace, alertname, resource_id, attempt_started_at)
+            max by (namespace, alertname, resource_id, attempt_started_at) (
+              max_over_time(
+                (
+                  (
+                    timestamp(hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"})
+                    < on (resource_id) group_left (attempt_started_at)
+                    topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds @ end())
+                  )
+                  >= on (resource_id, attempt_started_at) group_left ()
+                  (topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds @ end()) - 86400)
+                )[72h:1m]
+              )
+            )
+          )
+          or
+          (
+            (
+              max by (namespace, alertname, resource_id) (
+                hcp:alerts_for_state
+                and ignoring (alertstate)
+                hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"}
+              )
+              >= on (resource_id) group_left (version, attempt_started_at)
+              (topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds))
+            )
+            unless on (namespace, alertname, resource_id, attempt_started_at)
+            max by (namespace, alertname, resource_id, attempt_started_at) (
+              max_over_time(
+                (
+                  (
+                    timestamp(hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"})
+                    < on (resource_id) group_left (attempt_started_at)
+                    (topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds @ end()))
+                  )
+                  >= on (resource_id, attempt_started_at) group_left ()
+                  ((topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (1, hcp:upgrade_started_timestamp_seconds @ end())) - 86400)
+                )[72h:1m]
+              )
+            )
+          )
+          or
+          (
+            (
+              max by (namespace, alertname, resource_id) (
+                hcp:alerts_for_state
+                and ignoring (alertstate)
+                hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"}
+              )
+              >= on (resource_id) group_left (version, attempt_started_at)
+              (topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds))
+            )
+            unless on (namespace, alertname, resource_id, attempt_started_at)
+            max by (namespace, alertname, resource_id, attempt_started_at) (
+              max_over_time(
+                (
+                  (
+                    timestamp(hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"})
+                    < on (resource_id) group_left (attempt_started_at)
+                    (topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds @ end()))
+                  )
+                  >= on (resource_id, attempt_started_at) group_left ()
+                  ((topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (2, hcp:upgrade_started_timestamp_seconds @ end())) - 86400)
+                )[72h:1m]
+              )
+            )
+          )
+          or
+          (
+            (
+              max by (namespace, alertname, resource_id) (
+                hcp:alerts_for_state
+                and ignoring (alertstate)
+                hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"}
+              )
+              >= on (resource_id) group_left (version, attempt_started_at)
+              (topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds))
+            )
+            unless on (namespace, alertname, resource_id, attempt_started_at)
+            max by (namespace, alertname, resource_id, attempt_started_at) (
+              max_over_time(
+                (
+                  (
+                    timestamp(hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"})
+                    < on (resource_id) group_left (attempt_started_at)
+                    (topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds @ end()))
+                  )
+                  >= on (resource_id, attempt_started_at) group_left ()
+                  ((topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (3, hcp:upgrade_started_timestamp_seconds @ end())) - 86400)
+                )[72h:1m]
+              )
+            )
+          )
+          or
+          (
+            (
+              max by (namespace, alertname, resource_id) (
+                hcp:alerts_for_state
+                and ignoring (alertstate)
+                hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"}
+              )
+              >= on (resource_id) group_left (version, attempt_started_at)
+              (topk by (resource_id) (5, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds))
+            )
+            unless on (namespace, alertname, resource_id, attempt_started_at)
+            max by (namespace, alertname, resource_id, attempt_started_at) (
+              max_over_time(
+                (
+                  (
+                    timestamp(hcp:alerts{namespace!="", resource_id!="", alertstate="firing", hcp_upgrade_new_alert!="true"})
+                    < on (resource_id) group_left (attempt_started_at)
+                    (topk by (resource_id) (5, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds @ end()))
+                  )
+                  >= on (resource_id, attempt_started_at) group_left ()
+                  ((topk by (resource_id) (5, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id) (4, hcp:upgrade_started_timestamp_seconds @ end())) - 86400)
+                )[72h:1m]
+              )
+            )
+          )
+        )
+      labels:
+        component: hcp
+        severity: "4"
+        hcp_upgrade_new_alert: "true"
+      annotations:
+        summary: "{{ $labels.resource_id }}: new control-plane alert after upgrade to {{ $labels.version }} ({{ $labels.attempt_started_at }})"
+        description: "HCP {{ $labels.resource_id }} has a firing namespace-level alert type activated at or after the upgrade to {{ $labels.version }} started at {{ $labels.attempt_started_at }}, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation."
+        correlationId: "HCPUpgradeNewAlert/{{ $labels.resource_id }}/{{ $labels.version }}/{{ $labels.attempt_started_at }}"
