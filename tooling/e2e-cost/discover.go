@@ -29,12 +29,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const discoveryJob = "pull-ci-Azure-ARO-HCP-main-e2e-parallel"
 const discoveryBucket = "test-platform-results-public"
-const testArtifactPrefix = "artifacts/e2e-parallel/aro-hcp-test-local/artifacts/"
 const maxArtifactBytes = 32 << 20
 
-var discoveryPath = regexp.MustCompile(`^pr-logs/pull/Azure_ARO-HCP/([0-9]+)/` + discoveryJob + `/([0-9]+)/?$`)
+var discoveryPath = regexp.MustCompile(`^pr-logs/pull/Azure_ARO-HCP/([0-9]+)/(pull-ci-Azure-ARO-HCP-main-(e2e-parallel(?:-inplace-upgrade)?))/([0-9]+)/?$`)
 var discoveryUUID = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var discoverySHA = regexp.MustCompile(`(?i)^[0-9a-f]{40}$`)
 var discoveryRG = regexp.MustCompile(`^[a-zA-Z0-9_.()-]{1,90}$`)
@@ -81,7 +79,7 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 	}()
 	u, err := url.Parse(jobURL)
 	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		s.Diagnose("error", "invalid-job-url", "job", "Expected the public Prow e2e-parallel job URL")
+		s.Diagnose("error", "invalid-job-url", "job", "Expected a public Prow e2e-parallel or e2e-parallel-inplace-upgrade job URL")
 		return s
 	}
 	prefix := ""
@@ -95,11 +93,19 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 	}
 	match := discoveryPath.FindStringSubmatch(prefix)
 	if match == nil {
-		s.Diagnose("error", "invalid-job-url", "job", "Only public Azure/ARO-HCP pull-ci-Azure-ARO-HCP-main-e2e-parallel builds are supported")
+		s.Diagnose("error", "invalid-job-url", "job", "Only public Azure/ARO-HCP pull-ci-Azure-ARO-HCP-main-e2e-parallel and pull-ci-Azure-ARO-HCP-main-e2e-parallel-inplace-upgrade builds are supported")
 		return s
 	}
 	prefix = strings.TrimSuffix(prefix, "/") + "/"
-	s.Job.Name, s.Job.PR, s.Job.BuildID = discoveryJob, match[1], match[2]
+	s.Job.Name, s.Job.PR, s.Job.BuildID = match[2], match[1], match[4]
+	variant := match[3]
+	provisionStep, testStep := "aro-hcp-provision-environment", "aro-hcp-test-local"
+	if variant == "e2e-parallel-inplace-upgrade" {
+		provisionStep, testStep = "aro-hcp-provision-from-main", "aro-hcp-test-local-upgrade"
+	}
+	artifactPrefix := "artifacts/" + variant + "/"
+	provisionConfig := artifactPrefix + provisionStep + "/artifacts/config.yaml"
+	testArtifactPrefix := artifactPrefix + testStep + "/artifacts/"
 	if client == nil {
 		client = &http.Client{Timeout: 60 * time.Second}
 	}
@@ -140,7 +146,7 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 		base := path.Base(name)
 		original := strings.HasPrefix(name, testArtifactPrefix)
 		selected := name == "prowjob.json" || strings.Contains(base, "clone-records") || name == "artifacts/ci-operator-metrics.json" ||
-			(strings.Contains(name, "/aro-hcp-provision-environment/") && base == "config.yaml") || base == "steps.yaml" ||
+			name == provisionConfig || base == "steps.yaml" ||
 			(original && (base == "identities-pool-state.yaml" || strings.HasPrefix(base, "extension_test_result_e2e_") ||
 				strings.Contains(name, "/test-timing/") || strings.Contains(name, "/resourcegroups/") && (base == "deployments.yaml" || strings.HasPrefix(base, "deployment-operations-")) ||
 				strings.Contains(strings.ToLower(base), "params") || base == "infrastructures.yaml" || base == "infrastructure.yaml"))
@@ -210,13 +216,13 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 		case doc.name == "artifacts/ci-operator-metrics.json":
 			walkDiscovery(discoveryMap(doc.data)["pods"], func(m map[string]any) {
 				name := discoveryString(m, "pod_name")
-				if strings.HasSuffix(name, "-aro-hcp-provision-environment") {
+				if name == variant+"-"+provisionStep {
 					t, _ := time.Parse(time.RFC3339, discoveryString(m, "start_time"))
 					if !t.IsZero() && (s.Job.InfraStartedAt.IsZero() || t.Before(s.Job.InfraStartedAt)) {
 						s.Job.InfraStartedAt = t.UTC()
 					}
 				}
-				if strings.HasSuffix(name, "-aro-hcp-deprovision-environment") {
+				if name == variant+"-aro-hcp-deprovision-environment" {
 					t, _ := time.Parse(time.RFC3339, discoveryString(m, "completion_time"))
 					if t.After(s.Job.InfraEndedAt) {
 						s.Job.InfraEndedAt = t.UTC()
@@ -450,7 +456,7 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 				continue
 			}
 			for _, phase := range []string{"test_phase", "cleanup_phase"} {
-				artifact := "artifacts/e2e-parallel/aro-hcp-gather-snapshot/artifacts/" + discoveryTestDirectory(name, true) + "/" + parts[0] + "/" + phase + "/resources/microsoft.redhatopenshift_hcpopenshiftclusters/" + parts[1] + "/state/backend/resourceState.md"
+				artifact := artifactPrefix + "aro-hcp-gather-snapshot/artifacts/" + discoveryTestDirectory(name, true) + "/" + parts[0] + "/" + phase + "/resources/microsoft.redhatopenshift_hcpopenshiftclusters/" + parts[1] + "/state/backend/resourceState.md"
 				if !known[artifact] {
 					continue
 				}
