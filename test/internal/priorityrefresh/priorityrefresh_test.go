@@ -1111,3 +1111,40 @@ func TestPlanRejectsStaleZeroPresence(t *testing.T) {
 		t.Fatal("a rejected stale mapping modified the source")
 	}
 }
+
+func TestPlanReadsEveryGoIntegerLiteralForm(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		literal string
+		value   int
+	}{
+		// 0x28 and 050 are both 40 in Go; decimal parsing would reject one and
+		// misread the other as 50.
+		{name: "hex", literal: "0x28", value: 40},
+		{name: "octal", literal: "050", value: 40},
+		{name: "separators", literal: "4_0", value: 40},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			relPath := "test/e2e/" + tc.name + ".go"
+			source := strings.Replace(standaloneSource, "labels.StartPriority(40)", "labels.StartPriority("+tc.literal+")", 1)
+			repo := testRepo(t, map[string]string{relPath: source})
+			name := "suite should replace an existing priority"
+			line := itoa(lineOf(t, repo, relPath, "should replace an existing priority"))
+			catalog := et.ExtensionTestSpecs{catalogSpec(name, tc.value, relPath+":"+line)}
+			changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changes.Len() != 1 || changes.changes[0].OldPriority != tc.value {
+				t.Fatalf("changes = %+v", changes.changes)
+			}
+			if err := Apply(changes); err != nil {
+				t.Fatal(err)
+			}
+			mustContain(t, repo, relPath, "labels.StartPriority(90)")
+			if got := effectivePriority(t, repo, relPath, name); got != 90 {
+				t.Fatalf("effective priority = %d, want 90", got)
+			}
+		})
+	}
+}

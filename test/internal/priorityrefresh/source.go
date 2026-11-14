@@ -418,10 +418,13 @@ func priorityLiteral(expression ast.Expr) (int, error) {
 	if !ok || literal.Kind != token.INT {
 		return 0, fmt.Errorf("StartPriority argument must be an integer literal, not %T", expression)
 	}
-	value, err := strconv.Atoi(literal.Value)
+	// Base zero reads every Go integer literal form, including hexadecimal and
+	// digit separators, so the value compared with the catalog is the one Go sees.
+	value64, err := strconv.ParseInt(strings.ReplaceAll(literal.Value, "_", ""), 0, 64)
 	if err != nil {
 		return 0, fmt.Errorf("StartPriority argument %q is not an integer: %w", literal.Value, err)
 	}
+	value := int(value64)
 	if value < 0 || value > labels.StartPriorityMax {
 		return 0, fmt.Errorf("StartPriority argument %d is outside 0..%d", value, labels.StartPriorityMax)
 	}
