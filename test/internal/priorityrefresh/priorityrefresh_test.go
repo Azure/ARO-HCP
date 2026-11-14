@@ -876,7 +876,7 @@ func TestRestoreKeepsConcurrentEdits(t *testing.T) {
 	if err := os.WriteFile(path, published, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err := restore([]writtenFile{{
+	err := restore(repo, []writtenFile{{
 		path:      path,
 		original:  []byte("original content"),
 		published: sha256.Sum256([]byte("different content")),
@@ -960,5 +960,133 @@ func TestPlanRejectsStaleOrPartialIdentity(t *testing.T) {
 	}
 	if after := mustRead(t, repo, "test/e2e/dynamic.go"); after != before {
 		t.Fatal("a rejected identity plan modified the source")
+	}
+}
+
+const loopedContextSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("suite", func() {
+	for _, name := range []string{"ctx-a", "ctx-b"} {
+		Context(name, func() {
+			It("should share one declaration",
+				labels.MIContainers(1),
+				func(ctx context.Context) {
+					_ = ctx
+				})
+		})
+	}
+})
+`
+
+func TestPlanRejectsSharedLeafDeclaration(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/looped.go": loopedContextSource})
+	line := itoa(lineOf(t, repo, "test/e2e/looped.go", "should share one declaration"))
+	first, second := "suite ctx-a should share one declaration", "suite ctx-b should share one declaration"
+	catalog := et.ExtensionTestSpecs{
+		catalogSpec(first, 0, "test/e2e/looped.go:"+line),
+		catalogSpec(second, 0, "test/e2e/looped.go:"+line),
+	}
+	_, err := Plan(repo, catalog, testReport(scoredRow(first, "id-1", 20, 18)))
+	if err == nil || !strings.Contains(err.Error(), "shared-priority-conflict") {
+		t.Fatalf("error = %v, want shared-priority-conflict", err)
+	}
+
+	// The same target with the same proposal for every affected spec is allowed.
+	changes, err := Plan(repo, catalog, testReport(
+		scoredRow(first, "id-1", 20, 18),
+		scoredRow(second, "id-2", 20, 18),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changes.Len() != 2 {
+		t.Fatalf("planned %d changes, want 2", changes.Len())
+	}
+	if err := Apply(changes); err != nil {
+		t.Fatal(err)
+	}
+	if got := effectivePriority(t, repo, "test/e2e/looped.go", first); got != 20 {
+		t.Fatalf("effective priority = %d, want 20", got)
+	}
+}
+
+const explicitZeroSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("zero", func() {
+	It("should drop an explicit zero",
+		labels.MIContainers(1),
+		labels.StartPriority(0),
+		func(ctx context.Context) {
+			_ = ctx
+		})
+})
+`
+
+func TestPlanRemovesExplicitZeroPriority(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/zero.go": explicitZeroSource})
+	name := "zero should drop an explicit zero"
+	line := itoa(lineOf(t, repo, "test/e2e/zero.go", "should drop an explicit zero"))
+	spec := catalogSpec(name, 0, "test/e2e/zero.go:"+line)
+	spec.Labels.Insert(labels.StartPriorityLabelPrefix + "0")
+	catalog := et.ExtensionTestSpecs{spec}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 0, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changes.Len() != 1 {
+		t.Fatalf("planned %d changes, want a removal", changes.Len())
+	}
+	if err := Apply(changes); err != nil {
+		t.Fatal(err)
+	}
+	after := mustRead(t, repo, "test/e2e/zero.go")
+	if strings.Contains(after, "StartPriority(0)") {
+		t.Fatalf("explicit zero decorator survived:\n%s", after)
+	}
+}
+
+func TestRestoreRejectsSymlinkedParent(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	outside := t.TempDir()
+	external := []byte("external content")
+	if err := os.WriteFile(filepath.Join(outside, "spec.go"), external, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The parent directory is replaced by a symlink after publication, so the
+	// recorded in-checkout path now resolves to the external file.
+	if err := os.RemoveAll(filepath.Join(repo, "test/e2e")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, "test/e2e")); err != nil {
+		t.Fatal(err)
+	}
+	externalPath := filepath.Join(repo, "test/e2e", "spec.go")
+	err := restore(repo, []writtenFile{{
+		path:      externalPath,
+		original:  []byte("original content"),
+		published: sha256.Sum256(external),
+		mode:      0o644,
+	}}, errors.New("later file changed since planning"))
+	if err == nil || !strings.Contains(err.Error(), "needs recovery") {
+		t.Fatalf("error = %v, want a boundary rejection", err)
+	}
+	if got, readErr := os.ReadFile(externalPath); readErr != nil || string(got) != string(external) {
+		t.Fatalf("rollback wrote outside the checkout: %q %v", got, readErr)
 	}
 }

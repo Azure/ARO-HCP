@@ -184,7 +184,9 @@ func classifyReport(catalog map[string]*et.ExtensionTestSpec, report citests.Pri
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		if current == *row.ProposedPriority {
+		// An explicit StartPriority:0 label is a declaration the zero proposal
+		// must remove, while an absent label already matches a zero proposal.
+		if current == *row.ProposedPriority && !(current == 0 && declaresPriority(spec)) {
 			unchanged = append(unchanged, row.Name)
 			continue
 		}
@@ -262,6 +264,24 @@ func newPlanner(repo string, catalog et.ExtensionTestSpecs, report citests.Prior
 		planner.changes = append(planner.changes, change)
 	}
 	return planner, nil
+}
+
+// editTarget identifies the exact source position a plan writes to.
+func editTarget(call *sourceCall) string {
+	if call.node != nil {
+		return call.file.relPath + ":" + strconv.Itoa(call.file.offset(call.node.Pos()))
+	}
+	return call.file.relPath + ":insert:" + strconv.Itoa(call.insertAt)
+}
+
+// declaresPriority reports whether the spec carries an explicit priority label.
+func declaresPriority(spec *et.ExtensionTestSpec) bool {
+	for label := range spec.Labels {
+		if strings.HasPrefix(label, labels.StartPriorityLabelPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // callPos returns the node whose line best identifies the edited priority.
@@ -495,26 +515,30 @@ func (c *sourceCall) edit(priority int) (textEdit, error) {
 // checkSharedTargets refuses to rewrite a table-level priority whose descendants
 // do not all propose the same target.
 func (p *planner) checkSharedTargets(planned map[string]Change) error {
-	sharing := map[*ast.CallExpr][]string{}
+	// Two specs can resolve to one edit target: a table decorator, and a leaf
+	// declared once inside a loop whose name varies per iteration.
+	sharing := map[string][]string{}
 	for name, call := range p.resolved {
-		if call.node == nil || !call.onTable {
-			continue
-		}
-		sharing[call.node] = append(sharing[call.node], name)
+		sharing[editTarget(call)] = append(sharing[editTarget(call)], name)
 	}
 	for name := range planned {
 		call, err := p.resolveSpec(name)
-		if err != nil || !call.onTable {
+		if err != nil {
 			continue
 		}
-		line := call.file.fset.Position(call.node.Pos()).Line
+		line := call.file.fset.Position(callPos(call)).Line
 		// An unresolvable descendant still shares the table when its recorded
 		// locations point at the table declaration, so both views are required.
 		// Catalog locations identify the DescribeTable call, never the decorator.
-		candidates := append([]string{}, sharing[call.node]...)
-		tableLine := call.file.fset.Position(call.table.Pos()).Line
-		key := call.file.relPath + ":" + strconv.Itoa(tableLine)
-		candidates = append(candidates, p.locations[key]...)
+		candidates := append([]string{}, sharing[editTarget(call)]...)
+		if call.onTable {
+			// An unresolvable descendant still shares the table when its recorded
+			// locations point at the table declaration, so both views are required.
+			// Catalog locations identify the DescribeTable call, never the decorator.
+			tableLine := call.file.fset.Position(call.table.Pos()).Line
+			key := call.file.relPath + ":" + strconv.Itoa(tableLine)
+			candidates = append(candidates, p.locations[key]...)
+		}
 		for _, candidate := range candidates {
 			if _, resolved := p.resolved[candidate]; !resolved {
 				return fmt.Errorf("shared-priority-conflict: %s:%d is shared by %q, which cannot be resolved: %v",

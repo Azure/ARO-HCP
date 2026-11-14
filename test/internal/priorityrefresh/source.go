@@ -139,6 +139,9 @@ func ensureNoSymlinkComponents(repo, absPath string) error {
 	if err != nil {
 		return fmt.Errorf("resolve %s within the checkout: %w", absPath, err)
 	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%s is outside the checkout; refusing to edit it", absPath)
+	}
 	current := repo
 	for _, part := range strings.Split(relative, string(filepath.Separator)) {
 		current = filepath.Join(current, part)

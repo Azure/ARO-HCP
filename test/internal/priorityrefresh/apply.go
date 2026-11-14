@@ -38,17 +38,17 @@ func Apply(changes ChangeSet) error {
 		// The checkout boundary is re-checked at publish time: a symlink created
 		// after planning must not redirect the write outside the repository.
 		if err := ensureNoSymlinkComponents(changes.repo, file.context.absPath); err != nil {
-			return restore(replaced, err)
+			return restore(changes.repo, replaced, err)
 		}
 		current, err := os.ReadFile(file.context.absPath)
 		if err != nil {
-			return restore(replaced, fmt.Errorf("read %s before writing: %w", file.context.relPath, err))
+			return restore(changes.repo, replaced, fmt.Errorf("read %s before writing: %w", file.context.relPath, err))
 		}
 		if sha256.Sum256(current) != file.context.digest {
-			return restore(replaced, fmt.Errorf("%s changed since planning; refusing to write", file.context.relPath))
+			return restore(changes.repo, replaced, fmt.Errorf("%s changed since planning; refusing to write", file.context.relPath))
 		}
 		if err := writeFile(file.context.absPath, file.replacement, file.context.mode); err != nil {
-			return restore(replaced, err)
+			return restore(changes.repo, replaced, err)
 		}
 		replaced = append(replaced, writtenFile{
 			path:      file.context.absPath,
@@ -98,9 +98,15 @@ type writtenFile struct {
 }
 
 // restore puts back the originals of already replaced files after a failure.
-func restore(replaced []writtenFile, cause error) error {
+func restore(repo string, replaced []writtenFile, cause error) error {
 	var failures []string
 	for _, file := range replaced {
+		// The checkout boundary is checked again here: a directory replaced by a
+		// symlink after publication must never redirect a rollback write.
+		if err := ensureNoSymlinkComponents(repo, file.path); err != nil {
+			failures = append(failures, fmt.Sprintf("%s needs recovery: %v", file.path, err))
+			continue
+		}
 		current, err := os.ReadFile(file.path)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s needs recovery: %v", file.path, err))
