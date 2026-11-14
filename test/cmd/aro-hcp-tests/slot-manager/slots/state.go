@@ -88,7 +88,7 @@ func WriteAcquiredSlotState(sharedDir string, state *AcquiredSlotState) error {
 }
 
 // LoadAcquiredSlotState loads the durable release journal. State may be
-// unresolved or already returning leases; call Validate before runtime use.
+// unresolved or already returning leases; call ValidateForPublication before runtime use.
 func LoadAcquiredSlotState(sharedDir string) (*AcquiredSlotState, error) {
 	stateFile, err := SlotStateFile(sharedDir)
 	if err != nil {
@@ -174,8 +174,16 @@ func (s *AcquiredSlotState) ValidateForRelease() error {
 	return nil
 }
 
-// Validate requires a fully resolved state suitable for runtime publication.
-func (s *AcquiredSlotState) Validate() error {
+// ValidateForAdmission checks local structure, subscriptions, held leases and
+// resolved nonmock assets before any remote admission work. Only discovery of a
+// missing mock bundle is deferred; an existing bundle must satisfy all invariants.
+func (s *AcquiredSlotState) ValidateForAdmission() error {
+	return s.validateRuntimeInvariants()
+}
+
+// validateRuntimeInvariants is rerun after admission because handlers mutate state.
+// It does not perform remote discovery or require the admission-produced bundle.
+func (s *AcquiredSlotState) validateRuntimeInvariants() error {
 	if err := s.ValidateForRelease(); err != nil {
 		return err
 	}
@@ -218,7 +226,7 @@ func (s *AcquiredSlotState) Validate() error {
 			}
 		}
 	}
-	if err := s.Slot.ValidateResolvedAssets(); err != nil {
+	if err := s.Slot.validateAssetInvariants(); err != nil {
 		return err
 	}
 	if s.Slot.RequiresInfrastructureSubscription() {
@@ -237,11 +245,20 @@ func (s *AcquiredSlotState) Validate() error {
 	return nil
 }
 
+// ValidateForPublication rechecks local invariants after admission and requires
+// every demanded asset to be resolved before persisting and exporting the state.
+func (s *AcquiredSlotState) ValidateForPublication() error {
+	if err := s.validateRuntimeInvariants(); err != nil {
+		return err
+	}
+	return s.Slot.validateAssetPublicationReadiness()
+}
+
 func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")
 	}
-	if err := state.Validate(); err != nil {
+	if err := state.ValidateForPublication(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(customerSubscription) == "" {

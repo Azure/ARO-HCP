@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -180,6 +181,73 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 	}
 }
 
+func TestAdmissionPopulatesDedicatedBundleBeforePublication(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("later-asset-fails-%t", failure), func(t *testing.T) {
+			calls := []string{}
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
+			mock := &lifecycleHandler{kind: slots.KindMockIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			if failure {
+				infra.fail = "admit"
+			}
+			registry, err := assets.NewRegistry(e2e, mock, infra)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, _, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+				"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
+				"bundle-type":             {successAcquireReply("bundle-04"), successAcquireReply("bundle-01")},
+			})
+			defer server.Close()
+			catalog := strings.Replace(lifecycleCatalog, "      slot_assets:\n", "      slot_assets:\n        mock_identities: {allocation: dedicated}\n", 1)
+			options := lifecycleOptions(t, catalog, server.URL, registry)
+			resolve := options.ResolveSubscriptions
+			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (slots.ResolvedSubscriptions, error) {
+				subscriptions, err := resolve(ctx, profile, deploy, e2e, infra)
+				subscriptions.E2E.ID = "11111111-1111-1111-1111-111111111111"
+				return subscriptions, err
+			}
+			admissions := 0
+			mock.before = func(phase string, request assets.LeaseRequest) {
+				if phase != "admit" {
+					return
+				}
+				admissions++
+				state := request.AcquiredSlotState
+				if state.Slot.Assets.MockIdentities != nil {
+					t.Fatal("mock identities resolved before admission")
+				}
+				principal := func(name string) leaseenv.MockPrincipal {
+					return leaseenv.MockPrincipal{ClientID: uuid.NewString(), PrincipalID: uuid.NewString(), CertificateName: name}
+				}
+				state.Slot.Assets.MockIdentities = &leaseenv.MockIdentityBundlePayload{SlotName: state.Slot.ResourceName, SubscriptionID: state.Slot.Subscriptions.E2E.ID, MSI: principal("msi"), Backend: principal("backend"), ClustersService: principal("cs")}
+			}
+			err = Acquire(t.Context(), options)
+			if (err != nil) != failure || admissions != 1 {
+				t.Fatalf("acquisition error=%v, admission count=%d", err, admissions)
+			}
+			env, _ := slots.EnvFile(options.SharedDir)
+			if failure {
+				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("published despite another asset failing admission")
+				}
+				return
+			}
+			state, err := slots.LoadAcquiredSlotState(options.SharedDir)
+			if err != nil || state.Slot.Assets.MockIdentities == nil {
+				t.Fatalf("admitted bundle was not persisted: %v", err)
+			}
+			if err := state.ValidateForPublication(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(env); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestAcquireAssetAdmissionOptions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -311,7 +379,7 @@ func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
+	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "foreign resolved asset", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
@@ -380,6 +448,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			writes := 0
 			options.WriteState = func(dir string, state *slots.AcquiredSlotState) error {
 				writes++
+				if scenario == "foreign resolved asset" && state.Slot.Assets.InfrastructureIdentities != nil {
+					state.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
+				}
 				if (scenario == "primary state write" && writes == 1) || (scenario == "secondary state write" && len(state.Leases.Assets[slots.KindInfrastructureIdentities]) == 1) {
 					return errors.New("state disk write failed")
 				}
@@ -477,8 +548,12 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if infra.fail != "" && !strings.Contains(err.Error(), "fake "+infra.fail+" failed") {
 				t.Fatalf("expected failure from %s, got %v", infra.fail, err)
 			}
-			if scenario == "invalid runtime state" {
-				if !strings.Contains(err.Error(), "unresolved E2E subscription") {
+			if scenario == "invalid runtime state" || scenario == "foreign resolved asset" {
+				wantError := "unresolved E2E subscription"
+				if scenario == "foreign resolved asset" {
+					wantError = "does not match acquired leases"
+				}
+				if !strings.Contains(err.Error(), wantError) {
 					t.Fatalf("expected runtime validation failure, got %v", err)
 				}
 				for _, call := range calls {
@@ -709,7 +784,7 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			if err != nil || state.Slot.Subscriptions.Infrastructure != (slots.ResolvedSubscription{}) {
 				t.Fatalf("E2E-only state retained infrastructure subscription: %+v, %v", state, err)
 			}
-			if err := state.Validate(); err != nil {
+			if err := state.ValidateForPublication(); err != nil {
 				t.Fatalf("E2E-only persisted state is not runtime-ready: %v", err)
 			}
 			path, _ := slots.EnvFile(options.SharedDir)

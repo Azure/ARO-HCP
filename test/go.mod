@@ -11,6 +11,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/tooling/entra-app-credentials v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
@@ -107,7 +108,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 // indirect
@@ -257,14 +258,14 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/go-zglob v0.0.2 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.9.3
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0 // indirect
 	github.com/microsoft/kiota-http-go v1.5.5 // indirect
 	github.com/microsoft/kiota-serialization-form-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-text-go v1.1.2 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go v1.69.0 // indirect
+	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.3.2 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
@@ -422,6 +423,8 @@ replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 replace github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../tooling/cifailurepatterns
 
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
+
+replace github.com/Azure/ARO-HCP/tooling/entra-app-credentials => ../tooling/entra-app-credentials
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 

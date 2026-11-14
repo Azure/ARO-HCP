@@ -1,5 +1,51 @@
 # Slot-manager
 
+## Dedicated DEV mock identities
+
+DEV and dev-xs slots declare `mock_identities: {allocation: dedicated}`.
+Each primary slot owns one MSI mock and two distinct authenticating ARM helpers
+(backend and Clusters Service). There is no additional identity lease or lock.
+The names are `aro-hcp-slot-<UUIDv5>-{msi,backend,cs}`; the UUID input is the
+lowercase customer subscription ID, `/`, and the primary slot resource name.
+Changing region does not change identities. Graph's immutable `uniqueName`
+application key and service-principal `appId` alternate key make concurrent
+Owner retries converge without choosing an arbitrary display-name match.
+Display-name collisions fail closed. No identity-ID catalog is maintained.
+
+Every admission reads Graph, public Key Vault certificates, and
+subscription RBAC. These checks never create, reset, rotate, repair, or clean up this
+asset. Resolution is persisted only as acquired runtime state, not as discovery
+input; admission detects identity changes while the lease is held. Publication
+requires a complete validated three-principal bundle. Release retains all backing
+resources. These rules do not change other assets' existing cleanup semantics.
+
+The nonsecret `LEASED_MOCK_IDENTITY_BUNDLE` contains slot/subscription identity
+and `msi`, `backend`, `clustersService` entries with client ID, principal ID and
+certificate name. Consumers reject malformed provided bundles rather than falling
+back to legacy pools. New consumers do not resolve old static-pool leases;
+personal-development configuration remains supported. Acquire/release are no-ops
+for this dedicated asset. Admission alone resolves and verifies its bundle, then
+the orchestrator validates and persists resolved state before publication.
+Pre-admission validation defers only the missing mock bundle: other resolved
+assets must still match their dedicated containers or held leases before any
+admission cleanup runs. Failed mock readmission clears the prior bundle on every
+error path, including credential setup and identity drift.
+See [dedicated slot identity operations](../../../../docs/ci/dev-mock-identities.md#dedicated-slot-identity-operations).
+
+Local state validation has three distinct contracts:
+
+- `ValidateForRelease` accepts the partial write-ahead journal, including failed
+  acquisition/admission and lease-return progress, without runtime readiness.
+- `ValidateForAdmission` checks structure, subscriptions, held leases, nonmock
+  resolved assets and any existing mock bundle. Only an absent mock bundle may
+  await discovery. It performs no remote checks.
+- `ValidateForPublication` reruns those shared local invariants after handlers
+  have mutated state and additionally requires all admission-produced bundles.
+  The complete state is then persisted before any runtime exports are built.
+
+These phases do not cache validation success: post-admission mutation must not
+bypass held-lease or subscription guards. Neither phase repeats remote discovery.
+
 Slot-manager is a CI-only allocator of a complete E2E environment, not a raw
 Boskos resource. A **slot** is one allocatable E2E environment instance. A
 **pool** groups slots with compatible deployment, subscription, region, and asset
@@ -309,14 +355,12 @@ for operator procedures.
 
 ## Future assets
 
-The asset registry is an extension point. Mock identities (MSI mock service
-principal, backend ARM helper, and clusters-service ARM helper) remain intent
-only; their persistent credentials and baseline RBAC need an asset-specific
-preparation policy.
+The asset registry remains an extension point. Dedicated mock identities use
+the persistent preparation and admission policy described above.
 
 ## Feature progress
 
 - E2E identity assets are live.
 - The infrastructure identity asset exists; catalog demand and pool rollout
   are separate from this design.
-- Mock identity assets have not started.
+- Dedicated mock identity assets are implemented for DEV/dev-xs.

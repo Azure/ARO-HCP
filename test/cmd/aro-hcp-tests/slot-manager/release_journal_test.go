@@ -41,7 +41,7 @@ func TestReleasePartialStateWithoutCatalogOrHandlerAndRetry(t *testing.T) {
 			},
 		},
 	}
-	if err := state.Validate(); err == nil {
+	if err := state.ValidateForPublication(); err == nil {
 		t.Fatal("partial release journal must not pass runtime validation")
 	}
 	if err := state.ValidateForRelease(); err != nil {

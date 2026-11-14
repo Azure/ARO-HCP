@@ -285,3 +285,110 @@ the privileged pipeline is run.
 - [Dev-CI Topology](dev-ci-topology.md)
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Identity Leasing](identity-leasing.md)
+
+## Slot-bound CI bundles
+
+DEV/dev-xs slot-manager jobs use the dedicated asset described in the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities).
+New jobs consume its bundle, not legacy static-pool leases. Personal-dev
+shared-principal configuration remains supported. Old in-flight jobs retain their
+old checked-out consumers, while legacy Boskos leases still gate concurrency.
+All legacy pool infrastructure described above remains unchanged. Do not expand old pools
+to satisfy slot demand; capacity and retirement are a separate follow-up.
+
+### Dedicated slot identity operations
+
+The operator needs an active, unconditional customer-subscription Owner
+assignment (direct, inherited or through group membership), Entra application/SP
+management rights and certificate access to `https://aro-hcp-dev-svc-kv.vault.azure.net`.
+Activate eligible Owner access before applying. The preflight uses ARM's
+`atScope() and assignedTo(...)` filter for inherited and transitive group access.
+Install the existing subscription RBAC template first: its subscription-local
+`dev-msi-mock-<subscription-id>` role is reused.
+
+```bash
+AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
+AROHCP_ENV=development make -C test validate-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
+```
+
+Select the intended pool and environment (`dev` or `dev-xs`). Unmanaged pools
+are skipped unless explicitly selected with `SUBSCRIPTION`, for example
+`SUBSCRIPTION='Hypershift Managed Azure'` for its subscription Owner. Do not run
+Owner reconciliation from CI. Run one reconciliation per selected pool at a time.
+Failed applies can be retried: application unique names, SP application IDs,
+certificate names and role assignment IDs are stable. Ambiguous or mismatched
+Graph objects require investigation, never arbitrary selection or deletion.
+
+Apply also reconciles Entra ownership of every slot application **and** service
+principal to exactly `entraAppOwnerIds` (`config/config-dev-ci.yaml`, mirroring the
+`aro-hcp-owners` group), the same authoritative `replace` semantics as the dev-ci
+pipeline. This grants the configured Entra group members ownership, not repository
+OWNERS membership or ARM subscription roles. `make -C test apply-pool-assets`
+and `validate-pool-assets` export `ENTRA_APP_OWNER_IDS` and
+`ENTRA_APP_OWNERS_GROUP_ID` from that file (requires Mike Farah `yq` v4). Explicit
+environment or Make overrides are supported but must still match the live group;
+`MOCK_IDENTITY_CONFIG` selects an alternate config file. The binary fails before
+mock-asset writes when these settings are invalid or the list has drifted from
+the group. Re-running apply
+fixes objects created earlier: missing owners are added first, then unexpected
+owners (including the creator, if not in the list) are removed. Both application
+and SP additions must be visible before either object's removals begin; complete
+owner enumeration and final equality checks fail closed. Reconciliation is
+sequential across the three application/SP pairs: earlier pairs can be repaired
+even if a later pair fails. Retry after partial failure or propagation delay; no
+transaction or concurrent-owner-update isolation is provided. Keep reconciliation
+serialized. `validate` reports
+any difference as an error. Lease admission in CI never reads or changes owners.
+
+The applying operator must retain Entra application-management authorization
+throughout reconciliation: use a configured owner with the necessary delegated
+permissions, or an appropriately authorized tenant application administrator /
+application credential whose access does not depend on being an object owner.
+Adding other owners does not preserve the creator's own access after removal.
+An ownership-only operator excluded from the desired list can lose access and
+must hand off retries to an authorized owner or administrator. ARM subscription
+Owner alone does not grant these Graph permissions. Pool validation additionally
+needs group membership and application/SP owner reads; CI admission does not.
+
+Each slot has six persistent assignments at its customer subscription: MSI gets
+the MSI custom role and Key Vault Crypto User; each helper gets Contributor and
+Role Based Access Control Administrator. No grant is added to the infrastructure
+subscription. CI needs Graph application/SP reads, public certificate reads and
+subscription RBAC reads; it never applies this baseline.
+
+Owner apply reuses `tooling/entra-app-credentials/pkg/pinning` to create missing
+certificates and pin the current certificate without rotating healthy credentials
+or changing certificate policies. Pinning replaces the application's entire
+`keyCredentials` collection, so only the dedicated applications are eligible.
+Admission checks certificate validity and exact pinned thumbprints using reads;
+expired certificates fail closed. Keep the existing vault and delivery pipelines.
+Rotation is an explicit disruptive `entra-app-credentials pin --rotate` operation
+with affected jobs drained, not a deployment/admission/release operation. Use the
+deterministic application name for the certificate name and `<name>.hcp.osadev.cloud`
+for its DNS name.
+
+### Test-scoped Managed HSM access
+
+The Managed HSM Crypto User grants made by tests are HSM-local data-plane
+assignments tied to the test HSM lifecycle, not part of the persistent ARM
+subscription RBAC baseline. Mock admission is read-only: it verifies Graph,
+certificates and the persistent identity bundle's subscription baseline, but
+does not synchronously revoke test-scoped grants. Acquire and release are no-ops
+for this asset. A reused slot principal can therefore retain access to an old
+test HSM until the test resource group's expiry and successful background cleanup
+if test teardown did not remove it. Expiry alone does not revoke access.
+
+The test framework tags resource groups with `e2e.aro-hcp-ci.redhat.com=true`
+and `deleteAfter.aro-hcp-ci.redhat.com`. Periodic expired-resource-group cleanup
+selects these groups; its `no-rp` workflow deletes the resource group and then
+attempts to purge its soft-deleted Key Vaults and Managed HSMs. HSM purge is
+best-effort. Failed resource group deletions remain discoverable by later scans,
+but a failed purge after successful resource group deletion is not retried by
+the expired-resource-group scan because that group no longer exists.
+
+Resource group deletion and permanent HSM purge are distinct: Azure soft-delete
+retention and purge protection apply, so cleanup does not guarantee immediate
+permanent erasure. See [CI cleanup](cleanup.md) and
+[Managed HSM soft delete](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/soft-delete-overview).
+The ARM orphan-role sweeper handles assignments whose Graph principals no longer
+exist; it does not clean up HSM-local grants to live persistent mock principals.

@@ -40,14 +40,14 @@ import (
 const RunCostTagKey = "jobID.aro-hcp-ci.redhat.com"
 
 type Inputs struct {
+	MockIdentityBundle           string
+	MockIdentityBundleProvided   bool
 	DeployEnvironment            string
 	BuildID                      string
 	RunCostTagValue              string
 	CIRPAllowedSource            string
 	Images                       map[string]string
 	OCLoginRegistries            string
-	MSIMockLease                 string
-	ARMHelperLeases              []string
 	MSIContainers                string
 	InfrastructureIdentityBundle string
 	// RawOverrides are applied last, over everything else, to the document root.
@@ -55,8 +55,6 @@ type Inputs struct {
 }
 
 type Paths struct {
-	MSIMockCatalog    string
-	ARMHelperCatalog  string
 	HypershiftOverlay string
 }
 
@@ -94,12 +92,11 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 	for _, entry := range environ {
 		name, value, _ := strings.Cut(entry, "=")
 		switch name {
+		case leaseenv.MockIdentityBundle:
+			input.MockIdentityBundle = value
+			input.MockIdentityBundleProvided = true
 		case leaseenv.DeployEnvironment:
 			input.DeployEnvironment = value
-		case leaseenv.MSIMockSP:
-			input.MSIMockLease = value
-		case leaseenv.ARMHelperSP:
-			input.ARMHelperLeases = strings.Fields(value)
 		case leaseenv.MSIContainers:
 			input.MSIContainers = value
 		case leaseenv.InfrastructureIdentityBundle:
@@ -181,7 +178,7 @@ func applyImageOverrides(defaults map[string]interface{}, images map[string]stri
 	return registries, nil
 }
 
-// Generate validates inputs and reads only the catalogs needed for selected leases.
+// Generate validates inputs and builds the configuration override.
 // It does not write files or modify the process environment.
 func Generate(input Inputs, paths Paths) (Result, error) {
 	if err := validateImageKeys(input.Images); err != nil {
@@ -189,9 +186,6 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	}
 	if input.DeployEnvironment == "" {
 		return Result{}, errors.New("deployment environment must not be empty")
-	}
-	if len(input.ARMHelperLeases) > 2 {
-		return Result{}, fmt.Errorf("%s must contain at most two lease names, got %d", leaseenv.ARMHelperSP, len(input.ARMHelperLeases))
 	}
 	if input.CIRPAllowedSource != "" {
 		if _, err := publicip.ParseIPv4(input.CIRPAllowedSource); err != nil {
@@ -212,40 +206,19 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		return Result{}, err
 	}
 
-	if input.MSIMockLease != "" {
-		entries, err := readPool(paths.MSIMockCatalog, "miMockPool")
+	hasMockBundle := input.MockIdentityBundleProvided || input.MockIdentityBundle != ""
+	if hasMockBundle {
+		bundle, err := leaseenv.ParseMockIdentityBundle(input.MockIdentityBundle)
 		if err != nil {
 			return Result{}, err
 		}
-		principal, err := selectPrincipal(entries, input.MSIMockLease, paths.MSIMockCatalog)
-		if err != nil {
-			return Result{}, err
-		}
-		defaults["miMockClientId"] = principal.clientID
-		defaults["miMockPrincipalId"] = principal.principalID
-		defaults["miMockCertName"] = principal.certName
-	}
-	if len(input.ARMHelperLeases) > 0 {
-		entries, err := readPool(paths.ARMHelperCatalog, "armHelperPool")
-		if err != nil {
-			return Result{}, err
-		}
-		backend, err := selectPrincipal(entries, input.ARMHelperLeases[0], paths.ARMHelperCatalog)
-		if err != nil {
-			return Result{}, err
-		}
-		clustersService := backend
-		if len(input.ARMHelperLeases) == 2 {
-			clustersService, err = selectPrincipal(entries, input.ARMHelperLeases[1], paths.ARMHelperCatalog)
-			if err != nil {
-				return Result{}, err
-			}
-		}
-		defaults["armHelperClientId"] = backend.clientID
-		defaults["armHelperCertName"] = backend.certName
-		defaults["clustersServiceArmHelperClientId"] = clustersService.clientID
-		defaults["clustersServiceArmHelperCertName"] = clustersService.certName
-		// The FPA principal is not the ARM helper's authentication principal.
+		defaults["miMockClientId"] = bundle.MSI.ClientID
+		defaults["miMockPrincipalId"] = bundle.MSI.PrincipalID
+		defaults["miMockCertName"] = bundle.MSI.CertificateName
+		defaults["armHelperClientId"] = bundle.Backend.ClientID
+		defaults["armHelperCertName"] = bundle.Backend.CertificateName
+		defaults["clustersServiceArmHelperClientId"] = bundle.ClustersService.ClientID
+		defaults["clustersServiceArmHelperCertName"] = bundle.ClustersService.CertificateName
 	}
 	if input.InfrastructureIdentityBundle != "" {
 		identities, err := infrastructureIdentities(input.InfrastructureIdentityBundle)
@@ -364,57 +337,6 @@ func decodeYAML(data []byte, out interface{}) error {
 		return errors.New("expected exactly one YAML document")
 	}
 	return nil
-}
-
-func readPool(path, pool string) (map[string]yaml.Node, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s catalog %q: %w", pool, path, err)
-	}
-	var catalog map[string]yaml.Node
-	if err := decodeYAML(data, &catalog); err != nil {
-		return nil, fmt.Errorf("parse %s catalog %q: %w", pool, path, err)
-	}
-	node, ok := catalog[pool]
-	if !ok || node.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("catalog %q requires a %s mapping", path, pool)
-	}
-	var entries map[string]yaml.Node
-	if err := node.Decode(&entries); err != nil {
-		return nil, fmt.Errorf("parse %s in catalog %q: %w", pool, path, err)
-	}
-	return entries, nil
-}
-
-type principal struct {
-	clientID, principalID, certName string
-}
-
-func selectPrincipal(entries map[string]yaml.Node, lease, path string) (principal, error) {
-	node, ok := entries[lease]
-	if !ok || node.Kind != yaml.MappingNode {
-		return principal{}, fmt.Errorf("lease %q not found or incomplete in catalog %q", lease, path)
-	}
-	var fields map[string]interface{}
-	if err := node.Decode(&fields); err != nil {
-		return principal{}, fmt.Errorf("lease %q in catalog %q: %w", lease, path, err)
-	}
-	result := principal{}
-	for _, field := range []struct {
-		name  string
-		value *string
-	}{
-		{"clientId", &result.clientID},
-		{"principalId", &result.principalID},
-		{"certName", &result.certName},
-	} {
-		value, ok := fields[field.name].(string)
-		if !ok || value == "" || value == "null" {
-			return principal{}, fmt.Errorf("lease %q in catalog %q requires nonempty string %s", lease, path, field.name)
-		}
-		*field.value = value
-	}
-	return result, nil
 }
 
 func infrastructureIdentities(payload string) (map[string]interface{}, error) {

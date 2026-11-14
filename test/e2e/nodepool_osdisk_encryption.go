@@ -114,7 +114,9 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(clusterAPIAzureMI.Properties.PrincipalID).NotTo(BeNil(), "cluster-api-azure managed identity has no principal ID")
 
 			By("creating disk encryption set backed by KeyVault")
-			desResourceID, err := tc.CreateDiskEncryptionSet(ctx, *resourceGroup.Name, clusterParams.KeyVaultName, customerClusterName, tc.Location(), *serviceMI.Properties.PrincipalID, *clusterAPIAzureMI.Properties.PrincipalID, framework.MIMockPrincipalID())
+			miMockPrincipalID, err := framework.MIMockPrincipalID()
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve MSI mock principal for disk encryption roles")
+			desResourceID, err := tc.CreateDiskEncryptionSet(ctx, *resourceGroup.Name, clusterParams.KeyVaultName, customerClusterName, tc.Location(), *serviceMI.Properties.PrincipalID, *clusterAPIAzureMI.Properties.PrincipalID, miMockPrincipalID)
 			Expect(err).NotTo(HaveOccurred(), "failed to create disk encryption set")
 
 			By("creating the HCP cluster")
