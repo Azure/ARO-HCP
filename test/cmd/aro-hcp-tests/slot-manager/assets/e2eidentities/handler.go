@@ -35,10 +35,11 @@ import (
 )
 
 type Handler struct {
-	poolDependencies func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
-	newPoolClients   func(subscriptionID string, credential azcore.TokenCredential) (poolClients, error)
-	newAdmitClients  func(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error)
-	cleanupWorkers   int
+	poolDependencies  func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
+	newPoolClients    func(subscriptionID string, credential azcore.TokenCredential) (poolClients, error)
+	newAdmitClients   func(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error)
+	cleanupWorkers    int
+	minimumContainers int
 }
 
 type Option func(*Handler)
@@ -70,10 +71,13 @@ func WithAdmitClients(fn func(string, azcore.TokenCredential) (*admitClients, er
 	return func(h *Handler) { h.newAdmitClients = fn }
 }
 
+// AttachOptions registers identity admission capacity and cleanup concurrency options.
 func (h *Handler) AttachOptions(flags *pflag.FlagSet) {
 	flags.Var(&azureutil.PositiveInt{Target: &h.cleanupWorkers, Default: defaultCleanupWorkers}, "cleanup-workers",
 		"Maximum concurrent role assignment deletes during admission (at least 1). "+
 			"ARM throttles deletes per subscription and service principal, so raise it only where few slots admit concurrently.")
+	flags.Var(&azureutil.PositiveInt{Target: &h.minimumContainers}, "minimum-containers",
+		"Minimum identity containers required for admission (at least 1 when set; defaults to the full slot capacity).")
 }
 
 func (h *Handler) Kind() assets.Kind {
@@ -144,7 +148,11 @@ func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) 
 	return credential, pools, nil
 }
 
+// AdmitLease applies the configured capacity before filtering consumers and cleaning admitted identities.
 func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
+	if h.minimumContainers > 0 {
+		request.MinimumIdentityContainers = h.minimumContainers
+	}
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -156,8 +164,22 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitIdentityLeaseWithClients(ctx, request, clients, h.cleanupWorkers)
 }
 
+// PublishLease exports the admitted identity subset and guard policy to test consumers.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
-	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
+	if request.AcquiredSlotState == nil {
+		return fmt.Errorf("acquired slot state is nil")
+	}
+	containers := request.AcquiredSlotState.AdmittedIdentityContainers
+	if len(containers) == 0 {
+		return fmt.Errorf("E2E identity lease has no admitted containers")
+	}
+	mode, err := framework.IdentityConsumerGuardMode(request.IdentityConsumerGuardMode)
+	if err != nil {
+		return err
+	}
+	if err := contract.Add(string(h.Kind()), leaseenv.IdentityConsumerGuardMode, mode); err != nil {
+		return err
+	}
 	return contract.Add(string(h.Kind()), leaseenv.MSIContainers, strings.Join(containers, " "))
 }
 
