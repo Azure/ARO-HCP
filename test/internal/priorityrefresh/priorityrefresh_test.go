@@ -1090,3 +1090,24 @@ func TestRestoreRejectsSymlinkedParent(t *testing.T) {
 		t.Fatalf("rollback wrote outside the checkout: %q %v", got, readErr)
 	}
 }
+
+func TestPlanRejectsStaleZeroPresence(t *testing.T) {
+	// The catalog records an explicit zero label, but the decorator is gone.
+	repo := testRepo(t, map[string]string{"test/e2e/missing-zero.go": strings.Replace(explicitZeroSource,
+		"\t\tlabels.StartPriority(0),\n", "", 1)})
+	name := "zero should drop an explicit zero"
+	line := itoa(lineOf(t, repo, "test/e2e/missing-zero.go", "should drop an explicit zero"))
+	spec := catalogSpec(name, 0, "test/e2e/missing-zero.go:"+line)
+	spec.Labels.Insert(labels.StartPriorityLabelPrefix + "0")
+	before := mustRead(t, repo, "test/e2e/missing-zero.go")
+	changes, err := Plan(repo, et.ExtensionTestSpecs{spec}, testReport(scoredRow(name, "id", 0, 1)))
+	if err == nil || !strings.Contains(err.Error(), "stale mapping") {
+		t.Fatalf("error = %v, want a stale mapping rejection", err)
+	}
+	if changes.Len() != 0 {
+		t.Fatalf("planned %d changes", changes.Len())
+	}
+	if after := mustRead(t, repo, "test/e2e/missing-zero.go"); after != before {
+		t.Fatal("a rejected stale mapping modified the source")
+	}
+}

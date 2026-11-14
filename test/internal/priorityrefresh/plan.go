@@ -247,9 +247,12 @@ func newPlanner(repo string, catalog et.ExtensionTestSpecs, report citests.Prior
 		if err != nil {
 			return nil, fmt.Errorf("map %q: %w", change.Name, err)
 		}
-		if call.value != change.OldPriority {
-			return nil, fmt.Errorf("stale mapping for %q: catalog declares priority %d but %s:%d declares %d; regenerate the catalog",
-				change.Name, change.OldPriority, call.file.relPath, call.file.fset.Position(callPos(call)).Line, call.value)
+		// A numeric comparison alone cannot tell an absent decorator from an
+		// explicit StartPriority(0), so the declaration must agree on presence.
+		declared := declaresPriority(planner.catalog[change.Name])
+		if call.value != change.OldPriority || (call.node != nil) != declared {
+			return nil, fmt.Errorf("stale mapping for %q: catalog declares priority %d (label present: %t) but %s:%d declares %d (decorator present: %t); regenerate the catalog",
+				change.Name, change.OldPriority, declared, call.file.relPath, call.file.fset.Position(callPos(call)).Line, call.value, call.node != nil)
 		}
 		change.Path = call.file.relPath
 		change.Line = call.file.fset.Position(callPos(call)).Line
