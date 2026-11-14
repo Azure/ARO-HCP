@@ -18,7 +18,7 @@ for workflow in "${workflows[@]}"; do
   # behind a long run of cancelled or skipped runs.
   runs=$(gh api --paginate --slurp \
     "repos/$REPO/actions/workflows/$workflow/runs?status=completed&per_page=100")
-  picked=$(jq -c '[.[][]] | map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | .[0] // empty' <<<"$runs")
+  picked=$(jq -c '[.[] | .workflow_runs[]] | map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | .[0] // empty' <<<"$runs")
   if [ -z "$picked" ]; then
     # No run ever produced a result: its state is unknown, so do not close.
     unknown=1
