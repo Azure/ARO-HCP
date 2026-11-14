@@ -1308,3 +1308,15 @@ func TestPlanRejectsShadowedImportRemoval(t *testing.T) {
 		t.Fatal("a rejected shadowed-import removal modified the source")
 	}
 }
+
+func TestPlanRejectsOutOfRangeLiteral(t *testing.T) {
+	source := strings.Replace(standaloneSource, "labels.StartPriority(40)", "labels.StartPriority(4294967336)", 1)
+	repo := testRepo(t, map[string]string{"test/e2e/range.go": source})
+	name := "suite should replace an existing priority"
+	line := itoa(lineOf(t, repo, "test/e2e/range.go", "should replace an existing priority"))
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/range.go:"+line)}
+	if _, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60))); err == nil ||
+		!strings.Contains(err.Error(), "outside 0..") {
+		t.Fatalf("error = %v, want an out-of-range rejection", err)
+	}
+}

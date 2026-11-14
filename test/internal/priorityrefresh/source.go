@@ -427,11 +427,12 @@ func priorityLiteral(expression ast.Expr) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("StartPriority argument %q is not an integer: %w", literal.Value, err)
 	}
-	value := int(value64)
-	if value < 0 || value > labels.StartPriorityMax {
-		return 0, fmt.Errorf("StartPriority argument %d is outside 0..%d", value, labels.StartPriorityMax)
+	// Bounds are checked in int64 before narrowing, so the conversion cannot
+	// truncate an out-of-range literal into a valid-looking priority.
+	if value64 < 0 || value64 > int64(labels.StartPriorityMax) {
+		return 0, fmt.Errorf("StartPriority argument %d is outside 0..%d", value64, labels.StartPriorityMax)
 	}
-	return value, nil
+	return int(value64), nil
 }
 
 // enclosingTable returns the nearest enclosing DescribeTable call, if any.
