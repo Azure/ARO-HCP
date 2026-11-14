@@ -435,17 +435,6 @@ func priorityLiteral(expression ast.Expr) (int, error) {
 	return int(value64), nil
 }
 
-// enclosingTable returns the nearest enclosing DescribeTable call, if any.
-func (f *fileContext) enclosingTable(node ast.Node) *ast.CallExpr {
-	for current := f.parents[node]; current != nil; current = f.parents[current] {
-		call, ok := current.(*ast.CallExpr)
-		if ok && callName(call) == "DescribeTable" {
-			return call
-		}
-	}
-	return nil
-}
-
 // resolve builds the source form for one leaf call and its effective priority.
 // A leaf and its containers all contribute labels, so a declaration that carries
 // StartPriority while an enclosing container also carries one is rejected rather

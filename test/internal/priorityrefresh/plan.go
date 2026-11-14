@@ -191,7 +191,8 @@ func classifyReport(catalog map[string]*et.ExtensionTestSpec, report citests.Pri
 		}
 		// An explicit StartPriority:0 label is a declaration the zero proposal
 		// must remove, while an absent label already matches a zero proposal.
-		if current == *row.ProposedPriority && !(current == 0 && declaresPriority(spec)) {
+		explicitZero := current == 0 && declaresPriority(spec)
+		if current == *row.ProposedPriority && !explicitZero {
 			unchanged = append(unchanged, row.Name)
 			continue
 		}
