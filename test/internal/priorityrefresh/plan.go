@@ -272,7 +272,38 @@ func newPlanner(repo string, catalog et.ExtensionTestSpecs, report citests.Prior
 		call.file.edits = append(call.file.edits, edit)
 		planner.changes = append(planner.changes, change)
 	}
+	if err := planner.validateUnchanged(); err != nil {
+		return nil, err
+	}
 	return planner, nil
+}
+
+// validateUnchanged checks every unchanged scored row whose declaration still
+// resolves, so a stale source cannot be reported as unchanged while other files
+// are written. An unmappable unchanged row stays reported: it plans no edit.
+func (p *planner) validateUnchanged() error {
+	for _, name := range p.unchanged {
+		spec, ok := p.catalog[name]
+		if !ok {
+			continue
+		}
+		call, err := p.resolveSpec(name)
+		if err != nil {
+			continue
+		}
+		declared := declaresPriority(spec)
+		if call.value != specPriorityValue(spec) || (call.node != nil) != declared {
+			return fmt.Errorf("stale mapping for %q: catalog declares priority %d (label present: %t) but %s:%d declares %d (decorator present: %t); regenerate the catalog",
+				name, specPriorityValue(spec), declared, call.file.relPath, call.file.fset.Position(callPos(call)).Line, call.value, call.node != nil)
+		}
+	}
+	return nil
+}
+
+// specPriorityValue returns the catalog priority of a validated spec.
+func specPriorityValue(spec *et.ExtensionTestSpec) int {
+	priority, _ := specPriority(spec)
+	return priority
 }
 
 // editTarget identifies the exact source position a plan writes to.

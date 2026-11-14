@@ -1221,3 +1221,28 @@ func TestCatalogRejectsNullEntries(t *testing.T) {
 		t.Fatalf("Verify error = %v, want a null-entry rejection", err)
 	}
 }
+
+func TestPlanRejectsStaleUnchangedRow(t *testing.T) {
+	// The catalog records 50, the declaration says 40, and the proposal repeats
+	// the catalog value, so the row is unchanged while the mapping is stale.
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	name := "suite should replace an existing priority"
+	line := itoa(lineOf(t, repo, "test/e2e/standalone.go", "should replace an existing priority"))
+	before := mustRead(t, repo, "test/e2e/standalone.go")
+	other := "suite should add a missing priority"
+	otherLine := itoa(lineOf(t, repo, "test/e2e/standalone.go", "should add a missing priority"))
+	catalog := et.ExtensionTestSpecs{
+		catalogSpec(name, 50, "test/e2e/standalone.go:"+line),
+		catalogSpec(other, 0, "test/e2e/standalone.go:"+otherLine),
+	}
+	_, err := Plan(repo, catalog, testReport(
+		scoredRow(name, "id-1", 50, 30),
+		scoredRow(other, "id-2", 20, 18),
+	))
+	if err == nil || !strings.Contains(err.Error(), "stale mapping") {
+		t.Fatalf("error = %v, want a stale mapping rejection", err)
+	}
+	if after := mustRead(t, repo, "test/e2e/standalone.go"); after != before {
+		t.Fatal("a rejected stale mapping modified the source")
+	}
+}
