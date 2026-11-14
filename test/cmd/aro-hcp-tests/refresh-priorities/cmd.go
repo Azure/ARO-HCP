@@ -210,6 +210,7 @@ func writeTable(out io.Writer, summary priorityrefresh.Summary, withPaths bool) 
 	for _, name := range summary.Unmatched {
 		fmt.Fprintf(writer, "  retired or unknown\t%s\n", name)
 	}
-	fmt.Fprintf(writer, "Reported rows\t%s\n", strconv.Itoa(len(summary.Changes)+len(summary.Unchanged)+len(summary.Insufficient)))
+	reported := len(summary.Changes) + len(summary.Unchanged) + len(summary.Insufficient) + len(summary.Unmatched)
+	fmt.Fprintf(writer, "Reported rows\t%s\n", strconv.Itoa(reported))
 	return writer.Flush()
 }

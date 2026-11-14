@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/test/internal/priorityrefresh"
 )
 
 // run executes the command with the given arguments and returns stdout and stderr.
@@ -185,5 +187,19 @@ func TestVerifyRejectsInvalidInputDocuments(t *testing.T) {
 	unknown := writeFile(t, "unknown.json", strings.Replace(reportDocument(t, 90), `"schema_version"`, `"unexpected": 1, "schema_version"`, 1))
 	if _, _, err := run(t, "--report", unknown, "--catalog", before, "--verify-catalog", before); err == nil {
 		t.Fatal("accepted an unknown report field")
+	}
+}
+
+func TestTableCountsUnmatchedReportRows(t *testing.T) {
+	var output bytes.Buffer
+	if err := writeTable(&output, priorityrefresh.Summary{
+		Unchanged:    []string{"suite unchanged"},
+		Insufficient: []string{"suite sparse"},
+		Unmatched:    []string{"suite retired"},
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(strings.Fields(output.String()), " "), "Reported rows 3") {
+		t.Fatalf("reported rows exclude unmatched entries:\n%s", output.String())
 	}
 }
