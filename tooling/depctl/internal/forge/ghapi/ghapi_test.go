@@ -58,7 +58,7 @@ func TestSnapshotCollectsEveryCollectionAndFiltersHolds(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		switch request.URL.Path {
 		case "/repos/owner/repo/pulls/7":
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},
 				"head":{"sha":"h1","ref":"branch","repo":{"full_name":"owner/repo"}},
 				"base":{"ref":"main","repo":{"full_name":"owner/repo"}},"labels":[{"name":"dependencies"}]}`)
 		case "/repos/owner/repo/pulls/7/commits":
@@ -117,7 +117,7 @@ func TestSnapshotRefusesAMovedHead(t *testing.T) {
 		switch {
 		case request.URL.Path == "/repos/owner/repo/pulls/7":
 			pullReads++
-			fmt.Fprintf(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[],
+			fmt.Fprintf(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"h%d"},"base":{"ref":"main"}}`, pullReads)
 		case strings.HasSuffix(request.URL.Path, "/commits"),
 			strings.HasSuffix(request.URL.Path, "/comments"),
@@ -147,7 +147,7 @@ func TestSnapshotRefusesAHeadThatMovedMidRead(t *testing.T) {
 			if pullReads > 1 {
 				head = "h2"
 			}
-			fmt.Fprintf(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[],
+			fmt.Fprintf(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"%s"},"base":{"ref":"main"}}`, head)
 		case strings.HasSuffix(request.URL.Path, "/commits"),
 			strings.HasSuffix(request.URL.Path, "/comments"),
@@ -175,7 +175,7 @@ func TestOpenPullRequestsSkipsIssuesAndDuplicates(t *testing.T) {
 				{"number":8,"state":"open","title":"t","body":"","labels":[],"user":{"login":"bot"}},
 				{"number":9,"state":"open","title":"t","body":"","labels":[],"user":{"login":"someone"}}]`)
 		case "/repos/owner/repo/pulls/7":
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[],
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"h1"},"base":{"ref":"main"}}`)
 		default:
 			http.NotFound(writer, request)
@@ -192,13 +192,13 @@ func TestOpenPullRequestsSkipsIssuesAndDuplicates(t *testing.T) {
 
 func TestPullRequestRejectsIncompleteDetails(t *testing.T) {
 	cases := map[string]string{
-		"missing base":     `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[]}`,
-		"missing base ref": `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[],"base":{}}`,
-		"missing user":     `{"number":7,"state":"open","title":"t","labels":[],"base":{"ref":"main"}}`,
+		"missing base":     `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[]}`,
+		"missing base ref": `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[],"base":{}}`,
+		"missing user":     `{"number":7,"state":"open","draft":false,"title":"t","labels":[],"base":{"ref":"main"}}`,
 		"missing state":    `{"number":7,"title":"t","body":"","user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`,
-		"missing title":    `{"number":7,"state":"open","user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`,
-		"missing labels":   `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"base":{"ref":"main"}}`,
-		"missing body":     `{"number":7,"state":"open","title":"t","user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`,
+		"missing title":    `{"number":7,"state":"open","draft":false,"user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`,
+		"missing labels":   `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"base":{"ref":"main"}}`,
+		"missing body":     `{"number":7,"state":"open","draft":false,"title":"t","user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestPullRequestAcceptsANullBody(t *testing.T) {
 	reader := newTestReader(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		if request.URL.Path == "/repos/owner/repo/pulls/7" {
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"t","body":null,"user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`)
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":null,"user":{"login":"bot"},"labels":[],"base":{"ref":"main"}}`)
 			return
 		}
 		http.NotFound(writer, request)
@@ -327,7 +327,7 @@ func TestOpenPullRequestsKeepsMarkerMatchesBeforeFetchingDetails(t *testing.T) {
 			// prefilter must keep it so the detail can be read.
 			fmt.Fprint(writer, `[{"number":7,"state":"open","title":"chore(tools): bump yq","body":"<!-- agentic-tool-family: mikefarah/yq -->","labels":[],"user":{"login":"bot"},"pull_request":{"url":"u"}}]`)
 		case "/repos/owner/repo/pulls/7":
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"chore(tools): bump yq","body":"<!-- agentic-tool-family: mikefarah/yq -->","user":{"login":"bot"},"labels":[],
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"chore(tools): bump yq","body":"<!-- agentic-tool-family: mikefarah/yq -->","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"h1"},"base":{"ref":"main"}}`)
 		default:
 			http.NotFound(writer, request)
@@ -357,7 +357,7 @@ func TestOpenPullRequestsPrefiltersBeforeFetchingDetails(t *testing.T) {
 				{"number":8,"state":"open","title":"image update","body":"","labels":[],"user":{"login":"bot"},"pull_request":{"url":"u"}}]`)
 		case "/repos/owner/repo/pulls/7":
 			fetched[7] = true
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"bump","body":"","user":{"login":"bot"},"labels":[],
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"bump","body":"","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"h1"},"base":{"ref":"main"}}`)
 		case "/repos/owner/repo/pulls/8":
 			fetched[8] = true
@@ -422,7 +422,7 @@ func TestOpenPullRequestsListsAcrossPages(t *testing.T) {
 				http.Error(writer, "unexpected page", http.StatusBadRequest)
 			}
 		case "/repos/owner/repo/pulls/7":
-			fmt.Fprint(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},"labels":[],
+			fmt.Fprint(writer, `{"number":7,"state":"open","draft":false,"title":"t","body":"","user":{"login":"bot"},"labels":[],
 				"head":{"sha":"h1"},"base":{"ref":"main"}}`)
 		default:
 			http.NotFound(writer, request)
@@ -502,5 +502,20 @@ func TestNewRejectsMalformedRepository(t *testing.T) {
 		if _, err := New(repository); err == nil {
 			t.Fatalf("New(%q) accepted a malformed repository", repository)
 		}
+	}
+}
+
+func TestPullRequestRejectsMissingDraft(t *testing.T) {
+	reader := newTestReader(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		if request.URL.Path != "/repos/owner/repo/pulls/7" {
+			http.NotFound(writer, request)
+			return
+		}
+		fmt.Fprint(writer, `{"number":7,"state":"open","title":"t","body":"","user":{"login":"bot"},
+			"labels":[],"head":{"sha":"h"},"base":{"ref":"main","repo":{"full_name":"owner/repo"}}}`)
+	}))
+	if _, err := reader.PullRequest(context.Background(), 7); !errors.Is(err, forge.ErrEvidenceIncomplete) {
+		t.Fatalf("PullRequest() error = %v, want ErrEvidenceIncomplete", err)
 	}
 }

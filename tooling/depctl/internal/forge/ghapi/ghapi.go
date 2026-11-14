@@ -140,7 +140,7 @@ func (r *Reader) PullRequest(ctx context.Context, number int) (forge.PullRequest
 		pull.User == nil || pull.GetUser().GetLogin() == "" ||
 		pull.State == nil || (pull.GetState() != "open" && pull.GetState() != "closed") ||
 		pull.Base == nil || pull.Base.Ref == nil || pull.GetBase().GetRef() == "" ||
-		pull.Title == nil || pull.Labels == nil {
+		pull.Title == nil || pull.Labels == nil || pull.Draft == nil {
 		return forge.PullRequest{}, fmt.Errorf("%w: pull request #%d metadata is incomplete",
 			forge.ErrEvidenceIncomplete, number)
 	}

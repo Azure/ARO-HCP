@@ -37,7 +37,8 @@ func IsSecurityProposal(pull PullRequest) bool {
 	if !strings.HasPrefix(pull.Title, SecurityTitlePrefix) {
 		return false
 	}
-	for _, line := range strings.Split(pull.Body, "\n") {
+	body := strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(pull.Body)
+	for _, line := range strings.Split(body, "\n") {
 		if line == SecurityWorkflowMarker {
 			return true
 		}
