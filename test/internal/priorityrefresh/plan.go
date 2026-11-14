@@ -148,6 +148,9 @@ func Expected(catalog et.ExtensionTestSpecs, report citests.PriorityReport) (Cha
 	if err := validateReport(report); err != nil {
 		return ChangeSet{}, err
 	}
+	if err := ensureCatalogEntries(catalog); err != nil {
+		return ChangeSet{}, err
+	}
 	specs := make(map[string]*et.ExtensionTestSpec, len(catalog))
 	for _, spec := range catalog {
 		if _, exists := specs[spec.Name]; exists {
@@ -218,6 +221,9 @@ func newPlanner(repo string, catalog et.ExtensionTestSpecs, report citests.Prior
 		resolved:   map[string]*sourceCall{},
 		resolveErr: map[string]error{},
 		locations:  map[string][]string{},
+	}
+	if err := ensureCatalogEntries(catalog); err != nil {
+		return nil, err
 	}
 	for _, spec := range catalog {
 		if _, exists := planner.catalog[spec.Name]; exists {
@@ -293,6 +299,17 @@ func callPos(call *sourceCall) token.Pos {
 		return call.node.Pos()
 	}
 	return call.leaf.Pos()
+}
+
+// ensureCatalogEntries rejects catalogs with null entries, which would
+// otherwise dereference a nil spec while planning or verifying.
+func ensureCatalogEntries(catalog et.ExtensionTestSpecs) error {
+	for index, spec := range catalog {
+		if spec == nil {
+			return fmt.Errorf("catalog entry %d is null", index)
+		}
+	}
+	return nil
 }
 
 // validateReport rejects reports this consumer cannot act on.

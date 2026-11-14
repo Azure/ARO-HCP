@@ -188,6 +188,11 @@ func TestVerifyRejectsInvalidInputDocuments(t *testing.T) {
 	if _, _, err := run(t, "--report", unknown, "--catalog", before, "--verify-catalog", before); err == nil {
 		t.Fatal("accepted an unknown report field")
 	}
+	nullEntry := writeFile(t, "null.json", "[null]\n")
+	if _, _, err := run(t, "--report", report, "--catalog", nullEntry, "--verify-catalog", before); err == nil ||
+		!strings.Contains(err.Error(), "null") {
+		t.Fatalf("null catalog entry error = %v", err)
+	}
 }
 
 func TestTableCountsUnmatchedReportRows(t *testing.T) {

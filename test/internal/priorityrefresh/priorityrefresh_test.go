@@ -1202,3 +1202,22 @@ func TestPlanRejectsRemovalThatOrphansTheImport(t *testing.T) {
 		t.Fatalf("removal did not preserve the remaining decorator:\n%s", after)
 	}
 }
+
+func TestCatalogRejectsNullEntries(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	catalog := et.ExtensionTestSpecs{nil, catalogSpec("suite should replace an existing priority", 40)}
+	report := testReport(scoredRow("suite should replace an existing priority", "id", 90, 60))
+	if _, err := Plan(repo, catalog, report); err == nil || !strings.Contains(err.Error(), "null") {
+		t.Fatalf("Plan error = %v, want a null-entry rejection", err)
+	}
+	if _, err := Expected(catalog, report); err == nil || !strings.Contains(err.Error(), "null") {
+		t.Fatalf("Expected error = %v, want a null-entry rejection", err)
+	}
+	changes, err := Expected(et.ExtensionTestSpecs{catalogSpec("suite should replace an existing priority", 40)}, report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(catalog, catalog, changes); err == nil || !strings.Contains(err.Error(), "null") {
+		t.Fatalf("Verify error = %v, want a null-entry rejection", err)
+	}
+}

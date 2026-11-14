@@ -129,6 +129,12 @@ func restore(repo string, replaced []writtenFile, cause error) error {
 // Verify compares the rebuilt catalog against the plan without consulting the
 // already-modified sources: only the catalog and the proposal are authoritative.
 func Verify(before, after et.ExtensionTestSpecs, changes ChangeSet) error {
+	if err := ensureCatalogEntries(before); err != nil {
+		return err
+	}
+	if err := ensureCatalogEntries(after); err != nil {
+		return err
+	}
 	expected := make(map[string]int, len(before))
 	beforeLabels := make(map[string]map[string]struct{}, len(before))
 	expectedPriorities := make(map[string]map[string]struct{}, len(before))
