@@ -83,6 +83,28 @@ kube-prometheus-stack:
         - action: replace
           replacement: service
           targetLabel: microsoft_metrics_include_label
+        # Route the velero.io KSM metrics to the HCP Azure Monitor Workspace for
+        # consistency with the server-side velero_hcp_* metrics and so they can be
+        # correlated on cluster+schedule.
+        metricRelabelings:
+        - action: replace
+          sourceLabels: [customresource_group, customresource_kind, name]
+          separator: ;
+          regex: 'velero\.io;Schedule;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          targetLabel: namespace
+          replacement: '${1}'
+        - action: replace
+          sourceLabels: [customresource_group, customresource_kind, name]
+          separator: ;
+          regex: 'velero\.io;Backup;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          targetLabel: namespace
+          replacement: '${1}'
+        - action: replace
+          sourceLabels: [customresource_group, customresource_kind, backupName]
+          separator: ;
+          regex: 'velero\.io;DeleteBackupRequest;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          targetLabel: namespace
+          replacement: '${1}'
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
@@ -97,6 +119,9 @@ kube-prometheus-stack:
         verbs: ["list", "watch"]
       - apiGroups: ["velero.io"]
         resources: ["deletebackuprequests"]
+        verbs: ["list", "watch"]
+      - apiGroups: ["velero.io"]
+        resources: ["schedules"]
         verbs: ["list", "watch"]
       - apiGroups: ["cluster.x-k8s.io"]
         resources: ["machines"]
@@ -192,6 +217,7 @@ kube-prometheus-stack:
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
+                    schedule: [metadata, labels, "velero.io/schedule-name"]
           - groupVersionKind:
               group: velero.io
               kind: "DeleteBackupRequest"
@@ -220,6 +246,40 @@ kube-prometheus-stack:
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
+          - groupVersionKind:
+              group: velero.io
+              kind: "Schedule"
+              version: "v1"
+            metricNamePrefix: veleroSchedule
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              schedule: [metadata, name]
+            metrics:
+            - name: "phase"
+              help: "Schedule phase"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, phase]
+                  labelName: phase
+                  list: ["New", "Enabled", "FailedValidation"]
+            - name: "info"
+              help: "Schedule CR presence indicator - one row per existing Schedule"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [metadata, name]
+                    namespace: [metadata, namespace]
+                    schedule: [metadata, name]
+            - name: "paused"
+              help: "1 when Schedule.spec.paused is true, 0 otherwise"
+              each:
+                type: Gauge
+                gauge:
+                  path: [spec, paused]
+                  nilIsZero: true
           # CAPI Machines for the hosted clusters live in the hosted control plane
           # namespaces (ocm-*) on this management cluster, so these metrics are routed
           # to the HCP Azure Monitor Workspace by the remoteWrite rules in
