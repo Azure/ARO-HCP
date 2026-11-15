@@ -336,9 +336,14 @@ tests:
 # Test 6: Latency fast burn — 50% of checks exceed 200ms
 # ========================================
 # le="200.0" increases at half the rate of le="+inf" → ratio 0.5, error_rate
-# 0.5. 5 instances x 2 checks/min combined so every volume floor (short and
-# long window alike) is met almost immediately. 50% > 7.2% (fast) and > 3%
-# (medium).
+# 0.5. 5 instances x 2 checks/min combined (10/min). The fast tier's floors
+# (total_5m >= 3, total_1h >= 10) clear almost immediately at that rate. The
+# medium tier's raised total_6h >= 300 floor does not: at 10/min it isn't
+# reached until t=30m, so the alert only starts its for:30m pending count
+# from there, firing at t=60m (tested at 65m for margin) -- not because the
+# error rate is marginal (50% is nowhere near the 3% threshold here) but
+# simply because that's how long it takes this volume of traffic to
+# accumulate 300 real samples.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
@@ -395,7 +400,7 @@ tests:
           Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
-  - eval_time: 40m
+  - eval_time: 65m
     alertname: userJourneyIngressLatencyP99Errors6h30m
     exp_alerts:
     - exp_labels:
@@ -605,3 +610,89 @@ tests:
   # still ~90% failed -- the alert must NOT be firing.
   - eval_time: 60m
     alertname: userJourneyIngressAvailabilityErrors1h5m
+# ========================================
+# Test 13: Medium latency tier must not fire on a one-off blip in a thin
+# early window
+# ========================================
+# Rate 2/min, with exactly 2 slow checks occurring in the first minute and
+# none since (le="200.0" permanently lags le="+inf" by 2 from t=1 onward).
+# At t=16m: total_6h = total_30m = 32 (only 16 minutes of history exist yet,
+# same data in both windows), error_rate = 2/32 = 6.25% > 3%. The raised
+# total_6h >= 300 floor (ARO-30462 follow-up aside, see the alert group's
+# header comment for the full rationale) is nowhere near met at 32, so the
+# alert must stay silent even though the naive ratio clears the threshold --
+# this is exactly the kind of early/thin-window false positive that made
+# this tier fire 100 times in a week in production.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="+inf"}'
+    values: "0+2x200"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="200.0"}'
+    values: "0 0 2+2x198"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-medium", namespace="clusters-lat-thin-medium", _id="lat-thin-medium", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-medium"}'
+    values: "1+0x200"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_6h
+    eval_time: 16m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
+      value: 32
+  - expr: errors:ingress_canary_latency:error_rate_6h
+    eval_time: 16m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
+      value: 0.0625
+  # The alert's own long-window gate -- copied verbatim from
+  # userJourneyIngressLatencyP99Errors6h30m's expr -- must be empty despite
+  # error_rate_6h clearing 0.030 above, because total_6h (32) does not clear
+  # the raised floor (300). Checking the gate directly (rather than the
+  # alert's firing state, which also depends on `for:` and would stay
+  # pending here regardless of the floor) isolates exactly what this fix
+  # changed.
+  - expr: |
+      errors:ingress_canary_latency:total_6h >= 300
+      and
+      errors:ingress_canary_latency:error_rate_6h > 0.030
+    eval_time: 16m
+    exp_samples: []
+# ========================================
+# Test 14: Slow latency tier must not fire on a one-off blip in a thin
+# early 3d window
+# ========================================
+# Same construction as Test 13, scaled up: 2 slow checks in the first
+# minute, none since, rate 2/min. At t=150m the 6h window is still within
+# its own history span (150m < 360m), so total_6h = total_3d = 300 -- the
+# raised total_6h >= 300 short-window floor is (just barely) met, but the
+# raised total_3d >= 1000 long-window floor is nowhere close. error_rate =
+# 2/300 = 0.667% > 0.5%, so the old total_3d >= 60 floor would have let this
+# through; the new floor correctly waits for a real 3-day-scale sample.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
+    values: "0+2x200"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="200.0"}'
+    values: "0 0 2+2x198"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-slow", namespace="clusters-lat-thin-slow", _id="lat-thin-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-slow"}'
+    values: "1+0x200"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_3d
+    eval_time: 150m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
+      value: 300
+  - expr: errors:ingress_canary_latency:error_rate_3d
+    eval_time: 150m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
+      value: 0.006666666666666667
+  # The alert's own long-window gate -- copied verbatim from
+  # userJourneyIngressLatencyP99Errors3d6h's expr -- must be empty despite
+  # error_rate_3d clearing 0.005 above, because total_3d (300) does not
+  # clear the raised floor (1000). See Test 13's comment for why this checks
+  # the gate directly rather than the alert's firing state.
+  - expr: |
+      errors:ingress_canary_latency:total_3d >= 1000
+      and
+      errors:ingress_canary_latency:error_rate_3d > 0.005
+    eval_time: 150m
+    exp_samples: []

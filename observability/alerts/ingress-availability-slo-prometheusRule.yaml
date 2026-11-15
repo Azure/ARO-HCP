@@ -211,6 +211,28 @@ spec:
   # rationale. Same interim Sev 4 downgrade on the fast/medium tiers too,
   # same reasoning (ARO-30462): the canary can't distinguish a customer-caused
   # failure from a platform-caused one.
+  #
+  # The 6h and 3d floors are far higher than the availability group's
+  # equivalents (30/60 there vs 300/1000 here). A production alert-tester run
+  # found medium firing 100 times in a week in eastus2 and slow 45 times in
+  # uksouth -- both driven by the *long* window's floor, not the short one:
+  # at ~1 sample/min, a 6h window can hold ~360 samples and a 3d window
+  # ~4320, so floors of 30/60 only demand 8%/1.4% of the window's real
+  # capacity. At that little data, a single slow check is enough to clear
+  # both the floor and the 3%/0.5% threshold simultaneously (1/30 = 3.3%,
+  # 1/60 = 1.7%) -- the alert was judging a 6-hour or 3-day trend off of
+  # effectively one data point, most often early in the window's lifetime
+  # (right after a gap, a restart, or simply before 6h/3d of continuous
+  # history has accumulated) rather than off a genuinely elevated rate.
+  # Raising the floors to 300/1000 (~83%/23% of capacity) forces enough real
+  # history to accumulate first that one-off noise dilutes itself out before
+  # the alert ever evaluates; a floor this high is deliberately unreachable
+  # by a thin/early window, which is the intended effect. The 30m
+  # short-window floor is left unchanged: at that window size the long-window
+  # floor is what's actually load-bearing, since full 30-minute sampling
+  # already clears any floor under 30 anyway (so raising it would not change
+  # when the alert can fire, only how long it waits for data that was
+  # already there).
   - name: arohcp_ingress_latency_slo_alerts
     labels:
       component: slo
@@ -261,7 +283,7 @@ spec:
           )
           and
           (
-            errors:ingress_canary_latency:total_6h >= 30
+            errors:ingress_canary_latency:total_6h >= 300
             and
             errors:ingress_canary_latency:error_rate_6h > 0.030
           )
@@ -288,13 +310,13 @@ spec:
       expr: |
         (
           (
-            errors:ingress_canary_latency:total_6h >= 30
+            errors:ingress_canary_latency:total_6h >= 300
             and
             errors:ingress_canary_latency:error_rate_6h > 0.005
           )
           and
           (
-            errors:ingress_canary_latency:total_3d >= 60
+            errors:ingress_canary_latency:total_3d >= 1000
             and
             errors:ingress_canary_latency:error_rate_3d > 0.005
           )
