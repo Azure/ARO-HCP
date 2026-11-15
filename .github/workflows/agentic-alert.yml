@@ -1,5 +1,6 @@
 name: Agentic workflow failure alert
 on:
+  workflow_dispatch:
   workflow_run:
     workflows:
     - "Agentic CI and development tool updates"
