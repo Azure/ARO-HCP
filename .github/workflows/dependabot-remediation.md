@@ -594,6 +594,15 @@ Work on a fresh branch per group, off the default branch. For each group:
 4. Run `make vendor` after the workspace ritual and retain both generated trees: `vendor/` and `image-sync/oc-mirror/acrauth/vendor/`. Run `make verify-vendor` before publication. This applies to new proposals and repairs of existing PRs; stale vendor content is a reproducible failure, not a reason to retest.
 5. Validate the change builds and lints with the repository's targets (for example `make test-compile` and `make lint` if present). They must pass. Keep the diff dependency-only (see below).
 
+### Transitive alerts without a patched version
+
+Some alerts name an indirect package that no release ever patches, while a direct parent can stop importing it. Do this analysis before reporting such an alert as blocked:
+
+1. Run `go mod why -m <package>` in every affected module (with `GOWORK=off` as well when the workspace could hide the local chain) and record the full import chain from the module to the alerted package.
+2. Identify the direct parent that imports it. Determine whether a newer released parent version drops that import: inspect the candidate parent's module graph with `go mod download -json <parent>@<version>` and `go list -m -json all` in a scratch copy, or try the bump in a temporary worktree. Prefer the lowest parent version that removes the import.
+3. If a parent version removes it, treat the parent as the group family: bump the parent, then run the workspace ritual, vendor and CI gates from the steps above. Propose one dependency-only PR whose body lists every alert number it resolves and the removal evidence, namely that `go list -m all` in each affected module no longer resolves the vulnerable module. The proposal `package_family`, `target_version` and `manifests` describe the parent and its affected manifests.
+4. If no available parent version removes the import, report the alert as blocked with the chain and the parent versions you inspected.
+
 ### npm groups
 1. Apply the fix in the relevant `package.json` (use an `overrides` entry when the vulnerable package is transitive) and refresh the lockfile.
 2. Keep the change npm-only. Do **not** let a Go bump leak into an npm PR, and never mix the two ecosystems in one PR.
@@ -630,7 +639,10 @@ When reconciling an already-open PR (section 1b), sort each unresolved review co
 ## 6. If a group has no safe dependency-only remediation
 
 Do not report missing data solely because an alert has no published patched version
-or its only fix requires source or generated-code changes. These are known blockers,
+or its only fix requires source or generated-code changes. For a Go alert with no
+published patched version, first complete the transitive parent analysis in section 3
+and report the alert as blocked only when that analysis finds no parent version that
+removes the import. These are known blockers,
 not missing information. Do not open an unsafe dependency-only PR or repeatedly
 invoke missing-data for the same known condition.
 
