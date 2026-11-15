@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -1787,8 +1788,10 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 			t.Parallel()
 			fixture := operationtesting.NewClusterTestFixture()
 			tt.cluster.ID = fixture.ClusterResourceID
-			tt.cluster.ServiceProviderProperties.ClusterServiceID = &fixture.ClusterInternalID
-			controller := &clusterUpdateClusterServiceSpecCheck{clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}}}
+			provider := coreapitesting.ServiceProviderForCluster(tt.cluster, nil, &fixture.ClusterInternalID)
+			resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{provider})
+			require.NoError(t, err)
+			controller := &clusterUpdateClusterServiceSpecCheck{clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}}, resourcesDBClient: resourcesDB}
 			state, err := controller.CalculateOperationStatus(
 				context.Background(),
 				&coreapi.Operation{ExternalID: tt.cluster.ID},

@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -54,12 +55,14 @@ func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
 	t.Parallel()
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(nil)
-	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	provider := coreapitesting.ServiceProviderForCluster(cluster, nil, nil)
+	resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{provider})
+	require.NoError(t, err)
 	csCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 	check := &clusterUpdateClusterServiceStatusCheck{
-		clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		resourcesDBClient: resourcesDB,
+		clusterLister:     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		// A cleared ID must prevent any further Cluster Service calls.
 		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
 	}
@@ -86,6 +89,7 @@ func spcListerForCluster(clusterID *azcorearm.ResourceID, spc *coreapi.ServicePr
 	if spc == nil {
 		return &corelistertesting.SliceServiceProviderClusterLister{}
 	}
+	spc = spc.DeepCopy()
 	spc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 		clusterID.String(),
 		coreapi.ServiceProviderClusterResourceTypeName,
