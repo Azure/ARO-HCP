@@ -234,6 +234,15 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   checks, then run `make verify` and `make lint` with the proposed tools.
   Existing `.bingo/` path selectors also select the CI image build; the standard
   Prow verify/lint jobs consume the repository's other pinned tools before merge.
+- **Long gates:** `make verify` (especially `verify-materialize`) and `make lint`
+  can run for several minutes; the repository-pinned lint measured about 3.5
+  minutes and under 0.5 GB, so a short foreground timeout is not evidence of an
+  out-of-memory kill. Start each long gate with output redirected to a file in
+  the background, poll it with `sleep`, and let it run for its natural duration
+  (allow at least 20 minutes total for `make verify`). Read the captured log
+  before reporting a result: a non-zero exit is that gate's real error, and you
+  must quote its final lines instead of inferring memory pressure. Only report a
+  gate as unverified when it actually exited non-zero or the run budget ran out.
 
 Before publishing, confirm the diff contains only the selected family's pins,
 checksums and generated helpers, or the selected CI tool's variable/ARG pair.
