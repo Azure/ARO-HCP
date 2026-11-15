@@ -1869,12 +1869,24 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            # TEMP: ARO-23477 UDR validation image, see docs/udr-e2e-ci-validation.md. Revert before merge.
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: test-twolff-aro-hcp-clusters-service
+              digest: sha256:40037dfbb6ce35dd7c49fa31796126b49ec2a6bb26206c4a9d4b48d39fb4e794
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
+          # Hypershift
+          # TEMP: ARO-23477 UDR validation image, see docs/udr-e2e-ci-validation.md. Revert before merge.
+          hypershift:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: test-twolff-hypershift-operator
+              digest: sha256:88872582a55fd7ce34b7333840b2f2d308e44213fcf0314b1a34a7c52a9b4c22
           # Geneva
           geneva:
             logs:

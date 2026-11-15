@@ -78,3 +78,70 @@ func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 
 	return "", fmt.Errorf("no KAS internal load balancer found in managed resource group %q", managedResourceGroup)
 }
+
+// NodeOutboundLoadBalancerState summarizes the node-outbound-facing load
+// balancer(s) in a managed resource group — i.e. every LB except the
+// "int-"-prefixed internal KAS/ingress LBs, which are unrelated to node
+// egress. In practice this is the single shared LB (named after the
+// cluster's infraID) that CS pre-creates and the CCM also manages for public
+// ingress.
+type NodeOutboundLoadBalancerState struct {
+	// OutboundRuleCount is the total count of OutboundRules across the
+	// matched load balancer(s). CS creates exactly one outbound rule (plus
+	// 9 egress public IPs) when outboundType=LoadBalancer, and none when
+	// outboundType=UserDefinedRouting.
+	OutboundRuleCount int
+	// FrontendIPConfigCount is the total count of FrontendIPConfigurations
+	// across the matched load balancer(s). Under LoadBalancer outbound type
+	// this is 10 (9 egress + 1 ingress) once ingress comes up; under
+	// UserDefinedRouting it is at most 1 (the CCM-created ingress frontend).
+	FrontendIPConfigCount int
+}
+
+// GetNodeOutboundLoadBalancerState lists load balancers in the managed
+// resource group and sums OutboundRules/FrontendIPConfigurations across every
+// non-internal one. Use this to assert that UserDefinedRouting actually
+// suppressed CS's egress-rule and egress-IP provisioning, rather than relying
+// on NAT Gateway subnet precedence to mask the absence of that assertion —
+// NAT Gateway outranks LB outbound rules on the same subnet, so an egress-IP
+// check alone cannot distinguish UserDefinedRouting from LoadBalancer.
+func GetNodeOutboundLoadBalancerState(ctx context.Context, tc interface {
+	SubscriptionID(ctx context.Context) (string, error)
+	AzureCredential() (azcore.TokenCredential, error)
+}, managedResourceGroup string) (NodeOutboundLoadBalancerState, error) {
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return NodeOutboundLoadBalancerState{}, fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	azCreds, err := tc.AzureCredential()
+	if err != nil {
+		return NodeOutboundLoadBalancerState{}, fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	lbClient, err := armnetwork.NewLoadBalancersClient(subscriptionID, azCreds, nil)
+	if err != nil {
+		return NodeOutboundLoadBalancerState{}, fmt.Errorf("failed to create load balancers client: %w", err)
+	}
+
+	var state NodeOutboundLoadBalancerState
+	pager := lbClient.NewListPager(managedResourceGroup, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return NodeOutboundLoadBalancerState{}, fmt.Errorf("failed to list load balancers in %q: %w", managedResourceGroup, err)
+		}
+		for _, lb := range page.Value {
+			if lb.Name == nil || strings.HasPrefix(*lb.Name, "int-") {
+				continue
+			}
+			if lb.Properties == nil {
+				continue
+			}
+			state.OutboundRuleCount += len(lb.Properties.OutboundRules)
+			state.FrontendIPConfigCount += len(lb.Properties.FrontendIPConfigurations)
+		}
+	}
+
+	return state, nil
+}
