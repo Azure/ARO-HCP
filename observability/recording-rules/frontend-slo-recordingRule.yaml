@@ -15,9 +15,8 @@ spec:
   # ========================================
   # Baseline SLIs per ARO HCP Alerting Recommendation ADR.
   # Availability and errors are good/total (or 5xx/total) ratios at 5m.
-  # For 30d availability status, use request-weighted math:
-  # avg(good RPS)/avg(total RPS), not avg_over_time of the 5m ratio
-  # (that ignores per-window request volume).
+  # For 30d availability, subtract the ratio of sampled error traffic to
+  # total traffic from 1. This weights each 5m sample by request volume.
   # Latency p99/p95 are diagnostic seconds values. Alerts use the
   # request-weighted share over 1s directly from the histogram.
   # Traffic is absolute RPS. Ready is kube available/spec.
@@ -91,28 +90,6 @@ spec:
             )
           )
           > 0
-        )
-    - record: sli:frontend_http:good:rate5m
-      # Non-5xx request rate (RPS). Numerator for request-weighted long-window
-      # availability. `or 0 * total` keeps good=0 when traffic is all 5xx.
-      expr: |
-        (
-          sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_total{
-                code!~"5..",
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
-          )
-          or
-          0 * sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
-          )
         )
     - record: errors:frontend_http:error_rate:rate5m
       # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
@@ -210,6 +187,19 @@ spec:
             }[5m])
           )
         )
+    # Sums of 5m-sampled rates, not request counts. Their ratio provides the
+    # request-weighted 30d error share used by the availability and budget panels.
+    - record: errors:frontend_http:request_rate:sum30d
+      expr: |
+        sum_over_time(
+          (
+            errors:frontend_http:error_rate:rate5m
+            * traffic:frontend_http:request_rate:rate5m
+          )[30d:5m]
+        )
+    - record: traffic:frontend_http:request_rate:sum30d
+      expr: |
+        sum_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])
     - record: sli:frontend:ready:ratio5m
       # Process health: available / desired replicas. Kube readiness probes
 

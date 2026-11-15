@@ -665,10 +665,6 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
-        record: 'sli:frontend_http:good:rate5m'
-        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
-      }
-      {
         record: 'errors:frontend_http:error_rate:rate5m'
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
@@ -683,6 +679,14 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
+      }
+      {
+        record: 'errors:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time((errors:frontend_http:error_rate:rate5m * traffic:frontend_http:request_rate:rate5m)[30d:5m])'
+      }
+      {
+        record: 'traffic:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])'
       }
       {
         record: 'sli:frontend:ready:ratio5m'
