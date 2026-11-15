@@ -29,7 +29,6 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // BackupScheduleState represents the desired state of backup scheduling for a cluster.

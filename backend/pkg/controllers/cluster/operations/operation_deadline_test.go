@@ -94,6 +94,7 @@ func TestClusterOperationDeadlines(t *testing.T) {
 		deadline              *metav1.Time
 		withCSID              bool
 		observationErrors     bool
+		providerAbsent        bool
 		owner                 *string
 		storedOwner           *string
 		staleOperationETag    bool
@@ -107,6 +108,7 @@ func TestClusterOperationDeadlines(t *testing.T) {
 		{name: "expired without CS ID", deadline: expired, want: [3]*expectation{&placementFailure, &deadlineFailure, &deadlineFailure}},
 		{name: "expired before prerequisites", deadline: expired, withCSID: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
 		{name: "expired with observation errors", deadline: expired, withCSID: true, observationErrors: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
+		{name: "expired with missing provider and independent observation errors", deadline: expired, providerAbsent: true, observationErrors: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
 		{name: "nil deadline", want: [3]*expectation{&provisioning, &updating, &accepted}},
 		{name: "at deadline", deadline: equal, want: [3]*expectation{&placementFailure, &updating, &accepted}},
 		{name: "before deadline", deadline: future, want: [3]*expectation{&provisioning, &updating, &accepted}},
@@ -157,7 +159,10 @@ func TestClusterOperationDeadlines(t *testing.T) {
 					}
 					resources := []any{operation}
 					if !tc.clusterAbsent {
-						resources = append(resources, cluster, provider)
+						resources = append(resources, cluster)
+						if !tc.providerAbsent {
+							resources = append(resources, provider)
+						}
 					}
 					db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 					require.NoError(t, err)

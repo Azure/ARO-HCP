@@ -118,8 +118,8 @@ func (c *operationClusterUpdate) newStatusCalculators() (operationbase.Operation
 	return operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
 		&clusterUpdateValidationCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock},
 		&clusterUpdateDesiredVersionCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock, desiredVersionMismatchFirstSeen: c.desiredVersionMismatchFirstSeen},
-		&clusterUpdateClusterServiceStatusCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient},
-		&clusterUpdateClusterServiceSpecCheck{clusterLister: c.clusterLister},
+		&clusterUpdateClusterServiceStatusCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient, resourcesDBClient: c.resourcesDBClient},
+		&clusterUpdateClusterServiceSpecCheck{clusterLister: c.clusterLister, resourcesDBClient: c.resourcesDBClient},
 		&clusterUpdateHostedClusterCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
 		&clusterUpdateAutoscalerCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
 	)

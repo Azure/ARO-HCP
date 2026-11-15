@@ -1306,7 +1306,7 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 					},
 				},
 			}
-			clusterArg := cluster
+			clusterArg := fixture.NewCluster(nil)
 			if tt.clusterOverride != nil {
 				clusterArg = tt.clusterOverride
 			}
