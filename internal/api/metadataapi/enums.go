@@ -69,12 +69,14 @@ var (
 type OutboundType string
 
 const (
-	OutboundTypeLoadBalancer OutboundType = "LoadBalancer"
+	OutboundTypeLoadBalancer       OutboundType = "LoadBalancer"
+	OutboundTypeUserDefinedRouting OutboundType = "UserDefinedRouting"
 )
 
 var (
 	ValidOutboundTypes = sets.New[OutboundType](
 		OutboundTypeLoadBalancer,
+		OutboundTypeUserDefinedRouting,
 	)
 )
 

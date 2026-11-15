@@ -31,6 +31,12 @@ param enableKeyVaultPurgeProtection bool = false
 @description('Soft delete retention in days')
 param keyVaultSoftDeleteRetentionInDays int = 7
 
+@description('If set to true, attaches a NAT Gateway to the primary subnet and disables its default outbound access, for UserDefinedRouting testing')
+param attachNatGateway bool = false
+
+@description('If set to true, disables default outbound access on the primary subnet without attaching any egress mechanism (no NAT Gateway, no route table), for UserDefinedRouting zero-egress testing. Ignored if attachNatGateway is true.')
+param zeroEgress bool = false
+
 //
 // Variables
 //
@@ -59,6 +65,34 @@ resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   }
 }
 
+resource natGatewayPublicIP 'Microsoft.Network/publicIPAddresses@2023-05-01' = if (attachNatGateway) {
+  name: '${customerVnetName}-natgw-pip'
+  location: resourceGroup().location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    publicIPAddressVersion: 'IPv4'
+  }
+}
+
+resource natGateway 'Microsoft.Network/natGateways@2023-05-01' = if (attachNatGateway) {
+  name: '${customerVnetName}-natgw'
+  location: resourceGroup().location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    idleTimeoutInMinutes: 4
+    publicIpAddresses: [
+      {
+        id: natGatewayPublicIP!.id
+      }
+    ]
+  }
+}
+
 resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   name: customerVnetName
   location: resourceGroup().location
@@ -74,12 +108,26 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
     subnets: [
       {
         name: customerVnetSubnetName
-        properties: {
-          addressPrefix: subnetPrefix
-          networkSecurityGroup: {
-            id: customerNsg.id
-          }
-        }
+        properties: union(
+          {
+            addressPrefix: subnetPrefix
+            networkSecurityGroup: {
+              id: customerNsg.id
+            }
+          },
+          attachNatGateway
+            ? {
+                natGateway: {
+                  id: natGateway!.id
+                }
+                defaultOutboundAccess: false
+              }
+            : (zeroEgress
+                ? {
+                    defaultOutboundAccess: false
+                  }
+                : {})
+        )
       }
       {
         name: 'customer-vnet-integration-subnet'
@@ -235,3 +283,6 @@ output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/customer-vne
 
 @description('The version of the etcd encryption key')
 output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
+
+@description('NAT Gateway public IP address, used to verify UDR egress traffic')
+output natGatewayPublicIP string = attachNatGateway ? natGatewayPublicIP!.properties.ipAddress : ''
