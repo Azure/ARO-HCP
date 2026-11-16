@@ -23,9 +23,15 @@ import (
 // effectiveExactVersion returns the rollout target without changing the graph's
 // best version or the configured pin.
 func effectiveExactVersion(s *fleetapi.ControlPlaneVersionRolloutSpec) *semver.Version {
-	pin := s.PinnedVersion
-	if pin.ExactVersion != nil && (pin.UntilExactVersion == nil || s.BestExactVersion == nil || !s.BestExactVersion.GT(*pin.UntilExactVersion)) {
-		return pin.ExactVersion
+	if hasActiveRolloutPin(s) {
+		return s.PinnedVersion.ExactVersion
 	}
 	return s.BestExactVersion
+}
+
+// hasActiveRolloutPin distinguishes an authoritative pin from normal selection,
+// including when the selected version would move a cluster backwards.
+func hasActiveRolloutPin(s *fleetapi.ControlPlaneVersionRolloutSpec) bool {
+	pin := s.PinnedVersion
+	return pin.ExactVersion != nil && (pin.UntilExactVersion == nil || s.BestExactVersion == nil || !s.BestExactVersion.GT(*pin.UntilExactVersion))
 }
