@@ -18,10 +18,16 @@ import (
 	"context"
 	"fmt"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -113,4 +119,31 @@ func (c *nodePoolCreateHypershiftCheck) CalculateOperationStatus(ctx context.Con
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+type nodePoolCreateValidationCheck struct {
+	clock                         utilsclock.PassiveClock
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+}
+
+var _ operationbase.OperationStatusCalculator[struct{}] = (*nodePoolCreateValidationCheck)(nil)
+
+func (c *nodePoolCreateValidationCheck) GetSourceName() string {
+	return "diskEncryptionSetPermissionsValidation"
+}
+
+func (c *nodePoolCreateValidationCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
+	serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderNodePool not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	// Only the disk encryption set permission validation gates node pool creation; other node pool validations stay diagnostic (surfaced via RequirementsValid) and must not block creation.
+	var desValidations []metav1.Condition
+	if condition := apimeta.FindStatusCondition(serviceProviderNodePool.Status.Validations, validationutils.AzureNodePoolDiskEncryptionSetPermissionsValidationName); condition != nil {
+		desValidations = []metav1.Condition{*condition}
+	}
+	return nodePoolValidationOperationState(desValidations, operation.StartTime, c.clock.Now()), nil
 }
