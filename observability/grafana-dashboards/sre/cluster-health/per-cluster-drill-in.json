@@ -64,7 +64,7 @@
       "tags": [],
       "targetBlank": true,
       "title": "Backend",
-      "tooltip": "Backend health and Maestro gRPC signals",
+      "tooltip": "Backend health",
       "type": "link",
       "url": "/d/bepcy70a38jk0d/backend"
     },
@@ -79,18 +79,6 @@
       "tooltip": "Clusters Service availability and latency SLOs",
       "type": "link",
       "url": "/d/aro-hcp-cluster-service-slo/cluster-service-slo"
-    },
-    {
-      "asDropdown": false,
-      "icon": "dashboard",
-      "includeVars": false,
-      "keepTime": true,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Maestro",
-      "tooltip": "Maestro server and agent signals",
-      "type": "link",
-      "url": "/d/maestro-server/maestro-server"
     },
     {
       "asDropdown": false,

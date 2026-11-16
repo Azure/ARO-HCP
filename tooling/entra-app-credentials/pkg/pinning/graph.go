@@ -175,7 +175,7 @@ func convertApplication(application graphmodels.Applicationable) (*Application, 
 			continue
 		}
 		credentials = append(credentials, KeyCredential{
-			CustomKeyIdentifier: normalizeCustomKeyIdentifier(credential.GetCustomKeyIdentifier()),
+			CustomKeyIdentifier: NormalizeCustomKeyIdentifier(credential.GetCustomKeyIdentifier()),
 			Type:                ptr.Deref(credential.GetTypeEscaped(), ""),
 			Usage:               ptr.Deref(credential.GetUsage(), ""),
 		})
@@ -188,11 +188,12 @@ func convertApplication(application graphmodels.Applicationable) (*Application, 
 	}, nil
 }
 
+// NormalizeCustomKeyIdentifier returns the thumbprint bytes from Graph's SDK representation.
 // Microsoft Graph currently serializes customKeyIdentifier as an uppercase hex
 // SHA-1 string even though the SDK model exposes it as []byte. Depending on the
 // Kiota parser version, the SDK may return the 20 thumbprint bytes, the 40 ASCII
 // hex bytes, or the base64-decoded bytes of that hex string.
-func normalizeCustomKeyIdentifier(value []byte) []byte {
+func NormalizeCustomKeyIdentifier(value []byte) []byte {
 	if len(value) == 0 || len(value) == sha1.Size {
 		return value
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/internal/common"
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/expiry"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/pinning"
 )
 
@@ -48,6 +49,7 @@ type RawOptions struct {
 	CreateMissing          bool
 	Rotate                 bool
 	DryRun                 bool
+	ExpiryWarning          time.Duration
 	Timeout                time.Duration
 }
 
@@ -58,6 +60,7 @@ type ValidatedOptions struct {
 	createMissing bool
 	rotate        bool
 	dryRun        bool
+	expiryWarning time.Duration
 	timeout       time.Duration
 }
 
@@ -69,7 +72,7 @@ type Options struct {
 
 // DefaultOptions returns the default pin command options.
 func DefaultOptions() *RawOptions {
-	return &RawOptions{Timeout: defaultTimeout}
+	return &RawOptions{Timeout: defaultTimeout, ExpiryWarning: expiry.DefaultWarning}
 }
 
 // BindOptions binds command-line flags to raw options.
@@ -81,8 +84,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 	cmd.Flags().StringVar(&opts.IndexedCertificateDNS, "indexed-certificate-dns-suffix", opts.IndexedCertificateDNS, "DNS suffix for indexed certificates, producing <index>.<suffix>.")
 	cmd.Flags().IntVar(&opts.IndexedCount, "indexed-count", opts.IndexedCount, "Number of indexed app/certificate pairs, named <base>-0 through <base>-N.")
 	cmd.Flags().BoolVar(&opts.CreateMissing, "create-missing", opts.CreateMissing, "Create missing self-signed Key Vault certificates before pinning.")
-	cmd.Flags().BoolVar(&opts.Rotate, "rotate", opts.Rotate, "Disruptively replace the current Key Vault certificates before pinning the new credentials.")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Resolve and compare credentials without modifying applications.")
+	cmd.Flags().BoolVar(&opts.Rotate, "rotate", opts.Rotate, "Disruptively replace the current Key Vault certificates before pinning the new credentials. With --dry-run, only reports the current certificate expiry.")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Resolve and compare credentials without modifying Key Vault or applications. Still fails when a Key Vault certificate is expired.")
+	cmd.Flags().DurationVar(&opts.ExpiryWarning, "expiry-warning", opts.ExpiryWarning, "Warn when a Key Vault certificate expires within this period; 0 only reports expired certificates.")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, "Timeout per application, including certificate creation and Graph propagation retries.")
 }
 
@@ -116,6 +120,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		createMissing: o.CreateMissing,
 		rotate:        o.Rotate,
 		dryRun:        o.DryRun,
+		expiryWarning: o.ExpiryWarning,
 		timeout:       o.Timeout,
 	}, nil
 }
@@ -124,8 +129,10 @@ func (o *RawOptions) validateFlags() error {
 	switch {
 	case o.Timeout <= 0:
 		return fmt.Errorf("--timeout must be greater than zero")
-	case o.DryRun && (o.CreateMissing || o.Rotate):
-		return fmt.Errorf("--dry-run cannot be combined with certificate creation or rotation")
+	case o.ExpiryWarning < 0:
+		return fmt.Errorf("--expiry-warning must not be negative")
+	case o.DryRun && o.CreateMissing:
+		return fmt.Errorf("--dry-run cannot be combined with --create-missing")
 	case o.CreateMissing && o.Rotate:
 		return fmt.Errorf("--create-missing and --rotate are mutually exclusive")
 	case o.IndexedCount < 0:
@@ -243,6 +250,7 @@ func (o *Options) Run(ctx context.Context) error {
 		CreateMissing: o.createMissing,
 		Rotate:        o.rotate,
 		DryRun:        o.dryRun,
+		ExpiryWarning: o.expiryWarning,
 		Timeout:       o.timeout,
 	})
 }

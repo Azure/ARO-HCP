@@ -18,7 +18,7 @@ Cosmos DB. This prompt is maintained separately from the generated reference.
 3. Cover backend, fleet, kube-applier, mgmt-agent, and sessiongate. Include shared
    infrastructure controllers such as union kube-applier informers. Explain
    wrappers once; do not count each generic wrapper as a business controller.
-   Include external components (Cluster Service, Maestro/work-agent, HyperShift,
+   Include external components (Cluster Service, HyperShift,
    Kubernetes controllers, Azure) as boundary nodes, not as in-repo controllers.
 4. Read implementations and delegated helpers, not just comments or names.
    Cross-check each summary and dependency against the actual guards, calls,

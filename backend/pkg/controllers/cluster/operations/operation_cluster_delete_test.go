@@ -346,7 +346,9 @@ func TestDeletionDiagnosticsQueryFailures(t *testing.T) {
 				readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
 				applyDesireLister:    &kubeapplierlistertesting.SliceApplyDesireLister{},
 			}
-			state, err := controller.remainingDescendantResources(ctx, cluster)
+			controller.statusCalculators = metadataapi.Must(controller.newStatusCalculators())
+			descendantCheck := &clusterDeleteDescendantResourcesCheck{resourcesDBClient: controller.resourcesDBClient, kubeApplierDBClients: controller.kubeApplierDBClients}
+			state, err := descendantCheck.CalculateOperationStatus(ctx, operation, clusterDeleteOperationStatusInput{Cluster: cluster})
 			if testCase.wantErr != nil {
 				require.ErrorIs(t, err, testCase.wantErr)
 				require.Nil(t, state)
@@ -361,7 +363,9 @@ func TestDeletionDiagnosticsQueryFailures(t *testing.T) {
 			require.NotNil(t, updated.Error)
 			require.Contains(t, updated.Error.Message, "cluster deletion did not complete before the deadline")
 			if testCase.wantErr != nil {
-				require.NotContains(t, updated.Error.Message, "[descendantResources]")
+				// A failed observation is surfaced as a generic placeholder state, so
+				// the raw internal error text must never leak into the ARM message.
+				require.NotContains(t, updated.Error.Message, injected.Error())
 			}
 			_, err = db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
 			require.NoError(t, err)
@@ -382,8 +386,9 @@ func TestDeletionDiagnosticsUnavailableClient(t *testing.T) {
 	injected := errors.New("client resolution failed")
 	for _, failure := range []error{nil, injected} {
 		controller := &operationClusterDelete{resourcesDBClient: db, kubeApplierDBClients: unavailableDeletionClients{err: failure}}
+		descendantCheck := &clusterDeleteDescendantResourcesCheck{resourcesDBClient: controller.resourcesDBClient, kubeApplierDBClients: controller.kubeApplierDBClients}
 		require.NotPanics(t, func() {
-			state, err := controller.remainingDescendantResources(t.Context(), cluster)
+			state, err := descendantCheck.CalculateOperationStatus(t.Context(), nil, clusterDeleteOperationStatusInput{Cluster: cluster})
 			require.Nil(t, state)
 			if failure != nil {
 				require.ErrorIs(t, err, failure)

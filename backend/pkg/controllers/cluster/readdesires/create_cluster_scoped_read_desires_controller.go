@@ -240,9 +240,7 @@ type desiredReadDesire struct {
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name
-// the backend uses for the HostedCluster mirror. It matches the existing
-// MaestroBundleInternalName in lowercase so the downstream
-// ManagementClusterContent document path stays stable across the migration.
+// the backend uses for the HostedCluster mirror.
 const readDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
 // hostedClusterTarget builds the ResourceReference that points at the

@@ -1,23 +1,4 @@
 images:
-  # Maestro image
-  maestro:
-    group: hypershift-stack
-    source:
-      image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      tagPattern: "^[a-f0-9]{40}$"
-    targets:
-    - jsonPath: defaults.maestro.image.digest
-      filePath: ../../config/config.yaml
-  # Maestro Agent Sidecar image
-  maestro-agent-sidecar:
-    group: hypershift-stack
-    source:
-      image: mcr.microsoft.com/azurelinux/base/nginx
-      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
-      multiArch: true
-    targets:
-    - jsonPath: defaults.maestro.agent.sidecar.image.digest
-      filePath: ../../config/config.yaml
   # Hypershift image
   hypershift:
     group: hypershift-stack
@@ -58,27 +39,6 @@ images:
       tagPattern: "^\\d+\\.\\d+$"
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
-      filePath: ../../config/config.yaml
-  # ACM images
-  acm-operator:
-    group: hypershift-stack
-    source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
-      repoVersionUpgrade:
-        repoPrefix: "acm-operator-bundle-acm-"
-    targets:
-    - jsonPath: defaults.acm.operator.bundle.digest
-      filePath: ../../config/config.yaml
-  acm-mce:
-    group: hypershift-stack
-    source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
-      repoVersionUpgrade:
-        repoPrefix: "mce-operator-bundle-mce-"
-    targets:
-    - jsonPath: defaults.acm.mce.bundle.digest
       filePath: ../../config/config.yaml
   # AKS Runtime Image
   aksCommandRuntime:

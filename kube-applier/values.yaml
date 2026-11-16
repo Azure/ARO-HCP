@@ -20,6 +20,7 @@ cosmosDB:
   endpoint: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
   containerName: "{{ .kubeApplier.cosmosContainerName }}"
+  containerMaxScale: {{ .kubeApplier.cosmosContainerMaxScale }}
 serviceAccount:
   name: "{{ .kubeApplier.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__kubeApplierMsiClientId__"

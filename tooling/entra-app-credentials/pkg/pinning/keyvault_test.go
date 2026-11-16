@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
 
@@ -34,6 +35,8 @@ type fakeAzureCertificateClient struct {
 	operationStatuses []string
 	operationError    *azcertificates.ErrorInfo
 	createParameters  []azcertificates.CreateCertificateParameters
+	// expires is the certificate expiry reported by Get; the default is ten years from now.
+	expires *time.Time
 }
 
 func (f *fakeAzureCertificateClient) GetCertificate(_ context.Context, _, _ string, _ *azcertificates.GetCertificateOptions) (azcertificates.GetCertificateResponse, error) {
@@ -50,8 +53,15 @@ func (f *fakeAzureCertificateClient) GetCertificate(_ context.Context, _, _ stri
 	if len(f.getResults) > 1 {
 		f.getResults = f.getResults[1:]
 	}
+	expires := f.expires
+	if expires == nil {
+		expires = to.Ptr(time.Now().AddDate(10, 0, 0))
+	}
 	return azcertificates.GetCertificateResponse{
-		Certificate: azcertificates.Certificate{CER: result},
+		Certificate: azcertificates.Certificate{
+			CER:        result,
+			Attributes: &azcertificates.CertificateAttributes{Expires: expires},
+		},
 	}, nil
 }
 

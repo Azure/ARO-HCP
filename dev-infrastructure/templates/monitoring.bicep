@@ -183,6 +183,9 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     actionGroups: slActionGroups
     enabled: alertsEnabled
     region: region
+    // lowEventIngestionThreshold is a percent of the workspace EventsPerMinute limit. The fleet
+    // AMW scaling controller keeps that limit at 2M or higher, so 1% (~20K events/min) still
+    // catches near-zero ingestion without firing on healthy low-traffic regions.
     workspaces: [
       {
         id: azureMonitoringWorkspaceId
@@ -192,7 +195,7 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
       {
         id: hcpAzureMonitoringWorkspaceId
         label: 'hcp'
-        lowEventIngestionThreshold: 5
+        lowEventIngestionThreshold: 1
       }
     ]
   }

@@ -238,6 +238,7 @@ Every test MUST include appropriate labels from these categories:
 - `labels.CoreInfraService`: Gates rollout of ARO-HCP components
 - `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
 - `labels.AllowRetry`: Marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue in an inline comment, and must be removed once the underlying issue is fixed.
+- `labels.ExpectFailure("ARO-123")`: Marks a test that reproduces a known unfixed bug or a work in progress feature (and is therefore expected to fail). Takes a mandatory JIRA tracking-issue ID and produces the label `ExpectFailure:ARO-123`, so the tracking ticket is captured in the label itself. Excluded from all other suites and collected exclusively by the `expect-failure` suite, so these expected failures do not pollute normal CI results. Suite filtering matches on the `ExpectFailure` label prefix, not the full value. Used to verify a fix: the test flips from failing to passing once the bug is fixed. Temporary by design: the label must be removed once the bug is fixed.
 
 ### Optional Environment Labels:
 - `labels.DevelopmentOnly`
@@ -249,6 +250,19 @@ Every test MUST include appropriate labels from these categories:
 
 ### Speed Labels (when applicable):
 - `labels.Slow`: For tests that take significantly longer than average
+
+### Suite Ordering Labels (optional):
+- `labels.StartPriority(N)`: Declares where the spec sits in the suite queue. Higher values start earlier, `0` is the default, and the range is `0..1000`. The suite scheduler is FIFO and non-preempting, so a high priority spec that cannot start yet because its conflict group, taints or MI pool capacity block it does not delay the specs behind it. Specs in the same tier keep their registration order. Ordering never changes suite membership. Assign it from measured duration bands so the queue is ordered all the way down to the suite concurrency. The current bands are 90 for 50 minutes and longer, then 80, 70, 60, 50, 40, 30 and 20 for each five-minute band down to 15 minutes; specs shorter than 15 minutes carry no label.
+
+```go
+It("should create a cluster with the full feature set",
+    labels.RequireNothing,
+    labels.Positive,
+    labels.CreateCluster,
+    labels.MIContainers(1),
+    labels.StartPriority(50),
+    func(ctx context.Context) {
+```
 
 **Example**:
 ```go
@@ -376,11 +390,11 @@ There is **no runner election** — all specs are identical. The upgrade runs in
 - Logs go to `os.Stderr` via a `logr/stdr` logger (set via `SetUpgradeCoordinatorLogger` in `main.go`) — never to Ginkgo's captured output.
 
 **UpgradeBarrier** (worker processes):
-- Created per-spec via `NewUpgradeBarrier()`. All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
+- Created per-spec via `tc.NewUpgradeBarrier()` after `NewTestContext()`. Making it a TestContext method enforces construction order at compile time so barrier DeferCleanups always register after tc teardown (FILO: abort unblocks peers before Azure cleanup). All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
 - `CheckIn(ctx)` atomically increments `checked_in` and **returns immediately** — it does not wait for settlement. It also starts a background goroutine that polls for `UpgradeDone` and cancels the returned `upgradeDoneCtx` when the coordinator signals completion.
 - `WaitForUpgrade(ctx)` blocks until `UpgradeDone=true` and returns the coordinator's upgrade error (if any).
 - `CheckInAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
-- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `NewUpgradeBarrier` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
+- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `tc.NewUpgradeBarrier()` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
 
 ### Timing
 
@@ -413,7 +427,7 @@ export GITHUB_ACTIONS=true   # makes templatize's cmdutils.GetAzureTokenCredenti
 lookups done by the test helpers). `GITHUB_ACTIONS` controls the credential used by the *templatize pipeline*
 when it performs its own subscription lookup. Both must be set for a fully local run of `upgrade/in-place`.
 
-The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
+The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `tc.NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
 ### Invocation
 
@@ -424,10 +438,9 @@ The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'
 ```go
 tc := framework.NewTestContext()
 
-// NewUpgradeBarrier must be called after NewTestContext so its abort DeferCleanup
-// runs before tc teardown in FILO order, unblocking other specs before resource cleanup.
-// The total spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
-barrier, err := framework.NewUpgradeBarrier()
+// Constructed via TestContext so abort DeferCleanup runs before tc teardown in
+// FILO order. Spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
+barrier, err := tc.NewUpgradeBarrier()
 Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 // ... provision cluster, capture baseline ...

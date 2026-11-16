@@ -207,9 +207,7 @@ func buildNodePoolReadDesire(
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the
-// backend uses for the NodePool mirror. Lowercase form of the existing
-// MaestroBundleInternalName so the downstream ManagementClusterContent
-// document path stays stable.
+// backend uses for the NodePool mirror.
 const readDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
 // nodePoolTarget builds the ResourceReference that points at the

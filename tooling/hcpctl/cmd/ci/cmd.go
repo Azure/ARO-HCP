@@ -41,6 +41,7 @@ checking the published health status of individual ARO-HCP components.`,
 		return nil, err
 	}
 	cmd.AddCommand(componentHealthCmd)
+	cmd.AddCommand(newFailurePatternsCommand())
 
 	return cmd, nil
 }

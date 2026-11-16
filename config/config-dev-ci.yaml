@@ -34,7 +34,8 @@ clouds:
         globalMSIName: "global-rollout-identity"
       dns:
         regionalSubdomain: "{{ .ctx.regionShort }}"
-      entraAppOwnerIds: "e4022ba9-7428-4de4-9afa-f40c521c1a33,cc1cceaf-e7fa-4cbb-9379-f6fbd70c9cf1,28c69853-0f40-49de-ad85-b9de0165e5b6,c1824db4-7152-429b-a58a-2170eaa74a53,772a02e3-1df6-48dd-86ab-dfe98438ab1e,9ff7a250-d897-41ee-982e-dc4ec28c4920,1daf5200-78ea-454d-84a1-a15f98876f5d,2a42baa4-f7b2-4856-8bc7-67fe5327cae7,55236c0a-cada-46da-8985-8282535f77ac,48522ac4-74b2-426d-b56c-4a4abca49d12,770ce6b0-5afe-472d-ac0d-1fae72acc4e4,d2f4cb88-b929-4f6c-8944-221108a41f57,f5b85e91-2303-4094-9cd1-73dab9585935,71185b05-072a-4683-ab19-0fb016b58101,aa146b03-0787-4344-a009-d5efd444ee98" # aro-hcp-owners members
+      entraAppOwnerIds: "e4022ba9-7428-4de4-9afa-f40c521c1a33,cc1cceaf-e7fa-4cbb-9379-f6fbd70c9cf1,28c69853-0f40-49de-ad85-b9de0165e5b6,c1824db4-7152-429b-a58a-2170eaa74a53,772a02e3-1df6-48dd-86ab-dfe98438ab1e,9ff7a250-d897-41ee-982e-dc4ec28c4920,1daf5200-78ea-454d-84a1-a15f98876f5d,2a42baa4-f7b2-4856-8bc7-67fe5327cae7,48522ac4-74b2-426d-b56c-4a4abca49d12,770ce6b0-5afe-472d-ac0d-1fae72acc4e4,d2f4cb88-b929-4f6c-8944-221108a41f57,f5b85e91-2303-4094-9cd1-73dab9585935,71185b05-072a-4683-ab19-0fb016b58101,aa146b03-0787-4344-a009-d5efd444ee98,035f7046-1ab6-4dbd-b285-6787748467e2,66be9eec-1f0a-4389-8e36-3b6503048734,70cbf035-9e5e-4548-903f-00cf64b42a1f,f173f8d7-cece-4391-8a1e-4b5804a0224c,fffef81c-c48f-47d7-a00c-b3863e51b618" # aro-hcp-owners members
+      entraAppOwnersGroupId: "30cac221-bded-4c8f-8746-c2ae1ea4777d" # aro-hcp-owners
       opstool:
         aks:
           name: "opstool-{{ .ctx.regionShort }}"
@@ -163,7 +164,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:aa9f3ff18d738aa5dcf32fc51a18188bd6f2175aca127da78a9d3d841c423413 # 2c9e03603373944d87b46ee06296e4c811e7cb87 (2026-11-03 13:11)
+            digest: sha256:6b44e8c1ca67a58169865ab5115361bbaf8e94ffd03f03bfeaa2f2353e360b6e # 8057596acd3ee32e79559003f5c9edbd9562496e (2026-11-12 18:09)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
@@ -206,6 +207,15 @@ clouds:
             # Bounds recent-submission caches.
             cacheSize: 20000
             cacheTTL: "15m"
+          ciFailurePatterns:
+            results:
+              table: "ciFailurePatterns"
+              ingestionMapping: "ciFailurePatternsMapping"
+            # Newest-build poll interval; the paced history sweep is separate.
+            interval: "5m"
+            workers: 4
+            cacheSize: 20000
+            cacheTTL: "15m"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"
@@ -244,7 +254,7 @@ clouds:
         # Required Azure resource providers for ARO-HCP-managed E2E subscriptions.
         # This is the single source of truth for provider registration; add new
         # dependencies here and re-run make dev-ci-privileged-local-run.
-        e2eSubscriptionProviders: "Microsoft.Compute,Microsoft.Insights,Microsoft.KeyVault,Microsoft.ManagedIdentity,Microsoft.Network,Microsoft.Quota,Microsoft.RedHatOpenShift,Microsoft.Storage"
+        e2eSubscriptionProviders: "Microsoft.Compute,Microsoft.Insights,Microsoft.KeyVault,Microsoft.ManagedIdentity,Microsoft.Network,Microsoft.Quota,Microsoft.RedHatOpenShift,Microsoft.ResourceHealth,Microsoft.Storage"
         dev:
           bot:
             applicationName: "OpenShift Release Bot"
@@ -269,7 +279,7 @@ clouds:
               appBaseName: "aro-dev-arm-helper-pool"
               certBaseName: "armHelperPoolCert"
               certBaseDns: "armhelperpool.hcp.osadev.cloud"
-              size: 100
+              size: 0
             msiMock:
               applicationName: "aro-dev-msi-mock2"
               certName: "msiMockCert2"
@@ -278,7 +288,7 @@ clouds:
               appBaseName: "aro-dev-msi-mock-pool"
               certBaseName: "msiMockPoolCert"
               certBaseDns: "msimockpool.hcp.osadev.cloud"
-              size: 50
+              size: 0
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"

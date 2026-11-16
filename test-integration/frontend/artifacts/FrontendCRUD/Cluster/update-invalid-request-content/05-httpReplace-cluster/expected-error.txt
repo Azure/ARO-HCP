@@ -1,4 +1,3 @@
 {
     "code": "InvalidRequestContent",
-    "message": "The request content was invalid and could not be deserialized: \"unmarshalling type *generated.HcpOpenShiftCluster: struct field Properties: unmarshalling type *generated.HcpOpenShiftClusterProperties: json: cannot unmarshal string into Go value of type map[string]json.RawMessage\""
-  }
+    "message": "The request content was invalid and could not be deserialized: \"unmarshalling type *generated.HcpOpenShiftCluster: struct field Properties: unmarshalling type *generated.HcpOpenShiftClusterProperties: json: cannot unmarshal string into Go value

@@ -40,24 +40,24 @@ func TestExecuteTemplate(t *testing.T) {
 		{
 			name: "happy case generates a file",
 			vars: types.Configuration{
-				"region_maestro_keyvault":    "kv",
+				"region_keyvault":            "kv",
 				"region_eventgrid_namespace": "ns",
 			},
-			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'
-param maestroEventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
-param maestroEventGridMaxClientSessionsPerAuthName = 4`,
-			expected: `param maestroKeyVaultName = 'kv'
-param maestroEventGridNamespacesName = 'ns'
-param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+			input: `param keyVaultName = '{{ .region_keyvault }}'
+param eventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
+param eventGridMaxClientSessionsPerAuthName = 4`,
+			expected: `param keyVaultName = 'kv'
+param eventGridNamespacesName = 'ns'
+param eventGridMaxClientSessionsPerAuthName = 4`,
 		},
 		{
 			name: "referencing unset variable errors",
 			vars: types.Configuration{
-				"region_maestro_keyvault": "kv",
+				"region_keyvault": "kv",
 			},
-			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'
-param maestroEventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
-param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+			input: `param keyVaultName = '{{ .region_keyvault }}'
+param eventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
+param eventGridMaxClientSessionsPerAuthName = 4`,
 			expectedError: true,
 		},
 	} {

@@ -52,9 +52,10 @@ func TestValidateRejectsInvalidInput(t *testing.T) {
 		"duplicate secret, different case": func(o *RawOptions) {
 			o.Mappings = []string{"a;Bot-client-secret", "b;bot-client-secret"}
 		},
-		"no mapping":      func(o *RawOptions) { o.Mappings = nil },
-		"vault with path": func(o *RawOptions) { o.VaultURL = "https://kv.vault.azure.net/secrets" },
-		"http vault":      func(o *RawOptions) { o.VaultURL = "http://kv.vault.azure.net" },
+		"no mapping":              func(o *RawOptions) { o.Mappings = nil },
+		"vault with path":         func(o *RawOptions) { o.VaultURL = "https://kv.vault.azure.net/secrets" },
+		"http vault":              func(o *RawOptions) { o.VaultURL = "http://kv.vault.azure.net" },
+		"negative expiry warning": func(o *RawOptions) { o.ExpiryWarning = -time.Hour },
 	} {
 		t.Run(name, func(t *testing.T) {
 			opts := validOptions()

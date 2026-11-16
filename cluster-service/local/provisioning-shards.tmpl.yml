@@ -1,11 +1,5 @@
 provision_shards:
 - id: '{{ .extraVars.shardId }}'
-  maestro_config:
-    rest_api_config:
-      url: "{{ .extraVars.maestroRestUrl }}"
-    grpc_api_config:
-      url: "{{ .extraVars.maestroGrpUrl }}"
-    consumer_name: "{{ .maestro.agent.consumerName }}"
   status: active
   region: '{{ .region }}'
   cloud_provider: azure

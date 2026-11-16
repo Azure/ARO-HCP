@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -36,6 +37,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -163,7 +165,7 @@ func TestTimingPhasesRetainInterruptedBoundaries(t *testing.T) {
 }
 
 func TestFrameworkTimingLifecycle(t *testing.T) {
-	for _, scenario := range []string{"success", "expected-rejection", "no-wait-create", "body-failure", "cleanup-failure", "cleanup-timeout"} {
+	for _, scenario := range []string{"success", "expected-rejection", "no-wait-create", "update-failure", "body-failure", "cleanup-failure", "cleanup-timeout", "cleanup-overrun"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			if retained := os.Getenv("ARO_HCP_TIMING_SMOKE_ARTIFACTS"); retained != "" {
@@ -176,7 +178,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			cmd.Env = append(os.Environ(), "ARO_HCP_TIMING_SMOKE_CHILD="+scenario, "ARO_HCP_TIMING_SMOKE_ROOT="+root)
 			output, err := cmd.CombinedOutput()
 			require.NoError(t, ctx.Err(), "child exceeded its deterministic deadline: %s", output)
-			if scenario == "success" || scenario == "expected-rejection" || scenario == "no-wait-create" {
+			if scenario == "success" || scenario == "expected-rejection" || scenario == "no-wait-create" || scenario == "update-failure" {
 				require.NoError(t, err, "%s", output)
 			} else {
 				var exitError *exec.ExitError
@@ -187,7 +189,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			switch scenario {
 			case "body-failure", "cleanup-failure":
 				wantOutcome = "failed"
-			case "cleanup-timeout":
+			case "cleanup-timeout", "cleanup-overrun":
 				wantOutcome = "timedout"
 			}
 			require.Equal(t, wantOutcome, metadata.Outcome, "%s", output)
@@ -209,7 +211,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 				require.False(t, phaseFinish.After(finish))
 				previousFinish = phaseFinish
 				if phase.Kind == "controlled-cleanup" {
-					require.Equal(t, scenario == "cleanup-failure" || scenario == "cleanup-timeout", phase.Incomplete)
+					require.Equal(t, scenario == "cleanup-failure" || scenario == "cleanup-timeout" || scenario == "cleanup-overrun", phase.Incomplete)
 				}
 			}
 			require.Equal(t, []string{"test-work", "controlled-cleanup", "arm-metadata-harvest", "debug-collection", "resource-cleanup"}, phaseKinds)
@@ -217,6 +219,70 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			for _, step := range metadata.Steps {
 				stepNames = append(stepNames, step.Name)
 				require.False(t, parseTimingTimestamp(t, step.FinishedAt).After(finish))
+			}
+			// The visualization only hides sub-second holes, so every phase must be attributable to spans.
+			for _, phase := range metadata.Phases {
+				phaseStart := parseTimingTimestamp(t, phase.StartedAt)
+				phaseFinish := parseTimingTimestamp(t, phase.FinishedAt)
+				if !phaseFinish.After(phaseStart) {
+					continue
+				}
+				var phaseSpans []testStepSpan
+				for _, step := range metadata.Steps {
+					span := testStepSpan{
+						name:       step.Name,
+						startedAt:  parseTimingTimestamp(t, step.StartedAt),
+						finishedAt: parseTimingTimestamp(t, step.FinishedAt),
+					}
+					if span.finishedAt.After(phaseStart) && span.startedAt.Before(phaseFinish) {
+						phaseSpans = append(phaseSpans, span)
+					}
+				}
+				slices.SortFunc(phaseSpans, func(a, b testStepSpan) int { return a.startedAt.Compare(b.startedAt) })
+				for _, hole := range uncoveredTestStepIntervals(phaseSpans, phaseStart, phaseFinish) {
+					require.Less(t, hole.finishedAt.Sub(hole.startedAt), time.Second,
+						"phase %q left %s unattributed", phase.Kind, hole.startedAt.Format(time.RFC3339Nano))
+				}
+			}
+			if scenario == "cleanup-overrun" {
+				var found bool
+				for _, step := range metadata.Steps {
+					if step.Name != "Controlled cleanup" {
+						continue
+					}
+					found = true
+					require.NotEmpty(t, step.FinishedAt, "an interrupted phase must still close its span")
+					require.True(t, step.Incomplete, "an interrupted phase span must be marked incomplete")
+				}
+				require.True(t, found, "an interrupted phase must still record a span")
+			}
+			if scenario == "body-failure" {
+				for _, step := range metadata.Steps {
+					if step.Name == "running the timing scenario" {
+						require.NotEqual(t, timing.OutcomeSucceeded, step.Outcome,
+							"a step from a failed body must not be recorded as succeeded")
+					}
+				}
+			}
+			if scenario == "update-failure" {
+				for _, kind := range []string{timing.KindUpdateCluster, timing.KindUpdateNodePool, timing.KindDeleteResourceGroup} {
+					var found bool
+					for _, step := range metadata.Steps {
+						if step.Kind == kind && step.Outcome == timing.OutcomeFailed {
+							found = true
+							require.NotEmpty(t, step.Name, "span name must identify its target")
+						}
+					}
+					require.True(t, found, "a failed %s operation must still be recorded as a span", kind)
+				}
+				var deletions []timing.StepTimingMetadata
+				for _, step := range metadata.Steps {
+					if step.Kind == timing.KindDeleteResourceGroup {
+						deletions = append(deletions, step)
+					}
+				}
+				require.Len(t, deletions, 1, "framework cleanup must not add a test-body deletion span")
+				require.Contains(t, deletions[0].Name, "rg-target", "the recorded deletion must be the test-body one")
 			}
 			if scenario == "expected-rejection" {
 				var operations []timing.StepTimingMetadata
@@ -242,9 +308,29 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 				}
 				require.Len(t, requests, 5, "all five API versions must retain their request spans")
 			}
-			require.Contains(t, stepNames, "Controlled teardown")
+			if scenario != "cleanup-overrun" {
+				// A callback that never returns before serialization cannot record its inner step.
+				require.Contains(t, stepNames, "Controlled teardown")
+			}
 			require.Contains(t, stepNames, "Delete created resources")
 			require.Contains(t, stepNames, "Release leased identities")
+			require.Contains(t, stepNames, "running the timing scenario", "ginkgo steps must be recorded as spans")
+			for _, step := range metadata.Steps {
+				if step.Name == "running the timing scenario" {
+					require.Equal(t, timing.KindTestStep, step.Kind, "ginkgo steps must keep the test-step kind")
+				}
+			}
+			require.Contains(t, stepNames, "Harvest deployment operations")
+			require.Contains(t, stepNames, "Collect debug info")
+			for _, name := range []string{"Harvest deployment operations", "Collect debug info"} {
+				for _, step := range metadata.Steps {
+					if step.Name != name {
+						continue
+					}
+					require.Equal(t, timing.KindTestStep, step.Kind, "%s must keep the test-step kind", name)
+					require.NotEqual(t, timing.OutcomeSucceeded, step.Outcome, "%s must not fabricate an outcome", name)
+				}
+			}
 			require.Equal(t, "Create", metadata.Deployments["retained-group"]["retained-deployment"][0].OperationType, "final serialization must retain previously harvested operations")
 			azureLog, err := os.ReadFile(filepath.Join(root, "azure.log"))
 			require.NoError(t, err)
@@ -309,15 +395,35 @@ func TestFrameworkTimingLifecycleChild(t *testing.T) {
 					if scenario == "cleanup-timeout" {
 						<-ctx.Done()
 					}
+					if scenario == "cleanup-overrun" {
+						// Ignores the interrupted context so the phase outlives its grace period.
+						time.Sleep(400 * time.Millisecond)
+					}
+					if scenario == "update-failure" {
+						// A cleanup-origin deletion must not add a test-body deletion span.
+						armOptions := tc.perBinaryInvocationTestContext.getClientFactoryOptions()
+						armOptions.Transport = &fakeTransport{do: func(*http.Request) (*http.Response, error) {
+							return nil, errors.New("offline transport refuses cleanup delete")
+						}}
+						resourceGroupsFactory, err := armresources.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, armOptions)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the ARM resource group factory for the cleanup deletion exercise")
+						networkFactory, err := armnetwork.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, armOptions)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the network factory for the cleanup deletion exercise")
+						_ = DeleteResourceGroup(ctx, resourceGroupsFactory.NewResourceGroupsClient(), networkFactory, "cleanup-rg", true, 100*time.Millisecond)
+					}
 				})
-			}, ginkgo.NodeTimeout(50*time.Millisecond), ginkgo.GracePeriod(time.Second))
+			}, ginkgo.NodeTimeout(cleanupNodeTimeout(scenario)), ginkgo.GracePeriod(cleanupGracePeriod(scenario)))
 		})
 		ginkgo.It(scenario, func() {
+			ginkgo.By("running the timing scenario")
 			if scenario == "body-failure" {
 				ginkgo.Fail("intentional body failure")
 			}
 			if scenario == "no-wait-create" {
 				exerciseNoWaitClusterTiming(tc)
+			}
+			if scenario == "update-failure" {
+				exerciseFailedOperationTiming(tc)
 			}
 			if scenario == "expected-rejection" {
 				// Exercise the public framework wrapper and SDK HTTP transport, not a manually recorded span.
@@ -379,6 +485,50 @@ func TestFrameworkTimingLifecycleChild(t *testing.T) {
 	if !errors.Is(err, os.ErrClosed) {
 		t.Errorf("Azure log was not closed after teardown: %v", err)
 	}
+}
+
+// Reports how long the controlled cleanup node may run before Ginkgo interrupts it.
+func cleanupNodeTimeout(scenario string) time.Duration {
+	if scenario == "update-failure" {
+		return 3 * time.Second
+	}
+	return 50 * time.Millisecond
+}
+
+// Reports how long Ginkgo waits for an interrupted cleanup before moving on.
+func cleanupGracePeriod(scenario string) time.Duration {
+	if scenario == "cleanup-overrun" {
+		return 100 * time.Millisecond
+	}
+	return time.Second
+}
+
+// Drives the update and teardown helpers into their error paths.
+func exerciseFailedOperationTiming(tc *perItOrDescribeTestContext) {
+	options := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
+	options.Transport = &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("offline transport refuses %s %s", req.Method, req.URL.Path)
+	}}
+	var err error
+	tc.clientFactory20240610, err = hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the 20240610 client factory for the failed-operation exercise")
+	tc.clientFactory20261001, err = hcpsdk20261001.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the 20261001 client factory for the failed-operation exercise")
+	armOptions := tc.perBinaryInvocationTestContext.getClientFactoryOptions()
+	armOptions.Transport = options.Transport
+	resourceGroupsFactory, err := armresources.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, armOptions)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the ARM resource group factory for the failed deletion exercise")
+	networkFactory, err := armnetwork.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, armOptions)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to build the network factory for the failed deletion exercise")
+
+	// Transport failures are retried, so a short deadline keeps the scenario deterministic.
+	shortTimeout := 200 * time.Millisecond
+	_, err = UpdateHCPCluster20261001(context.Background(), tc.clientFactory20261001.NewHcpOpenShiftClustersClient(), "rg", "cluster", hcpsdk20261001.HcpOpenShiftCluster{}, shortTimeout)
+	gomega.Expect(err).To(gomega.HaveOccurred(), "the cluster update must fail when the transport refuses every request")
+	_, err = UpdateNodePoolAndWait20240610(context.Background(), tc.clientFactory20240610.NewNodePoolsClient(), "rg", "cluster", "pool", hcpsdk20240610preview.NodePoolUpdate{}, shortTimeout)
+	gomega.Expect(err).To(gomega.HaveOccurred(), "the node pool update must fail when the transport refuses every request")
+	err = DeleteResourceGroup(context.Background(), resourceGroupsFactory.NewResourceGroupsClient(), networkFactory, "rg-target", true, shortTimeout)
+	gomega.Expect(err).To(gomega.HaveOccurred(), "the test-body resource group deletion must fail when the transport refuses every request")
 }
 
 // ExerciseNoWaitClusterTiming leaves each real SDK operation InProgress after its sole status poll.

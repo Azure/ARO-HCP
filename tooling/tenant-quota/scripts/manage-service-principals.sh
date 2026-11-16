@@ -297,7 +297,9 @@ store_secret() {
 
     if [[ -n "${existing_secret}" ]]; then
         print_info "Key Vault secret '${secret_name}' already exists"
-        print_info "To rotate, use: ./scripts/renew-sp-secret.sh --tenant <name>"
+        print_info "To rotate this secret, run the two-phase flow (the Entra app and Key Vault are in different tenants, so ensure-secret does not apply):"
+        print_info "  $0 --tenant <name> --skip-keyvault   (target-tenant identity)"
+        print_info "  $0 --keyvault-only --secret-name '${secret_name}' --secret-file <printed-path>   (Key Vault identity)"
         return 0
     fi
 

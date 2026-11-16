@@ -15,19 +15,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // rawPoolOptions holds one pool block's inputs sourced from environment
@@ -42,17 +45,12 @@ type rawPoolOptions struct {
 	zones        string
 }
 
-// rawOptions holds all inputs sourced from environment variables, unvalidated.
-type rawOptions struct {
-	subscriptionID              string
-	resourceGroup               string
-	clusterName                 string
-	region                      string
-	regionAvailabilityZoneCount string
-
-	system rawPoolOptions
-	user   rawPoolOptions
-	infra  rawPoolOptions
+// commonRawOptions holds shared inputs sourced from environment variables, unvalidated.
+type commonRawOptions struct {
+	subscriptionID string
+	resourceGroup  string
+	clusterName    string
+	region         string
 
 	nodeSubnetID         string
 	podSubnetID          string
@@ -71,44 +69,12 @@ type rawOptions struct {
 	metricAnnotationsAllowlist string
 }
 
-// newRawOptionsFromEnv builds rawOptions from environment variables only. It
-// does not call any external tools or APIs, which makes it safe to
-// unit-test. Only textual defaults are applied here; required-field and
-// shape validation happens in Validate.
-func newRawOptionsFromEnv(env func(string) string) *rawOptions {
-	o := &rawOptions{
-		subscriptionID:              env("SUBSCRIPTION_ID"),
-		resourceGroup:               env("RESOURCE_GROUP"),
-		clusterName:                 env("CLUSTER_NAME"),
-		region:                      env("REGION"),
-		regionAvailabilityZoneCount: env("REGION_AVAILABILITY_ZONE_COUNT"),
-
-		system: rawPoolOptions{
-			name:         env("SYSTEM_POOL_NAME"),
-			vmSize:       env("SYSTEM_POOL_VM_SIZE"),
-			osDiskSizeGB: env("SYSTEM_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("SYSTEM_POOL_MIN_COUNT"),
-			maxCount:     env("SYSTEM_POOL_MAX_COUNT"),
-			zones:        env("SYSTEM_POOL_ZONES"),
-		},
-		user: rawPoolOptions{
-			name:         env("USER_POOL_NAME"),
-			vmSize:       env("USER_POOL_VM_SIZE"),
-			osDiskSizeGB: env("USER_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("USER_POOL_MIN_COUNT"),
-			maxCount:     env("USER_POOL_MAX_COUNT"),
-			poolCount:    env("USER_POOL_COUNT"),
-			zones:        env("USER_POOL_ZONES"),
-		},
-		infra: rawPoolOptions{
-			name:         env("INFRA_POOL_NAME"),
-			vmSize:       env("INFRA_POOL_VM_SIZE"),
-			osDiskSizeGB: env("INFRA_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("INFRA_POOL_MIN_COUNT"),
-			maxCount:     env("INFRA_POOL_MAX_COUNT"),
-			poolCount:    env("INFRA_POOL_COUNT"),
-			zones:        env("INFRA_POOL_ZONES"),
-		},
+func commonOptionsFromEnv(env func(string) string) commonRawOptions {
+	return commonRawOptions{
+		subscriptionID: env("SUBSCRIPTION_ID"),
+		resourceGroup:  env("RESOURCE_GROUP"),
+		clusterName:    env("CLUSTER_NAME"),
+		region:         env("REGION"),
 
 		nodeSubnetID:         env("NODE_SUBNET_ID"),
 		podSubnetID:          env("POD_SUBNET_ID"),
@@ -126,32 +92,65 @@ func newRawOptionsFromEnv(env func(string) string) *rawOptions {
 		metricLabelsAllowlist:      env("METRIC_LABELS_ALLOWLIST"),
 		metricAnnotationsAllowlist: env("METRIC_ANNOTATIONS_ALLOWLIST"),
 	}
-	return o
 }
 
-// poolConfig is a rawPoolOptions after required-field checks, integer parsing,
-// and CSV zone parsing.
-type poolConfig struct {
-	name         string
-	vmSize       string
+func poolOptionsFromEnv(env func(string) string, prefix string) rawPoolOptions {
+	return rawPoolOptions{
+		name:         env(prefix + "_NAME"),
+		vmSize:       env(prefix + "_VM_SIZE"),
+		osDiskSizeGB: env(prefix + "_OS_DISK_SIZE_GB"),
+		minCount:     env(prefix + "_MIN_COUNT"),
+		maxCount:     env(prefix + "_MAX_COUNT"),
+		poolCount:    env(prefix + "_COUNT"),
+		zones:        env(prefix + "_ZONES"),
+	}
+}
+
+// validatedPoolConfig contains validated pool inputs.
+type validatedPoolConfig struct {
+	// Pool name, used as the prefix for per-zone pools.
+	name string
+	// Azure VM size for each node.
+	vmSize string
+	// OS disk size in GB per node.
 	osDiskSizeGB int32
-	minCount     int32
-	maxCount     int32
-	poolCount    int
-	zones        []string
+	// Autoscaler minimum node count per pool.
+	minCount int32
+	// Autoscaler maximum node count per pool.
+	maxCount int32
+	// Number of per-zone pools; ignored for regional pools.
+	poolCount int
+	// Configured zones, used when no existing pools match the role.
+	explicitZones []string
+
+	// Role, AKS pool mode, taints, and Swift networking policy.
+	class compute.PoolClass
+	// One pool spanning its zones or one pool per zone.
+	mode compute.PoolMode
+	// Maximum pods per node.
+	maxPods int32
+	// AKS node pool upgrade policy.
+	upgradeSettings armcontainerservice.AgentPoolUpgradeSettings
 }
 
-// validatedOptions is rawOptions after required-field checks, integer parsing,
-// and CSV zone parsing.
+// poolConfig contains validated pool inputs and resolved availability zones.
+type poolConfig struct {
+	// Validated inputs retained during completion.
+	validatedPoolConfig
+	// Resolved zones: existing pools, explicit config, then SKU discovery.
+	zones []string
+}
+
+// validatedOptions contains shared deployment inputs and pool configuration.
 type validatedOptions struct {
 	subscriptionID string
 	resourceGroup  string
 	clusterName    string
 	region         string
 
-	system poolConfig
-	user   poolConfig
-	infra  poolConfig
+	system validatedPoolConfig
+	user   validatedPoolConfig
+	infra  validatedPoolConfig
 
 	nodeSubnetID         string
 	podSubnetID          string
@@ -167,18 +166,20 @@ type validatedOptions struct {
 
 	metricLabelsAllowlist      string
 	metricAnnotationsAllowlist string
+
+	systemPoolOnly     bool
+	serviceMeshProfile *armcontainerservice.ServiceMeshProfile
+	ingressProfile     *armcontainerservice.ManagedClusterIngressProfile
 }
 
-// Validate checks required fields, parses integer and CSV-shaped values, and
-// builds the per-pool configuration. It performs no side effects; Azure
-// credentials and clients are built in Complete.
-func (o *rawOptions) Validate() (*validatedOptions, error) {
+// Validate checks required fields and parses shared inputs. It performs no side
+// effects; Azure credentials and clients are built in Complete.
+func (o *commonRawOptions) Validate() (*validatedOptions, error) {
 	required := []struct{ key, val string }{
 		{"SUBSCRIPTION_ID", o.subscriptionID},
 		{"RESOURCE_GROUP", o.resourceGroup},
 		{"CLUSTER_NAME", o.clusterName},
 		{"REGION", o.region},
-		{"REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount},
 		{"NODE_SUBNET_ID", o.nodeSubnetID},
 		{"POD_SUBNET_ID", o.podSubnetID},
 		{"NETWORK_DATAPLANE", o.networkDataplane},
@@ -195,33 +196,12 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 		}
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
-	}
-
-	regionAvailabilityZoneCount, err := parseInt("REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
-	}
-	// Fail fast with a clear message rather than a confusing per-pool error.
-	if regionAvailabilityZoneCount < compute.RequiredAvailabilityZones {
-		return nil, fmt.Errorf("REGION_AVAILABILITY_ZONE_COUNT must be at least %d, got %d", compute.RequiredAvailabilityZones, regionAvailabilityZoneCount)
-	}
-	system, err := validatePool("SYSTEM_POOL", o.system, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
-	}
-	user, err := validatePool("USER_POOL", o.user, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
-	}
-	infra, err := validatePool("INFRA_POOL", o.infra, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", ")))
 	}
 
 	tags, err := parseTags(o.clusterTags)
 	if err != nil {
-		return nil, fmt.Errorf("CLUSTER_TAGS: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("CLUSTER_TAGS: %w", err))
 	}
 	// Match Bicep's union: the alert-routing owner overrides the CSV tag.
 	tags["owningTeam"] = o.owningTeamTagValue
@@ -231,10 +211,6 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 		resourceGroup:  o.resourceGroup,
 		clusterName:    o.clusterName,
 		region:         o.region,
-
-		system: system,
-		user:   user,
-		infra:  infra,
 
 		nodeSubnetID:         o.nodeSubnetID,
 		podSubnetID:          o.podSubnetID,
@@ -254,39 +230,38 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 }
 
 // validatePool parses one pool block into a poolConfig. prefix is the block's
-// env-var prefix (e.g. "USER_POOL"), used in lookups and error messages. See
-// compute.ResolveZones for how raw.zones and regionAvailabilityZoneCount
-// resolve to zones.
-func validatePool(prefix string, raw rawPoolOptions, regionAvailabilityZoneCount int) (poolConfig, error) {
+// env-var prefix (e.g. "USER_POOL"), used in lookups and error messages.
+// Commands resolve zones separately.
+func validatePool(prefix string, raw rawPoolOptions) (validatedPoolConfig, error) {
 	if len(raw.name) == 0 {
-		return poolConfig{}, fmt.Errorf("%s_NAME is required", prefix)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_NAME is required", prefix))
 	}
 	if len(raw.vmSize) == 0 {
-		return poolConfig{}, fmt.Errorf("%s_VM_SIZE is required", prefix)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_VM_SIZE is required", prefix))
 	}
 	osDiskSizeGB, err := parseInt32(prefix+"_OS_DISK_SIZE_GB", raw.osDiskSizeGB)
 	if err != nil {
-		return poolConfig{}, err
+		return validatedPoolConfig{}, utils.TrackError(err)
 	}
 	minCount, err := parseInt32(prefix+"_MIN_COUNT", raw.minCount)
 	if err != nil {
-		return poolConfig{}, err
+		return validatedPoolConfig{}, utils.TrackError(err)
 	}
 	maxCount, err := parseInt32(prefix+"_MAX_COUNT", raw.maxCount)
 	if err != nil {
-		return poolConfig{}, err
+		return validatedPoolConfig{}, utils.TrackError(err)
 	}
 	if osDiskSizeGB < 0 {
-		return poolConfig{}, fmt.Errorf("%s_OS_DISK_SIZE_GB must not be negative", prefix)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_OS_DISK_SIZE_GB must not be negative", prefix))
 	}
 	if minCount < 0 {
-		return poolConfig{}, fmt.Errorf("%s_MIN_COUNT must not be negative", prefix)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_MIN_COUNT must not be negative", prefix))
 	}
 	if maxCount < 0 {
-		return poolConfig{}, fmt.Errorf("%s_MAX_COUNT must not be negative", prefix)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_MAX_COUNT must not be negative", prefix))
 	}
 	if minCount > maxCount {
-		return poolConfig{}, fmt.Errorf("%s_MIN_COUNT (%d) must not exceed %s_MAX_COUNT (%d)", prefix, minCount, prefix, maxCount)
+		return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_MIN_COUNT (%d) must not exceed %s_MAX_COUNT (%d)", prefix, minCount, prefix, maxCount))
 	}
 
 	// Pool count is optional; default to one when unset.
@@ -294,46 +269,61 @@ func validatePool(prefix string, raw rawPoolOptions, regionAvailabilityZoneCount
 	if len(raw.poolCount) > 0 {
 		poolCount, err = parseInt(prefix+"_COUNT", raw.poolCount)
 		if err != nil {
-			return poolConfig{}, err
+			return validatedPoolConfig{}, utils.TrackError(err)
 		}
 		if poolCount < 1 {
-			return poolConfig{}, fmt.Errorf("%s_COUNT must be at least 1", prefix)
+			return validatedPoolConfig{}, utils.TrackError(fmt.Errorf("%s_COUNT must be at least 1", prefix))
 		}
 	}
 
-	zones, err := compute.ResolveZones(raw.zones, regionAvailabilityZoneCount)
+	explicitZones, err := parseZoneList(prefix+"_ZONES", raw.zones)
 	if err != nil {
-		return poolConfig{}, fmt.Errorf("%s_ZONES: %w", prefix, err)
+		return validatedPoolConfig{}, utils.TrackError(err)
 	}
 
-	return poolConfig{
-		name:         raw.name,
-		vmSize:       raw.vmSize,
-		osDiskSizeGB: osDiskSizeGB,
-		minCount:     minCount,
-		maxCount:     maxCount,
-		poolCount:    poolCount,
-		zones:        zones,
+	return validatedPoolConfig{
+		name:          raw.name,
+		vmSize:        raw.vmSize,
+		osDiskSizeGB:  osDiskSizeGB,
+		minCount:      minCount,
+		maxCount:      maxCount,
+		poolCount:     poolCount,
+		explicitZones: explicitZones,
 	}, nil
 }
 
 // completedOptions is validatedOptions plus the Azure clients needed to
 // create the cluster and its pools.
 type completedOptions struct {
+	// Validated deployment inputs.
 	*validatedOptions
 
-	clustersClient             *armcontainerservice.ManagedClustersClient
-	deploymentsClient          *armdeployments.DeploymentsClient
+	// System pool configuration with resolved zones.
+	system poolConfig
+	// Worker pool configuration with resolved zones.
+	user poolConfig
+	// Infrastructure pool configuration with resolved zones.
+	infra poolConfig
+
+	// Observed cluster; nil when creating a new cluster.
+	cluster *armcontainerservice.ManagedCluster
+
+	// Reads and updates AKS clusters.
+	clustersClient *armcontainerservice.ManagedClustersClient
+	// Submits and monitors ARM deployments.
+	deploymentsClient *armdeployments.DeploymentsClient
+	// Retrieves deployment operation diagnostics.
 	deploymentOperationsClient *armdeployments.DeploymentOperationsClient
-	skuCache                   *skucache.SKUCache
+	// Regional VM SKU metadata used to build pools.
+	skuCache *skucache.SKUCache
 }
 
 // Complete builds the Azure credential and clients used to create the cluster
-// and its pools.
-func (o *validatedOptions) Complete() (*completedOptions, error) {
+// and its pools, observes the cluster, and resolves pool zones.
+func (o *validatedOptions) Complete(ctx context.Context) (*completedOptions, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
-		return nil, fmt.Errorf("azidentity: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("azidentity: %w", err))
 	}
 
 	clientOptions := policy.ClientOptions{
@@ -348,25 +338,56 @@ func (o *validatedOptions) Complete() (*completedOptions, error) {
 
 	clustersClient, err := armcontainerservice.NewManagedClustersClient(o.subscriptionID, cred, armClientOptions)
 	if err != nil {
-		return nil, fmt.Errorf("managed clusters client: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("managed clusters client: %w", err))
 	}
 	deploymentsClient, err := armdeployments.NewDeploymentsClient(o.subscriptionID, cred, armClientOptions)
 	if err != nil {
-		return nil, fmt.Errorf("deployments client: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("deployments client: %w", err))
 	}
 	deploymentOperationsClient, err := armdeployments.NewDeploymentOperationsClient(o.subscriptionID, cred, armClientOptions)
 	if err != nil {
-		return nil, fmt.Errorf("deployment operations client: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("deployment operations client: %w", err))
 	}
 
-	return &completedOptions{
+	if err := waitForDeployment(ctx, deploymentsClient, deploymentOperationsClient, o.resourceGroup, deploymentName); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	cluster, err := observeCluster(ctx, clustersClient, o.resourceGroup, o.clusterName)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	skuCache := skucache.NewSKUCache(o.region, cred, &clientOptions, nil)
+	system, user, infra, err := completePoolConfigs(ctx, o, skuCache, cluster)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	completed := &completedOptions{
 		validatedOptions: o,
+		cluster:          cluster,
+		system:           system,
+		user:             user,
+		infra:            infra,
 
 		clustersClient:             clustersClient,
 		deploymentsClient:          deploymentsClient,
 		deploymentOperationsClient: deploymentOperationsClient,
-		skuCache:                   skucache.NewSKUCache(o.region, cred, &clientOptions, nil),
-	}, nil
+		skuCache:                   skuCache,
+	}
+	return completed, nil
+}
+
+func observeCluster(ctx context.Context, client *armcontainerservice.ManagedClustersClient, resourceGroup, clusterName string) (*armcontainerservice.ManagedCluster, error) {
+	cluster, err := getCluster(ctx, client, resourceGroup, clusterName)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("getting cluster: %w", err))
+	}
+	if cluster == nil {
+		return nil, nil
+	}
+	return waitForManagedCluster(ctx, client, resourceGroup, clusterName, cluster)
 }
 
 // parseCSVList splits a comma-separated list, trimming whitespace and
@@ -387,7 +408,7 @@ func parseCSVList(raw string) []string {
 func parseInt(key, raw string) (int, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(raw))
 	if err != nil {
-		return 0, fmt.Errorf("%s: %q is not a valid integer", key, raw)
+		return 0, utils.TrackError(fmt.Errorf("%s: %q is not a valid integer", key, raw))
 	}
 	return n, nil
 }
@@ -396,7 +417,7 @@ func parseInt(key, raw string) (int, error) {
 func parseInt32(key, raw string) (int32, error) {
 	n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %q is not a valid integer", key, raw)
+		return 0, utils.TrackError(fmt.Errorf("%s: %q is not a valid integer", key, raw))
 	}
 	return int32(n), nil
 }
@@ -409,9 +430,29 @@ func parseTags(raw string) (map[string]string, error) {
 	for _, entry := range parseCSVList(raw) {
 		key, value, ok := strings.Cut(entry, "=")
 		if !ok || len(key) == 0 {
-			return nil, fmt.Errorf("malformed tag entry %q (expected key=value)", entry)
+			return nil, utils.TrackError(fmt.Errorf("malformed tag entry %q (expected key=value)", entry))
 		}
 		tags[key] = value
 	}
 	return tags, nil
+}
+
+// parseZoneList parses distinct positive zone numbers, preserving their order.
+func parseZoneList(key, raw string) ([]string, error) {
+	var zones []string
+	for _, entry := range parseCSVList(raw) {
+		zone, err := parseInt(key, entry)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if zone < 1 {
+			return nil, utils.TrackError(fmt.Errorf("%s: zone %q must be a positive integer", key, entry))
+		}
+		value := strconv.Itoa(zone)
+		if slices.Contains(zones, value) {
+			return nil, utils.TrackError(fmt.Errorf("%s: duplicate zone %d", key, zone))
+		}
+		zones = append(zones, value)
+	}
+	return zones, nil
 }

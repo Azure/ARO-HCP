@@ -51,7 +51,7 @@ make update
 ./image-updater update --config config.yaml --tags --dry-run
 
 # Update specific components only
-./image-updater update --config config.yaml --tags --components maestro,hypershift
+./image-updater update --config config.yaml --tags --components hypershift,secretSyncController
 
 # Update all images in a group
 ./image-updater update --config config.yaml --tags --groups hypershift-stack
@@ -133,10 +133,10 @@ All registries support anonymous access by default for public images. Private re
 ./image-updater update --config config.yaml --tags --dry-run
 
 # Update only specific components
-./image-updater update --config config.yaml --tags --components maestro,hypershift
+./image-updater update --config config.yaml --tags --components hypershift,secretSyncController
 
 # Exclude certain components
-./image-updater update --config config.yaml --tags --exclude-components maestro
+./image-updater update --config config.yaml --tags --exclude-components secretSyncController
 ```
 
 ### Groups
@@ -151,14 +151,14 @@ Each image belongs to a `group`, allowing you to update logically related images
 ./image-updater update --config config.yaml --tags --groups hypershift-stack,velero
 
 # Combine groups with individual components (union)
-./image-updater update --config config.yaml --tags --components maestro --groups hypershift-stack
+./image-updater update --config config.yaml --tags --components secretSyncController --groups hypershift-stack
 
 # Update a group but exclude specific components
-./image-updater update --config config.yaml --tags --groups hypershift-stack --exclude-components maestro-agent-sidecar
+./image-updater update --config config.yaml --tags --groups hypershift-stack --exclude-components hypershift-shared-ingress
 
 # Using Makefile
 make update GROUPS=hypershift-stack,velero
-make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=maestro-agent-sidecar
+make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=hypershift-shared-ingress
 ```
 
 Example groups include `cs`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
@@ -239,12 +239,13 @@ make -C config materialize
 ```yaml
 images:
   # Image with tag pattern
-  maestro:
+  secretSyncController:
     source:
-      image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      tagPattern: "^[a-f0-9]{40}$"  # Match 40-character commit hashes
+      image: registry.k8s.io/secrets-store-sync/controller
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match semantic version tags
+      multiArch: true
     targets:
-    - jsonPath: defaults.maestro.image.digest
+    - jsonPath: defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
 
   # Pinned to specific version

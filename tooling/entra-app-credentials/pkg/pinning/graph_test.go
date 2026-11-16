@@ -150,9 +150,11 @@ func TestNormalizeCustomKeyIdentifier(t *testing.T) {
 	base64DecodedHex, err := base64.StdEncoding.DecodeString(string(hexValue))
 	require.NoError(t, err)
 
-	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(thumbprint[:]))
-	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(hexValue))
-	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(base64DecodedHex))
+	assert.Equal(t, thumbprint[:], NormalizeCustomKeyIdentifier(thumbprint[:]))
+	assert.Equal(t, thumbprint[:], NormalizeCustomKeyIdentifier(hexValue))
+	assert.Equal(t, thumbprint[:], NormalizeCustomKeyIdentifier(base64DecodedHex))
+	assert.Nil(t, NormalizeCustomKeyIdentifier(nil))
+	assert.Equal(t, []byte("invalid"), NormalizeCustomKeyIdentifier([]byte("invalid")))
 }
 
 func TestConvertApplicationRejectsMissingID(t *testing.T) {

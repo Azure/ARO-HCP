@@ -26,24 +26,68 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	v1 "github.com/Azure/azure-kusto-go/azkustodata/query/v1"
 )
 
+// databaseNameRegex matches valid Kusto database names.
+var databaseNameRegex = regexp.MustCompile("^[a-zA-Z0-9_-]{1,63}$")
+
+// Settings is the meta configuration (kql-verify-settings.yaml) describing the
+// databases to validate and where their .kql scripts live.
+type Settings struct {
+	Databases []DatabaseSettings `json:"databases"`
+}
+
+// DatabaseSettings maps a single Kusto database to the ordered list of
+// directories whose .kql files define it.
+type DatabaseSettings struct {
+	// Name is the Kusto database name to create. It must match any names used
+	// in cross-database references (e.g. database("AllAroHcpLogs")) so those
+	// references resolve during validation.
+	Name string `json:"name"`
+	// KQLDir is the ordered list of directories whose *.kql files define the
+	// database. Directories are processed from 0 to n, so a directory must
+	// appear after anything its scripts depend on (e.g. the routing directory
+	// that creates the tab_* tables before the views directory that unions
+	// them). This mirrors the deployment order in script.bicep. Within each
+	// directory, files execute in sorted name order (so numeric-prefixed
+	// foundation scripts like 00_/01_ run first); directories are not walked
+	// recursively. Each path is resolved relative to the settings file's
+	// directory unless absolute.
+	KQLDir []string `json:"kqlDir"`
+}
+
 func newKQLCommand() *cobra.Command {
-	var endpoint, database, kqlDir string
+	var endpoint, configPath string
 
 	cmd := &cobra.Command{
 		Use:   "kql",
-		Short: "Validate KQL table definitions against a Kusto emulator",
+		Short: "Validate KQL definitions against a Kusto emulator",
 		Long: `Validate .kql files by executing them against a running Kusto emulator.
 
-Each .kql file is executed via ".execute database script" and the resulting
-tables are verified. This mirrors how the files are deployed in production
-via script.bicep.`,
+The databases to validate and the ordered list of directories that define each
+are read from a meta configuration file (kql-verify-settings.yaml). Every
+database listed is created first, then each database's directories are processed
+in the order they are listed (0..n); within a directory the *.kql files execute
+in sorted name order via ".execute database script". Validation does not stop at
+the first failure: all scripts run and all failures are reported at the end.
+
+The directory order is explicit and authoritative: a directory must appear after
+anything its scripts depend on (e.g. tables before the views that union them).
+Creating every database up front lets cross-database references resolve during
+validation. This mirrors how the files are deployed in production via
+script.bicep.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := logr.FromContextOrDiscard(cmd.Context())
+
+			settings, baseDir, err := loadSettings(configPath)
+			if err != nil {
+				return err
+			}
 
 			kcsb := azkustodata.NewConnectionStringBuilder(endpoint)
 			client, err := azkustodata.New(kcsb)
@@ -52,73 +96,141 @@ via script.bicep.`,
 			}
 			defer client.Close()
 
-			validationRegex := regexp.MustCompile("^[a-zA-Z0-9_-]{1,63}$")
-			if !validationRegex.MatchString(database) {
-				return fmt.Errorf("database name must be 1-63 characters long and contain only lowercase letters, numbers, and hyphens")
-			}
-
-			return runValidateKQL(cmd, logger, client, database, kqlDir)
+			return runValidateKQL(cmd.Context(), logger, client, baseDir, settings)
 		},
 	}
 
 	cmd.Flags().StringVar(&endpoint, "endpoint", "", "Kusto emulator HTTP endpoint (e.g. http://localhost:8080)")
-	cmd.Flags().StringVar(&database, "database", "validationdb", "Database name to create for validation")
-	cmd.Flags().StringVar(&kqlDir, "kql-dir", "", "Directory containing .kql files to validate")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to the kql-verify-settings.yaml meta configuration file")
 
 	_ = cmd.MarkFlagRequired("endpoint")
-	_ = cmd.MarkFlagRequired("kql-dir")
+	_ = cmd.MarkFlagRequired("config")
 
 	return cmd
 }
 
-func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.Client, database, kqlDir string) error {
-	ctx := cmd.Context()
+// loadSettings reads and validates the meta configuration file, returning the
+// parsed settings and the base directory (the config file's directory) against
+// which relative kqlDir values are resolved.
+func loadSettings(configPath string) (*Settings, string, error) {
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading config %q: %w", configPath, err)
+	}
 
+	var settings Settings
+	if err := yaml.Unmarshal(content, &settings); err != nil {
+		return nil, "", fmt.Errorf("parsing config %q: %w", configPath, err)
+	}
+
+	if len(settings.Databases) == 0 {
+		return nil, "", fmt.Errorf("config %q lists no databases", configPath)
+	}
+
+	for i, dbc := range settings.Databases {
+		if !databaseNameRegex.MatchString(dbc.Name) {
+			return nil, "", fmt.Errorf("databases[%d]: name %q must be 1-63 characters and contain only letters, numbers, hyphens, and underscores", i, dbc.Name)
+		}
+		if len(dbc.KQLDir) == 0 {
+			return nil, "", fmt.Errorf("databases[%d] (%s): kqlDir is required and must list at least one directory", i, dbc.Name)
+		}
+	}
+
+	absConfig, err := filepath.Abs(configPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("resolving config path %q: %w", configPath, err)
+	}
+
+	return &settings, filepath.Dir(absConfig), nil
+}
+
+func runValidateKQL(ctx context.Context, logger logr.Logger, client *azkustodata.Client, baseDir string, settings *Settings) error {
+	// Phase 1: create every database up front so cross-database references
+	// resolve when the scripts run.
+	for _, dbc := range settings.Databases {
+		if err := createDatabase(ctx, logger, client, dbc.Name); err != nil {
+			return fmt.Errorf("creating database %s: %w", dbc.Name, err)
+		}
+	}
+
+	// Phase 2: for each database, process its directories in listed order (0..n)
+	// and the .kql files within each directory in sorted name order, collecting
+	// all failures.
+	var failures []string
+	totalFiles := 0
+	for _, dbc := range settings.Databases {
+		logger.Info("Validating database", "database", dbc.Name, "dirs", len(dbc.KQLDir))
+
+		for _, rawDir := range dbc.KQLDir {
+			dir := rawDir
+			if !filepath.IsAbs(dir) {
+				dir = filepath.Join(baseDir, dir)
+			}
+
+			files, err := kqlFilesInDir(dir)
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("[%s] %s", dbc.Name, err))
+				continue
+			}
+			if len(files) == 0 {
+				failures = append(failures, fmt.Sprintf("[%s] no .kql files found in %s", dbc.Name, rawDir))
+				continue
+			}
+
+			logger.Info("Processing directory", "database", dbc.Name, "dir", rawDir, "files", len(files))
+			totalFiles += len(files)
+
+			for _, file := range files {
+				script := filepath.Join(rawDir, filepath.Base(file))
+				if err := validateFile(ctx, logger, client, dbc.Name, file); err != nil {
+					logger.Error(err, "FAIL", "database", dbc.Name, "script", script)
+					failures = append(failures, fmt.Sprintf("[%s] %s: %v", dbc.Name, script, err))
+				} else {
+					logger.Info("OK", "database", dbc.Name, "script", script)
+				}
+			}
+		}
+
+		tables, err := tablesWithDocstring(ctx, logger, client, dbc.Name)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("[%s] %v", dbc.Name, err))
+		}
+		logger.Info("Tables in database", "database", dbc.Name, "tables", tables)
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("validation failed (%d issue(s)):\n  %s", len(failures), strings.Join(failures, "\n  "))
+	}
+
+	logger.Info("All .kql files validated successfully", "databases", len(settings.Databases), "files", totalFiles)
+	return nil
+}
+
+func createDatabase(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database string) error {
 	logger.Info("Creating database", "database", database)
 	createCmd := fmt.Sprintf(
 		`.create database %s persist (@"/kustodata/dbs/%s/md", @"/kustodata/dbs/%s/data")`,
 		database, database, database,
 	)
+	logQuery(logger, "", createCmd)
 	ds, err := client.Mgmt(ctx, "", unsafeStmt(createCmd))
 	if err != nil {
-		return fmt.Errorf("creating database: %w", err)
+		return err
 	}
-	logQuery(logger, "", createCmd)
 	logDataset(logger, ds)
-
-	files, err := filepath.Glob(filepath.Join(kqlDir, "*.kql"))
-	if err != nil {
-		return fmt.Errorf("finding .kql files: %w", err)
-	}
-	if len(files) == 0 {
-		return fmt.Errorf("no .kql files found in %s", kqlDir)
-	}
-
-	logger.Info("Found .kql files", "count", len(files))
-
-	var failed []string
-	for _, file := range files {
-		name := filepath.Base(file)
-		if err := validateFile(ctx, logger, client, database, file); err != nil {
-			logger.Error(err, "FAIL", "file", name)
-			failed = append(failed, name)
-		} else {
-			logger.Info("OK", "file", name)
-		}
-	}
-
-	tables, err := tablesWithDocstring(ctx, logger, client, database)
-	if err != nil {
-		return fmt.Errorf("listing tables: %w", err)
-	}
-	logger.Info("Tables in database", "tables", tables)
-
-	if len(failed) > 0 {
-		return fmt.Errorf("validation failed for: %s", strings.Join(failed, ", "))
-	}
-
-	logger.Info("All .kql files validated successfully", "count", len(files))
 	return nil
+}
+
+// kqlFilesInDir returns the .kql files directly inside dir (non-recursive) in
+// sorted name order. filepath.Glob already returns matches in sorted order, so
+// numeric-prefixed foundation scripts (00_, 01_) come before the files that
+// depend on them.
+func kqlFilesInDir(dir string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.kql"))
+	if err != nil {
+		return nil, fmt.Errorf("finding .kql files in %s: %w", dir, err)
+	}
+	return files, nil
 }
 
 func validateFile(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database, path string) error {

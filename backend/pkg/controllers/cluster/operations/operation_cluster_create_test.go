@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -529,6 +530,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					}
 				}(),
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tc.wantErr {
@@ -721,7 +724,9 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 				resourcesDBClient:            db,
 			}
-			placementState, err := controller.placementOperationStatus(ctx, operation, cluster)
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
+			placementState, err := (&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: spcLister}).CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			if tc.managementClusterAssigned {
 				assert.Equal(t, coreapi.ProvisioningStateSucceeded, placementState.ProvisioningState)
@@ -815,10 +820,9 @@ func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	return cluster
 }
 
-func TestDetermineOperationState(t *testing.T) {
+func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
-	cluster := newClusterWithAPIURL("https://api.example.com", nil)
 
 	readyClusterServiceMock := func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -946,9 +950,9 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
-			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("maestro error")},
+			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("read desire error")},
 			expectError:      true,
-			errContains:      "maestro error",
+			errContains:      "read desire error",
 		},
 		{
 			name:             "both errors → joined error",
@@ -1262,6 +1266,10 @@ func TestDetermineOperationState(t *testing.T) {
 				setupCSMock = readyClusterServiceMock
 			}
 
+			if tt.clusterOverride != nil {
+				tt.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.clusterOverride}}
+			}
+
 			controller := &operationClusterCreate{
 				clock:                utilsclock.RealClock{},
 				clusterLister:        tt.clusterLister,
@@ -1297,12 +1305,11 @@ func TestDetermineOperationState(t *testing.T) {
 					},
 				},
 			}
+			calculators, err := controller.newStatusCalculators()
+			require.NoError(t, err)
+			controller.statusCalculators = calculators
 
-			clusterArg := cluster
-			if tt.clusterOverride != nil {
-				clusterArg = tt.clusterOverride
-			}
-			result, err := controller.determineOperationState(ctx, operation, clusterArg)
+			result, err := controller.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 			if !tt.expectError && tt.expectedState == coreapi.ProvisioningStateSucceeded {
 				serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]
 				for _, certificate := range []*coreapi.TLSCertificate{
@@ -1312,7 +1319,7 @@ func TestDetermineOperationState(t *testing.T) {
 					reference := certificate.AzureReference
 					certificate.PendingReference = reference
 					certificate.AzureReference = nil
-					waiting, waitErr := controller.determineOperationState(ctx, operation, clusterArg)
+					waiting, waitErr := controller.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 					require.NoError(t, waitErr)
 					assert.Equal(t, coreapi.ProvisioningStateProvisioning, waiting.ProvisioningState)
 					assert.Contains(t, waiting.Message, "TLS certificates not yet confirmed")
@@ -1385,11 +1392,11 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			controller := &operationClusterCreate{
+			controller := &clusterCreateServingCACheck{
 				serviceProviderClusterLister: tt.spcLister,
 			}
 
-			result, err := controller.servingCABundleOperationStatus(ctx, operation)
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
@@ -1472,14 +1479,14 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			if tc.unobserved {
 				desire.Status.Conditions[0].Status = metav1.ConditionFalse
 			}
-			controller := &operationClusterCreate{
+			controller := &clusterCreateDefaultIngressCertificateCheck{
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplierapi.ReadDesire{desire},
 				},
 			}
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation)
+			state, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			require.NotNil(t, state)
 			if tc.succeeded {
@@ -1528,7 +1535,7 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 	}
 	for _, entry := range tests {
 		test.Run(entry.name, func(test *testing.T) {
-			controller := &operationClusterCreate{
+			controller := &clusterCreateTLSCertificatesCheck{
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{{
 						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName))},
@@ -1536,7 +1543,7 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 					}},
 				},
 			}
-			state, err := controller.tlsCertificatesOperationStatus(test.Context(), operation)
+			state, err := controller.CalculateOperationStatus(test.Context(), operation, struct{}{})
 			require.NoError(test, err)
 			if entry.succeeded {
 				require.Equal(test, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
@@ -1547,8 +1554,8 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 		})
 	}
 	test.Run("not cached", func(test *testing.T) {
-		controller := &operationClusterCreate{serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{}}
-		state, err := controller.tlsCertificatesOperationStatus(test.Context(), operation)
+		controller := &clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{}}
+		state, err := controller.CalculateOperationStatus(test.Context(), operation, struct{}{})
 		require.NoError(test, err)
 		require.Equal(test, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
 		require.Equal(test, "ServiceProviderCluster not cached yet", state.Message)
@@ -1617,16 +1624,163 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			controller := &operationClusterCreate{
+			controller := &clusterCreateRoleAssignmentsCheck{
 				serviceProviderClusterLister: spcLister(tt.roleAssignments),
 			}
 
-			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMsgSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestDataPlaneOIDCFederationOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	identityResourceID := func(name string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/identity-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name))
+	}
+	const diskCSIOperator = "disk-csi-driver"
+	const fileCSIOperator = "file-csi-driver"
+	diskCSIIdentity := identityResourceID("disk-csi-identity")
+	fileCSIIdentity := identityResourceID("file-csi-identity")
+
+	cluster := fixture.NewCluster(nil)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+		diskCSIOperator: diskCSIIdentity,
+		fileCSIOperator: fileCSIIdentity,
+	}
+
+	// fullyEnsuredAssignment builds a (key, status) pair reporting the
+	// operator's identity as ensured with at least one confirmed FIC and
+	// nothing pending.
+	fullyEnsuredAssignment := func(identity *azcorearm.ResourceID, operatorName string) (coreapi.DataplaneOIDCFederationAssignmentKey, *coreapi.DataplaneOIDCFederationAssignmentStatus) {
+		identityResourceIDStr := strings.ToLower(identity.String())
+		target := coreapi.DataplaneOIDCFederationIdentityInstance{
+			ClientID:    identityResourceIDStr + "-client",
+			PrincipalID: identityResourceIDStr + "-principal",
+			TenantID:    identityResourceIDStr + "-tenant",
+		}
+		return coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: identityResourceIDStr, OperatorName: operatorName},
+			&coreapi.DataplaneOIDCFederationAssignmentStatus{
+				TargetIdentity:  target,
+				EnsuredIdentity: &target,
+				AzureResources: []*azcorearm.ResourceID{
+					metadataapi.Must(azcorearm.ParseResourceID(identity.String() + "/federatedIdentityCredentials/00000000-0000-0000-0000-000000000001")),
+				},
+			}
+	}
+
+	spcLister := func(federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation: federation,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		federation     map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		expectedState  coreapi.ProvisioningState
+		wantMsgSubstrs []string
+	}{
+		{
+			name: "both operators fully ensured → Succeeded",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				k, v = fullyEnsuredAssignment(fileCSIIdentity, fileCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "no assignments at all → Provisioning naming every pending operator",
+			federation:    nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"2 operator(s)",
+				diskCSIOperator,
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one of two fully ensured, the other entirely missing → Provisioning naming only the missing one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one fully ensured, the other has a freshly created entry with no FIC confirmed yet → Provisioning naming only that one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				// The intent controller has resolved the identity and written
+				// TargetIdentity, but the executor hasn't ensured anything yet:
+				// EnsuredIdentity is nil. This must not be mistaken for
+				// "nothing to do".
+				m[coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(fileCSIIdentity.String()), OperatorName: fileCSIOperator}] = &coreapi.DataplaneOIDCFederationAssignmentStatus{
+					TargetIdentity: coreapi.DataplaneOIDCFederationIdentityInstance{
+						ClientID:    "client",
+						PrincipalID: "principal",
+						TenantID:    "tenant",
+					},
+				}
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &clusterCreateDataPlaneOIDCFederationCheck{
+				clusterLister: &corelistertesting.SliceClusterLister{
+					Clusters: []*coreapi.Cluster{cluster},
+				},
+				serviceProviderClusterLister: spcLister(tt.federation),
+			}
+
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			for _, substr := range tt.wantMsgSubstrs {
+				assert.Contains(t, result.Message, substr)
 			}
 		})
 	}

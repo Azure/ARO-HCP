@@ -39,6 +39,7 @@ Mirror `backend/cmd/root.go:286-415`. Required flags:
 | Flag | Purpose |
 | --- | --- |
 | `--cosmos-name` / `--cosmos-url` | Cosmos endpoint (paired) |
+| `--cosmos-container-max-scale` | Required positive integer container ceiling in RU/s; supplied from `kubeApplier.cosmosContainerMaxScale` |
 | `--management-cluster` | Partition key value (from a downward-API env var or pod label preferred over a CLI flag) |
 | `--metrics-listen-address` | default `:8081` |
 | `--healthz-listen-address` | default `:8083` |

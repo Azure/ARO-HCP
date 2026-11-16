@@ -245,6 +245,11 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
       honorRetryBudgetWhenFailingFast: true
+  - name: kusto-cost-reporter
+    action: ARM
+    template: templates/kusto-cost-reporter.bicep
+    parameters: configurations/kusto-cost-reporter.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
   - name: housekeeping
     action: Shell
     command: ./global-housekeeping.sh

@@ -1,25 +1,25 @@
-# Kube-applier throughput registration rollout
+# Kube-applier throughput registration
 
 Registration writes ManagementCluster documents directly to Fleet Cosmos, not
-through AdminAPI. The chart and the kube-applier Cosmos provisioning parameters
-both read `kubeApplier.cosmosContainerMaxScale`; registration records that value
-as `status.kubeApplierCosmosContainerMaxScale` alongside the physical container
-name. This records provisioning configuration, not a live ARM measurement.
+through AdminAPI. The chart and kube-applier Cosmos provisioning parameters both
+read `kubeApplier.cosmosContainerMaxScale`; registration records that value as
+`status.kubeApplierCosmosContainerMaxScale` alongside the physical container name.
+This records provisioning configuration, not a live ARM measurement.
 
-The registration change must merge and roll out to production before the backend
-consumer change in PR #7730 may merge or deploy. Upgrade all ManagementCluster
-document writers, including Fleet and AdminAPI, before rerunning registration
-for existing management clusters. Older writers can otherwise discard the new
-field when replacing documents. The pipeline waits for Fleet and AdminAPI
-deployment; operators must also ensure the upgraded registration image is used.
+All management clusters must have a positive registered maximum before the
+backend consumer is enabled. All document writers, including Fleet, AdminAPI,
+and registration, must preserve the field. The registration pipeline waits for
+Fleet and AdminAPI deployment; operators must also use an upgraded registration
+image. Older writers can otherwise discard the field when replacing documents.
 
-Verify that every existing management cluster has a positive registered maximum
-before enabling the consumer. Untouched legacy zero values remain legal for
-unrelated updates, but are not valid throughput budgets. Registration requires a
-positive value, and rerunning registration backfills legacy records. Zero must
-not be interpreted as unlimited capacity or replaced with an ARM fallback.
+Validated creates and updates require a value of at least one, including updates
+that leave an invalid value unchanged. An omitted int32 field decodes to zero and
+is rejected. Rerunning registration populates or updates the value. Get and List
+do not validate stored records; raw out-of-band Cosmos writes are outside this
+write guard. Zero must not mean unlimited capacity, a hardcoded replacement, or
+an ARM fallback.
 
-The backend consumer takes a first-success, process-lifetime snapshot per physical
+The backend takes a first-success, process-lifetime budget snapshot per physical
 container. After changing provisioned throughput, rerun registration and restart
 the backend to refresh successful cached budgets. Coordinate decreases so backend
 instances do not continue using an older, larger budget after capacity is reduced.

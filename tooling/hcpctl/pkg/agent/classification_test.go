@@ -49,9 +49,42 @@ func TestParseDraftChain_WithClassification(t *testing.T) {
 	if chain.Classification.L2Subcategory != L2HyperShift {
 		t.Errorf("L2Subcategory = %q, want %q", chain.Classification.L2Subcategory, L2HyperShift)
 	}
-	if chain.Classification.Confidence != 0.92 {
-		t.Errorf("Confidence = %g, want 0.92", chain.Classification.Confidence)
+	if chain.Classification.Confidence == nil || *chain.Classification.Confidence != 0.92 {
+		t.Errorf("Confidence = %v, want 0.92", chain.Classification.Confidence)
 	}
+}
+
+func TestParseDraftChain_ConfidenceOmittedVsZero(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		confidence string
+		want       *float64
+	}{
+		{name: "omitted", confidence: "", want: nil},
+		{name: "null", confidence: `, "confidence": null`, want: nil},
+		{name: "explicit zero", confidence: `, "confidence": 0`, want: confidence(0)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `{
+				"root_cause": "test",
+				"summary": "test summary",
+				"classification": {"l1_category": "Azure Problems"` + tt.confidence + `},
+				"chain": [{"question": "Why did this test fail?", "answer": "reason", "proof": [{"type": "log", "source": "error", "lines": [1, 2]}]}]
+			}`
+			chain, err := ParseDraftChain(input)
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			got := chain.Classification.Confidence
+			if (got == nil) != (tt.want == nil) || (got != nil && *got != *tt.want) {
+				t.Errorf("Confidence = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func confidence(v float64) *float64 {
+	return &v
 }
 
 func TestParseDraftChain_WithoutClassification(t *testing.T) {
@@ -114,7 +147,7 @@ func classificationProblems(result ValidationResult) []ValidationProblem {
 		switch p.Category {
 		case "missing_classification", "invalid_l1_category",
 			"invalid_l2_subcategory", "unexpected_l2_subcategory",
-			"invalid_confidence":
+			"missing_confidence", "invalid_confidence":
 			filtered = append(filtered, p)
 		}
 	}
@@ -138,70 +171,75 @@ func TestValidateDraft_Classification(t *testing.T) {
 		},
 		{
 			name:           "invalid L1 category",
-			classification: &Classification{L1Category: "Not Real", Confidence: 0.5},
+			classification: &Classification{L1Category: "Not Real", Confidence: confidence(0.5)},
 			wantCategory:   "invalid_l1_category",
 		},
 		{
 			name:           "Product Failures missing L2",
-			classification: &Classification{L1Category: L1ProductFailures, Confidence: 0.8},
+			classification: &Classification{L1Category: L1ProductFailures, Confidence: confidence(0.8)},
 			wantCategory:   "invalid_l2_subcategory",
 		},
 		{
 			name:           "Product Failures invalid L2",
-			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: "NotAComponent", Confidence: 0.8},
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: "NotAComponent", Confidence: confidence(0.8)},
 			wantCategory:   "invalid_l2_subcategory",
 		},
 		{
 			name:           "non-Product Failures with L2 set",
-			classification: &Classification{L1Category: L1AzureProblems, L2Subcategory: L2HyperShift, Confidence: 0.9},
+			classification: &Classification{L1Category: L1AzureProblems, L2Subcategory: L2HyperShift, Confidence: confidence(0.9)},
 			wantCategory:   "unexpected_l2_subcategory",
 		},
 		{
+			name:           "missing confidence",
+			classification: &Classification{L1Category: L1AzureProblems},
+			wantCategory:   "missing_confidence",
+		},
+		{
 			name:           "confidence too low",
-			classification: &Classification{L1Category: L1AzureProblems, Confidence: -0.1},
+			classification: &Classification{L1Category: L1AzureProblems, Confidence: confidence(-0.1)},
 			wantCategory:   "invalid_confidence",
 		},
 		{
 			name:           "confidence too high",
-			classification: &Classification{L1Category: L1AzureProblems, Confidence: 1.5},
+			classification: &Classification{L1Category: L1AzureProblems, Confidence: confidence(1.5)},
 			wantCategory:   "invalid_confidence",
 		},
 		{
 			name:           "valid Azure Problems",
-			classification: &Classification{L1Category: L1AzureProblems, Confidence: 0.85},
+			classification: &Classification{L1Category: L1AzureProblems, Confidence: confidence(0.85)},
 			wantCategory:   "",
 		},
 		{
 			name:           "valid Product Failures with L2",
-			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2ClusterService, Confidence: 0.95},
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2ClusterService, Confidence: confidence(0.95)},
 			wantCategory:   "",
 		},
 		{
 			name:           "valid Maestro failure",
-			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2Maestro, Confidence: 0.9},
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2Maestro, Confidence: confidence(0.9)},
 		},
 		{
 			name:           "valid Kube Applier failure",
-			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2KubeApplier, Confidence: 0.9},
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2KubeApplier, Confidence: confidence(0.9)},
 		},
 		{
 			name:           "valid Test Reliability",
-			classification: &Classification{L1Category: L1TestReliability, Confidence: 0.7},
+			classification: &Classification{L1Category: L1TestReliability, Confidence: confidence(0.7)},
 			wantCategory:   "",
 		},
 		{
 			name:           "valid Deployment Failures",
-			classification: &Classification{L1Category: L1DeploymentFailures, Confidence: 0.6},
+			classification: &Classification{L1Category: L1DeploymentFailures, Confidence: confidence(0.6)},
 			wantCategory:   "",
 		},
 		{
 			name:           "confidence at boundary 0",
-			classification: &Classification{L1Category: L1AzureProblems, Confidence: 0},
+			classification: &Classification{L1Category: L1AzureProblems, Confidence: confidence(0)},
 			wantCategory:   "",
 		},
 		{
 			name:           "confidence at boundary 1",
-			classification: &Classification{L1Category: L1AzureProblems, Confidence: 1},
+			classification: &Classification{L1Category: L1AzureProblems, Confidence: confidence(1)},
 			wantCategory:   "",
 		},
 	}
@@ -240,7 +278,7 @@ func TestRenderMarkdown_WithClassification(t *testing.T) {
 		Classification: &Classification{
 			L1Category:    L1ProductFailures,
 			L2Subcategory: L2KubeApplier,
-			Confidence:    0.88,
+			Confidence:    confidence(0.88),
 		},
 		Chain: []HydratedLink{
 			{
@@ -273,7 +311,7 @@ func TestRenderMarkdown_WithoutL2(t *testing.T) {
 		Summary:   "summary",
 		Classification: &Classification{
 			L1Category: L1AzureProblems,
-			Confidence: 0.95,
+			Confidence: confidence(0.95),
 		},
 		Chain: []HydratedLink{
 			{
@@ -311,5 +349,29 @@ func TestRenderMarkdown_WithoutClassification(t *testing.T) {
 
 	if strings.Contains(rendered, "## Classification") {
 		t.Error("rendered markdown should not contain Classification section when nil")
+	}
+}
+
+func TestRenderMarkdown_WithoutConfidence(t *testing.T) {
+	chain := &HydratedChain{
+		RootCause:      "root cause",
+		Summary:        "summary",
+		Classification: &Classification{L1Category: L1AzureProblems},
+		Chain: []HydratedLink{
+			{
+				Question: FirstChainQuestion,
+				Answer:   "answer",
+				Proof:    []HydratedProofItem{{ProofItem: ProofItem{Type: "log", Source: "error", Lines: [2]int{1, 1}}}},
+			},
+		},
+	}
+
+	rendered := RenderMarkdown(chain, "TestExample")
+
+	if !strings.Contains(rendered, "Azure Problems") {
+		t.Error("rendered markdown missing L1 category")
+	}
+	if strings.Contains(rendered, "**Confidence:**") {
+		t.Error("rendered markdown should not contain Confidence line when confidence is missing")
 	}
 }

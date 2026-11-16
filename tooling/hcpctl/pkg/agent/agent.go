@@ -63,6 +63,12 @@ type AgentConfig struct {
 	// ModelDeployment is the model deployment name (byok mode).
 	ModelDeployment string
 
+	// MaxPromptTokens overrides the BYOK input budget, including system
+	// instructions, history, tools, and tool results. Zero keeps the runtime
+	// default. This is not the combined input/output window or a server limit
+	// increase. Callers must choose a budget supported by their deployment.
+	MaxPromptTokens int
+
 	// AzureCredential is used to acquire Entra tokens for BYOK sessions.
 	AzureCredential azcore.TokenCredential
 
@@ -104,6 +110,12 @@ type CopilotClient struct {
 func NewCopilotClient(cfg *AgentConfig) (*CopilotClient, error) {
 	if err := ValidateCopilotReasoningEffort(cfg.ReasoningEffort); err != nil {
 		return nil, err
+	}
+	if cfg.MaxPromptTokens < 0 {
+		return nil, fmt.Errorf("MaxPromptTokens must not be negative")
+	}
+	if cfg.MaxPromptTokens != 0 && cfg.AuthMode != CopilotAuthModeBYOK {
+		return nil, fmt.Errorf("MaxPromptTokens requires copilot auth mode %q", CopilotAuthModeBYOK)
 	}
 
 	// hcpctl uses the installed CLI rather than bundling the SDK runtime.
@@ -210,10 +222,11 @@ func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfi
 		}
 		// Reasoning with function tools requires Responses on newer models.
 		sessionCfg.Provider = &copilot.ProviderConfig{
-			Type:        "azure",
-			WireAPI:     "responses",
-			BaseURL:     c.cfg.ModelEndpoint,
-			BearerToken: token.Token,
+			Type:            "azure",
+			WireAPI:         "responses",
+			BaseURL:         c.cfg.ModelEndpoint,
+			BearerToken:     token.Token,
+			MaxPromptTokens: c.cfg.MaxPromptTokens,
 		}
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
@@ -752,7 +765,11 @@ func (s *Session) traceEvents() {
 		case *copilot.SessionTruncationData:
 			s.logger.V(5).Info("Copilot event: SessionTruncation")
 		case *copilot.SessionUsageInfoData:
-			s.logger.V(5).Info("Copilot event: SessionUsageInfo")
+			s.logger.V(5).Info("Copilot event: SessionUsageInfo",
+				"currentTokens", d.CurrentTokens,
+				"tokenLimit", d.TokenLimit,
+				"messagesLength", d.MessagesLength,
+			)
 		case *copilot.AssistantUsageData:
 			s.logger.V(5).Info("Copilot event: AssistantUsage",
 				"model", d.Model,

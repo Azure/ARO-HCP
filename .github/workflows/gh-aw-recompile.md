@@ -104,6 +104,10 @@ steps:
       go-version-file: go.work
       check-latest: true
       cache: false
+  - name: Build depctl
+    run: |
+      mkdir -p "$RUNNER_TEMP/gh-aw/bin"
+      make -C tooling/depctl build BINARY="$RUNNER_TEMP/gh-aw/bin/depctl"
   - name: Set up sandbox Node using the repository convention
     uses: actions/setup-node@v7.1.0
     with:
@@ -129,7 +133,7 @@ steps:
       REPO: ${{ github.repository }}
     run: |
       set -euo pipefail
-      python3 .github/scripts/agentic_pr_maintenance.py inventory "$REPO" > agentic-maintenance-inventory.json
+      "$RUNNER_TEMP/gh-aw/bin/depctl" maintenance inventory --repository "$REPO" --output agentic-maintenance-inventory.json
   - name: Inventory native Dependabot groups and verified robot replacements
     env:
       GH_TOKEN: ${{ github.token }}
@@ -345,8 +349,7 @@ Choose at most one `recover_owned_pr` safe output:
 For a failing Prow check, use its exact current-head `target_url`, not a URL assembled from a bucket name or job number. Fetch the recorded run with the trusted read-only helper from the original checkout:
 
 ```bash
-log_helper=$(realpath .github/scripts/fetch_prow_logs.py)
-python3 "$log_helper" "$prow_url" "/tmp/gh-aw/agent/prow-logs/$run_id"
+"$RUNNER_TEMP/gh-aw/bin/depctl" evidence prow --url "$prow_url" --output-dir "/tmp/gh-aw/agent/prow-logs/$run_id"
 ```
 
 The helper derives the exact bucket and object prefix from the Prow URL and saves `finished.json` and the complete `build-log.txt`. Keep failing and comparison runs in separate output directories. Inspect those saved files and their manifest before diagnosing the failure. Do not substitute `test-platform-results` for `test-platform-results-public` or guess the reverse. HTTP errors and incomplete downloads are retrieval failures, not evidence that the test is transient; preserve the hold when causal evidence is still missing. Apply this same retrieval procedure to native replacement recovery.

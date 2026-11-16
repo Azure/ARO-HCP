@@ -1,0 +1,28 @@
+# Meta configuration for `kustoctl validate kql` (see hack/kql-verify.sh).
+#
+# Each entry declares a Kusto database and the ORDERED list of directories whose
+# .kql files define it. The validator creates *all* databases first, then
+# processes each database's directories in the order listed (0..n); within a
+# directory the *.kql files run in sorted name order (so numeric-prefixed
+# foundation scripts like 00_/01_ run first). Directories are NOT walked
+# recursively. Validation continues past failures and reports them all at the end.
+#
+# Directory order is explicit and authoritative: a directory must appear after
+# anything its scripts depend on. The dependency here is between the routing
+# tables (tab_*) and the compatibility views that union them, so routing/ is
+# listed before views/. This mirrors the deployment order in
+# dev-infrastructure/modules/logs/kusto/main.bicep.
+#
+# Creating every database up front lets cross-database references (e.g. the
+# AllAroHcpLogs views that union tab_* tables with the legacy ServiceLogs tables)
+# resolve during validation.
+#
+# Directory paths are resolved relative to this file's directory.
+databases:
+- name: ServiceLogs
+  kqlDir:
+  - dev-infrastructure/modules/logs/kusto/tables
+- name: AllAroHcpLogs
+  kqlDir:
+  - dev-infrastructure/modules/logs/kusto/tablesv2/routing
+  - dev-infrastructure/modules/logs/kusto/tablesv2/views

@@ -186,7 +186,7 @@ The `Makefile` has access to a set of environment variables representing configu
 
 ### Local Run
 
-Using the `make run` target, the Admin API binary can be run locally. At this point, the Admin API does not integrate with any other service like the RP Frontend, CS or Maestro. Hence there are no dedicated dependencies on infrastructure that need to be met upfront. This will change soon.
+Use `make run` to start the Admin API locally with the personal-development configuration. Its handlers access infrastructure such as CosmosDB, so configure the required endpoints and credentials before using them.
 
 ### Personal DEV Environment deployment
 

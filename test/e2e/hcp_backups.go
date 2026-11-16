@@ -110,6 +110,7 @@ var _ = Describe("SRE", func() {
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
+		labels.StartPriority(20),
 		func(ctx context.Context) {
 
 			tc := framework.NewTestContext()

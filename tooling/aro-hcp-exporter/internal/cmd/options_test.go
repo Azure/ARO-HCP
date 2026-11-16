@@ -448,3 +448,35 @@ func TestCreateEnabledCollectorsCreatesKeyVaultCertificateCollector(t *testing.T
 	require.Len(t, collectors, 1)
 	assert.Equal(t, metrics.KeyVaultCertificateCollectorName, collectors[0].Name())
 }
+
+func TestValidate_CollectionInterval(t *testing.T) {
+	tests := []struct {
+		name     string
+		interval time.Duration
+		wantErr  string
+	}{
+		{name: "default is accepted", interval: DefaultCollectionInterval},
+		{name: "upper bound is accepted", interval: MaxCollectionInterval},
+		{name: "zero spins collectLoop", interval: 0, wantErr: "collection-interval must be positive"},
+		{name: "negative spins collectLoop", interval: -time.Second, wantErr: "collection-interval must be positive"},
+		{name: "absurdly large is rejected", interval: MaxCollectionInterval + time.Second, wantErr: "collection-interval must be at most"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			opts.ClusterTypes = []string{"svc-cluster"}
+			opts.Region = "eastus"
+			opts.CollectionInterval = tt.interval
+
+			_, err := opts.Validate(context.Background())
+
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}

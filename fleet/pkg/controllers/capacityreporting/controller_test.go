@@ -50,7 +50,7 @@ import (
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
-const testStampIdentifier = "eastus"
+const testStampIdentifier = "eus"
 
 func testKey() fleetcontrollers.StampKey {
 	return fleetcontrollers.StampKey{StampIdentifier: testStampIdentifier}
@@ -63,6 +63,7 @@ func testManagementClusterResourceID() *azcorearm.ResourceID {
 func buildTestReadDesire(report *capacityreportv1alpha1.CapacityReport) *kubeapplierapi.ReadDesire {
 	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), CapacityReportTarget)
+	desired.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue}}
 	if report != nil {
 		raw, _ := json.Marshal(report)
 		desired.Status.KubeContent = &runtime.RawExtension{Raw: raw}
@@ -140,6 +141,7 @@ func TestEnsureReadDesire_ConflictOnCreateIsSwallowed(t *testing.T) {
 func TestSyncOnce_NotFoundReadDesire(t *testing.T) {
 	lister := &kubeapplierlistertesting.SliceReadDesireLister{}
 	syncer := &capacityReportingSyncer{
+		fleetDBClient:    fleetcosmosstoragetesting.NewMockFleetDBClient(),
 		readDesireLister: lister,
 	}
 	err := syncer.SyncOnce(context.Background(), testKey())
@@ -152,6 +154,7 @@ func TestSyncOnce_NilKubeContent(t *testing.T) {
 		Desires: []*kubeapplierapi.ReadDesire{desire},
 	}
 	syncer := &capacityReportingSyncer{
+		fleetDBClient:    fleetcosmosstoragetesting.NewMockFleetDBClient(),
 		readDesireLister: lister,
 	}
 	err := syncer.SyncOnce(context.Background(), testKey())
@@ -163,7 +166,8 @@ func TestSyncOnce_WritesCapacityToScheduling(t *testing.T) {
 
 	report := &capacityreportv1alpha1.CapacityReport{
 		Status: capacityreportv1alpha1.CapacityReportStatus{
-			LastReportedAt: &metav1.Time{Time: fixedTime},
+			LastReportedAt:      &metav1.Time{Time: fixedTime},
+			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{Resources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)}},
 			Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 				{
 					SKU:   "Standard_D8ds_v5",
@@ -189,6 +193,11 @@ func TestSyncOnce_WritesCapacityToScheduling(t *testing.T) {
 	}
 
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	managementCluster := testManagementCluster()
+	managementCluster.ResourceID = testManagementClusterResourceID()
+	managementCluster.PartitionKey = testStampIdentifier
+	_, createErr := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Create(ctx, managementCluster, nil)
+	require.NoError(t, createErr)
 
 	syncer := &capacityReportingSyncer{
 		fleetDBClient:    fleetDB,
@@ -230,6 +239,7 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 		Status: capacityreportv1alpha1.CapacityReportStatus{
 			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
 				ReadyResourceIDs:    readyIDs,
+				Resources:           &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)},
 				NotReadyResourceIDs: notReadyIDs,
 			},
 			Conditions: []metav1.Condition{
@@ -247,6 +257,11 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 	}
 
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	managementCluster := testManagementCluster()
+	managementCluster.ResourceID = testManagementClusterResourceID()
+	managementCluster.PartitionKey = testStampIdentifier
+	_, createErr := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Create(ctx, managementCluster, nil)
+	require.NoError(t, createErr)
 
 	syncer := &capacityReportingSyncer{
 		fleetDBClient:    fleetDB,
@@ -309,6 +324,7 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 		Status: capacityreportv1alpha1.CapacityReportStatus{
 			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
 				ReadyResourceIDs: []string{ridObserved.String()},
+				Resources:        &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)},
 			},
 			Conditions: []metav1.Condition{
 				{Type: capacityreportv1alpha1.ConditionTypeReportCurrent, Status: metav1.ConditionTrue},
@@ -319,6 +335,11 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 	lister := &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{desire}}
 
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	managementCluster := testManagementCluster()
+	managementCluster.ResourceID = testManagementClusterResourceID()
+	managementCluster.PartitionKey = testStampIdentifier
+	_, createErr := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Create(ctx, managementCluster, nil)
+	require.NoError(t, createErr)
 	// Pre-seed the scheduling doc with two pending reservations: one that the
 	// report now observes (Ready) and one that is still pending.
 	_, err := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Scheduling().Create(ctx, &fleetapi.ManagementClusterScheduling{

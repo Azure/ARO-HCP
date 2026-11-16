@@ -4,8 +4,7 @@ metadata:
   name: backend-config
   namespace: '{{ .Release.Namespace }}'
 data:
-  DB_NAME: '{{ .Values.configMap.databaseName }}'
-  DB_URL: '{{ .Values.configMap.databaseUrl }}'
+  COSMOS_ACCOUNT_RESOURCE_ID: '{{ .Values.configMap.cosmosAccountResourceId }}'
   BACKEND_MI_CLIENT_ID: '{{ .Values.configMap.backendMiClientId }}'
   CURRENT_VERSION: '{{ .Values.configMap.currentVersion }}'
   LOCATION: '{{ .Values.configMap.location }}'

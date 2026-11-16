@@ -14,14 +14,11 @@ The individual components are described in the [service components overview](../
     - (Async) From this point forward, Backend sees the CosmosDB Operation record and asynchronously calls CS to determine current provisioning state and updates the Cluster so the customer has live feedback on status of the long-running request.
     - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
-6. Clusters Service posts `ManifestWork` containing `HostedCluster` Hypershift CRs and other supporting resources to the Maestro Server
-7. The Maestro Server posts transfers the `ManifestWork` to the Maestro Agent via Eventgrid Namespaces MQTT
-8. The Maestro Agent applies the `ManifestWork`, creating the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps as well as the `ManagedCluster` MCE CR.
-9. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
-10. MCE picks up on the finished `HostedCluster` provisioning and updates the `ManagedCluster` CR.
-11. The Maestro Agent transfers all status updates from `HostedCluster`, `ManagedCluster` and other `ManifestWork` resources back to the Maestro Server via Eventgrid Namespaces MQTT
-12. CS notices the status updates and updates the cluster records
-13. The Backend ultimately reports the updated CS status and completes the asynchronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
+6. Backend `ClusterResources` fetches the desired Kubernetes manifests from Clusters Service and writes per-management-cluster `ApplyDesire` documents into the kube-applier Cosmos container for the placed management cluster
+7. kube-applier on the management cluster reconciles those `ApplyDesire` documents and server-side applies them, creating the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, and supporting secrets and configmaps
+8. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
+9. Backend observes convergence through `ReadDesire` mirrors and Clusters Service status; CS updates its cluster records as provisioning progresses
+10. The Backend ultimately reports the updated status and completes the asynchronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
 
 ```mermaid
 ---
@@ -49,16 +46,10 @@ subgraph svc_cluster["service cluster"]
     subgraph cs_ns["ns cluster-service"]
         cs["Clusters Service"]
     end
-    subgraph maestro_server_ns["ns maestro"]
-        maestro_server["Maestro Server"]
-    end
  end
  subgraph mgmt_cluster["management cluster"]
-    subgraph maestro_agent_ns["ns maestro"]
-        maestro_agent["Maestro Agent"]
-    end
-    subgraph acm_mce_ns["ns multicluster-engine (ACM)"]
-        mce["MCE"]
+    subgraph kube_applier_ns["ns kube-applier"]
+        kube_applier["Kube Applier"]
     end
     subgraph hypershift_ns["ns hypershift"]
         hypershift["Hypershift Operator"]
@@ -69,25 +60,17 @@ subgraph svc_cluster["service cluster"]
     subgraph hypershift_cp_ns["ns ocm-xxx-$cluster-id-$name"]
         cp_pods["Control Plane Pods"]
     end
-    subgraph local_cluster_ns["ns local-cluster (ACM)"]
-        managed_cluster_cr["ManagedCluster CR"]
-    end
  end
- arm -- (1)(13) --> istio_ingress -- (2) --> mise
+ arm -- (1)(10) --> istio_ingress -- (2) --> mise
  mise --> istio_ingress -- (3) --> rp_frontend -- (4) --> cs
  cs -- (5) --> managed_resourcegroup
- cs -- (6) --> maestro_server
  rp_backend -- (async) --> cs
- maestro_server -- (7) --> maestro_agent
-
- mce -- (10) --> managed_cluster_cr
- maestro_agent -- (8) --> hypershift_hcp_ns
- maestro_agent -- (8) --> managed_cluster_cr
+ rp_backend -- (6) --> kube_applier
+ kube_applier -- (7) --> hypershift_hcp_ns
  hostedcluster_cr --> hypershift
- hypershift -- (9) --> managed_resourcegroup
- hypershift -- (9) --> hypershift_cp_ns
- maestro_agent -- (11) --> maestro_server
- maestro_server -- (12) --> cs
+ hypershift -- (8) --> managed_resourcegroup
+ hypershift -- (8) --> hypershift_cp_ns
+ rp_backend -- (9) --> cs
 ```
 
 ## RP Frontend
@@ -161,61 +144,26 @@ curl -sG http://localhost:8001/${CLUSTER_HREF}/provision_shard | jq
 
 Currently this endpoint does not return yet direct management cluster metadata, but the management cluster can be inferred from the stamp number at the end of the CX KV URL `.azure_shard.cx_managed_identities_key_vault_url`. Look for a management cluster in the same region that has the same stamp number in the AKS name and/or the Azure resource group.
 
-## Maestro Server
+## RP Backend / kube-applier
 
-### Port Forward to the Maestro Server
+Desired management-cluster manifests are delivered by the RP Backend writing `ApplyDesire` documents; kube-applier on the management cluster applies them. Observation of live objects flows back through `ReadDesire` documents.
 
-The Maestro Server is not exposed at all outside of the service cluster, as it is usually only used by the Clusters Service and Backplane. In order to access it for debugging purposes, you can port forward to the service.
-Keep in mind that the port-forwarded service does not require authentication and does not enforce authorization!
+### Check kube-applier Logs
 
-```sh
-kubectl port-forward -n maestro svc/maestro 8002:8000
-```
-
-### Query for ManifestWork
-
-To query for the `ManifestWork` Clusters Service creates in Maestro for an HCP, you can use the following command based on information from the HCP Clusters Service resource ID. This ID can be queried using the approach described in the [Query the State of an HCP on Clusters Service](#query-the-state-of-an-hcp-on-clusters-service) section and looking for the `id` field.
+kube-applier runs on the management cluster. To check its logs:
 
 ```sh
-curl -sG http://localhost:8002/api/maestro/v1/resource-bundles --data-urlencode "search=payload->'metadata'->'labels'->>'api.openshift.com/id'='${CLUSTERS_SERVICE_ID}'" | jq
+kubectl logs -n kube-applier deployment/kube-applier -c kube-applier
 ```
 
-Noteworthy fields:
+### Inspect Applied HostedCluster
 
-* `.updated_at` - the time when the resource bundle received an update
-* `.status` - the status of the resource bundle
-* `.status.conditions` - the conditions of `Manifestwork` - e.g. was it applied correctly on the management cluster?
-* `.status.resourceStatus[].statusFeedback.values[].fieldValue.jsonRaw | fromjson | .resourceStatus.manifests[].statusFeedback` - the contents of the innermost resource status feedback
-
-## Maestro Agent
-
-### Check Maestro Agent Logs
-
-The Maestro Agent runs on the management cluster in the `maestro` namespace. To check the logs of the Maestro Agent, you can use the following command:
+After kube-applier has applied the HostedCluster desire, the CR should exist in the HostedCluster namespace:
 
 ```sh
-kubectl logs -n maestro deployment/maestro-agent -c maestro-agent
+kubectl get hostedcluster -A
+kubectl get hostedcluster -n ocm-xxx-${CLUSTER_ID}
 ```
-
-## ACM
-
-### Query for ManifestWork on the Management Cluster
-
-The `ManifestWork` from Maestro can be found on the management cluster in the `local-cluster` namespace. They share the same labels as the resource bundles in Maestro. To list all `ManifestWork` for a Clusters Service cluster ID, you can use the following command:
-
-```sh
-kubectl get manifestwork -l "api.openshift.com/id=${CLUSTERS_SERVICE_ID}" -n local-cluster
-```
-
-### Query for ManagedClusters on the Management Cluster
-
-Each HCP is represented by a `ManagedCluster` ACM CR on the management cluster. To list all `ManagedCluster` resources, you can use the following command:
-
-```sh
-kubectl get managedclusters
-```
-
-Expect to see one `ManagedCluster` per HCP named after the Clusters Service cluster ID.
 
 ## Hypershift
 
@@ -234,5 +182,3 @@ The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control
 ```sh
 kubectl get pods -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
 ```
-
-The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).

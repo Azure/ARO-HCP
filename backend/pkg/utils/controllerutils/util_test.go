@@ -158,3 +158,164 @@ func TestDegradedControllerPanicHandler(t *testing.T) {
 		require.Contains(t, degradedCondition.Message, "goroutine", "message should contain stack trace")
 	})
 }
+
+func TestRedactDynamicSyncErrorMessageFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name: "AADSTS inline and JSON fields are redacted",
+			input: `ClientCertificateCredential authentication failed.
+POST https://example.com/YYYYYYY/oauth2/v2.0/token
+{
+  "error": "invalid_grant",
+  "error_description": "AADSTS5000229: The tenant '<removed>' is not available due to expiration. Trace ID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee Correlation ID: 11111111-2222-3333-4444-555555555555 Timestamp: 2026-11-02 15:49:40Z",
+  "timestamp": "2026-11-02 15:49:40Z",
+  "trace_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "correlation_id": "11111111-2222-3333-4444-555555555555"
+}`,
+			want: `ClientCertificateCredential authentication failed.
+POST https://example.com/YYYYYYY/oauth2/v2.0/token
+{
+  "error": "invalid_grant",
+  "error_description": "AADSTS5000229: The tenant '<removed>' is not available due to expiration. Trace ID: <removed> Correlation ID: <removed> Timestamp: <removed>",
+  "timestamp": "<removed>",
+  "trace_id": "<removed>",
+  "correlation_id": "<removed>"
+}`,
+		},
+		{
+			name:  "AADSTS tenant expiration with GUID is redacted",
+			input: `error_description: "AADSTS5000229: The tenant 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' is not available due to expiration. To learn more about tenant expiration policies, see https://aka.ms/tenantExpiryPolicy"`,
+			want:  `error_description: "AADSTS5000229: The tenant '<removed>' is not available due to expiration. To learn more about tenant expiration policies, see https://aka.ms/tenantExpiryPolicy"`,
+		},
+		{
+			name:  "AADSTS tenant expiration with display name is redacted",
+			input: `error_description: "AADSTS5000229: The tenant 'my-test-tenant' is not available due to expiration. Trace ID: aaaa-bbbb Correlation ID: cccc-dddd Timestamp: 2026-11-04 14:41:07Z"`,
+			want:  `error_description: "AADSTS5000229: The tenant '<removed>' is not available due to expiration. Trace ID: <removed> Correlation ID: <removed> Timestamp: <removed>"`,
+		},
+		{
+			name:  "AADSTS inline timestamp stops before trailing text",
+			input: `error_description: "... Timestamp: 2026-11-02 15:49:40Z. Please retry the request or contact support."`,
+			want:  `error_description: "... Timestamp: <removed>. Please retry the request or contact support."`,
+		},
+		{
+			name:  "AADSTS inline timestamp handles ISO8601 with fractional seconds",
+			input: `error_description: "... Timestamp: 2026-11-02T15:49:40.1234567Z Additional context here."`,
+			want:  `error_description: "... Timestamp: <removed> Additional context here."`,
+		},
+		{
+			name:  "AADSTS inline timestamp handles explicit UTC offset",
+			input: `error_description: "... Timestamp: 2026-11-02 15:49:40+00:00 trailing note"`,
+			want:  `error_description: "... Timestamp: <removed> trailing note"`,
+		},
+		{
+			name:  "AADSTS inline Trace ID and Correlation ID stop at punctuation",
+			input: `error_description: "... Trace ID: aaaa-bbbb, Correlation ID: cccc-dddd."`,
+			want:  `error_description: "... Trace ID: <removed>, Correlation ID: <removed>."`,
+		},
+		{
+			name:  "AADSTS inline Trace ID stops before a closing parenthesis, semicolon, question mark, or newline",
+			input: "error_description: \"(see Trace ID: aaaa-bbbb); Correlation ID: cccc-dddd? Timestamp: 2026-11-02 15:49:40Z\nmore text\"",
+			want:  "error_description: \"(see Trace ID: <removed>); Correlation ID: <removed>? Timestamp: <removed>\nmore text\"",
+		},
+		{
+			name:  "AADSTS near-miss text without a colon is not matched",
+			input: "error_description: \"Trace IDs and Correlation IDs are useful for debugging.\"",
+			want:  "error_description: \"Trace IDs and Correlation IDs are useful for debugging.\"",
+		},
+		{
+			name:  "AADSTS multiple occurrences of the same field are all redacted",
+			input: `error_description: "Trace ID: aaaa-bbbb at step one. Trace ID: cccc-dddd at step two."`,
+			want:  `error_description: "Trace ID: <removed> at step one. Trace ID: <removed> at step two."`,
+		},
+		{
+			name:  "ARM retry-after handles a decimal wait value",
+			input: `"message": "... Retry after 2.5 seconds"`,
+			want:  `"message": "... Retry after <removed> seconds"`,
+		},
+		{
+			name:  "ARM retry-after redacts only the number and keeps the unit",
+			input: `"message": "Request is temporarily throttled because subscription XXXXX has issued too many requests. Retry after 3 seconds."`,
+			want:  `"message": "Request is temporarily throttled because subscription XXXXX has issued too many requests. Retry after <removed> seconds."`,
+		},
+		{
+			name:  "ARM retry-after preserves a non-seconds unit instead of claiming seconds",
+			input: `"message": "... Retry after 60 minutes due to sustained load"`,
+			want:  `"message": "... Retry after <removed> minutes due to sustained load"`,
+		},
+		{
+			name:  "ARM retry-after leaves trailing text after the unit untouched",
+			input: `"message": "... Retry after 3 seconds, then retry the operation"`,
+			want:  `"message": "... Retry after <removed> seconds, then retry the operation"`,
+		},
+		{
+			name:  "ARM subscription throttled redacts the quoted try-again-after wait value",
+			input: `"retrievalError": "GET https://example.com/subscriptions/XXXXX/resourceGroups/XXXX/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager\n--------------------------------------------------------------------------------\nRESPONSE 429: 429 Too Many Requests\nERROR CODE: SubscriptionRequestsThrottled\n--------------------------------------------------------------------------------\n{\n  \"error\": {\n    \"code\": \"SubscriptionRequestsThrottled\",\n    \"message\": \"Number of 'read' requests for subscription 'XXXX' actor 'XXXXX' exceeded. Please try again after '10' seconds after additional tokens are available. Refer to https://aka.ms/arm-throttling for additional information.\"\n  }\n}\n--------------------------------------------------------------------------------\n"`,
+			want:  `"retrievalError": "GET https://example.com/subscriptions/XXXXX/resourceGroups/XXXX/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager\n--------------------------------------------------------------------------------\nRESPONSE 429: 429 Too Many Requests\nERROR CODE: SubscriptionRequestsThrottled\n--------------------------------------------------------------------------------\n{\n  \"error\": {\n    \"code\": \"SubscriptionRequestsThrottled\",\n    \"message\": \"Number of 'read' requests for subscription 'XXXX' actor 'XXXXX' exceeded. Please try again after '<removed>' seconds after additional tokens are available. Refer to https://aka.ms/arm-throttling for additional information.\"\n  }\n}\n--------------------------------------------------------------------------------\n"`,
+		},
+		{
+			name:  "ARM subscription throttled preserves a non-seconds unit instead of claiming seconds",
+			input: `"message": "Number of 'read' requests exceeded. Please try again after '500' milliseconds after additional tokens are available."`,
+			want:  `"message": "Number of 'read' requests exceeded. Please try again after '<removed>' milliseconds after additional tokens are available."`,
+		},
+		{
+			name:  "Cluster Service timestamp and operation identifier are redacted, other quoted values are not",
+			input: `ClusterClusterServiceCreate: Had an error while syncing: (wrapped at cluster_cluster_service_create_controller.go:193) failed to create cluster in CS: (wrapped at cluster_cluster_service_create_controller.go:341) PostCluster failed: (wrapped at client.go:399) status is 400, identifier is '400', code is 'CLUSTERS-MGMT-400', at '2026-10-22T16:59:33Z' and operation identifier is '98604e1b-af8d-470b-9ccc-f21eb226a3cf': Version 'openshift-v5.0.0-0.nightly-multi-2026-08-28-044726-nightly' doesn't exist .`,
+			want:  `ClusterClusterServiceCreate: Had an error while syncing: (wrapped at cluster_cluster_service_create_controller.go:193) failed to create cluster in CS: (wrapped at cluster_cluster_service_create_controller.go:341) PostCluster failed: (wrapped at client.go:399) status is 400, identifier is '400', code is 'CLUSTERS-MGMT-400', at '<removed>' and operation identifier is '<removed>': Version 'openshift-v5.0.0-0.nightly-multi-2026-08-28-044726-nightly' doesn't exist .`,
+		},
+		{
+			name:  "message with no dynamic fields is returned unchanged",
+			input: "failed to create cluster: some static, non-matching error",
+			want:  "failed to create cluster: some static, non-matching error",
+		},
+		{
+			name:  "empty message is returned unchanged",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, RedactDynamicSyncErrorMessageFields(tt.input))
+		})
+	}
+}
+
+func TestRedactDynamicErrorFieldsNormalizesRepeatedFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+	}{
+		{
+			name: "AADSTS error with different trace/correlation IDs and timestamps normalizes to the same message",
+			a:    `error_description: "AADSTS5000229: tenant expired. Trace ID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee Correlation ID: 11111111-2222-3333-4444-555555555555 Timestamp: 2026-11-02 15:49:40Z"`,
+			b:    `error_description: "AADSTS5000229: tenant expired. Trace ID: ffffffff-0000-1111-2222-333333333333 Correlation ID: 99999999-8888-7777-6666-555555555555 Timestamp: 2026-11-03 09:01:02Z"`,
+		},
+		{
+			name: "ARM throttling error with different retry durations normalizes to the same message",
+			a:    `"message": "Request is temporarily throttled because subscription XXXXX has issued too many requests. Retry after 3 seconds."`,
+			b:    `"message": "Request is temporarily throttled because subscription XXXXX has issued too many requests. Retry after 17 seconds."`,
+		},
+		{
+			name: "Cluster Service error with different timestamps and operation identifiers normalizes to the same message",
+			a:    `PostCluster failed: status is 400, code is 'CLUSTERS-MGMT-400', at '2026-10-22T16:59:33Z' and operation identifier is '98604e1b-af8d-470b-9ccc-f21eb226a3cf': Version 'x' doesn't exist .`,
+			b:    `PostCluster failed: status is 400, code is 'CLUSTERS-MGMT-400', at '2026-10-23T09:12:01Z' and operation identifier is 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee': Version 'x' doesn't exist .`,
+		},
+		{
+			name: "AADSTS tenant expiration error with different tenant identifiers (GUID vs display name) normalizes to the same message",
+			a:    `error_description: "AADSTS5000229: The tenant 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' is not available due to expiration. Trace ID: aaaa-bbbb Correlation ID: cccc-dddd Timestamp: 2026-11-04 14:41:07Z"`,
+			b:    `error_description: "AADSTS5000229: The tenant 'my-test-tenant-name' is not available due to expiration. Trace ID: ffff-eeee Correlation ID: 1111-2222 Timestamp: 2026-11-05 09:12:34Z"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, RedactDynamicSyncErrorMessageFields(tt.a), RedactDynamicSyncErrorMessageFields(tt.b))
+		})
+	}
+}

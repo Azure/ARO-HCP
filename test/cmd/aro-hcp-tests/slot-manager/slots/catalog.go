@@ -28,6 +28,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const (
@@ -112,8 +114,9 @@ type PoolSubscriptions struct {
 }
 
 type SlotAssets struct {
-	E2EIdentities            *E2EIdentitiesAsset `yaml:"e2e_identities,omitempty"`
-	InfrastructureIdentities *LeasedAsset        `yaml:"infrastructure_identities,omitempty"`
+	MockIdentities           *MockIdentitiesAsset `yaml:"mock_identities,omitempty"`
+	E2EIdentities            *E2EIdentitiesAsset  `yaml:"e2e_identities,omitempty"`
+	InfrastructureIdentities *LeasedAsset         `yaml:"infrastructure_identities,omitempty"`
 }
 
 type Pool struct {
@@ -146,11 +149,13 @@ type ResolvedSubscriptions struct {
 }
 
 type ResolvedAssets struct {
-	E2EIdentities            *ResolvedE2EIdentitiesAsset       `yaml:"e2e_identities,omitempty"`
-	InfrastructureIdentities *ResolvedInfrastructureIdentities `yaml:"infrastructure_identities,omitempty"`
+	MockIdentities           *leaseenv.MockIdentityBundlePayload `yaml:"mock_identities,omitempty"`
+	E2EIdentities            *ResolvedE2EIdentitiesAsset         `yaml:"e2e_identities,omitempty"`
+	InfrastructureIdentities *ResolvedInfrastructureIdentities   `yaml:"infrastructure_identities,omitempty"`
 }
 
 type ExpandedSlot struct {
+	MockIdentityConfig                 *MockIdentitiesAsset  `yaml:"mock_identity_config,omitempty"`
 	AssetRequirements                  []AssetRequirement    `yaml:"requirements,omitempty" json:"Requirements"`
 	Environment                        string                `yaml:"environment"`
 	PoolName                           string                `yaml:"pool_name,omitempty"`
@@ -339,6 +344,14 @@ func validateDeploymentEnvironmentName(name string) error {
 }
 
 func validatePool(environmentName string, pool *Pool) error {
+	if asset := pool.SlotAssets.MockIdentities; asset != nil {
+		if environmentName != "dev" && environmentName != "dev-xs" {
+			return fmt.Errorf("mock_identities is restricted to dev and dev-xs")
+		}
+		if asset.Allocation != AllocationDedicated {
+			return fmt.Errorf("mock_identities requires dedicated allocation")
+		}
+	}
 	switch {
 	case pool.Name == "":
 		return fmt.Errorf("environment %q has a pool with empty name", environmentName)
@@ -519,16 +532,17 @@ func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 	slots := make([]ExpandedSlot, 0, pool.SlotCount)
 	for i := 0; i < pool.SlotCount; i++ {
 		slot := ExpandedSlot{
-			AssetRequirements: pool.Requirements(),
-			Environment:       environment,
-			PoolName:          pool.Name,
-			DeployEnvironment: pool.DeployEnv,
-			SubscriptionName:  pool.Subscriptions.E2E,
-			Region:            pool.Region,
-			ResourceType:      pool.ResourceType,
-			ResourceName:      fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
-			SlotIndex:         i,
-			VMFamilyPolicy:    pool.VMFamilyPolicy,
+			MockIdentityConfig: pool.SlotAssets.MockIdentities,
+			AssetRequirements:  pool.Requirements(),
+			Environment:        environment,
+			PoolName:           pool.Name,
+			DeployEnvironment:  pool.DeployEnv,
+			SubscriptionName:   pool.Subscriptions.E2E,
+			Region:             pool.Region,
+			ResourceType:       pool.ResourceType,
+			ResourceName:       fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
+			SlotIndex:          i,
+			VMFamilyPolicy:     pool.VMFamilyPolicy,
 		}
 		slot.Subscriptions = ResolvedSubscriptions{
 			E2E:            ResolvedSubscription{Name: pool.Subscriptions.E2E},

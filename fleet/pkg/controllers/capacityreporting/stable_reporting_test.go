@@ -79,6 +79,6 @@ func TestCapacityReportingConverges(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, settled.CosmosETag, changed.CosmosETag)
 	require.True(t, meta.IsStatusConditionFalse(changed.Status.Conditions, condition.Type))
-	require.Len(t, changed.Status.NotReadyResourceIDs, 1)
-	require.Equal(t, int64(3), changed.Status.ObservedResources.Capacity.Cpu().Value())
+	require.Equal(t, settled.Status.NotReadyResourceIDs, changed.Status.NotReadyResourceIDs)
+	require.Equal(t, int64(2), changed.Status.ObservedResources.Capacity.Cpu().Value())
 }

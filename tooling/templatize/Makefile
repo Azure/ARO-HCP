@@ -10,6 +10,13 @@ SOURCES = $(shell find $(THIS_DIR) -name '*.go' -o -name '*.json')
 
 # Build the binary
 TEMPLATIZE = $(THIS_DIR)$(TEMPLATIZE_BINARY)
+ifeq ($(TEMPLATIZE_USE_PREBUILT),1)
+$(TEMPLATIZE): | check-prebuilt-templatize
+
+.PHONY: check-prebuilt-templatize
+check-prebuilt-templatize:
+	@test -x "$(TEMPLATIZE)" || { printf 'Missing or non-executable prebuilt templatize: %s\n' "$(TEMPLATIZE)" >&2; exit 1; }
+else
 $(TEMPLATIZE): $(SOURCES) $(MAKEFILE_LIST) $(THIS_DIR)/go.mod $(THIS_DIR)/go.sum force-go-build
 	@# Preserve the timestamp when unchanged: generated environment Makefiles depend on this tool.
 	set -e; cd $(THIS_DIR); \
@@ -18,6 +25,7 @@ $(TEMPLATIZE): $(SOURCES) $(MAKEFILE_LIST) $(THIS_DIR)/go.mod $(THIS_DIR)/go.sum
 		if test -f $(TEMPLATIZE_BINARY); then cp $(TEMPLATIZE_BINARY) "$$tmp"; fi; \
 		go build -mod=vendor -o "$$tmp" .; \
 		if ! cmp -s "$$tmp" $(TEMPLATIZE_BINARY); then mv "$$tmp" $(TEMPLATIZE_BINARY); fi
+endif
 
 templatize: $(TEMPLATIZE)
 .PHONY: templatize

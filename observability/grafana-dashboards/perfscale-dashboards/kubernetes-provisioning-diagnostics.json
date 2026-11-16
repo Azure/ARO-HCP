@@ -32,18 +32,6 @@
       "tooltip": "View cluster provisioning SLO metrics",
       "type": "link",
       "url": "/d/aro-hcp-cluster-service-slos"
-    },
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": true,
-      "keepTime": true,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Maestro Server Dashboard",
-      "tooltip": "View Maestro server metrics",
-      "type": "link",
-      "url": "/d/maestro-server"
     }
   ],
   "panels": [

@@ -212,17 +212,33 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
-The `integration/parallel/all` and `stage/parallel/all` suites select the union
-of their fast (`integration/parallel` / `stage/parallel`) and Slow
-(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
-environment exclusions and runs both Slow-labeled and non-Slow tests in one
-suite:
+The `integration/parallel/all`, `stage/parallel/all` and `prod/parallel/all`
+suites select the union of their fast (`*/parallel`) and Slow (`*/parallel/slow`)
+suites. Each retains its environment exclusions and runs both Slow-labeled and
+non-Slow tests in one suite. The stage and prod periodics use the `/all` suites
+so a single job covers the whole spec set:
 
 ```bash
 ./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
 ./test/aro-hcp-tests run-suite "integration/parallel/all"
 ./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
 ./test/aro-hcp-tests run-suite "stage/parallel/all"
+./test/aro-hcp-tests list tests --suite "prod/parallel/all" --output names
+./test/aro-hcp-tests run-suite "prod/parallel/all"
+```
+
+The `expect-failure` suite collects exactly the tests labeled
+`labels.ExpectFailure("ARO-123")` — reproducers for known, unfixed bugs or work
+in progress features that are expected to fail. The label takes a mandatory JIRA
+tracking-issue ID and renders as `ExpectFailure:ARO-123`, so each expected failure
+carries its tracking ticket. These tests are excluded from every other suite so
+their failures do not pollute normal CI. The suite is used to verify a fix has
+landed: each test flips from failing to passing once its bug is fixed, at which
+point the label is removed.
+
+```bash
+./test/aro-hcp-tests list tests --suite "expect-failure" --output names
+./test/aro-hcp-tests run-suite "expect-failure"
 ```
 
 ### Test cases with per-run cluster
@@ -334,6 +350,12 @@ stages. Stages start collapsed; expand a stage to see its operations. Uncovered
 time is labeled **No recorded operation**. It means missing operation coverage,
 not idle time. The elapsed envelope excludes Prow builds and pre/post-job steps.
 
+Every `By` step records a span, as do the framework setup before the first step,
+ARM metadata harvest, debug collection and each cleanup phase. A current report
+therefore has no uncovered interval for a completed test, and **No recorded
+operation** in a fresh report means new work that is not yet instrumented.
+Historical metadata is labeled as-is rather than reconstructed.
+
 The overview chart is sized to 90% of the outer viewport height, with a 640px
 minimum. Embedded reports fall back to 640px when cross-origin restrictions hide
 the viewport. The horizontal slider navigates the full time range. Sort tests by
@@ -343,7 +365,9 @@ full-run summary is unchanged.
 
 The full-run summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
-cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
+cleanup, cluster update, nodepool update, resource-group deletion, upgrade
+convergence and Key Vault or Managed HSM key creation, plus full cleanup,
+truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
 or unknown-outcome tests are excluded. Typed resource-operation averages also
 require an explicit successful operation outcome: failed attempts, including
@@ -364,6 +388,75 @@ unknown outcomes are labeled rather than reconstructed. Regenerate a report with
 ```bash
 ./test/aro-hcp-tests visualize --timing-input "$SHARED_DIR" --output "$ARTIFACT_DIR/test-timing"
 ```
+
+#### Suite queue order
+
+The suite scheduler is FIFO: it hands out the first spec whose conflict group,
+taints and MI pool capacity allow it to run. Specs declaring `labels.StartPriority(N)`
+enter the queue ahead of lower priority specs, and `0` is the default. The
+`Speed:Slow` label only selects the `/parallel` and `/parallel/slow` suites and
+has no effect on queue order.
+
+Priority values come from measured durations, not from guesses. Rank a spec set
+from the `timing-metadata-*.yaml` files of recent runs and assign the band that
+matches its average:
+
+| Priority | Measured average |
+|---:|---|
+| 90 | 50 minutes or more |
+| 80 | 45 to 50 minutes |
+| 70 | 40 to 45 minutes |
+| 60 | 35 to 40 minutes |
+| 50 | 30 to 35 minutes |
+| 40 | 25 to 30 minutes |
+| 30 | 20 to 25 minutes |
+| 20 | 15 to 20 minutes |
+
+Specs below 15 minutes carry no label and keep registration order. The bands
+cover the suite concurrency (75 containers in Stage, 58 in dev, 25 in Prod), so
+the first wave is made of the longest measured specs instead of file order.
+
+`./test/aro-hcp-tests list tests --suite <suite> --output names` prints the
+resulting queue order, so a priority change is reviewable before it runs in CI.
+
+#### Start-priority scores
+
+`priorities` reviews environment-normalized scores from CI telemetry for a fixed
+window. It reports proposed bands without running tests or editing sources:
+
+```bash
+# Review the scores for the last 30 days.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --output table
+
+# Save the exact input and replay it later without Azure credentials.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --save-input observations.json
+./test/aro-hcp-tests priorities --input observations.json --output json
+```
+
+`priorities` reads `ciJobOutcomes`, `ciProcessedJobs`, `ciTestResults` and
+`ciTestNames` from the `ServiceLogs` database. Only successful, processed runs
+and passed `e2e` results contribute: each spec's mean in an environment is
+divided by that environment's median, the best ratio is multiplied by the pooled
+global median, and the result in minutes selects a band. A spec needs at least
+three distinct builds in an environment before it may propose anything, so
+skips, failures and unprocessed runs never masquerade as zero-duration tests.
+
+The table includes nonzero exclusion counts. Scored rows show contributing
+builds and environments; insufficient rows show the eligible evidence available.
+A missing or conflicting test name prevents a proposal, but valid durations
+still contribute to the normalization medians.
+
+`refresh-priorities` maps those proposals onto the exact `labels.StartPriority`
+call that declares them:
+
+```bash
+./test/aro-hcp-tests refresh-priorities --report report.json --catalog before.json --repo .
+```
+
+The catalog comes from `./test/aro-hcp-tests list tests --output json` in the
+checkout being edited. Without `--write` the command only previews the plan, and
+a single unmappable or stale proposal aborts the whole batch before any write.
+`--verify-catalog` checks a rebuilt catalog against the same plan.
 
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
@@ -446,29 +539,73 @@ See the [slot-manager design](../cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--wo
 for the catalog and runtime contract.
 
 Configured selectors search supplied families in order, then choose a usable
-preferred size or deterministic discovery result within a family. Restriction
-and capability checks still apply; see
-[`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
-behavior.
+preferred size or deterministic discovery result within a family. If a family
+has no suitable SKU, selection advances to the next configured family.
+Restriction and capability checks still apply. These are family preferences,
+not instance-size pins; keep the preference order in code and the slot catalog
+rather than duplicating it here.
 
-Local runs can supply the same resolved override without slot-manager:
+Local runs can supply a resolved policy through
+`ARO_HCP_E2E_VM_FAMILY_POLICY`. Omit it to use the selector defaults. Keep the
+usual local subscription, location, and authentication setup: a policy does not
+choose a subscription or region, or grant quota.
 
-```bash
-export ARO_HCP_E2E_VM_FAMILY_POLICY='{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}'
-./test/aro-hcp-tests run-suite integration/parallel
+Only reported **restrictions** are honoured; remaining quota headroom is not
+checked. Ordered selection does not retry deployments after allocation or quota
+failures. Azure SKU metadata and quota approval do not reserve physical capacity.
+
+## Planning Azure vCPU quota
+
+A test case that creates one default node pool requests **two 8-vCPU workers,
+or 16 worker vCPUs**. This is customer-subscription demand, not the CI runner's
+CPU request or the service/management cluster's control-plane capacity.
+The [node pool constructors](../util/framework/helpers_v20240610preview.go)
+define the default replica count; the
+[VM size selectors](../util/framework/vm_sku_selection.go) define the worker
+shapes. Tests can override replicas, create more pools or clusters, or use
+specialized SKUs, so 16 is a baseline, not a per-test ceiling.
+
+| Workload shape | Calculation | Worker/helper vCPUs |
+| --- | --- | ---: |
+| One default two-node pool | 2 workers × 8 vCPUs | 16 |
+| Two small workers, when requested by a test | 2 workers × 4 vCPUs | 8 |
+| One helper VM at the preferred shape | 1 helper × 2 vCPUs | 2 |
+| Both three-node pools in the [nodepool autoscaling test](nodepool_autoscaling.go) | 2 pools × 3 workers × 8 vCPUs | 48 |
+
+The autoscaling row describes the combined pool minima when both zonal and
+non-zonal pools are created, not a maximum allocation. An autoscaling `Max`
+setting is not evidence that the test allocates that many nodes. Use actual
+selected SKU sizes and simultaneous node counts, including scale-out and
+rolling-replacement overlap, when calculating peak demand. Helpers use their
+own family quotas and can select a different size through fallback.
+
+There is no fixed vCPU requirement for an entire E2E suite. Size each
+subscription/region for all jobs that can overlap there:
+
+```text
+family peak = sum(simultaneously allocated VM count × vCPUs per VM
+                  for every worker pool and helper using that family)
+regional peak = sum(family peaks) + other regional VM usage
+required headroom = planned peak + allowance for replacements and delayed cleanup
 ```
 
-Keep the usual local subscription, location, and authentication setup. The
-override does not choose a subscription or region, or grant quota.
+For example, 25 simultaneous default two-node pools need 400 worker vCPUs;
+75 need 1,200. These are arithmetic examples, not concurrency settings or
+complete-suite budgets: add helpers, additional pools, autoscaling, overlapping
+jobs and existing usage. Apply the calculation to each family that fallback
+can select as well as the shared regional total.
 
-Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope. [ARO-30092](https://redhat.atlassian.net/browse/ARO-30092)
-records 2,000 vCPUs for each configured worker family, 350 for each helper
-family, and a shared 6,950-vCPU regional limit in the target subscription.
-Enabling further families requires checking their quota, total regional quota,
-and workload demand first. Azure SKU metadata and quota approval do not reserve
-physical capacity or guarantee that a later VM allocation succeeds. Ordered
-selection does not retry deployments after allocation or quota failures.
+Inspect the selected suite's concurrency in
+[`suites.go`](../cmd/aro-hcp-tests/suites.go) and
+[`concurrency.go`](../cmd/aro-hcp-tests/concurrency.go):
+`ARO_HCP_SUITE_PARALLELISM`, the acquired lease and `--max-concurrency` can affect
+the effective worker count. Identity-container admission is an independent
+resource ceiling, not a CPU reservation; a single spec can require multiple
+containers. See [identity leasing and capacity planning](../../docs/ci/identity-leasing.md#pool-sizing-and-subscription-constraints).
+
+Check live family and regional usage/limits before enabling a pool or increasing
+concurrency, and retain operational margin in both. Do not copy a subscription's
+current quota values into this guide.
 
 ## Updating E2E Timeouts
 

@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/kusto"
 )
 
 type batchKind string
@@ -103,7 +103,7 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	httpClient.Transport = lifetimeTransport{lifetime: lifetime, base: transport}
+	httpClient.Transport = kusto.OwnerLifetimeTransport{Lifetime: lifetime, Base: transport}
 	settings := w.config.CIJobOutcomes
 	connection := azkustodata.NewConnectionStringBuilder(settings.ClusterURI)
 	if credential != nil {
@@ -230,67 +230,6 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 	return nil
 }
 
-// Kusto auth metadata and resource discovery can use background contexts.
-// Bind their HTTP work to the owner without changing the artifact client's lifetime.
-// SDK retry sleeps outside HTTP may still delay shutdown.
-type lifetimeTransport struct {
-	lifetime context.Context
-	base     http.RoundTripper
-}
-
-func (t lifetimeTransport) CloseIdleConnections() {
-	if closer, ok := t.base.(interface{ CloseIdleConnections() }); ok {
-		closer.CloseIdleConnections()
-	}
-}
-
-func (t lifetimeTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	ctx, cancel := context.WithCancel(request.Context())
-	stop := context.AfterFunc(t.lifetime, cancel)
-	cleanup := func() { stop(); cancel() }
-	keep := false
-	defer func() {
-		if !keep {
-			cleanup()
-		}
-	}()
-	if t.lifetime.Err() != nil {
-		cancel()
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	response, err := t.base.RoundTrip(request.Clone(ctx))
-	if err != nil {
-		return response, err
-	}
-	// Cancellation must remain attached until the body is consumed, not just
-	// until headers arrive. Cleanup also detaches the lifetime callback.
-	if response.Body != nil {
-		response.Body = &lifetimeBody{ReadCloser: response.Body, cleanup: cleanup}
-		keep = true
-	}
-	return response, nil
-}
-
-type lifetimeBody struct {
-	io.ReadCloser
-	cleanup func()
-}
-
-func (b *lifetimeBody) Read(p []byte) (int, error) {
-	n, err := b.ReadCloser.Read(p)
-	if err != nil {
-		b.cleanup()
-	}
-	return n, err
-}
-
-func (b *lifetimeBody) Close() error {
-	defer b.cleanup()
-	return b.ReadCloser.Close()
-}
-
 func extentTagQuery(table, tag string) *kql.Builder {
 	return kql.New(".show table [").AddString(table).
 		AddLiteral("] extents where tags has ").AddString("ingest-by:" + tag).AddLiteral(" | project ExtentId")
@@ -372,16 +311,12 @@ func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, t
 }
 
 func validateMapping(mapping, required, dataType string) error {
-	var columns []struct {
-		Column, DataType, Path string
-		Properties             struct{ Path string }
-	}
-	if err := json.Unmarshal([]byte(mapping), &columns); err != nil {
+	columns, err := kusto.ParseMapping(mapping)
+	if err != nil {
 		return fmt.Errorf("failed to decode mapping: %w", err)
 	}
 	for _, column := range columns {
-		path := "$['" + required + "']"
-		if column.Column == required && column.DataType == dataType && (column.Path == path || column.Properties.Path == path) {
+		if column.Matches(required, dataType) {
 			return nil
 		}
 	}
@@ -416,10 +351,7 @@ func ingestRows[T any](ctx context.Context, target *tableIngestor, rows []T, tag
 }
 
 func ingestPayload(ctx context.Context, target *tableIngestor, payload *bytes.Buffer, tag string) error {
-	options := []azkustoingest.FileOption{
-		azkustoingest.IngestionMappingRef(target.mapping, azkustoingest.MultiJSON),
-		azkustoingest.FileFormat(azkustoingest.MultiJSON),
-	}
+	var options []azkustoingest.FileOption
 	if tag != "" {
 		ifNotExists, err := json.Marshal([]string{tag})
 		if err != nil {
@@ -427,7 +359,7 @@ func ingestPayload(ctx context.Context, target *tableIngestor, payload *bytes.Bu
 		}
 		options = append(options, azkustoingest.Tags([]string{"ingest-by:" + tag}), azkustoingest.IfNotExists(string(ifNotExists)))
 	}
-	if _, err := target.ingestor.FromReader(ctx, payload, options...); err != nil {
+	if err := kusto.IngestJSONLines(ctx, target.ingestor, target.mapping, payload, options...); err != nil {
 		return fmt.Errorf("queue rows for %s: %w", target.name, err)
 	}
 	return nil

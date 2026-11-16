@@ -59,6 +59,7 @@ import (
 
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/acmuninstall"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amanetpolicy"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/backupcleanup"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
@@ -134,6 +135,7 @@ type completedControllerOptions struct {
 	backupCleanup               *backupcleanup.Controller
 	repositoryCleanup           *repositorycleanup.Controller
 	snapshotPVCFinalizerCleanup *snapshotpvcfinalizercleanup.SnapshotPVCFinalizerCleanupController
+	acmUninstall                *acmuninstall.Controller
 	veleroInformers             dynamicinformer.DynamicSharedInformerFactory
 	resourceWatcher             *controller.ResourceWatcher
 	podWatcher                  *controller.PodWatcher
@@ -340,6 +342,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create snapshot PVC finalizer cleanup controller: %w", err)
 	}
 
+	acmUninstall, err := acmuninstall.NewController(kubeClientset, dynamicClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ACM uninstall controller: %w", err)
+	}
+
 	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics clientset: %w", err)
@@ -451,6 +458,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			backupCleanup:               backupCleanup,
 			repositoryCleanup:           repositoryCleanup,
 			snapshotPVCFinalizerCleanup: snapshotPVCFinalizerCleanup,
+			acmUninstall:                acmUninstall,
 			veleroInformers:             veleroInformers,
 			resourceWatcher:             resourceWatcher,
 			podWatcher:                  podWatcher,
@@ -679,6 +687,13 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					defer utilruntime.HandleCrash()
 					if err := o.snapshotPVCFinalizerCleanup.Run(ctx, o.workers); err != nil {
 						logger.Error(err, "Snapshot PVC finalizer cleanup controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.acmUninstall.Run(ctx); err != nil {
+						logger.Error(err, "ACM uninstall controller failed")
 					}
 				}()
 

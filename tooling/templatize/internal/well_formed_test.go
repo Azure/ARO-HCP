@@ -134,14 +134,11 @@ func TestStepsWellFormed(t *testing.T) {
 // is maintained by hand and topology.yaml is the only source of truth for what belongs in it. If a
 // new sibling is added under Management.Infra without updating fleet/registration/pipeline.yaml,
 // this test catches the drift instead of registration silently racing an unready cluster.
-// Maestro.Agent is the explicit exception: #7665 disabled its Helm resources, and fleet no longer
-// registers management clusters with Maestro. Its retained topology entry must not gate registration.
 func TestFleetRegistrationGatesOnManagementInfraSiblings(t *testing.T) {
 	const (
 		globalGroup            = "Microsoft.Azure.ARO.HCP.Global"
 		managementInfraGroup   = "Microsoft.Azure.ARO.HCP.Management.Infra"
 		fleetRegistrationGroup = "Microsoft.Azure.ARO.HCP.Fleet.Registration"
-		maestroAgentGroup      = "Microsoft.Azure.ARO.HCP.Maestro.Agent"
 	)
 
 	topo, cfg := loadDevTopologyAndConfig(t)
@@ -174,16 +171,9 @@ func TestFleetRegistrationGatesOnManagementInfraSiblings(t *testing.T) {
 		}
 	}
 
-	if awaited[maestroAgentGroup] {
-		t.Errorf("fleet registration must not depend on retired %s", maestroAgentGroup)
-	}
-
 	for _, sibling := range managementInfra.Children {
 		if sibling.ServiceGroup == fleetRegistrationGroup {
 			continue // fleet registration cannot depend on itself
-		}
-		if sibling.ServiceGroup == maestroAgentGroup {
-			continue
 		}
 		if !awaited[sibling.ServiceGroup] {
 			t.Errorf("%s was added under %s in topology.yaml but fleet/registration/pipeline.yaml has no "+

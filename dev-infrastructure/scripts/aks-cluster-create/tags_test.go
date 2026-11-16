@@ -25,8 +25,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
-	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
+	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9/fake"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 )
@@ -70,7 +70,7 @@ type tagReconcileFixture struct {
 }
 
 // newTagReconcileFixture builds a fully provisioned cluster that still carries
-// the provisioning marker, so reconcileClusterTags finalizes the handover.
+// the provisioning marker, so reconcileClusterTags marks initial provisioning complete.
 func newTagReconcileFixture(t *testing.T) *tagReconcileFixture {
 	t.Helper()
 	f := &tagReconcileFixture{
@@ -109,10 +109,10 @@ func newTagReconcileFixture(t *testing.T) *tagReconcileFixture {
 	return f
 }
 
-// TestReconcileClusterTagsFinalizesHandover clears the provisioning marker and
+// TestReconcileClusterTagsCompletesInitialProvisioning clears the provisioning marker and
 // overlays configured tags in one write once the cluster is provisioned, while
 // preserving tags this tool does not manage.
-func TestReconcileClusterTagsFinalizesHandover(t *testing.T) {
+func TestReconcileClusterTagsCompletesInitialProvisioning(t *testing.T) {
 	f := newTagReconcileFixture(t)
 	f.o.clusterTags = map[string]string{"owner": "new-team"}
 	require.NoError(t, f.o.reconcileClusterTags(context.Background(), f.cluster))

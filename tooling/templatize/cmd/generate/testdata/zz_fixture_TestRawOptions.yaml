@@ -13,8 +13,8 @@ resourceGroups:
     shellIdentity:
       configRef: globalMSIId
     variables:
-    - name: MAESTRO_IMAGE
-      configRef: maestro_image
+    - name: BACKEND_IMAGE
+      configRef: backend_image
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep

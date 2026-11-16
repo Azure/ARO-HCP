@@ -47,11 +47,10 @@ import (
 var ErrNoUsableVMSize = errors.New("no unrestricted VM size satisfied the selector in the test location; " +
 	"this typically indicates a VM SKU restriction or quota issue with the test subscription/region, not a product defect")
 
-// Historical default SKUs. Unconfigured general-purpose and specialized
-// selectors continue to prefer these independently of the family policy.
+// General-purpose worker defaults and the independent helper preference.
 const (
-	DefaultWorkerVMSize = "Standard_D8s_v3"
-	SmallWorkerVMSize   = "Standard_D4s_v3"
+	DefaultWorkerVMSize = "Standard_D8s_v6"
+	SmallWorkerVMSize   = "Standard_D4s_v6"
 	JumpboxVMSize       = "Standard_D2s_v3"
 )
 
@@ -516,8 +515,7 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 }
 
 // DefaultWorkerVMSizeSelector selects the general-purpose worker SKU used by the
-// default node pool. Without a configured family policy, Standard_D8s_v3 is
-// preferred to preserve historical behaviour with bounded D-series fallback.
+// default node pool.
 //
 // Candidates are restricted to SKU families that are enabled in the ARO-HCP RP
 // instance-type allowlist (see cluster-service
@@ -537,7 +535,7 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
 	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "default-worker",
-		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v6"},
+		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5"},
 		NamePattern: defaultWorkerVMSizePattern,
 		MinVCPUs:    8,
 	}, false)
@@ -555,7 +553,7 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 func SmallWorkerVMSizeSelector() VMSizeSelector {
 	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "small-worker",
-		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v6"},
+		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5"},
 		NamePattern: smallWorkerVMSizePattern,
 		MinVCPUs:    4,
 	}, false)
@@ -577,6 +575,7 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 	}, true)
 }
 
+// Applies explicit role family overrides without changing specialized selectors.
 func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
 	policy, err := vmFamilyPolicyFromEnv()
 	if err != nil {
@@ -595,6 +594,7 @@ func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
 	return selector
 }
 
+// Reads and validates the resolved slot policy before selector construction.
 func vmFamilyPolicyFromEnv() (vmfamily.VMFamilyPolicy, error) {
 	value, configured := os.LookupEnv(leaseenv.VMFamilyPolicy)
 	if !configured {
@@ -626,7 +626,7 @@ func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "ephemeral-osdisk-worker",
 		Preferred: []string{
-			DefaultWorkerVMSize,  // Standard_D8s_v3 - Intel D-series v3
+			"Standard_D8s_v3",    // Intel D-series v3
 			"Standard_D8as_v4",   // AMD D-series v4
 			"Standard_E8s_v3",    // Intel E-series v3
 			"Standard_E8as_v4",   // AMD E-series v4

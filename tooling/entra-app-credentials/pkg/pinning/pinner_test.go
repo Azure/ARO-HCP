@@ -26,16 +26,22 @@ import (
 )
 
 type fakeCertificates struct {
-	values      map[string][]byte
-	errs        map[string]error
+	values map[string][]byte
+	errs   map[string]error
+	// notAfter overrides the expiry of a certificate; the default is ten years from now.
+	notAfter    map[string]time.Time
 	createCalls []string
 }
 
-func (f *fakeCertificates) GetCertificate(_ context.Context, name string) ([]byte, error) {
+func (f *fakeCertificates) GetCertificate(_ context.Context, name string) (Certificate, error) {
 	if err := f.errs[name]; err != nil {
-		return nil, err
+		return Certificate{}, err
 	}
-	return f.values[name], nil
+	notAfter, ok := f.notAfter[name]
+	if !ok {
+		notAfter = time.Now().AddDate(10, 0, 0)
+	}
+	return Certificate{CER: f.values[name], NotAfter: notAfter}, nil
 }
 
 func (f *fakeCertificates) CreateCertificate(_ context.Context, name, dnsName string, _ []byte) ([]byte, error) {

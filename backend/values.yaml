@@ -7,8 +7,7 @@ pullBinding:
 configMap:
   location: "{{ .region }}"
   backendMiClientId: "__backendMsiClientId__"
-  databaseUrl: "__cosmosDBDocumentEndpoint__"
-  databaseName: "{{ .frontend.cosmosDB.name }}"
+  cosmosAccountResourceId: "__rpCosmosDbAccountResourceId__"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
 orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"
@@ -83,7 +82,7 @@ azure:
   ocpAcrResourceId: "__ocpAcrResourceId__"
   ocpAcrHostname: "__ocpAcrHostname__"
   oidcIssuerBlobServiceUrl: "__regionalOidcStorageAccountBlobEndpoint__"
-  oidcIssuerBaseUrl: "__regionalOidcStorageAccountWebEndpoint__"
+  oidcIssuerBaseUrl: "__oidcIssuerBaseUrl__"
   tlsCertificatesConfig:
     issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
     certificatesGenerationSource: "AzureKeyVault"

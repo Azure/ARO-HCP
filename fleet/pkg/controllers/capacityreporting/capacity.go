@@ -53,8 +53,11 @@ func ComputeObservedResources(report *capacityreportv1alpha1.CapacityReport) fle
 		}
 	}
 
-	usage := filterSchedulingResources(report.Status.Usage)
-	requests := filterSchedulingResources(report.Status.Requested)
+	var usage, requests corev1.ResourceList
+	if report.Status.HostedControlPlanes.Resources != nil {
+		usage = filterSchedulingResources(report.Status.HostedControlPlanes.Resources.Usage)
+		requests = filterSchedulingResources(report.Status.HostedControlPlanes.Resources.Requested)
+	}
 
 	return fleetapi.ObservedResources{
 		LastReportedAt: report.Status.LastReportedAt,

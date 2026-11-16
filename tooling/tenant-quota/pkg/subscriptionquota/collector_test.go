@@ -67,7 +67,14 @@ func testConfig(tenants ...config.TenantConfig) *config.Config {
 		Interval: "1m",
 		Timeout:  "10s",
 		CacheTTL: "1h",
-		Tenants:  tenants,
+		CIJobOutcomes: config.CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: config.CIFailurePatternsConfig{
+			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
+		Tenants: tenants,
 	}
 	if err := cfg.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid test config: %v", err))

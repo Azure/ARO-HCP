@@ -47,6 +47,12 @@ func QuoteFilterValue(value string) string {
 	return strings.ReplaceAll(value, "'", "''")
 }
 
+// IsNotFound reports whether err is a Microsoft Graph 404 response.
+func IsNotFound(err error) bool {
+	var apiError kiotaabstractions.ApiErrorable
+	return errors.As(err, &apiError) && apiError.GetStatusCode() == http.StatusNotFound
+}
+
 // IsTransient reports whether err is worth retrying. Kiota retries its own
 // retryable HTTP statuses, so only propagation delays (404, ErrNotVisible) and
 // transport failures that escape the SDK middleware qualify.

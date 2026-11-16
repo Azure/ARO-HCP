@@ -44,6 +44,27 @@ func TestValidate(t *testing.T) {
 			wantApps: []string{"app-a", "app-b", "pool-app-0", "pool-app-1"},
 		},
 		{
+			name: "dry-run rotation accepted",
+			options: RawOptions{
+				VaultURL: "https://example.vault.azure.net",
+				Mappings: []string{"app;cert;cert.example.com"},
+				Rotate:   true,
+				DryRun:   true,
+				Timeout:  time.Minute,
+			},
+			wantApps: []string{"app"},
+		},
+		{
+			name: "negative expiry warning rejected",
+			options: RawOptions{
+				VaultURL:      "https://example.vault.azure.net",
+				Mappings:      []string{"app;cert"},
+				ExpiryWarning: -time.Hour,
+				Timeout:       time.Minute,
+			},
+			wantError: "--expiry-warning",
+		},
+		{
 			name: "duplicate application rejected",
 			options: RawOptions{
 				VaultURL: "https://example.vault.azure.net",

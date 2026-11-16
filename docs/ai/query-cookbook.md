@@ -19,13 +19,13 @@ choices.
 ## Architectural request flow
 
 ```
-Customer → ARM → Frontend → Backend (async) → Clusters Service → Maestro → HyperShift
+Customer → ARM → Frontend → Backend (async) → Clusters Service → KubeApplier → HyperShift
 ```
 
 - **Frontend** validates the ARM request and creates an async operation.
 - **Backend** picks up the async op and translates it into Clusters Service API calls.
 - **Clusters Service (CS)** runs its own state machine and produces Maestro resource bundles.
-- **Maestro server** (service cluster) delivers bundles to the **Maestro agent** (management cluster) as ManifestWork.
+- **KubeApplier** applied Desire manifests from CosmosDB to the management cluster.
 - **HyperShift** reconciles HostedCluster/NodePool CRs into actual control plane pods.
 
 Hosted cluster namespace convention: `ocm-arohcp<env>-<cid>-<id>`, where
@@ -39,8 +39,7 @@ The two Kusto databases per region (see [kusto-debugging.md](kusto-debugging.md)
 
 ## Bootstrapping: from minimal input to magic strings
 
-Most queries need a `client_request_id`, the CS internal cluster ID (`cid`),
-or a Maestro bundle ID. The discovery queries resolve those from whatever you
+Most queries need a `client_request_id`, an ARM resource ID, or the CS internal cluster ID (`cid`). The discovery queries resolve those from whatever you
 have at hand.
 
 | Have | Query | Resolves |
@@ -50,7 +49,6 @@ have at hand.
 | `client_request_id` | [frontend/asyncOperationPath](../../tooling/hcpctl/pkg/snapshot/queries/frontend/asyncOperationPath/README.md) | Async operation path |
 | ARM resource ID | [backend/resourceInternalId](../../tooling/hcpctl/pkg/snapshot/queries/backend/resourceInternalId/README.md) | CS internal URI for the resource |
 | ARM resource ID | [clustersService/cid](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/cid/README.md) | CS internal cluster ID (`cid`) |
-| CS internal ID | [backend/maestroBundleAssociations](../../tooling/hcpctl/pkg/snapshot/queries/backend/maestroBundleAssociations/README.md) or [clustersService/maestroBundleAssociations](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/maestroBundleAssociations/README.md) | Maestro bundle IDs and ManifestWork names |
 
 If `clustersService/cid` returns nothing, something has gone catastrophically
 wrong with CS — go directly to [clustersService/events](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/events/README.md).
@@ -74,7 +72,6 @@ wrong with CS — go directly to [clustersService/events](../../tooling/hcpctl/p
 | [backend/serviceProviderState](../../tooling/hcpctl/pkg/snapshot/queries/backend/serviceProviderState/README.md) | Internal RP-owned state for the resource |
 | [backend/resourceControllerConditions](../../tooling/hcpctl/pkg/snapshot/queries/backend/resourceControllerConditions/README.md) | **Snapshot** of HCP controller conditions (look for `Degraded=true`) |
 | [backend/resourceControllerConditionTimeline](../../tooling/hcpctl/pkg/snapshot/queries/backend/resourceControllerConditionTimeline/README.md) | **Timeline** of every controller condition transition |
-| [backend/maestroBundleAssociations](../../tooling/hcpctl/pkg/snapshot/queries/backend/maestroBundleAssociations/README.md) | Bundles the backend created for the resource |
 | [backend/events](../../tooling/hcpctl/pkg/snapshot/queries/backend/events/README.md) | Backend pod K8s events |
 
 Pattern: condition queries come in **snapshot** (last seen state in the
@@ -90,37 +87,14 @@ first, drop to timeline if the snapshot doesn't explain the failure.
 | [clustersService/nodePoolState](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/nodePoolState/README.md) | Same for node pools |
 | [clustersService/logs](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/logs/README.md) | CS structured logs |
 | [clustersService/events](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/events/README.md) | CS pod K8s events |
-| [clustersService/maestroBundleAssociations](../../tooling/hcpctl/pkg/snapshot/queries/clustersService/maestroBundleAssociations/README.md) | Bundles CS owns (cross-check against backend's view) |
 
 Rule of thumb: if `phases` shows the cluster never left `validating` or
 `pending`, the failure is in CS or upstream; if it gets to `installing` but
 never `ready`, the failure is in HyperShift or further downstream.
 
-### Maestro
+### Kube-applier
 
-| Query | Purpose |
-|---|---|
-| [maestro/transitions](../../tooling/hcpctl/pkg/snapshot/queries/maestro/transitions/README.md) | **The 7-layer transition matrix** per bundle — see below |
-| [maestro/serverLogs](../../tooling/hcpctl/pkg/snapshot/queries/maestro/serverLogs/README.md) | Maestro server (service cluster) logs |
-| [maestro/agentLogs](../../tooling/hcpctl/pkg/snapshot/queries/maestro/agentLogs/README.md) | Maestro agent (management cluster) logs |
-| [maestro/mgmtAuditLogs](../../tooling/hcpctl/pkg/snapshot/queries/maestro/mgmtAuditLogs/README.md) | Management-cluster Kubernetes audit log entries from the agent |
-| [maestro/events](../../tooling/hcpctl/pkg/snapshot/queries/maestro/events/README.md) | Maestro pod K8s events |
-
-**Always check `maestro/transitions` when debugging anything that touches
-the management cluster.** It produces a per-bundle row with 7 counters:
-
-```
-1_server_spec_from_client  → 2_server_spec_to_broker  → 3_agent_spec_from_broker
-→ 4_agent_acted_on_cluster
-→ 5_agent_status_to_broker → 6_server_status_from_broker → 7_server_status_to_subscribers
-```
-
-Healthy invariants:
-- Layers 1, 2, 3 should have equal counts (spec side).
-- Layer 4 should be ≥ the spec count (the agent may re-apply).
-- Layers 5, 6, 7 should be roughly equal and ≥ the spec count (status side).
-
-A break between any two adjacent layers immediately localizes the failure.
+Use [kubeApplier/logs](../../tooling/hcpctl/pkg/snapshot/queries/kubeApplier/logs/README.md) to inspect apply, delete and read reconciliation for the cluster. Correlate desire resource IDs and controller names with backend conditions and HyperShift observations. An applied object is not necessarily ready; deletion must wait for finalizers and object absence.
 
 ### HyperShift (management cluster)
 
@@ -152,16 +126,12 @@ interactive debugging session.
 1. **Anchor in the failure.** Start with the test/operation error to identify
    the failing client/server relationship: ARM, the hosted cluster's kube
    API, or a workload on the hosted cluster.
-2. **Walk the layers in order.** Frontend → Backend → CS → Maestro →
-   HyperShift. Don't skip — a CAPI error often has a CS root cause one
-   layer up.
+2. **Trace the dependencies.** Start with frontend acceptance and backend conditions, then inspect CS lifecycle state, kube-applier reconciliation and HyperShift observations. CS and backend both perform provisioning work and consume observations.
 3. **Status before logs.** Check controller/resource conditions
    (`backend/resourceControllerConditions`, `hypershift/hostedClusterConditions`,
    `hypershift/nodePoolConditions`) before grepping logs. Timelines next, then
    raw logs, then pod events.
-4. **Always check Maestro transitions.** A break in the 7-layer matrix
-   localizes service↔management cluster delivery issues that are otherwise
-   invisible.
+4. **Check desire outcomes.** Use kube-applier logs to distinguish missing intent, apply failures, deletion waiting on finalizers and stale observations.
 5. **Timeouts are a symptom, not a cause.** Keep drilling.
 6. **Demonstrate absence.** Use `| summarize count = count()` to prove
    something didn't happen — empty result sets aren't proof on their own.

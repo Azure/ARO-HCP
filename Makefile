@@ -126,7 +126,6 @@ verify-tool-automation: $(JQ)
 verify-agentic-maintenance:
 	python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'
 	python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
-	python3 -m unittest discover -s .github/scripts -p 'test_fetch_prow_logs.py'
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format
@@ -233,6 +232,10 @@ build-hcpctl:
 	$(MAKE) -C tooling/hcpctl build
 .PHONY: build-hcpctl
 
+build-depctl:
+	$(MAKE) -C tooling/depctl build
+.PHONY: build-depctl
+
 e2e/local: e2e-local/setup build-hcpctl
 	$(MAKE) e2e-local/run
 .PHONY: e2e/local
@@ -270,7 +273,7 @@ e2e-local/run-test:
 
 mega-lint:
 	$(CONTAINER_ENGINE) run --rm \
-		-e FILTER_REGEX_EXCLUDE='(^|/)vendor/|hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
+		-e FILTER_REGEX_EXCLUDE='(^|/)vendor/|hypershiftoperator/deploy/crds/|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
@@ -400,7 +403,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder
+services_mgmt_pipelines = secret-sync-controller hypershiftoperator mgmt-agent swift-recorder
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -442,7 +445,7 @@ update-helm-fixtures:
 .PHONY: update-helm-fixtures
 
 test-infrastructure:
-	BICEP="$(BICEP)" go test -C dev-infrastructure system_pool_only_test.go infrastructure_identities_test.go
+	BICEP="$(BICEP)" go test -C dev-infrastructure infrastructure_identities_test.go
 .PHONY: test-infrastructure
 
 test-helm-fixtures: test-infrastructure
@@ -727,6 +730,17 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
+
+# Component updater (shared version bumper; Istio wired today — tooling/component-updater/README.md)
+COMPONENT ?=
+SUBSCRIPTION_ID ?=
+component-updater-check:
+	@$(MAKE) -C tooling/component-updater check COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-check
+
+component-updater-update:
+	@$(MAKE) -C tooling/component-updater update COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-update
 
 # Tool version bumper
 update-tool-versions:

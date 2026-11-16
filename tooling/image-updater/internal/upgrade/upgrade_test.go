@@ -330,10 +330,10 @@ func TestCheckerCheckAll(t *testing.T) {
 func TestCheckerCheckAllNoACMComponents(t *testing.T) {
 	cfg := &config.Config{
 		Images: map[string]config.ImageConfig{
-			"maestro": {
+			"backend": {
 				Group: "hypershift-stack",
 				Source: config.Source{
-					Image: "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
+					Image: "example.azurecr.io/arohcpbackend",
 				},
 			},
 		},

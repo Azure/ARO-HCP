@@ -221,6 +221,23 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.ExternalAuth
 	return newInternalExternalAuth, nil
 }
 
+func (f *Frontend) newExternalAuthAdmissionContext(ctx context.Context, op operation.Operation, resourceID *azcorearm.ResourceID) (*admission.ExternalAuthAdmissionContext, error) {
+	admissionContext := &admission.ExternalAuthAdmissionContext{Clock: f.clock}
+	if op.Type == operation.Create {
+		iterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		for _, externalAuth := range iterator.Items(ctx) {
+			admissionContext.ExternalAuths = append(admissionContext.ExternalAuths, externalAuth)
+		}
+		if err := iterator.GetError(); err != nil {
+			return nil, utils.TrackError(err)
+		}
+	}
+	return admissionContext, nil
+}
+
 func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
@@ -243,25 +260,16 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	// We retrieve all external auths for the cluster. Used for admission validation.
-	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	externalAuths := make([]*coreapi.ExternalAuth, 0)
-	for _, externalAuth := range externalAuthIterator.Items(ctx) {
-		externalAuths = append(externalAuths, externalAuth)
-	}
-	if err := externalAuthIterator.GetError(); err != nil {
-		return utils.TrackError(err)
-	}
-
 	restOperation := operation.Operation{
 		Type: operation.Create,
 		// TODO set operations when a need appears for it.
 	}
-	externalAuthAdmissionContext := &admission.ExternalAuthAdmissionContext{
-		ExternalAuths: externalAuths,
+	externalAuthAdmissionContext, err := f.newExternalAuthAdmissionContext(ctx, restOperation, resourceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateExternalAuth(ctx, externalAuthAdmissionContext, restOperation, newInternalExternalAuth, nil); len(mutationErrs) > 0 {
+		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
@@ -473,7 +481,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
+	restOperation := operation.Operation{Type: operation.Update}
+	admissionContext, err := f.newExternalAuthAdmissionContext(ctx, restOperation, newInternalExternalAuth.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateExternalAuth(ctx, admissionContext, restOperation, newInternalExternalAuth, oldInternalExternalAuth); len(mutationErrs) > 0 {
+		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
+	}
 	validationErrs := validation.ValidateExternalAuthUpdate(ctx, newInternalExternalAuth, oldInternalExternalAuth)
+	validationErrs = append(validationErrs, admission.AdmitExternalAuth(ctx, admissionContext, restOperation, newInternalExternalAuth, oldInternalExternalAuth)...)
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -619,9 +636,11 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if externalAuth.ServiceProviderProperties.DeletionTimestamp == nil {
-		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
+	externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline = &metav1.Time{Time: now.Add(admission.DefaultExternalAuthOperationCompletionDeadlineDuration)}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
 

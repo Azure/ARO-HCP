@@ -27,31 +27,33 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // waitForDeployment waits for a previous invocation to stop writing before we
 // observe resources. Failed/canceled deployments may be retried with a fresh
 // template; a successful old deployment is not proof that today's inputs match.
-func (o *completedOptions) waitForDeployment(ctx context.Context, name string) error {
+func waitForDeployment(ctx context.Context, deploymentsClient *armdeployments.DeploymentsClient, deploymentOperationsClient *armdeployments.DeploymentOperationsClient, resourceGroup, name string) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	return wait.PollUntilContextCancel(ctx, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		result, err := o.deploymentsClient.Get(ctx, o.resourceGroup, name, nil)
+	return utils.TrackError(wait.PollUntilContextCancel(ctx, 30*time.Second, true, func(ctx context.Context) (bool, error) {
+		result, err := deploymentsClient.Get(ctx, resourceGroup, name, nil)
 		if err != nil {
 			var responseErr *azcore.ResponseError
 			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
 				return true, nil
 			}
-			return false, fmt.Errorf("getting deployment %s: %w", name, err)
+			return false, utils.TrackError(fmt.Errorf("getting deployment %s: %w", name, err))
 		}
 		if result.Properties == nil || ptr.Deref(result.Properties.ProvisioningState, "") == "" {
-			return false, fmt.Errorf("deployment %s has no provisioning state", name)
+			return false, utils.TrackError(fmt.Errorf("deployment %s has no provisioning state", name))
 		}
 		switch *result.Properties.ProvisioningState {
 		case armdeployments.ProvisioningStateFailed, armdeployments.ProvisioningStateCanceled:
 			logger.Info("recovering unsuccessful deployment", "deployment", name, "provisioningState", *result.Properties.ProvisioningState, "deploymentError", result.Properties.Error)
-			o.logDeploymentOperations(ctx, name)
+			logDeploymentOperations(ctx, deploymentOperationsClient, resourceGroup, name)
 			return true, nil
 		case armdeployments.ProvisioningStateSucceeded:
 			return true, nil
@@ -59,20 +61,20 @@ func (o *completedOptions) waitForDeployment(ctx context.Context, name string) e
 			logger.Info("waiting for existing deployment", "deployment", name, "provisioningState", *result.Properties.ProvisioningState)
 			return false, nil
 		}
-	})
+	}))
 }
 
 // logDeploymentOperations makes one paginated pass, never a polling loop. Keep
 // diagnostics bounded and best-effort, including when the deployment timed out.
-func (o *completedOptions) logDeploymentOperations(ctx context.Context, name string) {
+func logDeploymentOperations(ctx context.Context, client *armdeployments.DeploymentOperationsClient, resourceGroup, name string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	logger := logr.FromContextOrDiscard(ctx).WithValues("deployment", name)
-	pager := o.deploymentOperationsClient.NewListPager(o.resourceGroup, name, nil)
+	pager := client.NewListPager(resourceGroup, name, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			logger.Error(err, "collecting deployment operations")
+			logger.Error(utils.TrackError(err), "collecting deployment operations")
 			return
 		}
 		for _, operation := range page.Value {
@@ -96,37 +98,37 @@ func (o *completedOptions) logDeploymentOperations(ctx context.Context, name str
 }
 
 // waitForManagedCluster returns the latest terminal snapshot without submitting writes.
-func (o *completedOptions) waitForManagedCluster(ctx context.Context, existing *armcontainerservice.ManagedCluster) (*armcontainerservice.ManagedCluster, error) {
+func waitForManagedCluster(ctx context.Context, client *armcontainerservice.ManagedClustersClient, resourceGroup, clusterName string, existing *armcontainerservice.ManagedCluster) (*armcontainerservice.ManagedCluster, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	started := time.Now()
 
 	// Respect cancellation even when the initial observation is already terminal.
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	// Reuse the caller's initial GET when the cluster is already terminal.
 	if done, err := managedClusterProvisioningDone(existing); done || err != nil {
-		return existing, err
+		return existing, utils.TrackError(err)
 	}
 
 	logger.Info("waiting for cluster provisioning", "provisioningState", *existing.Properties.ProvisioningState)
 
 	// Poll active provisioning until it finishes or the caller's deadline expires.
 	err := wait.PollUntilContextCancel(ctx, 30*time.Second, false, func(ctx context.Context) (bool, error) {
-		response, err := o.clustersClient.Get(ctx, o.resourceGroup, o.clusterName, nil)
+		response, err := client.Get(ctx, resourceGroup, clusterName, nil)
 		if err != nil {
-			return false, fmt.Errorf("refreshing cluster during provisioning: %w", err)
+			return false, utils.TrackError(fmt.Errorf("refreshing cluster during provisioning: %w", err))
 		}
 		existing = &response.ManagedCluster
 		done, err := managedClusterProvisioningDone(existing)
 		if err == nil && !done {
 			logger.Info("waiting for cluster provisioning", "provisioningState", *existing.Properties.ProvisioningState, "elapsed", time.Since(started).String())
 		}
-		return done, err
+		return done, utils.TrackError(err)
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	return existing, nil
 }
@@ -134,7 +136,7 @@ func (o *completedOptions) waitForManagedCluster(ctx context.Context, existing *
 // managedClusterProvisioningDone validates the observation and identifies terminal states.
 func managedClusterProvisioningDone(cluster *armcontainerservice.ManagedCluster) (bool, error) {
 	if cluster.Properties == nil || len(ptr.Deref(cluster.Properties.ProvisioningState, "")) == 0 {
-		return false, fmt.Errorf("cluster has no provisioning state")
+		return false, utils.TrackError(fmt.Errorf("cluster has no provisioning state"))
 	}
 	switch *cluster.Properties.ProvisioningState {
 	case provisioningStateSucceeded, provisioningStateFailed, provisioningStateCanceled:

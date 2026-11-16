@@ -98,6 +98,103 @@ func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
 	}
 }
 
+func TestBillingKustoLocationSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	ev2, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "pers",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+		Ev2Config:              ev2,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	kusto, err := baseline.GetByPath("billing.kusto")
+	require.NoError(t, err)
+	billingKusto := kusto.(map[string]any)
+
+	delete(billingKusto, "location")
+	require.NoError(t, resolver.ValidateSchema(baseline), "billing Kusto location must remain optional")
+
+	billingKusto["location"] = "uksouth"
+	require.NoError(t, resolver.ValidateSchema(baseline), "billing Kusto location can differ from the rollout region")
+
+	billingKusto["location"] = ""
+	require.ErrorContains(t, resolver.ValidateSchema(baseline), "/billing/kusto/location", "billing Kusto location cannot be empty")
+
+	billingKusto["location"] = 123
+	require.ErrorContains(t, resolver.ValidateSchema(baseline), "/billing/kusto/location", "billing Kusto location must be a string")
+}
+
+func TestKustoClusterIdentity(t *testing.T) {
+	configDir := filepath.Join(repoRootDir, "config")
+	data, err := configtypes.MergeRawConfigurationFiles(configDir, []string{
+		filepath.Join(configDir, "config.yaml"),
+		filepath.Join(configDir, "config.msft.clouds-overlay.yaml"),
+	})
+	require.NoError(t, err)
+	provider, err := config.NewConfigProviderFromData(data, configDir)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		cloud       string
+		environment string
+		region      string
+		kustoName   string
+	}{
+		{cloud: "public", environment: "int", region: "westus3", kustoName: "hcp-int-us"},
+		{cloud: "public", environment: "prod", region: "uksouth", kustoName: "hcp-prod-uk"},
+		{cloud: "public", environment: "prod", region: "westeurope", kustoName: "hcp-prod-eu"},
+		{cloud: "public", environment: "prod", region: "eastus2", kustoName: "hcp-prod-us"},
+		{cloud: "public", environment: "prod", region: "eastus2euap", kustoName: "hcp-prod-usc"},
+		{cloud: "public", environment: "prod", region: "australiaeast", kustoName: "hcp-prod-au"},
+		{cloud: "public", environment: "prod", region: "brazilsouth", kustoName: "hcp-prod-br"},
+		{cloud: "public", environment: "prod", region: "canadacentral", kustoName: "hcp-prod-ca"},
+		{cloud: "public", environment: "prod", region: "centralindia", kustoName: "hcp-prod-in"},
+		{cloud: "public", environment: "prod", region: "switzerlandnorth", kustoName: "hcp-prod-ch-2"},
+		{cloud: "public", environment: "stg", region: "uksouth", kustoName: "hcp-stg-uk-2"},
+		{cloud: "public", environment: "stg", region: "westus3", kustoName: "hcp-stg-us-1"},
+		{cloud: "dev", environment: "pers", region: "westus3", kustoName: "hcp-dev-us-2"},
+	} {
+		t.Run(test.cloud+"/"+test.environment+"/"+test.region, func(t *testing.T) {
+			ev2, err := ev2config.ResolveConfig("public", test.region)
+			require.NoError(t, err)
+			value, err := ev2.GetByPath("regionShortName")
+			require.NoError(t, err)
+			regionShort, ok := value.(string)
+			require.True(t, ok, "EV2 regionShortName must be a string")
+			resolver, err := provider.GetResolver(&config.ConfigReplacements{
+				CloudReplacement:       test.cloud,
+				EnvironmentReplacement: test.environment,
+				RegionReplacement:      test.region,
+				RegionShortReplacement: regionShort,
+				StampReplacement:       "1",
+				Ev2Config:              ev2,
+			})
+			require.NoError(t, err)
+			resolved, err := resolver.GetRegionConfiguration(test.region)
+			require.NoError(t, err)
+
+			for path, want := range map[string]string{
+				"kusto.kustoName":                      test.kustoName,
+				"kusto.serviceLogsDatabase":            "ServiceLogs",
+				"kusto.hostedControlPlaneLogsDatabase": "HostedControlPlaneLogs",
+				"kusto.allAroHcpLogsDatabase":          "AllAroHcpLogs",
+				"kusto.monitoringEventsDatabase":       "MonitoringEvents",
+			} {
+				got, err := resolved.GetByPath(path)
+				require.NoError(t, err)
+				require.Equal(t, want, got, path)
+			}
+		})
+	}
+}
+
 func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
 	require.NoError(t, err)
@@ -146,12 +243,6 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, want, fmt.Sprint(value), path)
 			}
-
-			t.Run("parameter template", func(t *testing.T) {
-				rendered, err := config.PreprocessFile(filepath.Join(repoRootDir, "dev-infrastructure/configurations/svc-cluster.tmpl.bicepparam"), baseline)
-				require.NoError(t, err)
-				require.Contains(t, strings.Split(string(rendered), "\n"), "param systemPoolOnly = true", "render an unquoted Bicep boolean from the resolved config")
-			})
 
 			encoded, err := json.Marshal(baseline)
 			require.NoError(t, err)
@@ -258,6 +349,52 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestAdditionalIngressRulesSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	replacements, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement: "dev", EnvironmentReplacement: "pers",
+		RegionReplacement: "westus3", RegionShortReplacement: "usw3",
+		StampReplacement: "1", Ev2Config: replacements,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	encoded, err := json.Marshal(baseline)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{"empty", "", true},
+		{"CI worker", "allow-istio-ingress=1000:Tcp:192.0.2.37:*:443", true},
+		{"multiple", "https=1000:Tcp:192.0.2.0/24:*:443,dns=1001:Udp:VirtualNetwork:10.0.0.4:53", true},
+		{"port range", "workers=1010:Tcp:10.0.0.0/8:*:8000-8080", true},
+		{"apostrophe", "developer's-access=1000:Tcp:192.0.2.37:*:443", false},
+		{"backslash", `developer\access=1000:Tcp:192.0.2.37:*:443`, false},
+		{"missing field", "https=1000:Tcp:192.0.2.37:443", false},
+		{"trailing comma", "https=1000:Tcp:192.0.2.37:*:443,", false},
+		{"IPv6 delimiter", "https=1000:Tcp:2001:db8::1:*:443", false},
+		{"newline", "https=1000:Tcp:192.0.2.37:*:443\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mutated configtypes.Configuration
+			require.NoError(t, json.Unmarshal(encoded, &mutated))
+			svc := mutated["svc"].(map[string]any)
+			svc["aks"].(map[string]any)["additionalIngressRules"] = tc.value
+			err := resolver.ValidateSchema(mutated)
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
 		})
 	}
 }

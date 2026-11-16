@@ -110,12 +110,20 @@ resourceGroups:
       # then updates the already-created objects. With large identity pools ARM
       # collapses the nested failures into "The aggregated deployment error is too
       # large", which hides that message from this matcher. Retrying is safe: the
-      # template is idempotent. The pool modules use @batchSize(25) and ARM skips
+      # template is idempotent. The pool modules use @batchSize(15) and ARM skips
       # later batches after a failed one, so creating a pool from scratch takes one
-      # attempt per batch: keep maximumRetryCount >= ceil(poolSize / 25) + 1.
+      # attempt per batch: keep maximumRetryCount >= ceil(poolSize / 15) + 1 (8
+      # for the 100-app ARM helper pool). The schema caps maximumRetryCount at 10,
+      # which bounds how far @batchSize can be lowered for the largest pool.
       - "aggregated deployment error is too large"
       - "does not exist or one of its queried"
-      maximumRetryCount: 6
+      # ARM pre-flight validation sometimes fails with an opaque
+      # InvalidTemplateDeployment/UnknownFailure when a Microsoft Graph call
+      # behind an app or `existing` lookup fails transiently. The inner Graph
+      # error is not reported, so match the code. The other Graph-backed ARM
+      # steps in this pipeline and in E2ESubscriptionRBAC retry on it too.
+      - "UnknownFailure"
+      maximumRetryCount: 10
       durationBetweenRetries: 1m
   - name: pin-mock-certs
     action: Shell
@@ -193,7 +201,8 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "does not exist or one of its queried"
-      maximumRetryCount: 3
+      - "UnknownFailure"
+      maximumRetryCount: 10
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents
@@ -206,6 +215,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Failed to update one or more relationships in 'owners'"
+      - "UnknownFailure"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: pin-mock-certs-int
@@ -261,7 +271,8 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "does not exist or one of its queried"
-      maximumRetryCount: 3
+      - "UnknownFailure"
+      maximumRetryCount: 10
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents
@@ -278,21 +289,41 @@ resourceGroups:
     template: ../../templates/ci-bot-rbac.bicep
     parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: ci-bot-rbac-int
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep
     parameters: ../../configurations/ci-bot-rbac-int.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: ci-bot-rbac-stg
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep
     parameters: ../../configurations/ci-bot-rbac-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: ci-bot-rbac-prod
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep
     parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
 # Tenant-quota collector Reader on every subscription it monitors. The
 # application and service principal come from E2ESubscriptionRBAC (looked up by
 # uniqueName); the subscription list is the same ci.<env> set the collector chart
@@ -309,3 +340,8 @@ resourceGroups:
     template: ../../templates/tenant-quota-rbac.bicep
     parameters: ../../configurations/tenant-quota-rbac.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

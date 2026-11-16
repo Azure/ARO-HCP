@@ -49,6 +49,14 @@ ciJobOutcomes:
   discoveryWorkers: {{ .opstool.tenantQuota.ciJobOutcomes.discoveryWorkers }}
   cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
   cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
+ciFailurePatterns:
+  results:
+    table: "{{ .opstool.tenantQuota.ciFailurePatterns.results.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciFailurePatterns.results.ingestionMapping }}"
+  interval: "{{ .opstool.tenantQuota.ciFailurePatterns.interval }}"
+  workers: {{ .opstool.tenantQuota.ciFailurePatterns.workers }}
+  cacheSize: {{ .opstool.tenantQuota.ciFailurePatterns.cacheSize }}
+  cacheTTL: "{{ .opstool.tenantQuota.ciFailurePatterns.cacheTTL }}"
 tenants:
   redHat0:
     tenantId: "{{ .opstool.tenantQuota.tenants.redHat0.tenantId }}"

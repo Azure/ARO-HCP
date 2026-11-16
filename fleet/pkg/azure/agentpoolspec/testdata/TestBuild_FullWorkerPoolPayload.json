@@ -2,6 +2,7 @@
   "availabilityZones": [
     "1"
   ],
+  "count": 2,
   "enableAutoScaling": true,
   "enableEncryptionAtHost": true,
   "enableFIPS": true,

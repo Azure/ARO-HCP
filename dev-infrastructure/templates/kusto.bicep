@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the consolidated logs database (AllAroHcpLogs).')
+param allAroHcpLogsDatabase string
+
 @description('Name of the monitoring events database.')
 param monitoringEventsDatabase string
 
@@ -71,6 +74,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
+    allAroHcpLogsDatabase: allAroHcpLogsDatabase
     monitoringEventsDatabase: monitoringEventsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups

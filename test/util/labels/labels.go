@@ -82,6 +82,45 @@ func MIContainers(n int) ginkgo.Labels {
 	return ginkgo.Label(fmt.Sprintf("MIContainers:%d", n))
 }
 
+// StartPriorityMax is the highest StartPriority value that a spec may declare.
+const StartPriorityMax = 1000
+
+// StartPriorityLabelPrefix is the label-name prefix for explicit suite start order.
+const StartPriorityLabelPrefix = "StartPriority:"
+
+// StartPriority returns a label that moves a spec ahead of lower priority specs in the
+// suite queue. Higher values start earlier, matching the Kubernetes PriorityClass
+// direction, and specs without the label start at 0 in registration order. The suite
+// scheduler is non-preempting: a high priority spec that cannot start yet because its
+// conflict group, taints or MI pool capacity block it does not delay the specs behind
+// it. Use it only for specs whose measured duration puts them in the suite's first wave.
+func StartPriority(priority int) ginkgo.Labels {
+	if priority < 0 || priority > StartPriorityMax {
+		panic(fmt.Sprintf("StartPriority: priority must be between 0 and %d, got %d", StartPriorityMax, priority))
+	}
+	return ginkgo.Label(fmt.Sprintf("%s%d", StartPriorityLabelPrefix, priority))
+}
+
+// ExpectFailureLabelPrefix is the label-name prefix for expect-failure tests.
+const ExpectFailureLabelPrefix = "ExpectFailure:"
+
+// ExpectFailure marks a test that reproduces a known bug and has been reported as a Jira ticket.
+// JiraID must reference a tracking issue (e.g. "ARO-123").
+// Produces ginkgo.Label("ExpectFailure:ARO-123"). Filtering matches on the
+// ExpectFailureLabelPrefix, not the full value. Temporary by design: remove
+// the label once the bug is fixed.
+// Tests with this label are excluded from all other suites (integration, stage, prod, dev,
+// rp-api-compat, hypershift-presubmit, upgrade/in-place) and collected in the dedicated
+// `expect-failure` suite to track fixing progress without polluting normal CI
+// results.
+func ExpectFailure(jiraID string) ginkgo.Labels {
+	if len(jiraID) == 0 {
+		panic("ExpectFailure: jiraID must not be empty")
+	}
+
+	return ginkgo.Label(fmt.Sprintf("%s%s", ExpectFailureLabelPrefix, jiraID))
+}
+
 // Environments this test can be used in.
 var (
 	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")

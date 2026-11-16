@@ -122,8 +122,11 @@ func (f *fakeStore) Set(_ context.Context, name, value string) error {
 
 func newApplication() *Application {
 	return &Application{
-		ID:    "app-object",
-		AppID: "app-client",
+		ID:          "app-object",
+		AppID:       "app-client",
+		DisplayName: "app",
+		// Matches the "existing" secret stored by the tests, valid for a year.
+		PasswordCredentials: []PasswordCredential{{Hint: "exi", End: fixedNow.AddDate(1, 0, 0)}},
 		RequiredResourceAccess: []ResourceAccess{{
 			ResourceAppID: graphAppID,
 			Access:        []Access{{ID: roleID, Type: ResourceAccessRole}, {ID: scopeID, Type: ResourceAccessScope}},

@@ -528,6 +528,70 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:    "unresolved control plane identity in the SPC map",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				id := testIdentityResourceID("extra-control-plane")
+				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{ResourceID: id}
+			}),
+			expected: false,
+		},
+		{
+			name:    "data plane retrieval error with a stale principal ID",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				id := testIdentityResourceID("extra-data-plane")
+				spc.Status.DataPlaneOperatorsManagedIdentities.Identities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
+					ResourceID: id, PrincipalID: ptr.To(testPrincipalID(id)), RetrievalError: ptr.To("AADSTS5000229"),
+				}
+			}),
+			expected: false,
+		},
+		{
+			name:    "required control plane principal ID is unresolved",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(testIdentityResourceID("capi-azure").String())].PrincipalID = nil
+			}),
+			expected: false,
+		},
+		{
+			name:    "required data plane principal ID failed to resolve",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				identity := spc.Status.DataPlaneOperatorsManagedIdentities.Identities[strings.ToLower(testIdentityResourceID("dp-image-registry").String())]
+				identity.PrincipalID = nil
+				identity.RetrievalError = ptr.To("AADSTS5000229")
+			}),
+			expected: false,
+		},
+		{
+			name:    "required service managed principal ID is unresolved",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID = nil
+			}),
+			expected: false,
+		},
+		{
+			name: "service managed identity is unresolved despite matching control plane identity",
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = testIdentityResourceID("capi-azure")
+			}),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID = nil
+			}),
+			expected: false,
+		},
+		{
+			name: "invalid identity configuration remains reportable",
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
+				delete(c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, "cluster-api-azure")
+			}),
+			spc:      newTestSPC(),
+			expected: true,
+		},
+		{
 			name:    "has pending deny assignments",
 			cluster: newTestCluster(),
 			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {

@@ -1,0 +1,17 @@
+// Backward-compatibility read facade for hcpContainerLogs (migration step 1 / PR1).
+//
+// hcpContainerLogs is the new logical name for hosted-control-plane container logs.
+// Before consolidation these lived in HostedControlPlaneLogs.containerLogs (its own
+// per-type database with 14-day retention). This thin, cheap view unions the new
+// routed table (tab_hcpContainerLogs) with that legacy table so readers of the new
+// name immediately see pre-cutover HCP data. Legacy data ages out by retention.
+//
+// union kind=outer tolerates minor column drift between the two sources.
+// skipvalidation is required because the cross-database sources are not resolvable
+// at script-execution time (validation emulator, single-database deploy).
+.create-or-alter function with (view = true, skipvalidation = "true", docstring = "compat view: hcpContainerLogs (new tab_hcpContainerLogs + legacy HostedControlPlaneLogs.containerLogs)", folder = "views")
+hcpContainerLogs() {
+    union kind=outer
+      database("AllAroHcpLogs").tab_hcpContainerLogs,
+      database("HostedControlPlaneLogs").containerLogs
+}

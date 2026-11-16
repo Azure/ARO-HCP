@@ -9,10 +9,10 @@
 ## See Also
 
 For curated, ready-to-adapt KQL queries that trace an ARM request through
-every layer of the stack (frontend → backend → CS → Maestro → HyperShift),
+every layer of the stack (frontend → backend → CS → KubeApplier → HyperShift),
 see [query-cookbook.md](query-cookbook.md). The cookbook also documents
 the discovery chain for resolving correlation IDs into the magic strings
-(CS internal cluster `cid`, Maestro bundle IDs) that downstream queries need.
+(ARM resource IDs and the CS internal cluster `cid`) that downstream queries need.
 
 ## Databases
 
@@ -21,7 +21,7 @@ the discovery chain for resolving correlation IDs into the magic strings
 
 ## Tables
 
-- `containerLogs` — generic container logs from all pods; used for maestro, hypershift, and any service without a dedicated table
+- `containerLogs` — generic container logs from all pods; used for hypershift and any service without a dedicated table
 - `kubernetesEvents` — Kubernetes API Event objects (warnings, scheduling/mount/probe failures, `reason`/`message` on
   involved objects). Ingested by `kube-events` on service and management clusters into **`ServiceLogs.kubernetesEvents`**
   only. Filter `eventNamespace`, `objectKind`, `objectName`, `cluster`. Not the same as mgmt-agent `pod event` container logs.
@@ -42,7 +42,7 @@ the discovery chain for resolving correlation IDs into the magic strings
 - **Kubernetes events**: `database('ServiceLogs').table('kubernetesEvents')` — scope `cluster`, `eventNamespace`,
   `objectName`, `reason`. Snapshot `controlPlaneEvents` / `hypershift/events` use this table. See
   [kubernetes-events.md](../../tooling/hcpctl/pkg/agent/prompts/exemplars/kubernetes-events.md).
-- `containerLogs` is filtered by `namespace_name` and `container_name` to isolate maestro/hypershift logs.
+- `containerLogs` is filtered by `namespace_name` and `container_name` to isolate HyperShift logs.
 - **mgmt-agent** (`container_name == 'mgmt-agent-controller'`, Service database, management `cluster`):
   `log.msg == 'resource event'` — CR add/update/delete with full `log.object` (Hypershift, ACM, CAPI,
   `multitenancy.acn.azure.com`, …). `log.msg == 'pod event'` — pod lifecycle with full Pod in `log.object`.

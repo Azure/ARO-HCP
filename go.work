@@ -24,7 +24,10 @@ use (
 	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
+	./tooling/cifailurepatterns
 	./tooling/cleanup-sweeper
+	./tooling/component-updater
+	./tooling/depctl
 	./tooling/e2e-cost
 	./tooling/entra-app-credentials
 	./tooling/grafanactl

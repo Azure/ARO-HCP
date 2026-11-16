@@ -21,7 +21,7 @@ package compute
 import (
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
@@ -106,6 +106,8 @@ type Pool struct {
 	Labels       map[string]string `json:"labels,omitempty"`
 	Taints       []string          `json:"taints,omitempty"`
 	EnableSwift  bool              `json:"enableSwift,omitempty"`
+	// UpgradeSettings overrides the builder default when provided.
+	UpgradeSettings *armcontainerservice.AgentPoolUpgradeSettings `json:"upgradeSettings,omitempty"`
 	// SecondaryNICs is the number attached per node, not the SKU maximum.
 	SecondaryNICs int64 `json:"secondaryNICs"`
 }

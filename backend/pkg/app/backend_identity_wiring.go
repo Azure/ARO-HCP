@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -32,20 +32,7 @@ import (
 // NewBackendIdentityAzureClients creates a new BackendIdentityAzureClients instance that
 // contains the Azure clients that are used to interact with the Azure platform as the
 // backend identity. The backend identity is used to interact with Red Hat side Azure infrastructure.
-func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfig.AzureConfig) (*azureclient.BackendIdentityAzureClients, error) {
-	// Backend's identity uses the DefaultAzureCredential.
-	// See https://learn.microsoft.com/en-us/azure/developer/go/sdk/authentication/credential-chains#defaultazurecredential-overview
-	// for more details on it.
-	defaultAzureCredential, err := azidentity.NewDefaultAzureCredential(
-		&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions:                *azureConfig.CloudEnvironment.AZCoreClientOptions(),
-			RequireAzureTokenCredentials: true,
-		},
-	)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity Azure credential: %w", err))
-	}
-
+func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfig.AzureConfig, defaultAzureCredential azcore.TokenCredential) (*azureclient.BackendIdentityAzureClients, error) {
 	blobStorageClient, err := azblob.NewClient(
 		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
 		defaultAzureCredential,

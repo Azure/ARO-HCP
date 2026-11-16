@@ -72,7 +72,9 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 		if chain.Classification.L2Subcategory != "" {
 			sb.WriteString(fmt.Sprintf("- **Component:** %s\n", chain.Classification.L2Subcategory))
 		}
-		sb.WriteString(fmt.Sprintf("- **Confidence:** %.0f%%\n", chain.Classification.Confidence*100))
+		if chain.Classification.Confidence != nil {
+			sb.WriteString(fmt.Sprintf("- **Confidence:** %.0f%%\n", *chain.Classification.Confidence*100))
+		}
 		sb.WriteString("\n")
 	}
 

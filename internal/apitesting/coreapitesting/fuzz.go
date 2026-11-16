@@ -196,6 +196,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
+			j.DeleteOperationCompletionTimeout = nil
+			j.DeleteOperationCompletionDeadline = nil
 		},
 		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

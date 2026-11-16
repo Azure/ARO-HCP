@@ -49,6 +49,13 @@ func testConfig(t *testing.T) *config.Config {
 			ServicePrincipalClientId: "client",
 			KeyVaultSecretName:       "secret",
 		}},
+		CIJobOutcomes: config.CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: config.CIFailurePatternsConfig{
+			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
 		Prow: config.ProwConfig{
 			Enabled:   true,
 			BaseURL:   "https://prow.example.com",

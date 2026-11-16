@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,25 +52,29 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 	fixture := operationtesting.NewNodePoolTestFixture()
 
 	tests := []struct {
-		name              string
-		nodePool          *coreapi.NodePool
-		csNodePool        *arohcpv1alpha1.NodePool
-		readDesires       []*kubeapplierapi.ReadDesire
-		wantState         coreapi.ProvisioningState
-		wantMessageSubstr string
+		name                 string
+		nodePool             *coreapi.NodePool
+		operationStatusInput *nodePoolUpdateOperationStatusInput
+		readDesires          []*kubeapplierapi.ReadDesire
+		wantState            coreapi.ProvisioningState
+		wantMessageSubstr    string
 	}{
 		{
-			name:              "no ReadDesire returns Updating",
-			nodePool:          fixture.NewNodePool(),
-			csNodePool:        testCSNodePoolWithNodeDrainTimeout(t, 0),
+			name:     "no ReadDesire returns Updating",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires:       nil,
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "Hypershift NodePool has not been observed yet",
 		},
 		{
-			name:       "empty node pool matches empty Hypershift NodePool",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			name:     "empty node pool matches empty Hypershift NodePool",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -82,7 +87,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -101,7 +108,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -123,7 +132,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -142,7 +153,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -162,7 +175,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -185,7 +200,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -205,7 +222,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -225,7 +244,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -245,7 +266,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithAutoscalingAndNodeDrainTimeout(t, 1, 5, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -265,7 +288,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -279,7 +304,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -296,7 +323,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -315,7 +344,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -331,7 +362,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -352,7 +385,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -372,7 +407,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To(int32(15))
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 15),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 15),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(15)
@@ -384,18 +421,22 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			wantMessageSubstr: "nodeDrainTimeout is 10m0s, want 15m0s",
 		},
 		{
-			name:       "inherited node drain timeout from CS returns Succeeded",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			name:     "inherited node drain timeout from CS returns Succeeded",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(4)),
 			},
 			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:       "cosmos unset but CS frozen value not yet on hypershift returns Updating",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			name:     "cosmos unset but CS frozen value not yet on hypershift returns Updating",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -403,9 +444,11 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			wantMessageSubstr: "nodeDrainTimeout is unset, want 4m0s",
 		},
 		{
-			name:       "cosmos unset CS frozen value mismatches hypershift returns Updating",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			name:     "cosmos unset CS frozen value mismatches hypershift returns Updating",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 4),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(3)),
 			},
@@ -413,9 +456,11 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			wantMessageSubstr: "nodeDrainTimeout is 3m0s, want 4m0s",
 		},
 		{
-			name:       "cosmos unset and CS unset returns Updating",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePool(t),
+			name:     "cosmos unset and CS unset returns Updating",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePool(t),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -429,7 +474,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -442,9 +489,11 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			wantMessageSubstr: "status replicas is 1, want 3",
 		},
 		{
-			name:       "scale to zero spec match status replicas nonzero returns Updating",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			name:     "scale to zero spec match status replicas nonzero returns Updating",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -462,7 +511,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithReplicasAndNodeDrainTimeout(t, 3, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, func() *v1beta1.NodePool {
 					np := testNodePoolUpdateMatchingHypershiftNodePool(0)
@@ -478,9 +529,11 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			wantMessageSubstr: "condition AllMachinesReady is False: waiting",
 		},
 		{
-			name:       "scaling to zero skips AllMachinesReady check",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			name:     "scaling to zero skips AllMachinesReady check",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
 			readDesires: []*kubeapplierapi.ReadDesire{
 				newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(0)),
 			},
@@ -494,13 +547,17 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			controller := &operationNodePoolUpdate{
+			controller := &nodePoolUpdateHypershiftCheck{
+				nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}},
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}
 
-			state, err := controller.hypershiftNodePoolOperationState(ctx, tt.nodePool, tt.csNodePool)
+			tt.operationStatusInput.ClusterServiceNodePoolOnceGetter = func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+				return tt.operationStatusInput.ClusterServiceNodePool, nil
+			}
+			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.operationStatusInput)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -514,20 +571,21 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 	t.Parallel()
 
 	fixture := operationtesting.NewNodePoolTestFixture()
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
-		name              string
-		nodePool          *coreapi.NodePool
-		csNodePool        *arohcpv1alpha1.NodePool
-		wantState         coreapi.ProvisioningState
-		wantMessageSubstr string
+		name                 string
+		nodePool             *coreapi.NodePool
+		operationStatusInput *nodePoolUpdateOperationStatusInput
+		wantState            coreapi.ProvisioningState
+		wantMessageSubstr    string
 	}{
 		{
-			name:       "matching labels and taints returns Succeeded",
-			nodePool:   fixture.NewNodePool(),
-			csNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
-			wantState:  coreapi.ProvisioningStateSucceeded,
+			name:     "matching labels and taints returns Succeeded",
+			nodePool: fixture.NewNodePool(),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithNodeDrainTimeout(t, 0),
+			},
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "matching labels returns Succeeded",
@@ -536,8 +594,10 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithLabels(t, map[string]string{"env": "prod"}),
-			wantState:  coreapi.ProvisioningStateSucceeded,
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithLabels(t, map[string]string{"env": "prod"}),
+			},
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "label mismatch returns Updating",
@@ -546,7 +606,9 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
 			}(),
-			csNodePool:        testCSNodePoolWithLabels(t, map[string]string{"env": "staging"}),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithLabels(t, map[string]string{"env": "staging"}),
+			},
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `Cluster Service node pool labels are map[env:staging], want map[env:prod]`,
 		},
@@ -557,7 +619,9 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				np.Properties.Labels = nil
 				return np
 			}(),
-			csNodePool:        testCSNodePoolWithLabels(t, map[string]string{"env": "prod"}),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithLabels(t, map[string]string{"env": "prod"}),
+			},
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `Cluster Service node pool labels are map[env:prod], want map[]`,
 		},
@@ -570,10 +634,12 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				}
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithTaints(t, arohcpv1alpha1.NewTaint().
-				Effect(string(metadataapi.EffectNoSchedule)).
-				Key("key1").
-				Value("val1")),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithTaints(t, arohcpv1alpha1.NewTaint().
+					Effect(string(metadataapi.EffectNoSchedule)).
+					Key("key1").
+					Value("val1")),
+			},
 			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
@@ -585,7 +651,9 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				}
 				return np
 			}(),
-			csNodePool:        testCSNodePool(t),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePool(t),
+			},
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `Cluster Service node pool taints are [], want [{NoSchedule key1 val1}]`,
 		},
@@ -596,10 +664,12 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 				np.Properties.Taints = nil
 				return np
 			}(),
-			csNodePool: testCSNodePoolWithTaints(t, arohcpv1alpha1.NewTaint().
-				Effect(string(metadataapi.EffectNoSchedule)).
-				Key("key1").
-				Value("val1")),
+			operationStatusInput: &nodePoolUpdateOperationStatusInput{
+				ClusterServiceNodePool: testCSNodePoolWithTaints(t, arohcpv1alpha1.NewTaint().
+					Effect(string(metadataapi.EffectNoSchedule)).
+					Key("key1").
+					Value("val1")),
+			},
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `Cluster Service node pool taints are [{NoSchedule key1 val1}], want []`,
 		},
@@ -608,7 +678,11 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			state, err := controller.clusterServiceNodePoolSpecOperationState(tt.nodePool, tt.csNodePool)
+			controller := &nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}}}
+			tt.operationStatusInput.ClusterServiceNodePoolOnceGetter = func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+				return tt.operationStatusInput.ClusterServiceNodePool, nil
+			}
+			state, err := controller.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.operationStatusInput)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -621,7 +695,7 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -685,7 +759,7 @@ func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -797,7 +871,7 @@ func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T)
 func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -876,7 +950,7 @@ func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	baseDesired := &coreapi.NodePool{
 		Properties: coreapi.NodePoolProperties{},
@@ -1049,7 +1123,7 @@ func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name             string
@@ -1124,7 +1198,7 @@ func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name          string
@@ -1198,7 +1272,7 @@ func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name        string

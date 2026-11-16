@@ -27,19 +27,21 @@ import (
 )
 
 const discoveryTestSub = "974ebd46-8ad3-41e3-afef-7ef25fd5c371"
+const discoveryJob = "pull-ci-Azure-ARO-HCP-main-e2e-parallel"
 const discoveryTestPrefix = "pr-logs/pull/Azure_ARO-HCP/6976/" + discoveryJob + "/2100537004893671424/"
 const discoveryTestURL = "https://prow.ci.openshift.org/view/gs/" + discoveryBucket + "/" + discoveryTestPrefix
+const testArtifactPrefix = "artifacts/e2e-parallel/aro-hcp-test-local/artifacts/"
 
 type discoveryTransport func(*http.Request) (*http.Response, error)
 
 func (f discoveryTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // Each page has at most three objects, so every complete fixture exercises pagination.
-func discoveryClient(t *testing.T, objects map[string][]byte) *http.Client {
+func discoveryClient(t *testing.T, objects map[string][]byte, prefix string) *http.Client {
 	t.Helper()
 	var names []string
 	for name := range objects {
-		names = append(names, discoveryTestPrefix+name)
+		names = append(names, prefix+name)
 	}
 	sort.Strings(names)
 	return &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
@@ -49,7 +51,7 @@ func discoveryClient(t *testing.T, objects map[string][]byte) *http.Client {
 		status := http.StatusOK
 		var body []byte
 		if r.URL.Path == "/storage/v1/b/"+discoveryBucket+"/o" {
-			if r.URL.Query().Get("prefix") != discoveryTestPrefix {
+			if r.URL.Query().Get("prefix") != prefix {
 				t.Fatalf("wrong listing prefix: %s", r.URL.RawQuery)
 			}
 			offset := 0
@@ -70,7 +72,7 @@ func discoveryClient(t *testing.T, objects map[string][]byte) *http.Client {
 			}
 			body, _ = json.Marshal(listing)
 		} else {
-			name := strings.TrimPrefix(r.URL.Path, "/"+discoveryBucket+"/"+discoveryTestPrefix)
+			name := strings.TrimPrefix(r.URL.Path, "/"+discoveryBucket+"/"+prefix)
 			var ok bool
 			body, ok = objects[name]
 			if !ok {
@@ -80,6 +82,72 @@ func discoveryClient(t *testing.T, objects map[string][]byte) *http.Client {
 		}
 		return &http.Response{StatusCode: status, Body: io.NopCloser(bytes.NewReader(body)), Header: http.Header{}}, nil
 	})}
+}
+
+func TestDiscoverJobVariants(t *testing.T) {
+	for _, variant := range []string{"e2e-parallel", "e2e-parallel-inplace-upgrade"} {
+		for _, root := range []string{
+			"https://prow.ci.openshift.org/view/gs/" + discoveryBucket + "/",
+			"https://storage.googleapis.com/" + discoveryBucket + "/",
+			"gs://" + discoveryBucket + "/",
+		} {
+			t.Run(variant+"/"+root, func(t *testing.T) {
+				objects := discoveryFixture()
+				discoveryResults(t, objects, map[string]any{
+					"name": "Customer creates clusters", "result": "passed",
+					"output": `"msg"="creating resource group" "resourceGroup"="customer"
+"msg"="Starting HCP cluster creation" "resourceGroup"="customer" "clusterName"="one"`,
+				})
+				objects["artifacts/e2e-parallel/aro-hcp-gather-snapshot/artifacts/Customer_creates_clusters/customer/test_phase/resources/microsoft.redhatopenshift_hcpopenshiftclusters/one/state/backend/resourceState.md"] = []byte(`| content |
+| --- |
+| {"resourceID":"/subscriptions/XXXX/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/one","properties":{"platform":{"managedResourceGroup":"exact-managed"}}} |
+`)
+				// Gathered copies must not override original test subscriptions.
+				objects["artifacts/e2e-parallel/aro-hcp-gather-test-visualization/artifacts/test-timing/one.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: 11111111-1111-1111-1111-111111111111\n")
+				replace := strings.NewReplacer("e2e-parallel", variant)
+				if variant == "e2e-parallel-inplace-upgrade" {
+					replace = strings.NewReplacer(
+						"e2e-parallel", variant,
+						"aro-hcp-test-local", "aro-hcp-test-local-upgrade",
+						"aro-hcp-provision-environment", "aro-hcp-provision-from-main",
+					)
+				}
+				runObjects := map[string][]byte{}
+				for name, body := range objects {
+					runObjects[replace.Replace(name)] = []byte(replace.Replace(string(body)))
+				}
+				prefix := strings.Replace(discoveryTestPrefix, "e2e-parallel", variant, 1)
+				s := Discover(context.Background(), discoveryClient(t, runObjects, prefix), root+prefix, discoveryNow())
+				if s.Job.Name != "pull-ci-Azure-ARO-HCP-main-"+variant || s.Job.PR != "6976" || s.Job.BuildID != "2100537004893671424" {
+					t.Fatalf("incorrect run identity: %+v", s.Job)
+				}
+				if s.QueryStart != "2026-09-17" || s.QueryEnd != "2026-09-18" ||
+					s.Job.InfraStartedAt.Format(time.RFC3339) != "2026-09-17T10:59:44Z" ||
+					s.Job.InfraEndedAt.Format(time.RFC3339) != "2026-09-17T12:44:41Z" {
+					t.Fatalf("incorrect billing interval: %+v", s)
+				}
+				for _, name := range []string{"customer", "exact-managed"} {
+					g := findDiscoveryGroup(t, s, name)
+					if g.Owner != "Customer creates clusters" || g.SubscriptionID != discoveryTestSub || g.Attempts != 1 {
+						t.Fatalf("incorrect test attribution: %+v", g)
+					}
+				}
+				for _, name := range []string{"run", "run-svc", "run-svc-aks1", "run-mgmt-1", "run-mgmt-1-aks1", "run-mgmt-2", "run-mgmt-2-aks1"} {
+					if g := findDiscoveryGroup(t, s, name); g.Category != "Infra" {
+						t.Fatalf("incorrect infrastructure attribution: %+v", g)
+					}
+				}
+				if !slices.Contains(s.ExcludedGroups, "arbitrary-shared-pool") {
+					t.Fatal("pooled identities were not excluded")
+				}
+				for _, diagnostic := range s.Diagnostics {
+					if diagnostic.Code != "missing-infra-subscription" {
+						t.Errorf("unexpected diagnostic: %+v", diagnostic)
+					}
+				}
+			})
+		}
+	}
 }
 
 func discoveryFixture() map[string][]byte {
@@ -162,7 +230,7 @@ deployments:
     - id: /subscriptions/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/resourceGroups/arbitrary-shared-pool/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service
 `)
 	objects[testArtifactPrefix+"resourcegroups/directory-only/deployments.yaml"] = []byte(`- id: /subscriptions/` + discoveryTestSub + `/resourceGroups/directory-only/providers/Microsoft.Compute/virtualMachines/not-owned`)
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	if s.QueryStart != "2026-09-17" || s.QueryEnd != "2026-09-18" {
 		t.Fatalf("wrong frozen days: %s %s", s.QueryStart, s.QueryEnd)
 	}
@@ -212,7 +280,7 @@ func TestDiscoverMissingSubscriptionAndManagedMapping(t *testing.T) {
 	objects["artifacts/e2e-parallel/aro-hcp-gather-test-visualization/artifacts/test-timing/one.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: " + discoveryTestSub + "\n")
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"
 "msg"="Starting HCP cluster creation" "resourceGroup"="test-rg" "clusterName"="one"`})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	g := findDiscoveryGroup(t, s, "test-rg")
 	if g.SubscriptionID != "" || g.BillingStatus != "unavailable" {
 		t.Fatalf("subscription inferred: %+v", g)
@@ -233,7 +301,7 @@ func TestDiscoverOwnershipConflict(t *testing.T) {
 	discoveryResults(t, objects,
 		map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="same-RG"`},
 		map[string]any{"name": "Other test", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="SAME-rg"`})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	count := 0
 	for _, g := range s.Groups {
 		if strings.EqualFold(g.Name, "same-rg") {
@@ -262,7 +330,7 @@ func TestDiscoverMalformedArtifactsRetainPartialGroups(t *testing.T) {
 			objects := discoveryFixture()
 			objects[testArtifactPrefix+"test-timing/broken.yaml"] = tc.body
 			discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="retained"`})
-			s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+			s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 			findDiscoveryGroup(t, s, "retained")
 			if !hasDiscoveryDiagnostic(s, tc.code) {
 				t.Fatalf("missing %s: %+v", tc.code, s.Diagnostics)
@@ -272,7 +340,14 @@ func TestDiscoverMalformedArtifactsRetainPartialGroups(t *testing.T) {
 }
 
 func TestDiscoverURLValidation(t *testing.T) {
-	for _, input := range []string{"", "https://example.com/" + discoveryTestPrefix, strings.Replace(discoveryTestURL, "e2e-parallel", "e2e", 1), discoveryTestURL + "?foo=bar", discoveryTestURL + "../", strings.Replace(discoveryTestURL, discoveryBucket, "private-bucket", 1)} {
+	for _, input := range []string{
+		"", "https://example.com/" + discoveryTestPrefix,
+		strings.Replace(discoveryTestURL, "e2e-parallel", "e2e", 1),
+		strings.Replace(discoveryTestURL, "e2e-parallel", "e2e-parallel-other", 1),
+		strings.Replace(discoveryTestURL, "e2e-parallel", "e2e-parallel-inplace-upgrade-other", 1),
+		discoveryTestURL + "?foo=bar", discoveryTestURL + "../",
+		strings.Replace(discoveryTestURL, discoveryBucket, "private-bucket", 1),
+	} {
 		t.Run(input, func(t *testing.T) {
 			client := &http.Client{Transport: discoveryTransport(func(*http.Request) (*http.Response, error) {
 				t.Fatal("invalid URL performed network request")
@@ -338,7 +413,7 @@ func TestDiscoverSixtySharedGroupsAndClusterParameters(t *testing.T) {
 	objects[testArtifactPrefix+"Customer_creates_clusters/cluster-params.json"] = []byte(`{"managedResourceGroupName":"nonconventional-managed-name"}`)
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"
 "msg"="Starting HCP cluster creation" "resourceGroup"="test-rg" "clusterName"="one"`})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	sort.Strings(excluded)
 	if !slices.Equal(s.ExcludedGroups, excluded) {
 		t.Fatalf("incorrect explicit shared exclusions: got %v want %v", s.ExcludedGroups, excluded)
@@ -378,7 +453,7 @@ func TestDiscoverParameterDirectoryOwnership(t *testing.T) {
 			}
 			discoveryResults(t, objects, results...)
 			objects[testArtifactPrefix+tc.directory+"/cluster-params.json"] = []byte(`{"managedResourceGroupName":"exact-managed"}`)
-			s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+			s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 			gotOwner := ""
 			for _, g := range s.Groups {
 				if g.Name == "exact-managed" {
@@ -396,7 +471,7 @@ func TestDiscoverExportsExclusionsOnPartialAndEarlyReturn(t *testing.T) {
 	objects := discoveryFixture()
 	objects[testArtifactPrefix+"identities-pool-state.yaml"] = []byte("- resourceGroup: MIXED-Shared\n- resourceGroup: mixed-shared\n")
 	objects[testArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [broken")
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	if !slices.Equal(s.ExcludedGroups, []string{"global", "mixed-shared", "shared-kusto"}) || !hasDiscoveryDiagnostic(s, "artifact-format") {
 		t.Fatalf("partial discovery lost sorted, normalized exclusions: %+v", s)
 	}
@@ -410,7 +485,7 @@ func TestDiscoverConflictingTimingSubscriptions(t *testing.T) {
 	objects := discoveryFixture()
 	objects[testArtifactPrefix+"test-timing/duplicate.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: 11111111-1111-1111-1111-111111111111\n")
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"`})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	if g := findDiscoveryGroup(t, s, "test-rg"); g.SubscriptionID != "" || g.BillingStatus != "unavailable" {
 		t.Fatalf("conflicting subscription chosen: %+v", g)
 	}
@@ -423,7 +498,7 @@ func TestDiscoverValidInfraSubscriptionAndExactAKSGroup(t *testing.T) {
 	objects := discoveryFixture()
 	objects["artifacts/e2e-parallel/aro-hcp-provision-environment/artifacts/config.yaml"] = []byte("regionRG: run\nsvc:\n  rg: run-svc\n  subscription: {key: " + discoveryTestSub + "}\n  aks: {nodeResourceGroup: exact-aks-nodes}\nmgmt:\n  rg: run-mgmt-1\n  subscription: {key: friendly-name-not-an-ID}\n")
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "skipped", "output": ""})
-	s := Discover(context.Background(), discoveryClient(t, objects), "gs://"+discoveryBucket+"/"+discoveryTestPrefix, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), "gs://"+discoveryBucket+"/"+discoveryTestPrefix, discoveryNow())
 	if g := findDiscoveryGroup(t, s, "exact-aks-nodes"); g.SubscriptionID != discoveryTestSub || g.Kind != "aks-managed" {
 		t.Fatalf("exact AKS group not honored: %+v", g)
 	}
@@ -442,7 +517,7 @@ func TestDiscoverMissingRootsAndMalformedJSON(t *testing.T) {
 	delete(objects, "started.json")
 	objects["finished.json"] = []byte(`{"timestamp":"invalid"}`)
 	objects[testArtifactPrefix+"extension_test_result_e2e_bad.json"] = []byte(`[{invalid`)
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	findDiscoveryGroup(t, s, "run")
 	if s.QueryStart != "" || !s.Job.StartedAt.IsZero() || !s.Job.FinishedAt.IsZero() {
 		t.Fatalf("invented timestamp: %+v", s.Job)
@@ -522,7 +597,7 @@ items:
 `)
 	errorMessage := "PUT https://rp.example/subscriptions/XXXX/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/three\n---\nRESPONSE 400: Bad Request\n"
 	objects[dir+"azure.log"], _ = json.Marshal(map[string]string{"event": "ResponseError", "msg": errorMessage})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	for _, name := range []string{"exact-first", "exact-second"} {
 		g := findDiscoveryGroup(t, s, name)
 		if g.Owner != owner || g.SubscriptionID != discoveryTestSub {
@@ -537,14 +612,14 @@ items:
 	}
 	// Direct SDK callers may omit the framework's creation message altogether.
 	discoveryResults(t, objects, map[string]any{"name": owner, "result": "passed", "output": strings.Replace(output, `"msg"="Starting HCP cluster creation" "resourceGroup"="customer" "clusterName"="two"`, `"msg"="starting oc adm inspect for HCP cluster" "cluster"="customer/two"`, 1)})
-	s = Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s = Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	findDiscoveryGroup(t, s, "exact-second")
 	if hasDiscoveryDiagnostic(s, "missing-managed-mapping") {
 		t.Fatal("direct SDK cluster not associated through explicit inspect log")
 	}
 	// A rejected node-pool request cannot excuse an unmapped cluster.
 	objects[dir+"azure.log"], _ = json.Marshal(map[string]string{"event": "ResponseError", "msg": strings.ReplaceAll(errorMessage, "/three\n", "/three/nodePools/np\n")})
-	s = Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s = Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	if !hasDiscoveryDiagnostic(s, "missing-managed-mapping") {
 		t.Fatal("nodepool failure masked unmapped cluster")
 	}
@@ -565,7 +640,7 @@ func TestDiscoverSnapshotGuardsAndMalformedRows(t *testing.T) {
 "msg"="Starting HCP cluster creation" "resourceGroup"="customer" "clusterName"="one"`})
 			artifact := "artifacts/e2e-parallel/aro-hcp-gather-snapshot/artifacts/Customer_creates_clusters/customer/test_phase/resources/microsoft.redhatopenshift_hcpopenshiftclusters/one/state/backend/resourceState.md"
 			objects[artifact] = []byte("| " + tc.row + " |\n")
-			s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+			s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 			for _, g := range s.Groups {
 				if g.Kind == "hcp-managed" {
 					t.Fatalf("invalid row claimed group: %+v", g)
@@ -613,7 +688,7 @@ func TestDiscoverMappingDiagnosticsPerCustomer(t *testing.T) {
 "msg"="Starting HCP cluster creation" "resourceGroup"="first" "clusterName"="one"
 "msg"="Starting HCP cluster creation" "resourceGroup"="second" "clusterName"="two"
 "msg"="Starting HCP cluster creation" "resourceGroup"="second" "clusterName"="three"`})
-	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 	found := map[string]Diagnostic{}
 	for _, d := range s.Diagnostics {
 		if d.Code == "missing-managed-mapping" {
@@ -640,7 +715,7 @@ func TestDiscoverInfraTimingOptional(t *testing.T) {
 			objects["artifacts/ci-operator-metrics.json"] = []byte(metrics)
 		}
 		discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "skipped", "output": ""})
-		s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+		s := Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 		found := false
 		for _, d := range s.Diagnostics {
 			if d.Code == "infra-timing" {

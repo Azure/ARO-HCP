@@ -24,20 +24,28 @@ The Service Cluster hosts the primary control plane service components for the A
 
 #### Core Components
 
-- **Resource Provider (RP)**
-  - The primary API entry point that integrates with Azure Resource Manager (ARM).
-  - Handles customer requests for provisioning and managing ARO HCP clusters.
-  - Validates requests and forwards them to the Cluster Service (CS).
+- **RP Frontend**
+  - Serves the ARM resource API, including API-version conversion, validation and admission.
+  - Persists accepted resource intent and asynchronous operation records in Cosmos DB; serves resource and operation state from that database.
+  - Uses provider state published by the backend when admission needs information about management clusters. It does not call CS or access management-cluster APIs.
 
-- **Cluster Service (CS)**
-  - The orchestration engine responsible for processing requests from RP.
-  - Manages the baseline infrastructure needed for ARO HCP clusters (networking, compute, storage).
-  - Delegates cluster creation to Hypershift on the Management Clusters, using Maestro as communication mechanism.
+- **RP Backend**
+  - Reconciles resource intent from Cosmos DB to drive cluster and node-pool creation, updates and deletion.
+  - Calls CS APIs and manages Azure resources and service-provider configuration through its controllers.
+  - Retrieves manifests from CS, combines them with backend-owned Kubernetes resources and settings, and writes ApplyDesire documents for kube-applier.
+  - Consumes observed Kubernetes state through ReadDesire documents, updates resource and provider state in Cosmos DB, and determines asynchronous operation completion.
 
-- **Maestro**
-  - Bridges the Service Cluster and Management Cluster.
-  - Transfers Kubernetes manifests to Maestro Agents running in Management Clusters.
-  - Tracks the state of manifests and maintains a cached record in the Service Cluster.
+- **Clusters Service (CS)**
+  - Maintains cluster and node-pool lifecycle state in PostgreSQL and runs provisioning, update, upgrade and deletion workers.
+  - Performs Azure networking, DNS and identity work and exposes generated Kubernetes manifests for the backend to retrieve.
+  - Creates and consumes its own HostedCluster and NodePool ReadDesires through Cosmos DB to track observed state. See [service components](service-components.md) for the responsibilities shared with the backend.
+
+- **Fleet**
+  - Reconciles management-cluster registration.
+  - Publishes observed capacity and scaling limits in management-cluster scheduling documents for placement decisions.
+  - Reconciles management-cluster AKS node pools when configured and reports shared-ingress state through kube-applier observations.
+
+Cosmos DB connects the ARM request path to backend reconciliation and carries the ApplyDesire/ReadDesire exchange between the backend, CS and kube-applier. Hypershift reconciles the resulting HostedCluster and NodePool resources on management clusters.
 
 #### Azure layout
 
@@ -51,23 +59,20 @@ The Management Clusters are the execution layer of ARO HCP, responsible for host
 
 - **Hypershift Operator**
   - The core controller responsible for provisioning and managing ARO HCP clusters.
-  - Processes cluster provisioning requests from **Cluster Service (CS)** via Kubernetes Custom Resources (CRs).
+  - Reconciles HostedCluster and NodePool resources applied by kube-applier under the backend’s orchestration.
   - Ensures clusters are created, updated, and deleted according to specifications.
   - Allocates and manages required compute, networking, and storage resources for each ARO HCP cluster.
 
-- **Maestro Agent**
+- **kube-applier**
   - Runs on every Management Cluster.
-  - Receives Kubernetes manifests from Maestro Server and applies them to the Management Cluster.
-  - Reports resource status back to the Maestro Server.
-  - Operates asynchronously, ensuring reliable state enforcement without direct dependency on the Service Cluster.
+  - Executes server-side apply and deletion requests described by ApplyDesire documents against the local Kubernetes API, and records their outcomes.
+  - Watches resources requested by ReadDesire documents and mirrors their observed content and status into Cosmos DB for the backend and CS.
+  - Handles Kubernetes resource reconciliation within its management cluster; ARM operation completion and cluster lifecycle decisions belong to the backend.
 
 - **mgmt-agent**
-  - Runs on every Management Cluster alongside Hypershift and the Maestro agent.
+  - Runs on every Management Cluster alongside Hypershift and kube-applier.
   - Bridges management-cluster concerns (for example SWIFT NIC extended resources on nodes).
   - Emits structured **resource** and **pod** lifecycle **event logs** to Kusto via `mgmt-agent-controller` container logs — see [mgmt-agent event logs](../tooling/hcpctl/pkg/agent/prompts/exemplars/mgmt-agent-event-logs.md) for ad-hoc query patterns. These are intentionally **not** included in the default snapshot dump because output volume is unbounded.
-
-- **Advanced Cluster Management (ACM)**
-  - Responsible for additional lifecycle and policy management of ARO HCP clusters.
 
 #### Scaling with Multiple Management Clusters
 

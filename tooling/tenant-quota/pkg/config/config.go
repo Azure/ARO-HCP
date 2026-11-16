@@ -47,6 +47,9 @@ const (
 	DefaultCIJobOutcomesDiscoveryWorkers = 2
 	DefaultCIJobOutcomesCacheSize        = 20000
 	DefaultCIJobOutcomesCacheTTL         = 15 * time.Minute
+	// DefaultCIFailurePatternsInterval is the newest-build poll interval.
+	DefaultCIFailurePatternsInterval = 5 * time.Minute
+	DefaultCIFailurePatternsWorkers  = 4
 )
 
 var gcsBucketPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
@@ -59,7 +62,8 @@ type Config struct {
 	Tenants     []TenantConfig `yaml:"tenants"`
 	Prow        ProwConfig     `yaml:"prow,omitempty"`
 
-	CIJobOutcomes CIJobOutcomesConfig `yaml:"ciJobOutcomes,omitempty"`
+	CIJobOutcomes     CIJobOutcomesConfig     `yaml:"ciJobOutcomes,omitempty"`
+	CIFailurePatterns CIFailurePatternsConfig `yaml:"ciFailurePatterns,omitempty"`
 
 	intervalDuration time.Duration
 	timeoutDuration  time.Duration
@@ -339,7 +343,6 @@ func (c *Config) Validate() error {
 	if err := c.CIJobOutcomes.validate(); err != nil {
 		return err
 	}
-
 	if len(c.Tenants) == 0 {
 		return fmt.Errorf("at least one tenant must be configured")
 	}
@@ -370,7 +373,7 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	return nil
+	return c.CIFailurePatterns.validate(c.CIJobOutcomes)
 }
 
 // validateHTTPURL reports whether value is a usable HTTP or HTTPS endpoint.
@@ -487,4 +490,69 @@ func (t *TenantConfig) IsDirectoryQuotaEnabled() bool {
 		return true
 	}
 	return *t.DirectoryQuota
+}
+
+// CIFailurePatternsConfig configures the derived-results controller. Connection
+// and raw table settings belong to CIJobOutcomes, independently of raw discovery.
+type CIFailurePatternsConfig struct {
+	Results   KustoTableConfig `yaml:"results"`
+	Interval  string           `yaml:"interval,omitempty"`
+	Workers   *int             `yaml:"workers,omitempty"`
+	CacheSize *int             `yaml:"cacheSize,omitempty"`
+	CacheTTL  string           `yaml:"cacheTTL,omitempty"`
+
+	intervalDuration time.Duration
+	cacheTTLDuration time.Duration
+}
+
+func (c *CIFailurePatternsConfig) GetInterval() time.Duration { return c.intervalDuration }
+func (c *CIFailurePatternsConfig) GetCacheTTL() time.Duration { return c.cacheTTLDuration }
+
+func (c *CIFailurePatternsConfig) GetWorkers() int {
+	if c.Workers == nil {
+		return DefaultCIFailurePatternsWorkers
+	}
+	return *c.Workers
+}
+
+func (c *CIFailurePatternsConfig) GetCacheSize() int {
+	if c.CacheSize == nil {
+		return DefaultCIJobOutcomesCacheSize
+	}
+	return *c.CacheSize
+}
+
+func (c *CIFailurePatternsConfig) validate(raw CIJobOutcomesConfig) error {
+	if err := parseDuration(c.Interval, DefaultCIFailurePatternsInterval, &c.intervalDuration, "ciFailurePatterns.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.CacheTTL, DefaultCIJobOutcomesCacheTTL, &c.cacheTTLDuration, "ciFailurePatterns.cacheTTL"); err != nil {
+		return err
+	}
+	if c.GetWorkers() <= 0 {
+		return fmt.Errorf("ciFailurePatterns.workers must be positive")
+	}
+	if c.GetCacheSize() <= 0 {
+		return fmt.Errorf("ciFailurePatterns.cacheSize must be positive")
+	}
+	for name, value := range map[string]string{
+		"ciJobOutcomes.database":                     raw.Database,
+		"ciJobOutcomes.testNames.table":              raw.TestNames.Table,
+		"ciJobOutcomes.testResults.table":            raw.TestResults.Table,
+		"ciFailurePatterns.results.table":            c.Results.Table,
+		"ciFailurePatterns.results.ingestionMapping": c.Results.IngestionMapping,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+	}
+	for name, value := range map[string]string{
+		"ciJobOutcomes.clusterURI":   raw.ClusterURI,
+		"ciJobOutcomes.ingestionURI": raw.IngestionURI,
+	} {
+		if err := validateHTTPURL(value); err != nil {
+			return fmt.Errorf("%s %w", name, err)
+		}
+	}
+	return nil
 }

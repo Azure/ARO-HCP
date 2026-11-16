@@ -166,11 +166,11 @@ func TestOrchestrationSummaryCounts(t *testing.T) {
 		want    int64
 		invalid bool
 	}{
-		{name: "uses aggregate count", source: "maestro", rows: "1599", want: 1599},
-		{name: "zero is not presence", source: "maestro", rows: "0"},
-		{name: "raw log is not summary", source: "maestro", invalid: true},
-		{name: "malformed count", source: "maestro", rows: "bad", invalid: true},
-		{name: "negative count", source: "maestro", rows: "-1", invalid: true},
+		{name: "uses aggregate count", source: "fleet", rows: "1599", want: 1599},
+		{name: "zero is not presence", source: "fleet", rows: "0"},
+		{name: "raw log is not summary", source: "fleet", invalid: true},
+		{name: "malformed count", source: "fleet", rows: "bad", invalid: true},
+		{name: "negative count", source: "fleet", rows: "-1", invalid: true},
 		{name: "missing source", rows: "1", invalid: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestOrchestrationSummaryCounts(t *testing.T) {
 			if (err != nil) != tc.invalid {
 				t.Fatalf("invalid=%t, got error %v", tc.invalid, err)
 			}
-			if got := found.orchestrationCounts["maestro"]; got != tc.want {
+			if got := found.orchestrationCounts["fleet"]; got != tc.want {
 				t.Fatalf("expected aggregate count %d, got %d", tc.want, got)
 			}
 			if !tc.invalid && tc.want == 0 {
