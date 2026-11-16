@@ -290,15 +290,23 @@ func (c *managedResourceGroupSyncer) createManagedResourceGroup(ctx context.Cont
 // NO side effects: it never persists and never schedules a requeue. The caller
 // (reconcileManagedResourceGroup) acts on the returned values inline:
 //
-//   - Succeeded and not owned by another cluster: returns (false, nil) — the caller persists
-//     the resource group as AzureResource.
+//   - Succeeded and owned by this cluster (ManagedBy == this cluster): returns (false, nil) —
+//     the caller persists the resource group as AzureResource.
 //   - in-progress (Accepted/Creating/Updating/Deleting): returns (true, nil) — the caller
 //     schedules a requeue and leaves the pending marker in place.
-//   - owned by another cluster, or a failed/terminal/unrecognized/absent provisioning state:
-//     returns (false, err) — the caller returns the error so the sync retries.
+//   - not owned by this cluster (ManagedBy unset, unparseable, or a different cluster), or a
+//     failed/terminal/unrecognized/absent provisioning state: returns (false, err) — the caller
+//     returns the error so the sync retries.
+//
+// Ownership is checked positively: only a resource group whose ManagedBy equals this cluster is
+// adopted. An unset/unparseable ManagedBy (unclaimed) is NOT treated as ours - both this
+// controller's creates and Cluster Service stamp ManagedBy, so an unstamped resource group was
+// never created for this cluster, and confirming it would adopt a resource group we do not own
+// (for example a pre-existing group whose name collides with the configured managed resource
+// group name).
 func validateManagedResourceGroup(cluster *coreapi.Cluster, managedResourceGroupID *azcorearm.ResourceID, resourceGroup armresources.ResourceGroup) (bool, error) {
-	if ownedByAnotherCluster(resourceGroup.ManagedBy, cluster.ID) {
-		return false, utils.TrackError(fmt.Errorf("managed resource group %q is owned by another cluster (ManagedBy=%q), not %q",
+	if !ownedByThisCluster(resourceGroup.ManagedBy, cluster.ID) {
+		return false, utils.TrackError(fmt.Errorf("managed resource group %q is not owned by this cluster (ManagedBy=%q, want %q)",
 			managedResourceGroupID.Name, managedByValue(resourceGroup.ManagedBy), cluster.ID.String()))
 	}
 
@@ -347,9 +355,9 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 //   - not found: clear both references so the deletion gate opens.
 //   - other error: return the error so the gate stays closed until we can positively
 //     determine the resource group state.
-//   - exists but owned by another cluster: a foreign / pre-existing resource group that
-//     Cluster Service will not delete on our behalf, so clear both references to open the
-//     deletion gate rather than blocking cluster deletion forever.
+//   - exists but not owned by this cluster (owned by another cluster, or unclaimed/unstamped):
+//     a foreign / pre-existing resource group we must not delete on our behalf, so clear both
+//     references to open the deletion gate rather than blocking cluster deletion forever.
 //   - exists and owned by this cluster: do nothing and leave the reference in place so the
 //     gate stays closed. Cluster Service owns the resource group's deletion. TODO: begin
 //     deletion.
@@ -377,11 +385,13 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	case getErr != nil:
 		return utils.TrackError(getErr)
-	case ownedByAnotherCluster(getResponse.ManagedBy, cluster.ID):
-		// The managed resource group exists but is owned by another cluster: a
-		// foreign / pre-existing resource group that Cluster Service will not delete
-		// on our behalf. It is not ours to wait on, so clear both references to open
-		// the deletion gate rather than blocking cluster deletion forever.
+	case !ownedByThisCluster(getResponse.ManagedBy, cluster.ID):
+		// The managed resource group exists but is not owned by this cluster - either
+		// owned by another cluster or unclaimed (empty/unstamped ManagedBy). Both this
+		// controller and Cluster Service stamp ManagedBy, so an unclaimed group was never
+		// ours; we must not delete a resource group we do not own. It is not ours to wait
+		// on either, so clear both references to open the deletion gate rather than blocking
+		// cluster deletion forever.
 		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	default:
 		// The managed resource group still exists and is owned by this cluster.
@@ -466,20 +476,22 @@ func isNotFound(err error) bool {
 	return azureclient.IsResourceGroupNotFoundErr(err)
 }
 
-// ownedByAnotherCluster reports whether a resource group's ManagedBy value refers
-// to a cluster other than clusterID. An empty ManagedBy means the resource group is
-// unclaimed and is therefore not owned by another cluster. A ManagedBy that is set
-// but does not parse as a resource ID is treated as owned by another cluster: it is
-// demonstrably not this cluster, so we fail closed and surface an error.
-func ownedByAnotherCluster(managedBy *string, clusterID *azcorearm.ResourceID) bool {
+// ownedByThisCluster reports whether a resource group's ManagedBy value positively
+// identifies clusterID as its owner: ManagedBy must be set, parse as a resource ID, and
+// equal clusterID. An empty or unparseable ManagedBy returns false - "unclaimed" is not
+// "ours". Both this controller's creates and Cluster Service stamp ManagedBy, so a group
+// with no stamp was never created for this cluster; treating it as ours would adopt or
+// delete a resource group we do not own. Ownership checks (confirming on create, and
+// deciding whether to delete/wait on teardown) therefore all gate on this positive check.
+func ownedByThisCluster(managedBy *string, clusterID *azcorearm.ResourceID) bool {
 	if managedBy == nil || len(*managedBy) == 0 {
 		return false
 	}
 	managedByID, err := azcorearm.ParseResourceID(*managedBy)
 	if err != nil {
-		return true
+		return false
 	}
-	return !controllerutil.ResourceIDsEqual(managedByID, clusterID)
+	return controllerutil.ResourceIDsEqual(managedByID, clusterID)
 }
 
 // managedByValue safely dereferences a resource group's ManagedBy for logging.
@@ -493,7 +505,7 @@ func managedByValue(managedBy *string) string {
 // buildDesiredManagedResourceGroup builds the Azure resource group this controller
 // wants to create for the cluster: the Location is taken from the cluster and
 // ManagedBy is set to the cluster's resource ID so the resource group is claimed as
-// ours (and recognized as such by ownedByAnotherCluster on later observations). No
+// ours (and recognized as such by ownedByThisCluster on later observations). No
 // tags are set.
 func buildDesiredManagedResourceGroup(cluster *coreapi.Cluster, managedResourceGroupName string) armresources.ResourceGroup {
 	return armresources.ResourceGroup{

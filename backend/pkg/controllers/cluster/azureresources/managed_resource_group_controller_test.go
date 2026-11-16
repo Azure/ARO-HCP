@@ -322,7 +322,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectCreateOrUpdate: true,
 			createResponse:       resourceGroupCreatedResponse(differentOwnerID),
 			expectErr:            true,
-			expectErrContains:    "owned by another cluster",
+			expectErrContains:    "not owned by this cluster",
 			expectAzure:          nil,
 			expectPending:        mrgID,
 		},
@@ -363,15 +363,19 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectPending:     mrgID,
 		},
 		{
-			// An existing resource group with no ManagedBy is treated as ours (Cluster
-			// Service does not always stamp ManagedBy): actual is set, pending cleared.
-			name:             "not deleting and resource group present and unclaimed sets actual and clears pending",
-			deleting:         false,
-			initialReference: coreapi.AzureReference{},
-			getResponse:      resourceGroupPresentResponseUnclaimed(),
-			getErr:           nil,
-			expectAzure:      mrgID,
-			expectPending:    nil,
+			// An existing resource group with no ManagedBy is NOT adopted: both this
+			// controller and Cluster Service stamp ManagedBy, so an unclaimed group was never
+			// created for this cluster. We fail closed rather than confirm a group we do not
+			// own; the pending marker recorded before the Get remains.
+			name:              "not deleting and resource group present and unclaimed errors and does not set actual",
+			deleting:          false,
+			initialReference:  coreapi.AzureReference{},
+			getResponse:       resourceGroupPresentResponseUnclaimed(),
+			getErr:            nil,
+			expectErr:         true,
+			expectErrContains: "not owned by this cluster",
+			expectAzure:       nil,
+			expectPending:     mrgID,
 		},
 		{
 			// Owned-by-another: returns an error and does NOT set actual; the pending
@@ -382,7 +386,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			getResponse:       resourceGroupPresentResponse(differentOwnerID),
 			getErr:            nil,
 			expectErr:         true,
-			expectErrContains: "owned by another cluster",
+			expectErrContains: "not owned by this cluster",
 			expectAzure:       nil,
 			expectPending:     mrgID,
 		},
@@ -431,6 +435,19 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			deleting:         true,
 			initialReference: coreapi.AzureReference{AzureResource: mrgID},
 			getResponse:      resourceGroupPresentResponse(differentOwnerID),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    nil,
+		},
+		{
+			// The resource group exists but is unclaimed (empty ManagedBy). Since both this
+			// controller and Cluster Service stamp ManagedBy, an unclaimed group is not ours;
+			// we must not delete it, and it is not ours to wait on, so both references are
+			// cleared to unblock cluster deletion (same handling as a foreign group).
+			name:             "deleting and resource group unclaimed clears both to unblock deletion",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      resourceGroupPresentResponseUnclaimed(),
 			getErr:           nil,
 			expectAzure:      nil,
 			expectPending:    nil,
@@ -750,8 +767,8 @@ func TestValidateManagedResourceGroup(t *testing.T) {
 		errContains   string
 	}{
 		{name: "succeeded and owned by this cluster proceeds", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Succeeded"))},
-		{name: "succeeded and unclaimed proceeds", resourceGroup: rg(nil, ptr.To("Succeeded"))},
-		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "owned by another cluster"},
+		{name: "succeeded but unclaimed errors", resourceGroup: rg(nil, ptr.To("Succeeded")), expectErr: true, errContains: "not owned by this cluster"},
+		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "not owned by this cluster"},
 		{name: "accepted requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Accepted")), expectRequeue: true},
 		{name: "creating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Creating")), expectRequeue: true},
 		{name: "updating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Updating")), expectRequeue: true},
