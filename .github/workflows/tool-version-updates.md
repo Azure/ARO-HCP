@@ -118,6 +118,9 @@ safe-outputs:
       - .bingo/variables.env
       - dev-infrastructure/openshift-ci/versions.mk
       - dev-infrastructure/openshift-ci/Dockerfile
+      # Only for the mechanical fixes a bumped linter requires, see the
+      # lint-tool procedure below; never for unrelated source changes.
+      - "**/*.go"
     protected-files:
       policy: blocked
       exclude:
@@ -237,6 +240,27 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   Any other diff must also run `make lint` locally.
   Existing `.bingo/` path selectors also select the CI image build; the standard
   Prow verify/lint jobs consume the repository's other pinned tools before merge.
+- **Lint-tool bumps:** when the selected family is the linter used by `make lint`
+  (currently `golangci-lint`), a newer version can report findings the old one
+  did not. A pin-only candidate then fails `ci/prow/lint`, so build the proposed
+  binary first and run it over the workspace with a bounded memory setting:
+
+  ```bash
+  GOMEMLIMIT=4GiB GOGC=50 make lint GOLANGCI_LINT="$(go env GOBIN)/golangci-lint-v<version>"
+  ```
+
+  This measures about 8-9 minutes and under 5GB; a whole-workspace run without
+  `GOMEMLIMIT` can exceed 9GB and be killed. Fix only the findings the new
+  version reports, and only mechanically: unchecked errors in tests,
+  `fmt.Fprintf` instead of `WriteString(fmt.Sprintf(...))`, JSON tag fixes,
+  constant inlining, and behaviour-preserving replacement of a deprecated field.
+  Do not change behaviour, do not edit `.golangci.yml`, do not add exclusions,
+  `nolint` directives or config changes, and do not fix findings from other
+  tools or unrelated code. Keep the pin and the mechanical fixes in one PR,
+  describe them as separate sections in the body, list the finding count per
+  linter, and state that the bounded run and Prow's `ci/prow/lint` are the
+  verification. If a finding needs a design decision, do not publish; report its
+  file, line and linter as blocked.
 - **Long gates:** `make verify` (especially `verify-materialize`) can run for
   several minutes; the repository-pinned lint measured about 3.5 minutes and
   under 0.5 GB on a normal machine, so a short foreground timeout is not evidence
@@ -252,8 +276,9 @@ unverified bump or suppress a genuine infrastructure/authentication error.
 
 Before publishing, confirm the diff contains only the selected family's pins,
 checksums and generated helpers, or the selected CI tool's variable/ARG pair.
-Do not change builder images, production dependencies, workflow files, source,
-fixtures, or unrelated pins. Commit the candidate before running
+The only exception is a lint-tool bump, which may also contain the mechanical
+findings procedure described above. Do not change builder images, production
+dependencies, workflow files, fixtures, or unrelated pins. Commit the candidate before running
 `make verify-yamlfmt` and `make -C config detect-change`, and exclude all scratch
 files and binaries. A check that fails only because the intended proposal is
 uncommitted is not a tool regression; keep the proposal committed for those gates.
