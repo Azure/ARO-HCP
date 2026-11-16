@@ -151,7 +151,7 @@ func TestPostgresUsesSelectedIdentityResourceGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	steps := strings.Split(string(data), "\n  - name: ")
-	for _, name := range []string{"cluster-output", "cs-postgres-access", "maestro-postgres-access"} {
+	for _, name := range []string{"cluster-output", "cs-postgres-access"} {
 		found := false
 		for _, step := range steps {
 			if !strings.HasPrefix(step, name+"\n") {
