@@ -231,18 +231,24 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   Leave `Symlinks.mk` unchanged. For a Bingo self-update, use the new pinned
   executable to regenerate its own helpers as well. Build each changed tool
   using its generated Make target. Commit the candidate before the clean-tree
-  checks, then run `make verify` and `make lint` with the proposed tools.
+  checks, then run `make verify` with the proposed tools. For a diff limited to
+  `.bingo/` pins and generated helpers, do not run the full-workspace `make lint`
+  inside the sandbox; record in the PR body that `ci/prow/lint` covers it instead.
+  Any other diff must also run `make lint` locally.
   Existing `.bingo/` path selectors also select the CI image build; the standard
   Prow verify/lint jobs consume the repository's other pinned tools before merge.
-- **Long gates:** `make verify` (especially `verify-materialize`) and `make lint`
-  can run for several minutes; the repository-pinned lint measured about 3.5
-  minutes and under 0.5 GB, so a short foreground timeout is not evidence of an
-  out-of-memory kill. Start each long gate with output redirected to a file in
-  the background, poll it with `sleep`, and let it run for its natural duration
+- **Long gates:** `make verify` (especially `verify-materialize`) can run for
+  several minutes; the repository-pinned lint measured about 3.5 minutes and
+  under 0.5 GB on a normal machine, so a short foreground timeout is not evidence
+  of an out-of-memory kill. Start each long gate with output redirected to a file
+  in the background, poll it with `sleep`, and let it run for its natural duration
   (allow at least 20 minutes total for `make verify`). Read the captured log
   before reporting a result: a non-zero exit is that gate's real error, and you
-  must quote its final lines instead of inferring memory pressure. Only report a
-  gate as unverified when it actually exited non-zero or the run budget ran out.
+  must quote its final lines instead of inferring memory pressure. Full-workspace
+  `make lint` runs locally only when the diff changes Go source, generated code,
+  workflows or other non-Bingo files. The sandbox cannot complete it for
+  Bingo-only diffs, so those candidates rely on `ci/prow/lint` and must say so in
+  the PR body; never describe that as an out-of-memory or runner failure.
 
 Before publishing, confirm the diff contains only the selected family's pins,
 checksums and generated helpers, or the selected CI tool's variable/ARG pair.
