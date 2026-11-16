@@ -52,6 +52,12 @@ type ControlPlaneVersionRolloutSpec struct {
 	// Written by: ControlPlaneVersionRolloutSeeding, ControlPlaneVersionCincinnatiSeeding, CosmosRolloutVersionMigration (legacy profiles)
 	Version coreapi.VersionProfile `json:"version"`
 
+	// PinnedVersion overrides the rollout target until BestExactVersion is strictly
+	// newer than UntilExactVersion. A nil ExactVersion means no pin; a nil
+	// UntilExactVersion holds the pin indefinitely. An empty pin serializes as {}.
+	// Written by: SRE
+	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
+
 	// BestExactVersion is selected from the y-stream channel by recency and its
 	// z-stream offset, subject to the SRE minimum-version floor. It is the exact
 	// version the rollout drives clusters toward. Nil means no version has been
@@ -110,4 +116,14 @@ type ControlPlaneVersionRolloutStatus struct {
 	// minVersionReadyDuration.
 	// Written by: ControlPlaneVersionStatusCollector
 	SuccessfulClusterCountByAchievedExactVersion map[string]int64 `json:"successfulClusterCountByAchievedExactVersion,omitempty"`
+}
+
+// ServiceProviderClusterPinnedVersion is an SRE-specified rollout version override.
+type ServiceProviderClusterPinnedVersion struct {
+	// ExactVersion is the override, including nightly versions.
+	// Written by: SRE
+	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
+	// UntilExactVersion is the threshold BestExactVersion must exceed to release the pin.
+	// Written by: SRE
+	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
