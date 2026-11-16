@@ -215,6 +215,25 @@ depctl maintenance inspect --repository Azure/ARO-HCP --pr 7892 \
 A human or unexplained hold, a consumed per-head recovery budget, a failing or
 pending current head, or missing evidence keeps the decision blocked.
 
+### dependabot inventory
+
+```bash
+depctl dependabot inventory --repository OWNER/REPO [--output FILE]
+```
+
+Lists the open security remediation proposals owned by `aro-hcp-robot[bot]`: label
+`agentic-dependabot`, or a `fix(deps): ` title carrying the remediation workflow
+marker, targeting `main` from the same repository. It prints the identity array the
+remediation workflow reads (`number`, `title`, `body`, `head`, `head_repo`, `base`,
+`sha`, `draft`, `author`, `labels`). Duplicate numbers and incomplete or foreign
+head/base identity fail the command.
+
+```bash
+depctl dependabot inventory --repository Azure/ARO-HCP --output open-pull-requests.base.json
+```
+
+The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
+
 ### maintenance inventory
 
 ```bash
@@ -276,6 +295,7 @@ prints the same as JSON. `--verbosity` (global) sets the log level.
 | `run --mode simulate` | a fixture repository | a scratch directory under `--work-dir` |
 | `maintenance inspect` | `gh api` and public Prow artifacts | evidence files, journal, `--output` |
 | `maintenance inventory` | open owned proposals and their evidence | nothing, or `--output` |
+| `dependabot inventory` | open owned security proposals | nothing, or `--output` |
 | `evidence prow` | the public Prow bucket | artifacts and a manifest in `--output-dir` |
 | `version` | build metadata | nothing |
 
@@ -289,7 +309,8 @@ Offline discovery needs `bash` for the CI tool mapping and `go` for the bingo
 module metadata. Candidate preparation and the tools consumers need the tools the
 repository already uses: `bingo`, `make`, `go`, `jq`, and `bicep` for a Bicep
 candidate. `maintenance inspect` needs an authenticated `gh`; `guard` and
-`maintenance inventory` need `GH_TOKEN` or `GITHUB_TOKEN` for the REST API.
+`maintenance inventory` and `dependabot inventory` need `GH_TOKEN` or `GITHUB_TOKEN`
+for the REST API.
 
 ## Exit codes
 
