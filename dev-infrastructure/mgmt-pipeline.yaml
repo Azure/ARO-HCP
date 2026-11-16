@@ -24,6 +24,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/aks-cluster-create/aks-cluster-create
     trap - EXIT
+    tmp="$(mktemp ./scripts/maestro-cert-cleanup/maestro-cert-cleanup.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/maestro-cert-cleanup
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/maestro-cert-cleanup/maestro-cert-cleanup
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -232,6 +238,33 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: infra
+  # Report the orphaned Maestro consumer certificates in the management vault.
+  # Best effort: the tool always exits 0 and reports, so this step never fails
+  # the rollout. Flip CLEANUP_DRY_RUN to false to delete.
+  - name: maestro-cert-cleanup
+    action: Shell
+    command: ./maestro-cert-cleanup
+    workingDir: ./scripts/maestro-cert-cleanup
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CERT_VAULTS
+      input:
+        resourceGroup: management
+        step: infra-output
+        name: mgmtKeyVaultName
+    - name: CERT_PATTERNS
+      value: 'hcp-underlay-*-mgmt-*'
+    - name: CLEANUP_MODE
+      value: apply
+    - name: CLEANUP_DRY_RUN
+      value: 'true'
+    dependsOn:
+    - resourceGroup: management
+      step: infra-output
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
@@ -278,42 +311,6 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
-  - name: maestro-consumer-cert
-    action: CreateCertificate
-    secretKeyVault:
-      configRef: ev2.assistedId.certificate.keyVault
-    secretName:
-      configRef: ev2.assistedId.certificate.name
-    applicationId:
-      configRef: ev2.assistedId.applicationId
-    vaultBaseUrl:
-      input:
-        resourceGroup: management
-        step: infra-output
-        name: mgmtKeyVaultUrl
-    certificateName:
-      configRef: maestro.agent.consumerName
-    contentType:
-      value: x-pkcs12
-    san:
-      configRef: maestro.agent.certSAN
-    issuer:
-      configRef: maestro.certIssuer
-    commonName:
-      configRef: maestro.agent.certCN
-    dependsOn:
-    - resourceGroup: management
-      step: infra-output
-    - resourceGroup: management
-      step: oncert-private-kv-issuer
-    - resourceGroup: management
-      step: oncert-public-kv-issuer
-    automatedRetry:
-      errorContainsAny:
-      - "InternalServerError"
-      - "ServiceUnavailable"
-      maximumRetryCount: 3
-      durationBetweenRetries: 1m
   - name: geneva-rp-logs-cert
     action: CreateCertificate
     manage:
@@ -557,8 +554,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster-create
-    - resourceGroup: management
-      step: maestro-consumer-cert
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
     - resourceGroup: management
