@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -224,14 +225,27 @@ func PatchHunks(file map[string]any) ([]Hunk, error) {
 			}
 			oldCount, newCount := 1, 1
 			if match[2] != "" {
-				fmt.Sscanf(match[2], "%d", &oldCount)
+				parsed, err := strconv.Atoi(match[2])
+				if err != nil {
+					return nil, fmt.Errorf("%w: invalid hunk count", ErrTruncatedPatch)
+				}
+				oldCount = parsed
 			}
 			if match[4] != "" {
-				fmt.Sscanf(match[4], "%d", &newCount)
+				parsed, err := strconv.Atoi(match[4])
+				if err != nil {
+					return nil, fmt.Errorf("%w: invalid hunk count", ErrTruncatedPatch)
+				}
+				newCount = parsed
 			}
-			oldStart, newStart := 0, 0
-			fmt.Sscanf(match[1], "%d", &oldStart)
-			fmt.Sscanf(match[3], "%d", &newStart)
+			oldStart, err := strconv.Atoi(match[1])
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid hunk start", ErrTruncatedPatch)
+			}
+			newStart, err := strconv.Atoi(match[3])
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid hunk start", ErrTruncatedPatch)
+			}
 			oldLeft, newLeft = oldCount, newCount
 			hunks = append(hunks, Hunk{OldStart: oldStart, NewStart: newStart})
 			continue

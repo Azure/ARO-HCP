@@ -97,7 +97,7 @@ func NpmDependencies(hunks []Hunk) (map[string]bool, error) {
 						stack = append(stack, next)
 						key = nil
 					} else if value == "}" || value == "]" {
-						if len(stack) > 0 && !(len(stack[len(stack)-1]) == 1 && stack[len(stack)-1][0] == nil) {
+						if len(stack) > 0 && (len(stack[len(stack)-1]) != 1 || stack[len(stack)-1][0] != nil) {
 							stack = stack[:len(stack)-1]
 						}
 						key = nil
@@ -154,9 +154,9 @@ func NpmDependencies(hunks []Hunk) (map[string]bool, error) {
 						}
 					} else if marker == side && len(dependencyPath) > 0 && dependencyPath[0] == nil &&
 						len(dependencyPath) < 3 &&
-						!(isKey && index+2 < len(matches) &&
-							(line[matches[index+2][0]:matches[index+2][1]] == "{" ||
-								line[matches[index+2][0]:matches[index+2][1]] == "[")) {
+						(!isKey || index+2 >= len(matches) ||
+							(line[matches[index+2][0]:matches[index+2][1]] != "{" &&
+								line[matches[index+2][0]:matches[index+2][1]] != "[")) {
 						return nil, errors.New("npm dependency section is outside diff context")
 					}
 				}
