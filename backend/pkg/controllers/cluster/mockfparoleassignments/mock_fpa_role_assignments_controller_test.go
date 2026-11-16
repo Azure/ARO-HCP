@@ -41,27 +41,32 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func TestManagedResourceGroupScope(t *testing.T) {
+func TestConfirmedManagedResourceGroupID(t *testing.T) {
 	t.Parallel()
 
 	confirmed := mustReservedID(t, "confirmed")
 	pending := mustReservedID(t, "pending")
 
-	t.Run("prefers the confirmed AzureResource", func(t *testing.T) {
+	t.Run("uses the confirmed AzureResource", func(t *testing.T) {
 		t.Parallel()
-		scope := managedResourceGroupScope(coreapi.AzureReference{AzureResource: confirmed, PendingAzureResource: pending})
-		assert.Same(t, confirmed, scope, "confirmed AzureResource is preferred over pending")
+		scope := confirmedManagedResourceGroupID(coreapi.AzureReference{AzureResource: confirmed, PendingAzureResource: pending})
+		assert.Same(t, confirmed, scope, "the confirmed AzureResource is the only ownership-validated reference")
 	})
 
-	t.Run("falls back to PendingAzureResource", func(t *testing.T) {
+	t.Run("nil for a pending-only reference", func(t *testing.T) {
 		t.Parallel()
-		scope := managedResourceGroupScope(coreapi.AzureReference{PendingAzureResource: pending})
-		assert.Same(t, pending, scope, "pending reference is used when no confirmed one exists")
+		// Regression: the managed resource group controller persists PendingAzureResource
+		// before it validates Azure ownership, so a pending-only reference may point at a
+		// group owned by another cluster. The mock FPA must not scope an Owner grant against
+		// it, or the grant would be orphaned on a foreign group. Ownership is only trusted
+		// once it has been promoted to the confirmed AzureResource.
+		scope := confirmedManagedResourceGroupID(coreapi.AzureReference{PendingAzureResource: pending})
+		assert.Nil(t, scope, "a pending-only (not yet ownership-confirmed) MRG yields no scope")
 	})
 
 	t.Run("nil when neither reference is set", func(t *testing.T) {
 		t.Parallel()
-		scope := managedResourceGroupScope(coreapi.AzureReference{})
+		scope := confirmedManagedResourceGroupID(coreapi.AzureReference{})
 		assert.Nil(t, scope, "no scope when the MRG is absent")
 	})
 }

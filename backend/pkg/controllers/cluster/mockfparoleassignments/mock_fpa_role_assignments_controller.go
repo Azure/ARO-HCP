@@ -149,16 +149,18 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	scope := managedResourceGroupScope(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup)
+	scope := confirmedManagedResourceGroupID(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup)
 	// Deletion must NOT short-circuit while the managed resource group still exists.
 	// The mock FPA deletes the MRG using exactly this Owner assignment (its base
 	// subscription role grants resourceGroups read/write but NOT delete), so tearing
 	// the assignment down at the start of deletion - or never creating it because the
 	// controller only now caught up - would leave the MRG undeletable and orphaned.
-	// We therefore keep the assignment published for as long as the MRG is present,
-	// even during cluster teardown, and only clean up the bookkeeping StackDesire once
-	// the MRG is gone (both references cleared by the managed resource group controller).
-	// The assignment itself is MRG-scoped, so Azure removes it in cascade with the MRG.
+	// We therefore keep the assignment published for as long as the MRG is confirmed as
+	// ours (AzureResource set), even during cluster teardown, and only clean up the
+	// bookkeeping StackDesire once that confirmed reference is cleared by the managed
+	// resource group controller (the MRG is gone, or was found to be owned by another
+	// cluster). The assignment itself is MRG-scoped, so Azure removes it in cascade with
+	// the MRG.
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && scope == nil {
 		err := s.deleteDeploymentStackDesireDatabaseEntry(ctx, key)
 		if err != nil {
@@ -209,19 +211,24 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	return nil
 }
 
-// managedResourceGroupScope returns the resource ID to scope the mock FPA role
-// assignment against, or nil when the managed resource group is not present. It
-// prefers the confirmed AzureResource and falls back to PendingAzureResource: during
-// deletion the managed resource group controller never promotes pending to confirmed
-// (it only deletes) and it deletes a pending-only MRG too, so a pending-only reference
-// is still a real MRG the mock FPA must be able to delete. The scope resource ID is
-// identical either way. A nil return means AzureResource and PendingAzureResource in
-// ref are both nil.
-func managedResourceGroupScope(ref coreapi.AzureReference) *azcorearm.ResourceID {
-	if ref.AzureResource != nil {
-		return ref.AzureResource
-	}
-	return ref.PendingAzureResource
+// confirmedManagedResourceGroupID returns the resource ID of the managed resource group
+// once it has been confirmed as owned by this cluster, or nil otherwise. It is the single
+// definition of "which reference the mock FPA may act on", shared by the publishing
+// controller (which needs the ID) and the intent controller (which needs its presence).
+//
+// It uses only the confirmed AzureResource, never the PendingAzureResource marker. The
+// managed resource group controller persists the pending marker BEFORE it queries Azure
+// and validates ownership, so a pending-only reference may point at a resource group that
+// is owned by another cluster. Publishing an Owner grant against such a group would be
+// orphaned: this cluster's teardown never deletes a foreign group, so the MRG-scoped
+// assignment never cascades away, and teardown only deletes the bookkeeping desire.
+// AzureResource is set only after the managed resource group controller has validated
+// ManagedBy == this cluster - including the promotion it performs on the deletion path for
+// a managed resource group whose creation was confirmed in Azure but never persisted - so
+// gating on it means we only ever publish against a group we own, while still covering the
+// pending-only-at-delete-time case.
+func confirmedManagedResourceGroupID(ref coreapi.AzureReference) *azcorearm.ResourceID {
+	return ref.AzureResource
 }
 
 // serviceProviderClusterWithReservedAzureResourceIDs returns a copy of existing with a

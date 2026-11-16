@@ -175,11 +175,13 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 	// deletable, and the map is removed with the ServiceProviderCluster document during
 	// teardown.
 	//
-	// The MRG is present while either reference is set (see managedResourceGroupScope):
-	// during deletion the managed resource group controller never promotes pending to
-	// confirmed (it only deletes), and it deletes a pending-only MRG too, so pending must
-	// count as present here or a deletion that begins before confirmation would strand it.
-	managedResourceGroupPresent := managedResourceGroupScope(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup) != nil
+	// The MRG counts as present while it is confirmed as ours (AzureResource set, see
+	// confirmedManagedResourceGroupID). The managed resource group controller promotes a
+	// pending-only but owned MRG to confirmed even on the deletion path, so a deletion that
+	// begins before creation was confirmed is still covered; a pending-only reference whose
+	// ownership was never confirmed (possibly a group owned by another cluster) does not
+	// count, so we never keep marked keys for a group we do not own.
+	managedResourceGroupPresent := confirmedManagedResourceGroupID(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup) != nil
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && !managedResourceGroupPresent {
 		return nil
 	}
