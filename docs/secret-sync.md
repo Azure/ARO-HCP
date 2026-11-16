@@ -82,7 +82,7 @@ cd ../..
 
 ### 2. Get the public key (first time only per vault)
 
-The public key is already embedded in `encryptedsecrets.yaml` under each vault's `keyEncryptionKey` field. You only need to download it if you're targeting a vault that doesn't have an entry yet, or if the key was rotated.
+The public key is already embedded in `encryptedsecrets.yaml` under each vault's `keyEncryptionKey` field. You only need to download it if you're targeting a vault that doesn't have an entry yet. For a vault that already has an entry, `register` uses the embedded key and ignores `--public-key-file`.
 
 ```bash
 KEYVAULT=arohcpdev-global  # adjust for target env
@@ -161,7 +161,19 @@ The command is idempotent — re-running with the same secret name overwrites th
 
 ## Rotate the Public Key
 
-If the Key Vault's RSA key needs rotation, [download the new public key](#2-get-the-public-key-first-time-only-per-vault) and [re-register all secrets](#4-register-the-secret).
+> [!WARNING]
+> Do not create a new version of `secretSyncKey` with the current tooling. The `SecretSync` step in that environment would fail for every secret wrapped with the previous key, and re-registering does not pick up the new public key.
+
+Two behaviors of the vendored `secret-sync` tool (`populate/options.go` and `register/options.go` under `vendor/github.com/Azure/ARO-Tools/tools/secret-sync/`) make a key-encryption-key rotation unsafe today:
+
+- `populate` unwraps each data encryption key with the latest version of `secretSyncKey`, because it passes an empty key version to the Key Vault `Decrypt` call. Once a new version exists, ciphertext wrapped with the previous public key no longer decrypts, and the step stops at the first secret that fails. Stage and Prod deploy the ciphertext of their pinned revision, so they keep the old ciphertext until their next promotion.
+- `register` reads `--public-key-file` only when the vault has no `keyEncryptionKey` in `encryptedsecrets.yaml`. For a vault that already has an entry, re-registering still wraps with the old embedded public key, even when you pass the new one.
+
+Rotating the key-encryption key also does not change who can read the secrets, because `populate` stores the plaintext as regular secrets in the same vault. To reduce the exposure of a credential, rotate the secret value at its issuer and [register the new value](#4-register-the-secret).
+
+A safe key rotation needs version-aware decryption, a supported way to replace the embedded public key, and a migration plan for pinned environments. This is tracked in [AROSLSRE-2802](https://redhat.atlassian.net/browse/AROSLSRE-2802).
+
+## Rotating the Component-Sync Pull Secret
 
 > [!NOTE]
 > The `component-sync-pull-secret` contains `registry.stage.redhat.io` credentials for pulling OADP/Velero images. The pull secret JSON is sourced from the [OADP QE automation repo](https://gitlab.cee.redhat.com/migrationqe/oadp-qe-automation/-/blob/main/operator/generic/pull-secrets.json).
