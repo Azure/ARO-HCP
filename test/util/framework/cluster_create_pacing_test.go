@@ -88,8 +88,9 @@ func TestParseClusterCreatePacing(t *testing.T) {
 		want    clusterCreatePacing
 		wantErr bool
 	}{
-		{name: "empty uses default", value: "", want: clusterCreatePacing{max: 12, window: 6 * time.Minute}},
-		{name: "default string parses", value: "12/6m", want: clusterCreatePacing{max: 12, window: 6 * time.Minute}},
+		{name: "empty disables: pacing is opt-in", value: "", want: clusterCreatePacing{}},
+		{name: "whitespace-only disables", value: "   ", want: clusterCreatePacing{}},
+		{name: "recommended string parses", value: RecommendedClusterCreatePacing, want: clusterCreatePacing{max: 12, window: 6 * time.Minute}},
 		{name: "zero disables", value: "0", want: clusterCreatePacing{}},
 		{name: "off disables", value: "off", want: clusterCreatePacing{}},
 		{name: "disabled disables case-insensitively", value: "DISABLED", want: clusterCreatePacing{}},
@@ -825,6 +826,31 @@ func TestPaceHCPClusterCreateStartEnvHandling(t *testing.T) {
 		seed(t)
 		if err := paceHCPClusterCreateStart(t.Context(), logr.Discard(), "rg-one", "cluster-malformed"); err != nil {
 			t.Errorf("pace with malformed %s returned error, want fail-open nil: %v", ClusterCreatePacingEnvvar, err)
+		}
+	})
+
+	// Pacing is opt-in. An unset envvar must behave exactly like "off" — a
+	// saturated window admits immediately and nothing is recorded. If this
+	// ever fails because a default sizing was reintroduced, every suite that
+	// creates clusters silently inherits up to maxClusterCreatePacingWait per
+	// creation.
+	t.Run("unset is off: no default sizing is applied", func(t *testing.T) {
+		t.Setenv(ClusterCreatePacingEnvvar, "")
+		seed(t)
+		done := make(chan error, 1)
+		go func() {
+			done <- paceHCPClusterCreateStart(t.Context(), logr.Discard(), "rg-one", "cluster-unset")
+		}()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("pace with %s unset returned error: %v", ClusterCreatePacingEnvvar, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("pace with %s unset blocked on a saturated window; pacing is no longer opt-in", ClusterCreatePacingEnvvar)
+		}
+		if got := len(startsInStateFile(t)); got != 1 {
+			t.Errorf("state has %d starts after an unset-envvar pace, want 1 (unchanged)", got)
 		}
 	})
 }

@@ -33,7 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
 )
 
-// Cluster-creation start pacing.
+// Cluster-creation start pacing. Opt-in: off unless
+// ClusterCreatePacingEnvvar is set to a "<max>/<window>" sizing.
 //
 // e2e-parallel specs start synchronized, and each reaches its ARM-heavy phase
 // (node VMs, guest CCM load-balancer ensure) roughly ten minutes later. Enough
@@ -51,24 +52,42 @@ import (
 // apart, so freed capacity refills one start at a time instead of as another
 // batch.
 //
+// Whether spreading the wave helps depends on where the load comes from. It
+// targets the case where the creation burst itself saturates the budget; where
+// throttling instead tracks steady-state subscription load — other clients, or
+// long-lived clusters being reconciled — pacing starts moves load around
+// without removing it. Measure before enabling it for a suite.
+//
 // The pacer fails open — pacing is best-effort storm mitigation, never a
 // correctness gate: unreadable state, an unavailable lock, or a wait exceeding
 // maxClusterCreatePacingWait proceeds unpaced. Only context cancellation while
 // waiting aborts the creation.
 
 const (
-	// ClusterCreatePacingEnvvar configures cluster-creation start pacing:
-	// "<max>/<window>", e.g. "12/6m" allows at most 12 starts within any
-	// trailing 6-minute window, shared by every spec subprocess through
-	// ARTIFACT_DIR. "0", "off" or "disabled" turns pacing off. Unset falls
-	// back to defaultClusterCreatePacing.
+	// ClusterCreatePacingEnvvar opts a run in to cluster-creation start
+	// pacing: "<max>/<window>", e.g. "12/6m" allows at most 12 starts within
+	// any trailing 6-minute window, shared by every spec subprocess through
+	// ARTIFACT_DIR. "0", "off" or "disabled" turns pacing off explicitly.
+	//
+	// Pacing is OFF unless this variable is set. It is a targeted mitigation
+	// for a specific failure mode (ARO-29937: a synchronized creation wave
+	// saturating subscription-level ARM quotas), not a property every suite
+	// wants: it can add up to maxClusterCreatePacingWait per creation, and at
+	// high concurrency the suite makespan is the critical path, so the delay
+	// lands on the tail. Observed ARM throttling has also been seen to track
+	// steady-state subscription load rather than the creation wave, in which
+	// case spreading starts moves load around without removing it. A suite
+	// that wants pacing asks for it.
 	ClusterCreatePacingEnvvar = "ARO_HCP_E2E_CLUSTER_CREATE_PACING"
 
-	// defaultClusterCreatePacing admits an initial burst of 12 starts, then
+	// RecommendedClusterCreatePacing is the sizing to use when a suite opts in
+	// and has no measurement of its own: an initial burst of 12 starts, then
 	// one per window/max = 30s once that burst ages out. Sized against
-	// e2e-parallel's 58-container CI leases: the wave spreads over ~30 minutes,
-	// and runs with fewer than 12 concurrent creations are not delayed at all.
-	defaultClusterCreatePacing = "12/6m"
+	// e2e-parallel's 58-container CI leases, so the wave spreads over ~30
+	// minutes and runs with fewer than 12 concurrent creations are not delayed
+	// at all. It is a documented value for callers to pass in, never a
+	// fallback applied on their behalf.
+	RecommendedClusterCreatePacing = "12/6m"
 
 	// clusterCreatePacingStateFile lives in ARTIFACT_DIR, next to the managed
 	// identities pool state, so every spec subprocess of a run shares it;
@@ -106,19 +125,17 @@ func (p clusterCreatePacing) enabled() bool {
 }
 
 // parseClusterCreatePacing parses "<max>/<window>" (e.g. "12/6m"). An empty
-// value yields the default. "0", "off" and "disabled" (case-insensitive)
-// disable pacing.
+// or unset value disables pacing — it is opt-in, so no sizing is ever applied
+// on a caller's behalf. "0", "off" and "disabled" (case-insensitive) disable
+// it explicitly and are equivalent to leaving it unset.
 func parseClusterCreatePacing(value string) (clusterCreatePacing, error) {
 	value = strings.TrimSpace(value)
-	if value == "" {
-		value = defaultClusterCreatePacing
-	}
-	if strings.EqualFold(value, "off") || strings.EqualFold(value, "disabled") || value == "0" {
+	if value == "" || strings.EqualFold(value, "off") || strings.EqualFold(value, "disabled") || value == "0" {
 		return clusterCreatePacing{}, nil
 	}
 	count, window, found := strings.Cut(value, "/")
 	if !found {
-		return clusterCreatePacing{}, fmt.Errorf("expected \"<max>/<window>\" like %q, got %q", defaultClusterCreatePacing, value)
+		return clusterCreatePacing{}, fmt.Errorf("expected \"<max>/<window>\" like %q, got %q", RecommendedClusterCreatePacing, value)
 	}
 	max, err := strconv.Atoi(strings.TrimSpace(count))
 	if err != nil || max < 1 {
