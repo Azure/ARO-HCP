@@ -599,7 +599,15 @@ Work on a fresh branch per group, off the default branch. For each group:
 Some alerts name an indirect package that no release ever patches, while a direct parent can stop importing it. Do this analysis before reporting such an alert as blocked:
 
 1. Run `go mod why -m <package>` in every affected module (with `GOWORK=off` as well when the workspace could hide the local chain) and record the full import chain from the module to the alerted package.
-2. Identify the direct parent that imports it. Determine whether a newer released parent version drops that import: inspect the candidate parent's module graph with `go mod download -json <parent>@<version>` and `go list -m -json all` in a scratch copy, or try the bump in a temporary worktree. Prefer the lowest parent version that removes the import.
+2. Identify the direct parent that imports it. Determine whether a newer released parent version drops that import from its source, not from its `go.mod`. In an unattended run, URL fetches such as `curl` to `raw.githubusercontent.com` are denied, and a module with a `vendor/` directory cannot resolve new versions. Use the Go module proxy the sandbox already allows, from a scratch module:
+
+   ```bash
+   scratch=$(mktemp -d) && cd "$scratch" && GOWORK=off go mod init scratch >/dev/null
+   dir=$(GOWORK=off GOFLAGS=-mod=mod go mod download -json <parent>@<version> | jq -r .Dir)
+   grep -rn "docker/distribution" "$dir" --include='*.go' | head
+   ```
+
+   An empty grep means the parent no longer imports the package. Repeat for each candidate parent version and keep the lowest version that removes the import.
 3. If a parent version removes it, treat the parent as the group family: bump the parent, then run the workspace ritual, vendor and CI gates from the steps above. Propose one dependency-only PR whose body lists every alert number it resolves and the removal evidence, namely that `go list -m all` in each affected module no longer resolves the vulnerable module. The proposal `package_family`, `target_version` and `manifests` describe the parent and its affected manifests.
 4. If no available parent version removes the import, report the alert as blocked with the chain and the parent versions you inspected.
 
