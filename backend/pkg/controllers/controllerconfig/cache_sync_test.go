@@ -23,9 +23,11 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -44,9 +46,11 @@ func TestCacheTrackingPreservesInstancesAndIncludesEveryAccessor(t *testing.T) {
 	resources := corecosmosstoragetesting.NewMockResourcesDBClient()
 	billing := billingcosmosstoragetesting.NewMockBillingDBClient()
 	fleet := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	azureResources := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient()
 	controllerContext := ControllerContext{
 		BackendInformers:          coreinformers.NewBackendInformers(t.Context(), resources.ResourcesGlobalListers(), resources, billing.BillingGlobalListers()),
 		FleetInformers:            fleetinformers.NewFleetInformers(t.Context(), fleet.GlobalListers(), fleet),
+		AzureResourcesInformers:   azureresourcesinformers.NewAzureResourcesInformers(t.Context(), azureResources.GlobalListers(), azureResources),
 		UnionKubeApplierInformers: unionkubeapplierinformers.NewUnionKubeApplierInformers(),
 	}
 	controller := &dependencyRecordingController{}
@@ -54,9 +58,11 @@ func TestCacheTrackingPreservesInstancesAndIncludesEveryAccessor(t *testing.T) {
 	instantiate := WithCacheSyncs(func(tracked ControllerContext) (Runnable, error) {
 		require.Equal(t, controllerContext.BackendInformers.HasSynced(), tracked.BackendInformers.HasSynced())
 		require.Equal(t, controllerContext.FleetInformers.HasSynced(), tracked.FleetInformers.HasSynced())
+		require.Equal(t, controllerContext.AzureResourcesInformers.HasSynced(), tracked.AzureResourcesInformers.HasSynced())
 		for _, pair := range [][2]any{
 			{controllerContext.BackendInformers, tracked.BackendInformers},
 			{controllerContext.FleetInformers, tracked.FleetInformers},
+			{controllerContext.AzureResourcesInformers, tracked.AzureResourcesInformers},
 		} {
 			original, wrapped := reflect.ValueOf(pair[0]), reflect.ValueOf(pair[1])
 			for index := range original.NumMethod() {
@@ -78,7 +84,7 @@ func TestCacheTrackingPreservesInstancesAndIncludesEveryAccessor(t *testing.T) {
 	runnable, err := instantiate(controllerContext)
 	require.NoError(t, err)
 	require.Same(t, controller, runnable, "must not replace controller queueing machinery")
-	require.Equal(t, 20, accessorCount)
+	require.Equal(t, 21, accessorCount)
 	require.Len(t, controller.syncs, accessorCount+1, "includes lister-only dependencies and authoritative union readiness")
 	for _, synced := range controller.syncs {
 		require.False(t, synced(), "unstarted caches must block reconciliation")

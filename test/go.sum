@@ -158,6 +158,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0/go.mod h1:fewgRjNVE84QVVh798sIMFb7gPXPp7NmnekGnboSnXk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 h1:bcgO/crpp7wqI0Froi/I4C2fme7Vk/WLusbV399Do8I=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1/go.mod h1:kvfPmsE8gpOwwC1qrO1FeyBDDNfnwBN5UU3MPNiWW7I=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2 v2.0.0 h1:YASRN3B8I85M58ME2zFimxkmtI5FU8DsdTdr/PcjZtk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2 v2.0.0/go.mod h1:/2DQcveILEJOpl3ftIDI5Hezj/n9NBBYrfbmhBl+DcI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0 h1:wIDqH4WA5uJ6irRqjzodeSw6Pmp0tu3oIbwzBZEdMfQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0/go.mod h1:g8mnARUMaYRsg80mxm3PxjF7+oUotB/lneDbwYbGNxg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 h1:Dd+RhdJn0OTtVGaeDLZpcumkIVCtA/3/Fo42+eoYvVM=

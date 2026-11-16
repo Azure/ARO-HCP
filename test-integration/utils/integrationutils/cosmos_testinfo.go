@@ -34,10 +34,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -50,11 +52,12 @@ import (
 type CosmosIntegrationTestInfo struct {
 	ArtifactsDir string
 
-	CosmosDatabaseClient *azcosmos.DatabaseClient
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	billingDBClient      billingcosmosstorage.BillingDBClient
-	fleetDBClient        fleetcosmosstorage.FleetDBClient
-	cosmosClient         *azcosmos.Client
+	CosmosDatabaseClient   *azcosmos.DatabaseClient
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
+	billingDBClient        billingcosmosstorage.BillingDBClient
+	fleetDBClient          fleetcosmosstorage.FleetDBClient
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient
+	cosmosClient           *azcosmos.Client
 }
 
 func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrationTestInfo, error) {
@@ -83,14 +86,19 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
 	}
+	azureResourcesDBClient, err := azureresourcescosmosstorage.NewAzureResourcesDBClient(endpoint, integrationTestCosmosDatabaseName, storageOptions, bucket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the azure resources database client: %w", err)
+	}
 
 	testInfo := &CosmosIntegrationTestInfo{
-		ArtifactsDir:         path.Join(getArtifactDir(), t.Name()),
-		CosmosDatabaseClient: cosmosDatabaseClient,
-		resourcesDBClient:    resourcesDBClient,
-		billingDBClient:      billingDBClient,
-		fleetDBClient:        fleetDBClient,
-		cosmosClient:         cosmosClient,
+		ArtifactsDir:           path.Join(getArtifactDir(), t.Name()),
+		CosmosDatabaseClient:   cosmosDatabaseClient,
+		resourcesDBClient:      resourcesDBClient,
+		billingDBClient:        billingDBClient,
+		fleetDBClient:          fleetDBClient,
+		azureResourcesDBClient: azureResourcesDBClient,
+		cosmosClient:           cosmosClient,
 	}
 	return testInfo, nil
 }
@@ -99,7 +107,7 @@ func JSONOnly(entry fs.DirEntry) bool {
 	return strings.HasSuffix(entry.Name(), ".json")
 }
 
-func LoadCosmosContentFromFS(ctx context.Context, resourcesContainer, fleetContainer *azcosmos.ContainerClient, stepDir fs.FS, filterFn func(fs.DirEntry) bool) error {
+func LoadCosmosContentFromFS(ctx context.Context, resourcesContainer, fleetContainer, azureResourcesContainer *azcosmos.ContainerClient, stepDir fs.FS, filterFn func(fs.DirEntry) bool) error {
 	testContent, err := fs.ReadDir(stepDir, ".")
 	if err != nil {
 		return utils.TrackError(err)
@@ -113,7 +121,7 @@ func LoadCosmosContentFromFS(ctx context.Context, resourcesContainer, fleetConta
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if err := LoadCosmosContent(ctx, resourcesContainer, fleetContainer, content); err != nil {
+		if err := LoadCosmosContent(ctx, resourcesContainer, fleetContainer, azureResourcesContainer, content); err != nil {
 			return utils.TrackError(err)
 		}
 	}
@@ -122,11 +130,11 @@ func LoadCosmosContentFromFS(ctx context.Context, resourcesContainer, fleetConta
 }
 
 func (s *CosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
-	return NewCosmosContentLoader(s.CosmosResourcesContainer(), s.CosmosFleetContainer()).ListAllDocuments(ctx)
+	return NewCosmosContentLoader(s.CosmosResourcesContainer(), s.CosmosFleetContainer(), s.CosmosAzureResourcesContainer()).ListAllDocuments(ctx)
 }
 
 func (s *CosmosIntegrationTestInfo) ListDocumentsByContainer(ctx context.Context) (map[string][]*cosmosstorageutils.TypedDocument, error) {
-	return NewCosmosContentLoader(s.CosmosResourcesContainer(), s.CosmosFleetContainer()).ListDocumentsByContainer(ctx)
+	return NewCosmosContentLoader(s.CosmosResourcesContainer(), s.CosmosFleetContainer(), s.CosmosAzureResourcesContainer()).ListDocumentsByContainer(ctx)
 }
 
 func (s *CosmosIntegrationTestInfo) ResourcesDBClient() corecosmosstorage.ResourcesDBClient {
@@ -139,6 +147,10 @@ func (s *CosmosIntegrationTestInfo) BillingDBClient() billingcosmosstorage.Billi
 
 func (s *CosmosIntegrationTestInfo) FleetDBClient() fleetcosmosstorage.FleetDBClient {
 	return s.fleetDBClient
+}
+
+func (s *CosmosIntegrationTestInfo) AzureResourcesDBClient() azureresourcescosmosstorage.AzureResourcesDBClient {
+	return s.azureResourcesDBClient
 }
 
 func prepareCosmosDocument(content []byte) (*cosmosstorageutils.TypedDocument, string, error) {
@@ -172,6 +184,8 @@ func prepareCosmosDocument(content []byte) (*cosmosstorageutils.TypedDocument, s
 		metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, coreapi.NodePoolScopedManagementClusterContentResourceType),
 		metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, azcorearm.SubscriptionResourceType):
 		return &document, "Resources", nil
+	case metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType):
+		return &document, "AzureResources", nil
 	case metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, fleetapi.StampResourceType),
 		metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, fleetapi.ManagementClusterResourceType),
 		metadataapihelpers.ResourceTypeStringEqual(document.ResourceType, fleetapi.ManagementClusterControllerResourceType),
@@ -184,7 +198,7 @@ func prepareCosmosDocument(content []byte) (*cosmosstorageutils.TypedDocument, s
 	}
 }
 
-func LoadCosmosContent(ctx context.Context, resourcesContainer, fleetContainer *azcosmos.ContainerClient, content []byte) error {
+func LoadCosmosContent(ctx context.Context, resourcesContainer, fleetContainer, azureResourcesContainer *azcosmos.ContainerClient, content []byte) error {
 	document, containerName, err := prepareCosmosDocument(content)
 	if err != nil {
 		return err
@@ -195,6 +209,8 @@ func LoadCosmosContent(ctx context.Context, resourcesContainer, fleetContainer *
 		container = resourcesContainer
 	case "Fleet":
 		container = fleetContainer
+	case "AzureResources":
+		container = azureResourcesContainer
 	}
 	if container == nil {
 		return fmt.Errorf("container client is missing for resourceType %q", document.ResourceType)
@@ -220,6 +236,15 @@ func (s *CosmosIntegrationTestInfo) CosmosResourcesContainer() *azcosmos.Contain
 	}
 
 	return resources
+}
+
+func (s *CosmosIntegrationTestInfo) CosmosAzureResourcesContainer() *azcosmos.ContainerClient {
+	azureResources, err := s.cosmosClient.NewContainer(integrationTestCosmosDatabaseName, "AzureResources")
+	if err != nil {
+		panic(err)
+	}
+
+	return azureResources
 }
 
 func (s *CosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
@@ -260,7 +285,7 @@ func (s *CosmosIntegrationTestInfo) deleteAllCosmosItems(ctx context.Context) {
 	}
 
 	logger.Info("Deleting all documents from Cosmos DB")
-	for _, containerName := range []string{"Resources", "Fleet"} {
+	for _, containerName := range []string{"Resources", "Fleet", "AzureResources"} {
 		containerClient, err := s.cosmosClient.NewContainer(integrationTestCosmosDatabaseName, containerName)
 		if err != nil {
 			logger.Error(err, "Failed to create container client")
@@ -427,7 +452,7 @@ func LoadAllContent(ctx context.Context, contentLoader ContentLoader, createDir 
 }
 
 func (s *CosmosIntegrationTestInfo) LoadContent(ctx context.Context, content []byte) error {
-	return LoadCosmosContent(ctx, s.CosmosResourcesContainer(), s.CosmosFleetContainer(), content)
+	return LoadCosmosContent(ctx, s.CosmosResourcesContainer(), s.CosmosFleetContainer(), s.CosmosAzureResourcesContainer(), content)
 }
 
 func cosmosClientOptionsFromEnv() (string, cosmosclient.Options, error) {
@@ -500,6 +525,7 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		{"Billing", "/subscriptionId", nil},
 		{"Locks", "/id", &[]int32{10}[0]}, // 10 second TTL for locks
 		{"Fleet", "/partitionKey", nil},
+		{"AzureResources", "/partitionKey", nil},
 	}
 
 	start := time.Now()

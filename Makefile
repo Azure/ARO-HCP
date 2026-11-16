@@ -83,7 +83,7 @@ verify-generate: generate
 
 generate-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go internal/api/azureresourcesapi/zz_generated.deepcopy.go
 .PHONY: generate-deepcopy
 
 deepcopy: generate-deepcopy

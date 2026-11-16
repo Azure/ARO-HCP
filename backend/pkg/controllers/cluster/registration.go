@@ -552,6 +552,7 @@ func instantiateClusterDegradedAggregatorController(controllerContext controller
 		clusterLister,
 		controllerLister,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.UnionKubeApplierInformers,
 		controllerContext.Clock,
 	), nil
@@ -871,6 +872,7 @@ func registerClusterChildResourcesCleanupController() controllerconfig.Controlle
 func instantiateClusterChildResourcesCleanupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return clusterdeletion.NewClusterChildResourcesCleanupController(
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
@@ -888,6 +890,7 @@ func instantiateClusterDeletionController(controllerContext controllerconfig.Con
 	return clusterdeletion.NewClusterDeletionController(
 		utilsclock.RealClock{},
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
