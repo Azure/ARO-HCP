@@ -6845,9 +6845,9 @@
   group: arohcp_cluster_update_slo_stuck_alerts
   alert: userJourneyClusterUpdateStuckOperation
   occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)) unless on (subscription_id) internal_subscription:info
     conditions:
       - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left/and:left
@@ -6856,8 +6856,17 @@
             role: signal
         thresholds: []
         unsupported: ""
+      - expression: ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 5400) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:right/and:left
+        queries:
+          - expression: (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 5400
+        unsupported: ""
       - expression: (current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) (internal_subscription:info)
-        path: root/unless:left/and:right
+        path: root/unless:left/and:right/and:right
         queries:
           - expression: (current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) (internal_subscription:info)
             role: signal
@@ -9712,9 +9721,20 @@
       )
     )
     and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
-    current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+    (
+      (
+        time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+          backend_resource_operation_start_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="update"
+          }
+        )
+        and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+        current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+      ) > 5400
+    )
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)
     conditions:
       - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m]))
         path: root/and:left
@@ -9723,8 +9743,17 @@
             role: signal
         thresholds: []
         unsupported: ""
+      - expression: (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 5400
+        path: root/and:right/and:left
+        queries:
+          - expression: time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 5400
+        unsupported: ""
       - expression: current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
-        path: root/and:right
+        path: root/and:right/and:right
         queries:
           - expression: current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
             role: signal

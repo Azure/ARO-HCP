@@ -472,6 +472,50 @@ tests:
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
   - eval_time: 130m
     alertname: userJourneyClusterUpdateStuckOperation
+# A retry after an update that ran past the deadline does not page until the
+# retry itself is stuck. /stuck is updating from 0s, failed from 120m, and
+# retried at 130m (start 7800s). The series carry no operation ID, so the retry
+# reuses the updating series and the 6h hold still holds the first update's
+# >5400s samples. The current operation's age gates the alert: the retry is
+# first over 5400s at 221m and, with 'for: 15m', fires from 236m.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "1x119 _x10 1x120"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "0x119 _x10 7800x120"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "60x119 _x10 7860x120"
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="failed"}'
+    values: "_x120 1x9"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="failed"}'
+    values: "_x120 0x9"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="failed"}'
+    values: "_x120 7200x9"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyClusterUpdateStuckOperation
+  - eval_time: 230m
+    alertname: userJourneyClusterUpdateStuckOperation
+  - eval_time: 240m
+    alertname: userJourneyClusterUpdateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+        operation_type: update
+        phase: updating
+        resource_id: /stuck
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        subscription_id: sub-1
+      exp_annotations:
+        summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # A former Backend leader's stale snapshot does not page. backend-0 (former
 # leader) still reports /stuck as updating; backend-1 (current leader) reports
 # the same operation succeeded at 3000s. The current-state record keeps the

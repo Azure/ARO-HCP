@@ -167,8 +167,12 @@ spec:
   # deletion stuck alerts: if the condition transiently clears while the update
   # stays wedged, each clear would auto-resolve the IcM incident and the next
   # re-fire would open a new one. Holding the condition over a 6h look-back
-  # keeps one incident per stuck update; the trailing `and on (...)` clears the
-  # alert as soon as the update leaves accepted/updating.
+  # keeps one incident per stuck update. The trailing `and on (...)` re-checks the
+  # current operation without the hold: it must still be accepted/updating and
+  # itself more than 5400s old. The series carry no operation ID, so without the
+  # age check a retry started within 6h of an earlier update that ran past
+  # 5400s would inherit that update's held condition and page about 15m after
+  # it started.
   - name: arohcp_cluster_update_slo_stuck_alerts
     labels:
       component: slo
@@ -192,7 +196,18 @@ spec:
           )
         )
         and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
-        current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+        (
+          (
+            time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+              backend_resource_operation_start_time_seconds{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update"
+              }
+            )
+            and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+            current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+          ) > 5400
+        )
       for: 15m
       labels:
         severity: "4"
