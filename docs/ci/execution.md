@@ -35,7 +35,7 @@ When investigating memory pressure, distinguish the traced build from query anal
 DEV PR validation combines fast repository checks with an end-to-end path that can exercise unmerged service and infrastructure changes:
 
 - required build and simulation jobs such as `images` and `frontend-simulation`
-- the always-run and required `e2e-parallel` job
+- the required `e2e-parallel` and `e2e-parallel-inplace-upgrade` jobs
 - DEV-specific environment provisioning through the `aro-hcp-local-e2e` workflow in `openshift/release`
 
 This is the only PR mode that provisions the RP footprint on demand as part of the job run. That makes DEV PR CI the place to validate unmerged RP changes and shared deployment artifacts such as pipeline definitions, Helm charts, Bicep templates, and alerting. It is still not a perfect proxy for higher-environment rollouts, because create-from-scratch CI behavior and in-place updates exercise different paths.
