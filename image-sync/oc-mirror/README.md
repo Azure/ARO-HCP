@@ -28,13 +28,3 @@ make ocp-dry-run
 ```
 
 The test mirror-configuration can be found in the `test` directory.
-
-### ACM/MCE mirror
-
-To dry-run the ACM/MCE operator mirror, run
-
-```bash
-make acm-dry-run
-```
-
-The test mirror-configuration can be found in the `test` directory.
