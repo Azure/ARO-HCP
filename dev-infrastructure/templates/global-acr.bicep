@@ -179,37 +179,6 @@ module svcAcr '../modules/acr/acr.bicep' = {
   }
 }
 
-module svcCaching '../modules/acr/cache.bicep' = {
-  name: '${svcAcrName}-caching'
-  params: {
-    acrName: svcAcrName
-    location: location
-    quayRepositoriesToCache: [
-      {
-        ruleName: 'acm-d-multicluster-engine'
-        sourceRepo: 'quay.io/acm-d/*'
-        targetRepo: 'acm-d-cache/*'
-        userIdentifier: 'acm-d-username'
-        passwordIdentifier: 'acm-d-password'
-        loginServer: 'quay.io'
-      }
-      // Keep a distinct fixed target so this source can override the acm-d wildcard mapping.
-      {
-        ruleName: 'governance-policy-propagator-acm-216'
-        sourceRepo: 'quay.io/redhat-user-workloads/crt-redhat-acm-tenant/governance-policy-propagator-acm-216'
-        targetRepo: 'acm-d-cache/governance-policy-propagator-acm-216'
-        userIdentifier: 'quay-username'
-        passwordIdentifier: 'quay-password'
-        loginServer: 'quay.io'
-      }
-    ]
-    keyVaultName: globalKeyVaultName
-  }
-  dependsOn: [
-    svcAcr
-  ]
-}
-
 module svcPublicCaching '../modules/acr/public-cache.bicep' = {
   name: '${svcAcrName}-public-caching'
   params: {

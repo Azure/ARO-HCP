@@ -55,8 +55,6 @@ type secretValidator struct {
 }
 
 var secretValidators = map[string]secretValidator{
-	"acm-d-password":               {validate: validateNonEmptyString},
-	"acm-d-username":               {validate: validateNonEmptyString},
 	"component-sync-pull-secret":   {validate: validatePullSecret, base64Encoded: true},
 	"ocmirror-pull-secret":         {validate: validatePullSecret, base64Encoded: true},
 	"prow-token":                   {validate: validateJWT},
