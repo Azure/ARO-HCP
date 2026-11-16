@@ -25,7 +25,8 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
-| `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
+| `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. |
+| `/test e2e-parallel-inplace-upgrade` | DEV | Yes, on every PR | Required presubmit. Provisions a DEV service footprint from main, runs a regional deployment rollout with the PR changes, then validates existing customer clusters survived the upgrade via the dedicated `upgrade/in-place` suite. Runs on ci02/Dev-04. |
 | `/test e2e-parallel-ocp-nightly` | DEV | No | Must be triggered manually. Runs tests using the latest nightly OCP build |
 | `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
 | `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
