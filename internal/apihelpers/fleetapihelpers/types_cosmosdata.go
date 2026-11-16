@@ -99,3 +99,19 @@ func ToControlPlaneVersionRolloutResourceIDString(ystreamChannel string) string 
 		"/providers", fleetapi.ControlPlaneVersionRolloutResourceType.String(), ystreamChannel,
 	))
 }
+
+// ToNamespaceDeletionResourceID constructs the full resource ID for a stuck
+// cluster cleanup document nested under a management cluster:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}/managementClusters/default/namespaceDeletions/{name}
+func ToNamespaceDeletionResourceID(stampIdentifier, name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToNamespaceDeletionResourceIDString(stampIdentifier, name))
+}
+
+// ToNamespaceDeletionResourceIDString returns the lowercased resource ID
+// string for a stuck cluster cleanup document.
+func ToNamespaceDeletionResourceIDString(stampIdentifier, name string) string {
+	return strings.ToLower(path.Join(
+		ToManagementClusterResourceIDString(stampIdentifier),
+		fleetapi.NamespaceDeletionResourceTypeName, name,
+	))
+}
