@@ -1382,7 +1382,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'userJourneyHypershiftOperatorAvailabilityPodsDown/{{ $labels.cluster }}'
+          correlationId: 'userJourneyHypershiftOperatorAvailabilityPodsUnavailable/{{ $labels.cluster }}'
           description: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
