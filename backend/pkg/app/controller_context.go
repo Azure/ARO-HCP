@@ -73,6 +73,8 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
 		ClusterOIDCIssuerBaseURL:                            b.options.ClusterOIDCIssuerBaseURL,
+		InsecureARMPermissionsManagerClientBuilder:          b.options.InsecureARMPermissionsManagerClientBuilder,
+		MockFirstPartyApplicationPrincipalID:                b.options.MockFirstPartyApplicationPrincipalID,
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,
 		OrphanedMRGCleanupConfig:                            b.options.OrphanedMRGCleanupConfig,

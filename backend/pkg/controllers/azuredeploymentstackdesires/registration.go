@@ -24,7 +24,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(AzureDeploymentStackDesiresControllerName)] = controllerconfig.ControllerRegistration{
 		Workers: 20,
 		Instantiate: controllerconfig.WithCacheSyncs(func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-			return NewController(ctx.AzureResourcesDBClient, ctx.AzureResourcesInformers, ctx.FPAClientBuilder, ctx.SMIClientBuilder, ctx.Clock), nil
+			return NewController(ctx.AzureResourcesDBClient, ctx.AzureResourcesInformers, ctx.FPAClientBuilder, ctx.SMIClientBuilder, ctx.InsecureARMPermissionsManagerClientBuilder, ctx.Clock), nil
 		}, false),
 	}
 }

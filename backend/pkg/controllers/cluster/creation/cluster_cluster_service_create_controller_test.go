@@ -30,16 +30,21 @@ import (
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -783,6 +788,128 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 			} else {
 				require.Nil(t, got)
 			}
+		})
+	}
+}
+
+// fakeDeploymentStackDesireLister returns a fixed DeploymentStackDesire (or error)
+// for GetForCluster. Other DeploymentStackDesireLister methods are unimplemented and
+// panic if called.
+type fakeDeploymentStackDesireLister struct {
+	azureresourceslisters.DeploymentStackDesireLister
+	desire *azureresourcesapi.DeploymentStackDesire
+	err    error
+}
+
+func (l *fakeDeploymentStackDesireLister) GetForCluster(context.Context, string, string, string, string) (*azureresourcesapi.DeploymentStackDesire, error) {
+	return l.desire, l.err
+}
+
+func TestCreatePreconditionMockFPARoleAssignmentsCreated(t *testing.T) {
+	const mockFPAPrincipalID = "mock-fpa"
+	const ownerRoleDefinitionResourceID = "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+
+	reserved := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup + "/providers/Microsoft.Authorization/roleAssignments/22222222-2222-2222-2222-222222222222"))
+
+	// configuredDesire reports reserved as managed under the currently published,
+	// successfully applied spec, so MockFPARoleAssignmentsConfigured returns true.
+	configuredDesire := func(t *testing.T) *azureresourcesapi.DeploymentStackDesire {
+		t.Helper()
+		d := &azureresourcesapi.DeploymentStackDesire{
+			Spec: azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
+			Status: azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: &armdeploymentstacks.DeploymentStack{
+					Properties: &armdeploymentstacks.DeploymentStackProperties{
+						Resources: []*armdeploymentstacks.ManagedResourceReference{
+							{ID: ptr.To(reserved.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)},
+						},
+					},
+				},
+			},
+		}
+		hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(d.Spec)
+		require.NoError(t, err)
+		d.Status.ObservedSpecHash = hash
+		d.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+		return d
+	}
+
+	spcWithReservedKey := &coreapi.ServiceProviderCluster{
+		Status: coreapi.ServiceProviderClusterStatus{
+			MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
+				{PrincipalID: mockFPAPrincipalID, RoleDefinitionResourceID: ownerRoleDefinitionResourceID}: {ReservedAzureResourceID: reserved},
+			},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		enabled   bool
+		lister    *fakeDeploymentStackDesireLister
+		spc       *coreapi.ServiceProviderCluster
+		wantReady bool
+		wantErr   bool
+	}{
+		{
+			name:      "disabled short-circuits to ready without consulting the lister",
+			enabled:   false,
+			lister:    nil, // must not be dereferenced
+			spc:       &coreapi.ServiceProviderCluster{},
+			wantReady: true,
+		},
+		{
+			name:      "enabled and desire not yet published waits",
+			enabled:   true,
+			lister:    &fakeDeploymentStackDesireLister{err: cosmosstorageutils.NewNotFoundError()},
+			spc:       spcWithReservedKey,
+			wantReady: false,
+		},
+		{
+			name:      "enabled and grant not yet live waits",
+			enabled:   true,
+			lister:    &fakeDeploymentStackDesireLister{desire: configuredDesire(t)},
+			spc:       &coreapi.ServiceProviderCluster{}, // empty map: intent not recorded yet
+			wantReady: false,
+		},
+		{
+			name:      "enabled and grant live is ready",
+			enabled:   true,
+			lister:    &fakeDeploymentStackDesireLister{desire: configuredDesire(t)},
+			spc:       spcWithReservedKey,
+			wantReady: true,
+		},
+		{
+			name:    "enabled and lister error is surfaced",
+			enabled: true,
+			lister:  &fakeDeploymentStackDesireLister{err: fmt.Errorf("boom")},
+			spc:     spcWithReservedKey,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			syncer := &clusterClusterServiceCreateSyncer{
+				mockFirstPartyApplicationRoleAssignmentsEnabled: tt.enabled,
+			}
+			if tt.lister != nil {
+				syncer.deploymentStackDesireLister = tt.lister
+			}
+			key := controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			}
+
+			ready, err := syncer.createPreconditionMockFPARoleAssignmentsCreated(ctx, key, tt.spc)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantReady, ready)
 		})
 	}
 }

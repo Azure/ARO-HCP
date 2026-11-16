@@ -29,6 +29,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1307,15 +1309,17 @@ type memoryCRUD struct {
 }
 
 // No Get implementation: the controller must not read/merge after an ETag conflict.
-func (storage *memoryCRUD) Replace(_ context.Context, desire *azureresourcesapi.DeploymentStackDesire, options *azcosmos.ItemOptions) (*azureresourcesapi.DeploymentStackDesire, error) {
+//
+// Mirrors the real replace(): the precondition is the object's own CosmosETag, which the
+// CRUD layer sets regardless of the ItemOptions the caller passes. The options argument is
+// therefore ignored here, just as the real layer overwrites it.
+func (storage *memoryCRUD) Replace(_ context.Context, desire *azureresourcesapi.DeploymentStackDesire, _ *azcosmos.ItemOptions) (*azureresourcesapi.DeploymentStackDesire, error) {
 	storage.writes++
-	if options != nil && options.IfMatchEtag != nil {
-		storage.lastETag = *options.IfMatchEtag
-	}
+	storage.lastETag = desire.CosmosETag
 	if storage.writeErr != nil {
 		return nil, storage.writeErr
 	}
-	if options == nil || options.IfMatchEtag == nil || *options.IfMatchEtag != storage.doc.CosmosETag {
+	if desire.CosmosETag != storage.doc.CosmosETag {
 		return nil, &azcore.ResponseError{StatusCode: 412}
 	}
 	storage.doc = desire.DeepCopy()
@@ -1734,4 +1738,31 @@ func TestOuterDeleteRequiresObservedAbsence(t *testing.T) {
 	if storage.doc.Status.ObservedSpecHash != hash || !reflect.DeepEqual(controller.queue.(*recordingQueue).delays, []time.Duration{pendingInterval}) {
 		t.Fatal("Delete confirmation hash or fixed polling incorrect")
 	}
+}
+
+func stackDesireWithAuth(t *testing.T, authType azureresourcesapi.DeploymentStackDesireAuthenticationType) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	target, err := azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Resources/deploymentStacks/s")
+	require.NoError(t, err)
+	return &azureresourcesapi.DeploymentStackDesire{
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{
+			TargetResourceID: target,
+			Authentication:   azureresourcesapi.DeploymentStackDesireAuthentication{Type: authType},
+		},
+	}
+}
+
+func TestNewDeploymentStacksClientGetterInsecureARMPermissionsManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	builder := azureclient.NewMockInsecureARMPermissionsManagerClientBuilder(ctrl)
+	builder.EXPECT().DeploymentStacksClient("sub-1").Return(nil, nil)
+
+	c := &controller{insecureARMPermissionsManager: builder}
+	desire := stackDesireWithAuth(t, azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager)
+
+	getter, err := c.newDeploymentStacksClientGetter(context.Background(), desire)
+	require.NoError(t, err)
+
+	_, err = getter()
+	require.NoError(t, err)
 }

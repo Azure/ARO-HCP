@@ -15,6 +15,7 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
 	"strings"
 
@@ -381,6 +382,24 @@ type ServiceProviderClusterStatus struct {
 	// fails CreateOrUpdate. It removes the assignment after a successful deconfigure.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+
+	// MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup tracks the
+	// managed-resource-group scoped role assignment that grants the mock First
+	// Party Application (FPA) service principal the built-in Owner role. It only
+	// applies in environments without a real FPA, where the mock FPA stands in for the real
+	// FPA and must hold Owner over the managed resource group to operate on it.
+	// The key is PrincipalID (the mock FPA principal ID) and RoleDefinitionResourceID (the Owner role definition),
+	// and the value tracks the reserved Azure resource ID and deconfigure state.
+	// MockFPARoleAssignmentsIntent sets the single desired key. MockFPARoleAssignments
+	// reserves ReservedAzureResourceID and renders every non-draining key into one
+	// StackDesire ARM template authenticated as the ARM permissions manager
+	// identity. On identity replacement the entry is kept rendered until the new desired key is configured
+	// in Azure, then excluded from the template, then dropped from this map once the DeploymentStackDesire
+	// reports SuccessfullyApplied for the new spec that excludes it.
+	// Cluster deletion is a no-op: the assignment is scoped to the managed resource
+	// group, so Azure deletes it in cascade when that resource group is removed.
+	// Written by: MockFPARoleAssignmentsIntent, MockFPARoleAssignments
+	MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*MockFPARoleAssignmentStatus `json:"mockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
 // dataplaneOIDCFederationAssignmentKeySeparator is the text encoding separator
@@ -795,4 +814,113 @@ type IdentityMetadataValue struct {
 	// ClientID, PrincipalID, and TenantID.
 	// Written by: FetchManagedIdentitiesInfo
 	RetrievalError *string `json:"retrievalError,omitempty"`
+}
+
+// RoleAssignmentKey is the key for RoleAssignments.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal. The identity resource ID is
+// not part of the key: the Azure role assignment name does not include it.
+//
+// Both fields must be always lowercase: the key is a case-insensitive identity so two
+// casings of the same principal/role (Azure treats these IDs case-insensitively, and
+// Cluster Service may persist a different casing than the backend configures) collapse
+// to one entry. Always build a key with coreapihelpers.NewRoleAssignmentKey rather than
+// a struct literal so this invariant holds. The original casing needed to compute the
+// Azure role assignment name and render the ARM properties is NOT stored on the key, it
+// is preserved on the value (MockFPARoleAssignmentStatus.CasePreservedPrincipalID /
+// CasePreservedRoleDefinitionResourceID).
+type RoleAssignmentKey struct {
+	// PrincipalID is the lowercased Principal ID of the Azure role assignment.
+	// For a control-plane operator or the service managed identity this is
+	// the MSI dataplane or hardcoded identity, which may differ from the ARM
+	// principal of the same managed identity.
+	PrincipalID RoleAssignmentKeyPartPrincipalID `json:"principalID,omitempty"`
+	// RoleDefinitionResourceID is the lowercased tenant-level role definition resource
+	// ID ("/providers/Microsoft.Authorization/roleDefinitions/{guid}"). It is lowercased
+	// only for case-insensitive identity; the Azure role assignment name (a UUIDv5 over
+	// scope, principal, and this value) must be generated from the ORIGINAL casing, which
+	// is preserved on the value's CasePreservedRoleDefinitionResourceID.
+	RoleDefinitionResourceID RoleAssignmentKeyPartRoleDefinitionResourceID `json:"roleDefinitionResourceID,omitempty"`
+}
+
+// RoleAssignmentKeyPartPrincipalID and RoleAssignmentKeyPartRoleDefinitionResourceID are
+// distinct types for the two parts of a RoleAssignmentKey. They exist only so that the
+// key cannot be built with the two parts swapped - both are otherwise plain strings of
+// the same type, which would compile either way. Build keys with
+// coreapihelpers.NewRoleAssignmentKey instead of directly.
+type RoleAssignmentKeyPartPrincipalID string
+type RoleAssignmentKeyPartRoleDefinitionResourceID string
+
+const (
+	roleAssignmentKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = RoleAssignmentKey{}
+	_ encoding.TextUnmarshaler = (*RoleAssignmentKey)(nil)
+)
+
+// MarshalText allows RoleAssignmentKey to be used as a JSON object key.
+// encoding/json requires encoding.TextMarshaler for non-string map keys. This
+// is needed so it can be serialized/deserialized to/from Cosmos DB, as well as
+// logged as a json representation.
+func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{string(k.PrincipalID), string(k.RoleDefinitionResourceID)}, roleAssignmentKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a RoleAssignmentKey from the text produced by
+// MarshalText. This is needed so it can be deserialized from Cosmos DB, as
+// well as logged as a json representation.
+func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), roleAssignmentKeySeparator)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 2 parts separated by %q", text, roleAssignmentKeySeparator)
+	}
+	k.PrincipalID = RoleAssignmentKeyPartPrincipalID(parts[0])
+	k.RoleDefinitionResourceID = RoleAssignmentKeyPartRoleDefinitionResourceID(parts[1])
+	return nil
+}
+
+// RoleAssignmentStatus is the reconciliation state of one managed-resource-group
+// scoped role assignment on RoleAssignments. Each key maps to a single Azure
+// role assignment. Configure vs deconfigure is derived from DeconfigureTimestamp;
+// there is no stored phase. Whether the assignment is actually live in Azure is
+// not stored here: it is read on demand from the StackDesire that
+// ClusterRoleAssignments publishes for the whole set, keyed by ReservedAzureResourceID.
+type MockFPARoleAssignmentStatus struct {
+	// DeconfigureTimestamp is when deconfigure of this role assignment was
+	// requested. Nil means the assignment is still desired. Cleared when the key is required again.
+	// Dropping the key removes it from MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup
+	// rather than clearing this field in place. Cluster deletion skips this wait because the managed
+	// resource group cascade removes the role assignments.
+	// Written by: ClusterRoleAssignmentIntent, MockFPARoleAssignmentsIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// ReservedAzureResourceID is the role assignment resource ID reserved for
+	// this key. MockFPARoleAssignments assigns it exactly once, the first time
+	// the key has none, and every later use (rendering the key into the
+	// StackDesire template, looking the key up in that StackDesire's observed
+	// Azure state) reads this persisted value rather than recomputing it. This
+	// is what lets the naming scheme change later without orphaning or
+	// duplicating an already-reserved assignment.
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
+	ReservedAzureResourceID *azcorearm.ResourceID `json:"reservedAzureResourceID,omitempty"`
+	// CasePreservedPrincipalID is the principal ID in its ORIGINAL casing. The map key
+	// (RoleAssignmentKey.PrincipalID) lowercases it for case-insensitive identity. This
+	// preserves the exact casing the Azure role assignment name is derived from and that
+	// the ARM roleAssignment principalId is written with, so both keep matching Cluster
+	// Service. coreapihelpers.NewRoleAssignmentKey(CasePreservedPrincipalID,
+	// CasePreservedRoleDefinitionResourceID) must equal the map key this status is stored under.
+	// TODO once the Mock FPA Role Assignments code has been moved to the RP and removed from CS we
+	// can remoe this field because we will rely on the ReservedAzureResourceID having been set so we can modify
+	// how we generate the role assignment name without impacting pre-existing entries.
+	// Written by: MockFPARoleAssignmentsIntent
+	CasePreservedPrincipalID string `json:"casePreservedPrincipalID,omitempty"`
+	// CasePreservedRoleDefinitionResourceID is the tenant-level role definition resource ID
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}") in its ORIGINAL casing.
+	// See CasePreservedPrincipalID.
+	// TODO once the Mock FPA Role Assignments code has been moved to the RP and removed from CS we
+	// can remoe this field because we will rely on the ReservedAzureResourceID having been set so we can modify
+	// how we generate the role assignment name without impacting pre-existing entries.
+	// Written by: MockFPARoleAssignmentsIntent
+	CasePreservedRoleDefinitionResourceID string `json:"casePreservedRoleDefinitionResourceID,omitempty"`
 }

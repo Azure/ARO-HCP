@@ -49,23 +49,31 @@ type ControllerContext struct {
 	// certificates from Key Vault onto a management cluster. It is never a customer's
 	// tenant, and permissions granted here are not scoped to any individual
 	// customer's HostedCluster or subscription.
-	ServiceTenantID                                     string
-	AzureResourcesDBClient                              azureresourcescosmosstorage.AzureResourcesDBClient
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackupConfig                                        *clusterbackups.BackupConfig
-	BillingDBClient                                     billingcosmosstorage.BillingDBClient
-	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
-	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
-	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
-	ClustersServiceClient                               ocm.ClusterServiceClientSpec
-	VersionProfileSource                                cincinnati.VersionProfileSource
-	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
-	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
-	HasRealFPA                                          bool
-	HardcodedIdentity                                   *azureclient.HardcodedIdentity
-	ClusterOIDCIssuerBaseURL                            string
+	ServiceTenantID                   string
+	AzureResourcesDBClient            azureresourcescosmosstorage.AzureResourcesDBClient
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackupConfig                      *clusterbackups.BackupConfig
+	BillingDBClient                   billingcosmosstorage.BillingDBClient
+	CheckAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
+	CloudEnvironment                  *azureconfig.AzureCloudEnvironment
+	ClusterScopedIdentitiesConfig     *internalazure.ClusterScopedIdentitiesConfig
+	ClustersServiceClient             ocm.ClusterServiceClientSpec
+	VersionProfileSource              cincinnati.VersionProfileSource
+	FPAClientBuilder                  azureclient.FirstPartyApplicationClientBuilder
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	FleetDBClient                     fleetcosmosstorage.FleetDBClient
+	HasRealFPA                        bool
+	HardcodedIdentity                 *azureclient.HardcodedIdentity
+	ClusterOIDCIssuerBaseURL          string
+	// InsecureARMPermissionsManagerClientBuilder builds Azure clients authenticated as the
+	// insecure ARM permissions manager ("ARM Helper") identity. It is nil when the
+	// backend runs with a real FPA (HasRealFPA is true).
+	InsecureARMPermissionsManagerClientBuilder azureclient.InsecureARMPermissionsManagerClientBuilder
+	// MockFirstPartyApplicationPrincipalID is the principal ID of the mock FPA
+	// service principal. It is empty when the backend runs with a real FPA
+	// (HasRealFPA is true).
+	MockFirstPartyApplicationPrincipalID                string
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string
