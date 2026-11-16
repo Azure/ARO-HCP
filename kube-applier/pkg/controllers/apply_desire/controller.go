@@ -24,6 +24,10 @@
 //   - Type=Delete: deletes .spec.targetItem from the management cluster and
 //     reports WaitingForDeletion until the target disappears (finalizers
 //     complete).
+//   - Type=FinalizeNamespace: clears the built-in finalizer only after live
+//     namespace inventory and ownership preconditions pass.
+//   - Type=UnblockHostedCluster: clears known finalizers on an already deleting
+//     HostedCluster teardown chain after live identity and legacy-owner checks.
 //
 // The outcome is recorded on .status.conditions: ["SuccessfullyApplied"] for
 // ServerSideApply or ["SuccessfullyDeleted"] for Delete, the legacy
@@ -320,8 +324,16 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			return syncErr
 		}
 		return statusErr
-	case kubeapplierapi.ApplyDesireTypeDelete:
-		evaluation := c.evaluateDelete(ctx, desire)
+	case kubeapplierapi.ApplyDesireTypeDelete, kubeapplierapi.ApplyDesireTypeFinalizeNamespace, kubeapplierapi.ApplyDesireTypeUnblockHostedCluster:
+		var evaluation deleteEvaluation
+		switch desire.Spec.Type {
+		case kubeapplierapi.ApplyDesireTypeDelete:
+			evaluation = c.evaluateDelete(ctx, desire)
+		case kubeapplierapi.ApplyDesireTypeFinalizeNamespace:
+			evaluation = c.evaluateFinalizeNamespace(ctx, desire)
+		case kubeapplierapi.ApplyDesireTypeUnblockHostedCluster:
+			evaluation = c.evaluateUnblockHostedCluster(ctx, desire)
+		}
 		if err := c.writer.UpdateStatus(ctx, key, evaluation.mutate); err != nil {
 			return err
 		}

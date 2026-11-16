@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/namespacedeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -81,6 +82,7 @@ func newControllerRegistry() map[string]ControllerRegistration {
 	mismatch.Register(registry)
 	nodepool.Register(registry)
 	azuredeploymentstackdesires.Register(registry)
+	namespacedeletion.Register(registry)
 	cachedreader.Register(registry, func(context ControllerContext) *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController {
 		return context.VirtualMachineResourceSKUsCachedReaderController
 	})

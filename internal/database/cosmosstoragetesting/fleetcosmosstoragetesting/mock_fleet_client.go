@@ -87,6 +87,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addHCPResourceRequirements(ctx, r)
 	case *fleetapi.ControlPlaneVersionRollout:
 		return m.addControlPlaneVersionRollout(ctx, r)
+	case *fleetapi.NamespaceDeletion:
+		return m.addNamespaceDeletion(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -119,6 +121,16 @@ func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, 
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier).Scheduling()
 	_, err := crud.Create(ctx, scheduling, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addNamespaceDeletion(ctx context.Context, cleanup *fleetapi.NamespaceDeletion) error {
+	stampIdentifier := cleanup.PartitionKey
+	if len(stampIdentifier) == 0 {
+		return fmt.Errorf("stuck cluster cleanup has empty partition key")
+	}
+	crud := m.Stamps().ManagementClusters(stampIdentifier).NamespaceDeletions()
+	_, err := crud.Create(ctx, cleanup, nil)
 	return err
 }
 
@@ -341,6 +353,20 @@ func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRU
 	)
 }
 
+func (m *mockManagementClustersCRUD) NamespaceDeletions() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion] {
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	inner := newMockFleetResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterNamespaceDeletionResourceType,
+	)
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateNamespaceDeletionCreate,
+		validation.ValidateNamespaceDeletionUpdate,
+	)
+}
+
 // --- FleetGlobalListers ---
 
 type mockFleetGlobalListers struct {
@@ -385,5 +411,12 @@ func (g *mockFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.Gl
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
 		g.client,
 		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) NamespaceDeletions() cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterNamespaceDeletionResourceType},
 	)
 }

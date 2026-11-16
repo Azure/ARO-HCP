@@ -191,6 +191,12 @@ func (informers *trackingFleetInformers) HCPResourceRequirements() (cache.Shared
 	return informer, lister
 }
 
+func (informers *trackingFleetInformers) NamespaceDeletions() (cache.SharedIndexInformer, fleetlisters.NamespaceDeletionLister) {
+	informer, lister := informers.FleetInformers.NamespaceDeletions()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 type trackingAzureResourcesInformers struct {
 	azureresourcesinformers.AzureResourcesInformers
 	tracking *cacheTracking
