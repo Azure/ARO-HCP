@@ -424,3 +424,30 @@ func timestamp(value *github.Timestamp) string {
 	}
 	return value.UTC().Format(time.RFC3339)
 }
+
+// NewWithToken returns a reader authenticated with an explicit token, for CI
+// evidence that uses a separate read credential.
+func NewWithToken(repository, token string) (*Reader, error) {
+	owner, repo, err := splitRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+	if token == "" {
+		return nil, forge.ErrAuthentication
+	}
+	client := github.NewClient(&http.Client{Timeout: 2 * time.Minute})
+	return &Reader{client: client.WithAuthToken(token), owner: owner, repo: repo}, nil
+}
+
+// REST returns the raw JSON body of one GET endpoint on the reader's repository.
+func (r *Reader) REST(ctx context.Context, endpoint string) ([]byte, error) {
+	request, err := r.client.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	var raw json.RawMessage
+	if _, err := r.client.Do(ctx, request, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}

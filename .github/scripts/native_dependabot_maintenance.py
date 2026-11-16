@@ -19,7 +19,6 @@ import tempfile
 from urllib.parse import quote
 
 import agentic_pr_maintenance as maintenance
-from dependabot_guard import lock_versions
 
 NATIVE = "dependabot[bot]"
 ROBOT = maintenance.ROBOT
@@ -34,6 +33,42 @@ MAX_PATCH = 16 * 1024 * 1024
 MAX_REQUEST = 6 * MAX_PATCH + 256 * 1024
 REQUEST_FILE = "native-replacement-request.json"
 DETECTION_PATCH = "aw-native-replacement.patch"
+
+
+
+def lock_versions(document):
+    """Read resolved package identities from npm lockfile versions 1 through 3."""
+    result = {}
+    if not isinstance(document, dict) or document.get("lockfileVersion") not in (1, 2, 3):
+        raise ValueError("unsupported npm lockfile format")
+    if document["lockfileVersion"] in (2, 3):
+        packages = document.get("packages")
+        if not isinstance(packages, dict):
+            raise ValueError("npm lockfile packages are unavailable")
+        for path, entry in packages.items():
+            if not path:
+                continue
+            if not isinstance(entry, dict) or "node_modules/" not in path:
+                raise ValueError("cannot identify npm lockfile package")
+            package = path.rsplit("node_modules/", 1)[1]
+            if entry.get("link") is True:
+                raise ValueError("npm workspace link requires conservative deferral")
+            if not isinstance(entry.get("version"), str):
+                raise ValueError("npm resolved version is unavailable")
+            result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+    else:
+        def visit(dependencies, parent=""):
+            if not isinstance(dependencies, dict):
+                raise ValueError("invalid npm lockfile dependencies")
+            for package, entry in dependencies.items():
+                if not isinstance(entry, dict) or not isinstance(entry.get("version"), str):
+                    raise ValueError("npm resolved version is unavailable")
+                path = parent + "node_modules/" + package
+                result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+                visit(entry.get("dependencies", {}), path + "/")
+        visit(document.get("dependencies", {}))
+    return result
+
 
 
 def require(condition, message):

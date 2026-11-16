@@ -234,6 +234,36 @@ depctl dependabot inventory --repository Azure/ARO-HCP --output open-pull-reques
 
 The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
 
+### dependabot guard
+
+```bash
+depctl dependabot guard --repository OWNER/REPO --agent-output FILE
+```
+
+Validates every `create_pull_request` proposal, drops entries that omitted the
+structured `data` argument, defers families already covered by an open owned
+security PR, and serializes same-batch manifest conflicts. It rewrites the agent
+output in place and emits an explicit `noop` when nothing remains.
+
+### dependabot validate
+
+```bash
+depctl dependabot validate PROPOSAL.json
+```
+
+Runs the same metadata preflight used before publication and prints the canonical
+proposal with its derived title.
+
+### dependabot retest
+
+```bash
+depctl dependabot retest --repository OWNER/REPO --pull-request N --head SHA \
+  --evidence "failed-url compared-with green-url"
+```
+
+Requires a current failing check URL plus a distinct comparison URL and enforces
+the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
+
 ### maintenance inventory
 
 ```bash
@@ -296,6 +326,9 @@ prints the same as JSON. `--verbosity` (global) sets the log level.
 | `maintenance inspect` | `gh api` and public Prow artifacts | evidence files, journal, `--output` |
 | `maintenance inventory` | open owned proposals and their evidence | nothing, or `--output` |
 | `dependabot inventory` | open owned security proposals | nothing, or `--output` |
+| `dependabot guard` | rewrite agent proposals in place | the agent output file |
+| `dependabot validate` | one proposal preflight | nothing |
+| `dependabot retest` | verify retest evidence | nothing |
 | `evidence prow` | the public Prow bucket | artifacts and a manifest in `--output-dir` |
 | `version` | build metadata | nothing |
 
