@@ -54,12 +54,6 @@ param regionalResourceGroup string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('The SAN and CN for the Maestro server EventGrid certificate.')
-param maestroServerCertSAN string
-
-@description('The issuer of the Maestro certificate.')
-param maestroCertIssuer string
-
 @description('Deploy CS Postgres if true')
 param csPostgresDeploy bool
 
@@ -130,9 +124,6 @@ param maestroPostgresServerSku string
 
 @description('The name of the Maestro Postgres database')
 param maestroPostgresDatabaseName string
-
-@description('The name of Maestro Server MQTT client')
-param maestroServerMqttClientName string
 
 @description('Enable enhanced metrics for the Maestro PostgreSQL server')
 param maestroPostgresEnhancedMetricsEnabled bool
@@ -515,14 +506,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
   params: {
     regionalResourceGroup: regionalResourceGroup
-    maestroInfraResourceGroup: regionalResourceGroup
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    mqttClientName: maestroServerMqttClientName
-    certKeyVaultName: serviceKeyVaultName
-    certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
-    certKeyVaultSubscription: serviceKeyVaultSubscription
-    certificateSAN: maestroServerCertSAN
-    certificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
@@ -541,10 +524,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: globalMSIId
     postgresEnhancedMetricsEnabled: maestroPostgresEnhancedMetricsEnabled
-    maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      maestroMIName
-    ).uamiPrincipalID
   }
   dependsOn: [
     serviceKeyVault
