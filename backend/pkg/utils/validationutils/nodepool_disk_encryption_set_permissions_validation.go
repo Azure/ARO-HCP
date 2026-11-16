@@ -26,6 +26,7 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 
@@ -58,6 +59,14 @@ func (v *AzureNodePoolDiskEncryptionSetPermissionsValidation) Name() string {
 var _ NodePoolValidation = (*AzureNodePoolDiskEncryptionSetPermissionsValidation)(nil)
 
 func (v *AzureNodePoolDiskEncryptionSetPermissionsValidation) Validate(ctx context.Context, cluster *coreapi.Cluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.NodePool) ValidationResult {
+	if !experimentalDiskEncryptionSetValidationEnabled(nodePoolSubscription, nodePool) {
+		return SkippedValidation(
+			"NotEnabled",
+			"OS disk encryption set permission validation is not enabled.",
+			"ExperimentalReleaseFeatures AFEC or the opt-in tag is not set, skipping validation",
+		)
+	}
+
 	desID := nodePool.Properties.Platform.OSDisk.EncryptionSetID
 	if desID == nil {
 		return SkippedValidation(
@@ -134,6 +143,27 @@ func (v *AzureNodePoolDiskEncryptionSetPermissionsValidation) Validate(ctx conte
 		fmt.Sprintf("Required identities have the Reader role on Disk Encryption Set %s.", desID),
 		fmt.Sprintf("required identities have the Reader role on disk encryption set %s", desID),
 	)
+}
+
+// AzureNodePoolDiskEncryptionSetPermissionsValidationApplies reports whether this validation
+// will eventually produce a condition for the given node pool: the opt-in gate is enabled and
+// an OS disk encryption set is configured. Callers that gate on the absence of a condition (e.g.
+// the node-pool create operation) need this to distinguish "validation has not run yet" from
+// "validation does not apply here", since a skipped validation also leaves no condition behind.
+func AzureNodePoolDiskEncryptionSetPermissionsValidationApplies(subscription *coreapi.Subscription, nodePool *coreapi.NodePool) bool {
+	return experimentalDiskEncryptionSetValidationEnabled(subscription, nodePool) && nodePool.Properties.Platform.OSDisk.EncryptionSetID != nil
+}
+
+func experimentalDiskEncryptionSetValidationEnabled(subscription *coreapi.Subscription, nodePool *coreapi.NodePool) bool {
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		return false
+	}
+	for key, value := range nodePool.Tags {
+		if strings.EqualFold(key, metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions) {
+			return strings.EqualFold(value, "true")
+		}
+	}
+	return false
 }
 
 // tokenForIdentity mints an MI Dataplane access token for the given cluster identity (the service

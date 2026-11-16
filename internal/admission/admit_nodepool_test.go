@@ -339,6 +339,20 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 			expectDeadline:   true,
 			expectedDuration: time.Minute,
 		},
+		{
+			name:             "AFEC registered with disk encryption set permissions validation tag on create is recognized",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with disk encryption set permissions validation tag on update is recognized",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"},
+			op:           operation.Operation{Type: operation.Update},
+		},
 	}
 
 	for _, tt := range tests {

@@ -123,6 +123,8 @@ func (c *nodePoolCreateHypershiftCheck) CalculateOperationStatus(ctx context.Con
 
 type nodePoolCreateValidationCheck struct {
 	clock                         utilsclock.PassiveClock
+	nodePoolLister                corelisters.NodePoolLister
+	subscriptionLister            corelisters.SubscriptionLister
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 }
 
@@ -133,6 +135,17 @@ func (c *nodePoolCreateValidationCheck) GetSourceName() string {
 }
 
 func (c *nodePoolCreateValidationCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
+	// Check applicability before consuming any stored condition. The validation controller
+	// removes a condition asynchronously when the feature is disabled, so a stale stored
+	// failure must not be allowed to fail the operation once the validation no longer applies.
+	applies, err := c.diskEncryptionSetValidationApplies(ctx, operation)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !applies {
+		return nodePoolValidationOperationState(nil, operation.StartTime, c.clock.Now()), nil
+	}
+
 	serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderNodePool not cached yet"), nil
@@ -141,9 +154,23 @@ func (c *nodePoolCreateValidationCheck) CalculateOperationStatus(ctx context.Con
 		return nil, utils.TrackError(err)
 	}
 	// Only the disk encryption set permission validation gates node pool creation; other node pool validations stay diagnostic (surfaced via RequirementsValid) and must not block creation.
-	var desValidations []metav1.Condition
 	if condition := apimeta.FindStatusCondition(serviceProviderNodePool.Status.Validations, validationutils.AzureNodePoolDiskEncryptionSetPermissionsValidationName); condition != nil {
-		desValidations = []metav1.Condition{*condition}
+		return nodePoolValidationOperationState([]metav1.Condition{*condition}, operation.StartTime, c.clock.Now()), nil
 	}
-	return nodePoolValidationOperationState(desValidations, operation.StartTime, c.clock.Now()), nil
+
+	return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "disk encryption set permission validation has not reported a result yet"), nil
+}
+
+func (c *nodePoolCreateValidationCheck) diskEncryptionSetValidationApplies(ctx context.Context, operation *coreapi.Operation) (bool, error) {
+	nodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
+	if err != nil {
+		return false, fmt.Errorf("failed to get node pool from cache: %w", err)
+	}
+	subscription, err := c.subscriptionLister.Get(ctx, operation.ExternalID.SubscriptionID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		subscription = nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get subscription from cache: %w", err)
+	}
+	return validationutils.AzureNodePoolDiskEncryptionSetPermissionsValidationApplies(subscription, nodePool), nil
 }

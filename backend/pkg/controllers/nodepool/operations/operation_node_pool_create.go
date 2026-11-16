@@ -43,6 +43,7 @@ type operationNodePoolCreate struct {
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 	activeOperationsLister        corelisters.ActiveOperationLister
 	nodePoolLister                corelisters.NodePoolLister
+	subscriptionLister            corelisters.SubscriptionLister
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	readDesireLister              kubeapplierlisters.ReadDesireLister
 	clusterServiceClient          ocm.ClusterServiceClientSpec
@@ -75,6 +76,7 @@ func NewOperationNodePoolCreateController(
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
+	_, subscriptionLister := backendInformers.Subscriptions()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
@@ -82,6 +84,7 @@ func NewOperationNodePoolCreateController(
 		clock:                         clock,
 		resourcesDBClient:             resourcesDBClient,
 		nodePoolLister:                nodePoolLister,
+		subscriptionLister:            subscriptionLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		readDesireLister:              readDesireLister,
 		activeOperationsLister:        activeOperationsLister,
@@ -111,7 +114,7 @@ func (c *operationNodePoolCreate) newStatusCalculators() (operationbase.Operatio
 	return operationbase.NewOperationStatusCalculators[struct{}](
 		&nodePoolCreateClusterServiceCheck{nodePoolLister: c.nodePoolLister, clusterServiceClient: c.clusterServiceClient},
 		&nodePoolCreateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
-		&nodePoolCreateValidationCheck{clock: c.clock, serviceProviderNodePoolLister: c.serviceProviderNodePoolLister},
+		&nodePoolCreateValidationCheck{clock: c.clock, nodePoolLister: c.nodePoolLister, subscriptionLister: c.subscriptionLister, serviceProviderNodePoolLister: c.serviceProviderNodePoolLister},
 	)
 }
 

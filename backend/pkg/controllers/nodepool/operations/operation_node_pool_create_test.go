@@ -429,6 +429,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				resourcesDBClient:             mockResourcesDBClient,
 				activeOperationsLister:        activeOperationsLister,
 				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{fixture.NewServiceProviderNodePool()}},
 				readDesireLister:              readDesireLister,
 				clusterServiceClient:          mockCSClient,

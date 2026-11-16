@@ -22,12 +22,15 @@ import (
 
 	"go.uber.org/mock/gomock"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
@@ -63,12 +66,28 @@ func desTestCluster(withCAPZ bool) *coreapi.Cluster {
 	}
 }
 
-func desTestNodePool(encryptionSetID string) *coreapi.NodePool {
+func desTestNodePool(encryptionSetID string, optIn bool) *coreapi.NodePool {
 	np := &coreapi.NodePool{}
 	if len(encryptionSetID) != 0 {
 		np.Properties.Platform.OSDisk.EncryptionSetID = mustParseResourceID(encryptionSetID)
 	}
+	if optIn {
+		np.Tags = map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"}
+	}
 	return np
+}
+
+// desEnabledSubscription returns a subscription with the ExperimentalReleaseFeatures AFEC
+// registered, so the opt-in gate passes when the node pool also carries the tag.
+func desEnabledSubscription() *coreapi.Subscription {
+	return &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			TenantId: ptr.To(desTestTenantID),
+			RegisteredFeatures: &[]coreapi.Feature{
+				{Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered")},
+			},
+		},
+	}
 }
 
 func desDecisionResponse(decision checkaccessv2.AccessDecision) *checkaccessv2.AuthorizationDecisionResponse {
@@ -120,22 +139,41 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 	tests := []struct {
 		name            string
 		cluster         *coreapi.Cluster
+		subscription    *coreapi.Subscription
 		nodePool        *coreapi.NodePool
 		setup           setupFunc
 		wantOutcomeType OutcomeType
 		msgContains     []string
 	}{
 		{
-			name:            "no encryption set configured, skip",
+			name:            "AFEC not registered, skip",
 			cluster:         desTestCluster(true),
-			nodePool:        desTestNodePool(""),
+			subscription:    testSubscription(), // no registered features
+			nodePool:        desTestNodePool(desResourceID, true),
 			setup:           noClients,
 			wantOutcomeType: OutcomeTypeSkipped,
 		},
 		{
-			name:     "both identities have reader",
-			cluster:  desTestCluster(true),
-			nodePool: desTestNodePool(desResourceID),
+			name:            "opt-in tag absent, skip",
+			cluster:         desTestCluster(true),
+			subscription:    desEnabledSubscription(),
+			nodePool:        desTestNodePool(desResourceID, false),
+			setup:           noClients,
+			wantOutcomeType: OutcomeTypeSkipped,
+		},
+		{
+			name:            "no encryption set configured, skip",
+			cluster:         desTestCluster(true),
+			subscription:    desEnabledSubscription(),
+			nodePool:        desTestNodePool("", true),
+			setup:           noClients,
+			wantOutcomeType: OutcomeTypeSkipped,
+		},
+		{
+			name:         "both identities have reader",
+			cluster:      desTestCluster(true),
+			subscription: desEnabledSubscription(),
+			nodePool:     desTestNodePool(desResourceID, true),
 			setup: setupWithDecisions(map[string]checkaccessv2.AccessDecision{
 				smiToken:  checkaccessv2.Allowed,
 				capzToken: checkaccessv2.Allowed,
@@ -143,9 +181,10 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 			wantOutcomeType: OutcomeTypePassed,
 		},
 		{
-			name:     "service managed identity missing reader",
-			cluster:  desTestCluster(true),
-			nodePool: desTestNodePool(desResourceID),
+			name:         "service managed identity missing reader",
+			cluster:      desTestCluster(true),
+			subscription: desEnabledSubscription(),
+			nodePool:     desTestNodePool(desResourceID, true),
 			setup: setupWithDecisions(map[string]checkaccessv2.AccessDecision{
 				smiToken:  "NotAllowed",
 				capzToken: checkaccessv2.Allowed,
@@ -154,9 +193,10 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 			msgContains:     []string{smiResourceIDStr, "Reader role", "az role assignment create", desResourceID},
 		},
 		{
-			name:     "both identities missing reader",
-			cluster:  desTestCluster(true),
-			nodePool: desTestNodePool(desResourceID),
+			name:         "both identities missing reader",
+			cluster:      desTestCluster(true),
+			subscription: desEnabledSubscription(),
+			nodePool:     desTestNodePool(desResourceID, true),
 			setup: setupWithDecisions(map[string]checkaccessv2.AccessDecision{
 				smiToken:  "NotAllowed",
 				capzToken: "NotAllowed",
@@ -167,15 +207,17 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 		{
 			name:            "capz identity not found in cluster",
 			cluster:         desTestCluster(false),
-			nodePool:        desTestNodePool(desResourceID),
+			subscription:    desEnabledSubscription(),
+			nodePool:        desTestNodePool(desResourceID, true),
 			setup:           noClients,
 			wantOutcomeType: OutcomeTypeUnknown,
 			msgContains:     []string{"Unable to verify OS disk encryption set permissions."},
 		},
 		{
-			name:     "token retrieval fails",
-			cluster:  desTestCluster(true),
-			nodePool: desTestNodePool(desResourceID),
+			name:         "token retrieval fails",
+			cluster:      desTestCluster(true),
+			subscription: desEnabledSubscription(),
+			nodePool:     desTestNodePool(desResourceID, true),
 			setup: func(ctrl *gomock.Controller) (azureclient.CheckAccessV2ClientBuilder, azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder) {
 				mockCABuilder := azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
 				mockCA := azureclient.NewMockCheckAccessV2Client(ctrl)
@@ -188,9 +230,10 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 			msgContains:     []string{"Unable to verify OS disk encryption set permissions."},
 		},
 		{
-			name:     "check access api fails",
-			cluster:  desTestCluster(true),
-			nodePool: desTestNodePool(desResourceID),
+			name:         "check access api fails",
+			cluster:      desTestCluster(true),
+			subscription: desEnabledSubscription(),
+			nodePool:     desTestNodePool(desResourceID, true),
 			setup: func(ctrl *gomock.Controller) (azureclient.CheckAccessV2ClientBuilder, azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder) {
 				mockCABuilder := azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
 				mockCA := azureclient.NewMockCheckAccessV2Client(ctrl)
@@ -210,7 +253,7 @@ func TestAzureNodePoolDiskEncryptionSetPermissionsValidation(t *testing.T) {
 			caBuilder, retrieverBuilder := tt.setup(ctrl)
 
 			v := NewAzureNodePoolDiskEncryptionSetPermissionsValidation(caBuilder, retrieverBuilder, desTestScope)
-			result := v.Validate(context.Background(), tt.cluster, testSubscription(), tt.nodePool)
+			result := v.Validate(context.Background(), tt.cluster, tt.subscription, tt.nodePool)
 
 			if result.Outcome.Type != tt.wantOutcomeType {
 				t.Fatalf("Validate() outcome = %s, want %s", result.Outcome.Type, tt.wantOutcomeType)

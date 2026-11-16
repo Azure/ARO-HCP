@@ -24,11 +24,15 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -114,11 +118,35 @@ func TestNodePoolCreateValidationCheckGatesOnlyDES(t *testing.T) {
 		return metav1.Condition{Type: condType, Status: status, Reason: "ValidationResult", Message: condType + " detail", LastTransitionTime: old}
 	}
 
-	run := func(validations []metav1.Condition) *operationbase.OperationState {
+	desOptedInNodePool := fixture.NewNodePool()
+	desOptedInNodePool.Tags = map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"}
+	desOptedInNodePool.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+
+	afecRegisteredSubscription := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + operationtesting.TestSubscriptionID))},
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{{Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered")}},
+		},
+	}
+
+	run := func(validations []metav1.Condition, nodePool *coreapi.NodePool, subscription *coreapi.Subscription) *operationbase.OperationState {
+		if nodePool == nil {
+			nodePool = fixture.NewNodePool()
+		}
+		var subscriptions []*coreapi.Subscription
+		if subscription != nil {
+			subscriptions = []*coreapi.Subscription{subscription}
+		}
 		spNodePool := fixture.NewServiceProviderNodePool()
 		spNodePool.Status.Validations = validations
 		lister := &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{spNodePool}}
-		c := &nodePoolCreateValidationCheck{clock: clocktesting.NewFakePassiveClock(now), serviceProviderNodePoolLister: lister}
+		c := &nodePoolCreateValidationCheck{
+			clock:                         clocktesting.NewFakePassiveClock(now),
+			nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{nodePool}},
+			subscriptionLister:            &corelistertesting.SliceSubscriptionLister{Subscriptions: subscriptions},
+			serviceProviderNodePoolLister: lister,
+		}
 		op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 		op.StartTime = now.Add(-time.Hour)
 		state, err := c.CalculateOperationStatus(context.Background(), op, struct{}{})
@@ -128,7 +156,7 @@ func TestNodePoolCreateValidationCheckGatesOnlyDES(t *testing.T) {
 
 	t.Run("failing non-DES validation does not gate creation", func(t *testing.T) {
 		t.Parallel()
-		state := run([]metav1.Condition{cond("AzureNodePoolVMQuotaValidation", metav1.ConditionFalse)})
+		state := run([]metav1.Condition{cond("AzureNodePoolVMQuotaValidation", metav1.ConditionFalse)}, nil, nil)
 		assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
 	})
 
@@ -137,14 +165,32 @@ func TestNodePoolCreateValidationCheckGatesOnlyDES(t *testing.T) {
 		state := run([]metav1.Condition{
 			cond("AzureNodePoolVMQuotaValidation", metav1.ConditionFalse),
 			cond(desName, metav1.ConditionFalse),
-		})
+		}, desOptedInNodePool, afecRegisteredSubscription)
 		assert.Equal(t, coreapi.ProvisioningStateFailed, state.ProvisioningState)
 		assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, state.CloudErrorCode)
 	})
 
 	t.Run("passing DES validation succeeds", func(t *testing.T) {
 		t.Parallel()
-		state := run([]metav1.Condition{cond(desName, metav1.ConditionTrue)})
+		state := run([]metav1.Condition{cond(desName, metav1.ConditionTrue)}, desOptedInNodePool, afecRegisteredSubscription)
+		assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+	})
+
+	t.Run("stored failing DES condition is ignored once the feature is disabled", func(t *testing.T) {
+		t.Parallel()
+		state := run([]metav1.Condition{cond(desName, metav1.ConditionFalse)}, desOptedInNodePool, nil)
+		assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+	})
+
+	t.Run("missing DES condition stays provisioning while the validation still applies", func(t *testing.T) {
+		t.Parallel()
+		state := run(nil, desOptedInNodePool, afecRegisteredSubscription)
+		assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+	})
+
+	t.Run("missing DES condition succeeds when the validation does not apply", func(t *testing.T) {
+		t.Parallel()
+		state := run(nil, nil, nil)
 		assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
 	})
 }
