@@ -147,6 +147,8 @@ func NewAdminAPI(
 	)
 
 	// Fleet version management routes
+	middlewareMux.Handle("POST /admin/v1/versionrollouts/{channel}/pinnedversion",
+		errorutils.ReportError(hcp.NewRolloutVersionPinHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin",
 		errorutils.ReportError(hcp.NewFleetControlPlaneVersionPinHandler(resourcesDBClient).ServeHTTP))
 
