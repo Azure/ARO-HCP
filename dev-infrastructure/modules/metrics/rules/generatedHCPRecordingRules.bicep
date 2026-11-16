@@ -302,8 +302,6 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
 
 resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'hypershift-cpo-recording-rules'
-resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_node_drain_recording_rules'
   location: location
   properties: {
     scopes: [
@@ -343,6 +341,22 @@ resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRul
       {
         record: 'hypershift:cpo:availability:ratio1m'
         expression: 'clamp_max(min by (cluster, namespace, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) / (max by (cluster, namespace, region) (avg_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) > 0), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_node_drain_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
         record: 'duration:capiMachine_node_draining:seconds'
         expression: '(time() - max by (cluster, namespace, name, node, node_pool, region) (capiMachine_node_drain_start_time_seconds)) and on (cluster, namespace, name) (max by (cluster, namespace, name, region) (capiMachine_deleting_stage{reason="DrainingNode"}))'
       }
