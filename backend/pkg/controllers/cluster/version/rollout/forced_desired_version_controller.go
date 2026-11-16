@@ -148,7 +148,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 			logger.Info("Channel rollout is missing; no best version available", "ystreamChannel", yStreamChannel)
 		}
 		if err == nil {
-			best = rollout.Spec.BestExactVersion
+			best = effectiveExactVersion(&rollout.Spec)
 		}
 	}
 
