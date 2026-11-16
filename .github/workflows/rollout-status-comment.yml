@@ -30,5 +30,11 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: pr,
-            body: `[Track rollout status](${url})`,
+            body: [
+              '### 🚀 Rollout Status',
+              '',
+              'This PR has merged and is now rolling out through the release pipeline.',
+              '',
+              `**[→ Track rollout status](${url})**`,
+            ].join('\n'),
           });
