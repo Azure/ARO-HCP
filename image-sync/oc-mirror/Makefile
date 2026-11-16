@@ -23,19 +23,6 @@ build-and-push: image
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE}:latest
 .PHONY: build-and-push
 
-acm-dry-run: image
-	@$(CONTAINER_ENGINE) run -it --rm --tmpfs /oc-mirror-workspace \
-		-e XDG_RUNTIME_DIR=/ \
-		-e AZURE_CLIENT_ID= \
-		-v ${AUTH_FILE}:/containers/auth.json:z \
-		-v ${HOME}/.azure:/root/.azure:z \
-		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/acm-image-set-config.yml | base64) \
-		-e REGISTRY=${ARO_HCP_IMAGE_ACR} \
-		-e REGISTRY_URL=${ARO_HCP_IMAGE_ACR_URL} \
-		-e OC_MIRROR_COMPATIBILITY="NOCATALOG" \
-		${OC_MIRROR_IMAGE_TAGGED} --dry-run
-.PHONY: acm-dry-run
-
 ocp-dry-run: image
 	@$(CONTAINER_ENGINE) run -it --rm --tmpfs /oc-mirror-workspace \
 		-e XDG_RUNTIME_DIR=/ \
