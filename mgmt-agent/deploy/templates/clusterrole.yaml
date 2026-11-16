@@ -165,6 +165,13 @@ rules:
   - get
   - delete
 - apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters
+  verbs:
+  - list
+  - delete
+- apiGroups:
   - multicluster.openshift.io
   resources:
   - multiclusterengines

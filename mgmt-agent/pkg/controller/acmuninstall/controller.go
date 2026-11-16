@@ -59,6 +59,9 @@ const (
 )
 
 var (
+	ManagedClustersGVR = schema.GroupVersionResource{
+		Group: "cluster.open-cluster-management.io", Version: "v1", Resource: "managedclusters",
+	}
 	MultiClusterEngineGVR = schema.GroupVersionResource{
 		Group: "multicluster.openshift.io", Version: "v1", Resource: "multiclusterengines",
 	}
@@ -76,6 +79,7 @@ const (
 	stepEnsurePodNetworkInstancesNotACMOwned    = "ensure-podnetworkinstances-not-acm-owned"
 	stepEnsureHostedClusterResourcesNotACMOwned = "ensure-hostedcluster-resources-not-acm-owned"
 	stepDeleteMCE                               = "delete-multiclusterengine"
+	stepDeleteManagedClusters                   = "delete-managedclusters"
 	stepDeleteNamespace                         = "delete-namespace"
 	stepDeleteAppliedManifestWorks              = "delete-appliedmanifestworks"
 	stepDeleteOCMCRDs                           = "delete-open-cluster-management-crds"
@@ -119,10 +123,11 @@ type step struct {
 // no longer ACM-managed, so ownership cannot reappear for this purpose.
 //
 // Uninstall order once prerequisites pass:
-//  1. MultiClusterEngine/multiclusterengine
-//  2. Namespace/multicluster-engine
-//  3. All AppliedManifestWorks (clear finalizers, then delete)
-//  4. All CRDs whose names end in .open-cluster-management.io
+//  1. All ManagedClusters except local-cluster (removed by MCE)
+//  2. MultiClusterEngine/multiclusterengine
+//  3. Namespace/multicluster-engine
+//  4. All AppliedManifestWorks (clear finalizers, then delete)
+//  5. All CRDs whose names end in .open-cluster-management.io
 type Controller struct {
 	name             string
 	kubeClient       kubernetes.Interface
@@ -153,6 +158,7 @@ func NewController(kubeClient kubernetes.Interface, dynamicClient dynamic.Interf
 		{name: stepEnsureHypershiftOperatorNotManagedByMCE, run: c.ensureHypershiftOperatorNotManagedByMCE},
 	}
 	c.steps = []step{
+		{name: stepDeleteManagedClusters, run: c.ensureManagedClustersDeleted},
 		{name: stepDeleteMCE, run: c.ensureMCEDeleted},
 		{name: stepDeleteNamespace, run: c.ensureNamespaceDeleted},
 		{name: stepDeleteAppliedManifestWorks, run: c.ensureAppliedManifestWorksDeleted},
@@ -300,6 +306,37 @@ func (c *Controller) ensureHypershiftOperatorNotManagedByMCE(ctx context.Context
 		reason: "patched Hypershift operator deployment with not-by-mce annotation; waiting to recheck",
 		values: []any{"namespace", namespace, "name", name},
 	}, nil
+}
+
+// ensureManagedClustersDeleted leaves local-cluster for MCE removal and waits
+// for ACM controllers to finish cleaning up all other registrations.
+func (c *Controller) ensureManagedClustersDeleted(ctx context.Context) (stepResult, error) {
+	items, err := c.listClusterScoped(ctx, ManagedClustersGVR)
+	if err != nil {
+		return stepResult{}, err
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	var names []string
+	for i := range items {
+		obj := &items[i]
+		name := obj.GetName()
+		if name == "local-cluster" {
+			continue
+		}
+		names = append(names, name)
+		if !obj.GetDeletionTimestamp().IsZero() {
+			continue
+		}
+		logger.Info("deleting ManagedCluster", "managedcluster", name)
+		if err := c.dynamicClient.Resource(ManagedClustersGVR).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apiGone(err) {
+			return stepResult{}, fmt.Errorf("delete ManagedCluster %q: %w", name, err)
+		}
+	}
+	if len(names) == 0 {
+		return stepResult{done: true}, nil
+	}
+	return stepResult{done: false, reason: "ManagedClusters still present", values: []any{"remaining", len(names), "names", names}}, nil
 }
 
 func (c *Controller) ensureMCEDeleted(ctx context.Context) (stepResult, error) {
