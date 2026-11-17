@@ -17,6 +17,7 @@ package dependabot
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 
@@ -39,6 +40,9 @@ func NewCommand(group string) (*cobra.Command, error) {
 		return nil, err
 	}
 	command.AddCommand(inventory)
+	command.AddCommand(newGuardCommand())
+	command.AddCommand(newValidateCommand())
+	command.AddCommand(newRetestCommand())
 	return command, nil
 }
 
@@ -57,6 +61,57 @@ func newInventoryCommand() (*cobra.Command, error) {
 		return nil, err
 	}
 	return command, nil
+}
+
+// newGuardCommand builds the guarded publication step.
+func newGuardCommand() *cobra.Command {
+	options := guardOptions{}
+	command := &cobra.Command{
+		Use:   "guard",
+		Short: "Validate proposals and defer open dependency overlaps",
+		Args:  cli.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return guardCreate(cmd.Context(), options)
+		},
+	}
+	command.Flags().StringVar(&options.Repository, "repository", "", "OWNER/REPO")
+	command.Flags().StringVar(&options.AgentOutput, "agent-output", "", "agent safe-output JSON file")
+	return command
+}
+
+// newValidateCommand builds the local proposal preflight.
+func newValidateCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate PROPOSAL",
+		Short: "Validate one dependency proposal and print its canonical form",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return cli.Invalid(errors.New("validate requires exactly one proposal path"))
+			}
+			return nil
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			return validateProposal(args[0])
+		},
+	}
+}
+
+// newRetestCommand builds the guarded retest step.
+func newRetestCommand() *cobra.Command {
+	options := retestOptions{}
+	command := &cobra.Command{
+		Use:   "retest",
+		Short: "Verify a transient-failure retest request",
+		Args:  cli.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return guardRetest(cmd.Context(), options)
+		},
+	}
+	command.Flags().StringVar(&options.Repository, "repository", "", "OWNER/REPO")
+	command.Flags().IntVar(&options.PullRequest, "pull-request", 0, "pull request number")
+	command.Flags().StringVar(&options.Head, "head", "", "expected head SHA")
+	command.Flags().StringVar(&options.Evidence, "evidence", "", "failure and comparison URLs")
+	return command
 }
 
 // runInventory validates, completes and executes the inventory.

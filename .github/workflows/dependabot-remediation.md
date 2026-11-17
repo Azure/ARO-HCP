@@ -185,7 +185,8 @@ safe-outputs:
         AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
       # Missing data and actual/uncertain overlaps defer only the affected
       # creates. Invalid metadata and API/authentication failures remain errors.
-      run: python3 .github/scripts/dependabot_guard.py create "$AGENT_OUTPUT" "$REPO"
+      run: |
+        "$RUNNER_TEMP/depctl" dependabot guard --agent-output "$AGENT_OUTPUT" --repository "$REPO"
   create-pull-request:
     max: 6                              # one PR per vulnerability group
     draft: false                        # open ready-for-review so CI runs and it can merge like the image bumper PRs
@@ -482,7 +483,7 @@ safe-outputs:
                 }
               fi
               if [[ "$action" == retest ]]; then
-                if ! python3 .github/scripts/dependabot_guard.py retest "$REPO" "$n" "$sha" "$evidence"; then
+                if ! "$RUNNER_TEMP/depctl" dependabot retest --repository "$REPO" --pull-request "$n" --head "$sha" --evidence "$evidence"; then
                   echo "::warning::PR $n skipped: retest guard refused"
                   failed=$((failed+1))
                   continue
@@ -627,7 +628,7 @@ An existing owned PR may also need a small Go source correction when the depende
 
 For each group with no open overlapping owned security PR, submit one pull request **proposal** via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. The safe-output guard derives the publication title from validated `package_family` and `target_version`; `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. Do not underreport affected manifests. A successful safe-output call records a proposal, not proof that a PR was published: the later guard may defer it, and the publisher may fail. Do not resubmit merely because publication has not yet been confirmed.
 
-Before calling create-pull-request, write that candidate's JSON object (`title`, `data`, and its `patch` or `files` when available) to `/tmp/gh-aw/agent/dependency-proposal.json` and run `python3 .github/scripts/dependabot_guard.py validate /tmp/gh-aw/agent/dependency-proposal.json`. This is a local, read-only metadata preflight using the production validator, not the networked `create` command. Submit only a candidate that exits successfully, using the canonical title and unchanged validated metadata returned on stdout. On failure, correct or split the group and regenerate its dependency-only patch before retrying validation; never emit invalid metadata or remove it to bypass validation. The publication guard remains authoritative and rechecks fresh overlaps.
+Before calling create-pull-request, write that candidate's JSON object (`title`, `data`, and its `patch` or `files` when available) to `/tmp/gh-aw/agent/dependency-proposal.json` and run `"$RUNNER_TEMP/depctl" dependabot validate /tmp/gh-aw/agent/dependency-proposal.json`. This is a local, read-only metadata preflight using the production validator, not the networked `create` command. Submit only a candidate that exits successfully, using the canonical title and unchanged validated metadata returned on stdout. On failure, correct or split the group and regenerate its dependency-only patch before retrying validation; never emit invalid metadata or remove it to bypass validation. The publication guard remains authoritative and rechecks fresh overlaps.
 
 In the final run summary, distinguish submitted proposals from published PRs. Report each proposed family, target, manifests and alert numbers as pending publication until the publisher confirms a PR number and URL; report guard deferrals or publication failures separately when available. A green agent job or accepted safe output alone is not a published PR, and no alert is fixed until the remediation merges and coverage is verified.
 
