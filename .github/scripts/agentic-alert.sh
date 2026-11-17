@@ -11,7 +11,7 @@ label='agentic-alert'
 now=$(date -u +%Y-%m-%dT%H:%MZ)
 failing=''
 unknown=0
-workflows=(tool-version-updates.lock.yml gh-aw-recompile.lock.yml dependabot-remediation.lock.yml)
+workflows=(tool-version-updates.lock.yml gh-aw-recompile.lock.yml dependency-maintenance.lock.yml dependabot-remediation.lock.yml)
 
 for workflow in "${workflows[@]}"; do
   # Page the whole completed history: a short window can hide an older failure
