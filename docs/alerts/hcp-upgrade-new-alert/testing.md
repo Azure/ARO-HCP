@@ -30,14 +30,14 @@ TEST_NAME="Engineering should detect new alerts during and after a control plane
 ```
 
 The test creates an HCP on candidate 4.21 and upgrades to candidate 4.22; the RP
-selects patch releases. Three isolated synthetic alert groups fire before, during
+selects patch releases. Three synthetic alerts in one rule group fire before, during
 and after the upgrade. The test checks:
 
 1. Only the pre-upgrade alert fires before upgrade.
 2. After completion, all three actual alerts and HCPUpgradeNewAlert fire.
-3. Removing the post-upgrade alert leaves HCPUpgradeNewAlert firing.
-4. Removing the during-upgrade alert clears HCPUpgradeNewAlert while the pre-upgrade
-   alert remains.
+
+The test does not cover HCPUpgradeNewAlert resolving. Deleting a rule group does not
+resolve its Azure alert instance, so removing a synthetic alert cannot show it clearing.
 
 Azure Alerts Management provides the observed state. `ALERTS` metrics have been
 absent even while Azure reported Fired, so they are not used to judge E2E success.
@@ -46,11 +46,12 @@ E2E checks integration; promtool checks per-attempt attribution and timing limit
 
 Logs distinguish API operation completion from actual upgrade completion. The
 post-upgrade alert requires completed version history. State changes include Azure
-instance IDs and timestamps; waits and rule deletions include elapsed time.
+instance IDs and timestamps; waits include elapsed time.
 
 The runner needs rule-group write/delete and workspace alert-read permissions,
-plus normal cluster-test access. Temporary groups have no notification actions
-and are cleaned up before customer resources, including after failure.
+plus normal cluster-test access. The temporary group has no notification actions
+and is cleaned up before customer resources, including after failure. Its alert
+instances stay Fired in Azure after cleanup.
 
 ## Validation limits
 

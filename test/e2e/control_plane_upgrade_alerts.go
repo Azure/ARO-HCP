@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
@@ -85,30 +84,17 @@ var _ = Describe("Engineering", func() {
 			postUpgradeAlert := "TestAlertPostUpgrade_" + runID
 			duringUpgradeAlert := "TestAlertDuringUpgrade_" + runID
 			workspaceID := workspace.ResourceID()
-			ruleNamePrefix := "upgrade-alert-e2e-" + runID
-			ruleNames := map[string]string{
-				preUpgradeAlert:    ruleNamePrefix + "-pre-upgrade",
-				postUpgradeAlert:   ruleNamePrefix + "-post-upgrade",
-				duringUpgradeAlert: ruleNamePrefix + "-during-upgrade",
-			}
+			ruleGroupName := "upgrade-alert-e2e-" + runID
 			body := upgradeAlertInputRules(workspaceID, resourceID, tc.Location(), runID)
 			deployCtx, cancelDeploy := context.WithTimeout(ctx, 5*time.Minute)
 			defer cancelDeploy()
-			// Separate groups let us remove each alert without reloading the others.
-			for _, rule := range body.Properties.(map[string]any)["rules"].([]map[string]any) {
-				ruleName := ruleNames[rule["alert"].(string)]
-				// Register before PUT: an interrupted request may still create the resource.
-				DeferCleanup(func(cleanupCtx context.Context) {
-					cleanupCtx, cancel := context.WithTimeout(cleanupCtx, 5*time.Minute)
-					defer cancel()
-					Expect(workspace.DeleteRuleGroup(cleanupCtx, ruleName)).To(Succeed(), "failed to delete test rule group %s", ruleName)
-				})
-				groupBody := body
-				properties := maps.Clone(body.Properties.(map[string]any))
-				properties["rules"] = []map[string]any{rule}
-				groupBody.Properties = properties
-				Expect(workspace.CreateOrUpdateRuleGroup(deployCtx, ruleName, groupBody)).To(Succeed(), "failed to deploy input rule group %s", ruleName)
-			}
+			// Register before PUT: an interrupted request may still create the resource.
+			DeferCleanup(func(cleanupCtx context.Context) {
+				cleanupCtx, cancel := context.WithTimeout(cleanupCtx, 5*time.Minute)
+				defer cancel()
+				Expect(workspace.DeleteRuleGroup(cleanupCtx, ruleGroupName)).To(Succeed(), "failed to delete test rule group %s", ruleGroupName)
+			})
+			Expect(workspace.CreateOrUpdateRuleGroup(deployCtx, ruleGroupName, body)).To(Succeed(), "failed to deploy input rule group %s", ruleGroupName)
 
 			By("creating customer infrastructure")
 			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx, rg, clusterParams, map[string]interface{}{}, TestArtifactsFS, framework.RBACScopeResourceGroup)
@@ -165,26 +151,6 @@ var _ = Describe("Engineering", func() {
 				preUpgradeAlert: true, duringUpgradeAlert: true, postUpgradeAlert: true, upgradeAlertName: true,
 			}, observationTimeout, GinkgoLogr)
 			Expect(err).NotTo(HaveOccurred(), "expected all source alerts and the production HCPUpgradeNewAlert firing after upgrade")
-
-			// Resolve the post-upgrade alert first; the during-upgrade alert must keep the HCPUpgradeNewAlert firing.
-			for _, name := range []string{postUpgradeAlert, duringUpgradeAlert} {
-				expectUpgradeAlertFiring := name == postUpgradeAlert
-				By(fmt.Sprintf("removing %s and verifying HCPUpgradeNewAlert firing=%t", name, expectUpgradeAlertFiring))
-				deleteCtx, cancelDelete := context.WithTimeout(ctx, 5*time.Minute)
-				defer cancelDelete()
-				resolutionStarted := time.Now()
-				err = workspace.DeleteRuleGroup(deleteCtx, ruleNames[name])
-				cancelDelete()
-				Expect(err).NotTo(HaveOccurred(), "failed to remove synthetic alert %s", name)
-				GinkgoLogr.Info("Synthetic alert rule group deleted", "alertname", name, "duration", time.Since(resolutionStarted).String())
-
-				err = workspace.WaitForAlerts(ctx, resourceID, map[string]bool{
-					preUpgradeAlert: true, postUpgradeAlert: false,
-					duringUpgradeAlert: expectUpgradeAlertFiring, upgradeAlertName: expectUpgradeAlertFiring,
-				}, observationTimeout, GinkgoLogr)
-				Expect(err).NotTo(HaveOccurred(), "incorrect alert states after removing %s", name)
-				GinkgoLogr.Info("Verified alerts after rule deletion", "removed_alert", name, "hcp_upgrade_new_alert_firing", expectUpgradeAlertFiring, "total_resolution_wait", time.Since(resolutionStarted).String())
-			}
 		})
 })
 
