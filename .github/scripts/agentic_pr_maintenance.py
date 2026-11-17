@@ -166,6 +166,17 @@ def owned_kind(pull, repo):
     return None
 
 
+def selected_kinds(kind):
+    """Resolve an optional maintenance scope without changing legacy callers."""
+    if kind is None:
+        return ("upgrade", "dependency", "tool")
+    if kind == "non-compiler":
+        return ("dependency", "tool")
+    if kind not in ("upgrade", "dependency", "tool"):
+        raise ValueError("kind must be upgrade, dependency, tool, or non-compiler")
+    return (kind,)
+
+
 def timestamp(value):
     if not isinstance(value, str):
         raise ValueError("missing evidence timestamp")
@@ -397,15 +408,18 @@ def assess(snapshot, repo, number, expected_head):
     }
 
 
-def execute(mode, repo, number, expected_head, evidence=None):
+def execute(mode, repo, number, expected_head, evidence=None, kind=None):
     """Re-fetch the complete authorization before each fixed-command mutation."""
     if mode not in ("assess", "release-hold", "verify-upgrade", "recover-retry", "release-regenerated"):
         raise ValueError("unsupported maintenance action")
+    kinds = selected_kinds(kind)
     number = validate_target(repo, number, expected_head)
     result = None
     for _ in range(2 if mode not in ("assess", "verify-upgrade") else 1):
         snapshot = fetch_snapshot(repo, number, expected_head)
         result = assess(snapshot, repo, number, expected_head)
+        if kind is not None and result["kind"] not in kinds:
+            raise ValueError(f"pull request kind {result['kind']!r} does not match requested scope {kind!r}")
         if mode == "assess":
             return result
         if mode == "verify-upgrade":
@@ -468,8 +482,9 @@ def execute(mode, repo, number, expected_head, evidence=None):
     return result
 
 
-def inventory(repo):
-    """Assess only owned PR identities fetched from the paginated robot issue list."""
+def inventory(repo, kind=None):
+    """Filter owned identities by scope before fetching complete PR evidence."""
+    kinds = selected_kinds(kind)
     validate_target(repo, 1, "0" * 40)
     issues = gh_lines(
         f"repos/{repo}/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100",
@@ -493,19 +508,26 @@ def inventory(repo):
             raise ValueError("missing PR state evidence")
         if pull.get("state") != "open" or pull.get("merged"):
             continue
-        if owned_kind(pull, repo) is not None:
-            results.append(execute("assess", repo, number, pull["head"].get("sha")))
+        if owned_kind(pull, repo) in kinds:
+            results.append(execute("assess", repo, number, pull["head"].get("sha"), kind=kind))
     return results
 
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
+        kind = None
+        if len(argv) >= 2 and argv[-2] == "--kind":
+            kind = argv[-1]
+            selected_kinds(kind)
+            argv = argv[:-2]
+            if not argv or argv[0] not in ("inventory", "release-hold", "recover-retry"):
+                raise ValueError("--kind is supported only by inventory, release-hold, and recover-retry")
         if len(argv) == 2 and argv[0] == "compiler-versions":
             print(json.dumps(compiler_versions(argv[1])))
             return 0
         if len(argv) == 2 and argv[0] == "inventory":
-            print(json.dumps(inventory(argv[1]), sort_keys=True))
+            print(json.dumps(inventory(argv[1], kind=kind), sort_keys=True))
             return 0
         if len(argv) == 3 and argv[0] == "inspect":
             _, repo, number = argv
@@ -516,9 +538,9 @@ def main(argv=None):
                 raise ValueError("missing current pull request head")
             result = execute("assess", repo, number, pull["head"].get("sha"))
         elif len(argv) in (4, 5):
-            result = execute(*argv)
+            result = execute(*argv, kind=kind)
         else:
-            raise ValueError("usage: agentic_pr_maintenance.py compiler-versions REF | inventory REPO | inspect REPO PR | assess|release-hold|verify-upgrade REPO PR HEAD | recover-retry REPO PR HEAD EVIDENCE | release-regenerated REPO PR HEAD PREVIOUS_HEAD")
+            raise ValueError("usage: agentic_pr_maintenance.py compiler-versions REF | inventory REPO [--kind KIND] | inspect REPO PR | assess|verify-upgrade REPO PR HEAD | release-hold REPO PR HEAD [--kind KIND] | recover-retry REPO PR HEAD EVIDENCE [--kind KIND] | release-regenerated REPO PR HEAD PREVIOUS_HEAD; KIND: upgrade|dependency|tool|non-compiler")
         print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:

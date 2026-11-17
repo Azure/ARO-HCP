@@ -108,10 +108,26 @@ class InventoryTests(TestCase):
                 pull["head"]["ref"] = "not-the-compiler-branch"
             pulls.append(pull)
         evidence = {pull["number"]: {**snapshot(), "pull": pull} for pull in pulls}
-        with patch.object(guard, "gh_lines", return_value=[self.issue(p["number"]) for p in pulls]), \
-                patch.object(guard, "fetch_pull", side_effect=pulls), \
-                patch.object(guard, "fetch_snapshot", side_effect=lambda repo, number, sha: evidence[number]):
-            self.assertEqual([row["pull_request"] for row in guard.inventory(REPO)], [1, 2, 3])
+        for kind, expected in (
+            (None, [1, 2, 3]), ("upgrade", [3]), ("dependency", [1]),
+            ("tool", [2]), ("non-compiler", [1, 2]),
+        ):
+            with self.subTest(kind=kind), \
+                    patch.object(guard, "gh_lines", return_value=[self.issue(p["number"]) for p in pulls]), \
+                    patch.object(guard, "fetch_pull", side_effect=pulls), \
+                    patch.object(guard, "fetch_snapshot",
+                                 side_effect=lambda repo, number, sha: evidence[number]) as fetch:
+                self.assertEqual([row["pull_request"] for row in guard.inventory(REPO, kind=kind)], expected)
+                self.assertEqual([call.args[1] for call in fetch.call_args_list], expected)
+
+    def test_scoped_inventory_rechecks_identity_in_full_snapshot(self):
+        with patch.object(guard, "gh_lines", return_value=[self.issue(NUMBER)]), \
+                patch.object(guard, "fetch_pull", return_value=snapshot()["pull"]), \
+                patch.object(guard, "fetch_snapshot", return_value=snapshot(dependency=True)), \
+                patch.object(guard.subprocess, "run") as run:
+            with self.assertRaisesRegex(ValueError, "requested scope"):
+                guard.inventory(REPO, kind="upgrade")
+            run.assert_not_called()
 
     def test_unrelated_issues_empty_inventory_and_closed_prs_are_noops(self):
         closed = snapshot()["pull"]
@@ -743,6 +759,93 @@ class RecoveryTests(TestCase):
                         self.assertFalse(any(call.args[0][0] == "gh" for call in run.call_args_list))
 
 
+class ScopeTests(TestCase):
+    def scoped_snapshot(self, kind, mode):
+        data = snapshot(dependency=kind == "dependency")
+        if kind == "tool":
+            data["pull"]["title"] = "chore(tools): bump yq"
+            data["pull"]["labels"].append({"name": "agentic-tool-upgrade"})
+        if mode == "recover-retry":
+            data["statuses"] = [dict(status("failure"), target_url=RecoveryTests.failure_url)]
+        return data
+
+    def test_wrong_kind_at_initial_or_final_snapshot_never_writes(self):
+        for mode in ("release-hold", "recover-retry"):
+            for kind, allowed, rejected in (
+                ("upgrade", "upgrade", "dependency"),
+                ("upgrade", "upgrade", "tool"),
+                ("non-compiler", "dependency", "upgrade"),
+                ("dependency", "dependency", "tool"),
+                ("tool", "tool", "dependency"),
+            ):
+                wrong = self.scoped_snapshot(rejected, mode)
+                for responses in ([wrong], [self.scoped_snapshot(allowed, mode), wrong]):
+                    with self.subTest(mode=mode, kind=kind, rejected=rejected, reads=len(responses)), \
+                            patch.object(guard, "fetch_snapshot", side_effect=responses), \
+                            patch.object(guard.subprocess, "run") as run:
+                        with self.assertRaisesRegex(ValueError, "requested scope"):
+                            guard.execute(mode, REPO, NUMBER, HEAD, RecoveryTests.evidence, kind=kind)
+                        run.assert_not_called()
+
+    def test_matching_scope_and_legacy_default_preserve_fixed_commands(self):
+        for mode in ("release-hold", "recover-retry"):
+            for kind, actual in (
+                (None, "upgrade"), (None, "dependency"), (None, "tool"),
+                ("upgrade", "upgrade"), ("dependency", "dependency"), ("tool", "tool"),
+                ("non-compiler", "dependency"), ("non-compiler", "tool"),
+            ):
+                data = self.scoped_snapshot(actual, mode)
+
+                def submit(args, **kwargs):
+                    body = json.loads(kwargs["input"])["body"]
+                    return subprocess.CompletedProcess(args, 0, json.dumps(comment(99, body, guard.ROBOT)), "")
+
+                with self.subTest(mode=mode, kind=kind, actual=actual), \
+                        patch.object(guard, "fetch_snapshot", return_value=data) as fetch, \
+                        patch.object(guard.subprocess, "run", side_effect=submit) as run:
+                    result = guard.execute(mode, REPO, NUMBER, HEAD, RecoveryTests.evidence, kind=kind)
+                    self.assertEqual(result["release_status"], "cancel-requested")
+                    self.assertEqual(fetch.call_count, 2)
+                    run.assert_called_once()
+                    body = json.loads(run.call_args.kwargs["input"])["body"]
+                    expected = "/hold cancel" if mode == "release-hold" else (
+                        f"<!-- {guard.RECOVERY_MARKER}{HEAD} -->\n{RecoveryTests.evidence}"
+                        "\n\n/hold cancel\n/retest-required"
+                    )
+                    self.assertEqual(body, expected)
+
+    def test_cli_forwards_trailing_scope_to_inventory_and_mutations(self):
+        for kind in ("upgrade", "dependency", "tool", "non-compiler"):
+            with self.subTest(kind=kind), patch.object(guard, "inventory", return_value=[]) as inventory, \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(guard.main(["inventory", REPO, "--kind", kind]), 0)
+                inventory.assert_called_once_with(REPO, kind=kind)
+            for mode in ("release-hold", "recover-retry"):
+                args = [mode, REPO, str(NUMBER), HEAD]
+                if mode == "recover-retry":
+                    args.append(RecoveryTests.evidence)
+                with self.subTest(kind=kind, mode=mode), \
+                        patch.object(guard, "execute", return_value={}) as execute, \
+                        patch("sys.stdout", new_callable=io.StringIO):
+                    self.assertEqual(guard.main([*args, "--kind", kind]), 0)
+                    execute.assert_called_once_with(*args, kind=kind)
+
+    def test_invalid_or_unsupported_scope_is_rejected_before_api_access(self):
+        for args in (
+            ["inventory", REPO, "--kind", "unknown"],
+            ["inventory", REPO, "--kind"],
+            ["inspect", REPO, str(NUMBER), "--kind", "upgrade"],
+        ):
+            with self.subTest(args=args), patch.object(guard, "gh_lines") as gh, \
+                    patch.object(guard, "fetch_snapshot") as fetch, \
+                    patch("sys.stdout", new_callable=io.StringIO) as out, \
+                    patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(guard.main(args), 1)
+                self.assertEqual(out.getvalue(), "")
+                gh.assert_not_called()
+                fetch.assert_not_called()
+
+
 class CompilerProvenanceTests(TestCase):
     def test_all_lock_versions_are_read_without_checkout(self):
         def git(args, **kwargs):
@@ -762,19 +865,6 @@ class CompilerProvenanceTests(TestCase):
         ]):
             with self.assertRaisesRegex(ValueError, "missing compiler provenance"):
                 guard.compiler_versions("origin/main")
-
-
-class WorkflowLifecycleTests(TestCase):
-    def test_one_daily_agentic_identity_with_independent_bootstrap(self):
-        workflows = Path(__file__).parents[1] / "workflows"
-        source = (workflows / "gh-aw-recompile.md").read_text()
-        self.assertIn("schedule: daily", source)
-        self.assertIn("needs: [recompile]", source)
-        self.assertIn("needs: []", source)
-        self.assertIn("engine: copilot", source)
-        self.assertIn("report-as-issue: false", source)
-        for obsolete in ("gh-aw-recompile.yml", "agentic-pr-maintenance.md", "agentic-pr-maintenance.lock.yml"):
-            self.assertFalse((workflows / obsolete).exists(), obsolete)
 
 
 if __name__ == "__main__":

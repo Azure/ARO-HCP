@@ -4,6 +4,7 @@ on:
     workflows:
     - "Agentic CI and development tool updates"
     - "gh-aw recompile"
+    - "Dependency maintenance"
     - "Agentic Dependabot remediation for ARO-HCP"
     types:
     - completed
