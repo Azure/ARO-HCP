@@ -498,6 +498,14 @@ resourceGroups:
       # VM size combination of the zone-pinned pools; retry while capacity frees
       # up. The failing operation's statusMessage and the nested details of the
       # top-level DeploymentFailed error both carry these codes.
+      #
+      # These are exact ARM error-code identifiers rather than generic phrases,
+      # so a match means ARM reported that code for an operation in the
+      # deployment. errorContainsAny is an OR of substrings over the whole step
+      # output and cannot express "and", so the match cannot be narrowed with
+      # DeploymentFailed - adding that would retry every deployment failure
+      # instead. A match on a different failure only costs the retries
+      # configured below before the step fails as it otherwise would.
       - "OverconstrainedZonalAllocationRequest"
       - "ZonalAllocationFailed"
       maximumRetryCount: 3
