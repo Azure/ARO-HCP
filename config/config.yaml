@@ -325,7 +325,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:7fae11da23720ee21d3340ce3f17267ae14987b00790be5d6a44e50b84aea0c6 # v1.8.2 (2026-11-08 04:51)
+      digest: sha256:53e35fba301a1d015794c8158185e735e09518ff451b049075614368d29e3755 # v1.8.2 (2026-11-16 09:05)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -1024,7 +1024,6 @@ defaults:
   # Billing
   billing:
     rg: "placeholder"
-    useGlobalMeterIds: false
     aub:
       accountName: ""
       cloudSuffix: ""

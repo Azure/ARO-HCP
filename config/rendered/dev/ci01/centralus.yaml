@@ -175,7 +175,6 @@ billing:
     cloudName: ""
     endpoint: ""
   rg: placeholder
-  useGlobalMeterIds: false
 cloud: Public
 cloudEnvironmentName: AzurePublicCloud
 clustersService:
@@ -989,7 +988,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:7fae11da23720ee21d3340ce3f17267ae14987b00790be5d6a44e50b84aea0c6
+    digest: sha256:53e35fba301a1d015794c8158185e735e09518ff451b049075614368d29e3755
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:

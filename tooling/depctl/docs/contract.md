@@ -35,7 +35,7 @@ change and not an implementation detail.
 | per-head recovery marker | `gh-aw-recompile:recovery:<sha>` | `agentic_pr_maintenance.py` |
 | required checks for hold release | `ci/pipeline-gate`, `ci/prow/e2e-parallel` | `agentic_pr_maintenance.py` |
 | tool throughput | at most two eligible family attempts, one family prepared per run, one proposal per run, one open owned tool proposal on `main` | `tool-version-updates.md` |
-| security throughput | at most six groups, one proposal per manifest, 20 reconciles plus one repair, 24-hour retest cooldown | `dependabot-remediation.md`, `dependabot_guard.py` |
+| security throughput | at most six groups, one proposal per manifest, 20 reconciles plus one repair, 24-hour retest cooldown | `dependabot-remediation.md`, `depctl dependabot guard` |
 | native throughput | one family and one lifecycle action per run | `gh-aw-recompile.md` |
 | public run evidence | 64 MiB per artifact, 60-second timeout, `finished.json` and `build-log.txt`, manifest published last | `internal/evidence` |
 
