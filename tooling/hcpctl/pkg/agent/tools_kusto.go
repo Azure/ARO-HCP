@@ -361,7 +361,7 @@ func TableToMarkdownCapped(t *tabular.Table, maxRows int) string {
 	}
 
 	if limit < len(t.Rows) {
-		sb.WriteString(fmt.Sprintf("\n_Showing %d of %d rows._\n", limit, len(t.Rows)))
+		fmt.Fprintf(&sb, "\n_Showing %d of %d rows._\n", limit, len(t.Rows))
 	}
 
 	return sb.String()

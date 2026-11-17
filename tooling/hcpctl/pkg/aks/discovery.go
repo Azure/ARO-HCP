@@ -136,15 +136,15 @@ func buildKQLQuery(filter *AKSFilter) string {
 	// Apply optional filters
 	if filter != nil {
 		if filter.ClusterName != "" {
-			query.WriteString(fmt.Sprintf("| where name =~ '%s'\n", filter.ClusterName))
+			fmt.Fprintf(&query, "| where name =~ '%s'\n", filter.ClusterName)
 		}
 
 		if filter.Region != "" {
-			query.WriteString(fmt.Sprintf("| where location =~ '%s'\n", strings.ToLower(filter.Region)))
+			fmt.Fprintf(&query, "| where location =~ '%s'\n", strings.ToLower(filter.Region))
 		}
 
 		if filter.TagKey != "" && filter.TagValue != "" {
-			query.WriteString(fmt.Sprintf("| where tags['%s'] =~ '%s'\n", filter.TagKey, filter.TagValue))
+			fmt.Fprintf(&query, "| where tags['%s'] =~ '%s'\n", filter.TagKey, filter.TagValue)
 		}
 	}
 
