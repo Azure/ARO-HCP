@@ -425,13 +425,15 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				readDesireLister.Desires = []*kubeapplierapi.ReadDesire{tt.cachedNodePoolReadDesire}
 			}
 			controller := &operationNodePoolCreate{
-				clock:                  testClock,
-				resourcesDBClient:      mockResourcesDBClient,
-				activeOperationsLister: activeOperationsLister,
-				nodePoolLister:         &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				readDesireLister:       readDesireLister,
-				clusterServiceClient:   mockCSClient,
-				notificationClient:     nil,
+				clock:                         testClock,
+				resourcesDBClient:             mockResourcesDBClient,
+				activeOperationsLister:        activeOperationsLister,
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{fixture.NewServiceProviderNodePool()}},
+				readDesireLister:              readDesireLister,
+				clusterServiceClient:          mockCSClient,
+				notificationClient:            nil,
 			}
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)

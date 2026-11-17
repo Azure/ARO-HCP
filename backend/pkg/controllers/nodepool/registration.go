@@ -221,6 +221,29 @@ func instantiateNodePoolNSGBasedRequiredConnectivityValidationController(control
 	), nil
 }
 
+func registerAzureNodePoolDiskEncryptionSetPermissionsValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolDiskEncryptionSetPermissionsValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolDiskEncryptionSetPermissionsValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidationControllerName,
+		validationutils.NewAzureNodePoolDiskEncryptionSetPermissionsValidation(
+			controllerContext.CheckAccessV2ClientBuilder,
+			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+			controllerContext.CloudEnvironment.CheckAccessV2Scope(),
+		),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
 func registerNodePoolVersionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -402,6 +425,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolVMQuotaValidationControllerName)] = registerAzureNodePoolVMQuotaValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolEncryptionAtHostValidationControllerName)] = registerAzureNodePoolEncryptionAtHostValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName)] = registerNodePoolNSGBasedRequiredConnectivityValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidationControllerName)] = registerAzureNodePoolDiskEncryptionSetPermissionsValidationController()
 	registry[strings.ToLower(nodepoolversion.NodepoolVersionControllerName)] = registerNodePoolVersionController()
 	registry[strings.ToLower(nodepoolversion.NodePoolActiveVersionsControllerName)] = registerNodePoolActiveVersionController()
 	registry[strings.ToLower(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName)] = registerCreateNodePoolScopedReadDesiresController()
