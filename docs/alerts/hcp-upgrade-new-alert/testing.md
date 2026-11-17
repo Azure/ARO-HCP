@@ -46,8 +46,10 @@ and after the upgrade. The test checks:
    reported by HCPUpgradeNewAlert. It is not tied to the test HCP: another HCP upgraded
    to the same version on that cluster could also make it fire.
 
-The post-upgrade wait allows the remaining upgrade time plus the observation time,
-since the API operation can finish before the control plane does.
+The waits after the upgrade starts allow the remaining upgrade time plus the
+observation time, since the upgrade, its metrics or the API operation can finish late.
+The during-upgrade alert must fire while the post-upgrade alert does not, which proves
+it started before the upgrade completed.
 
 The test does not cover HCPUpgradeNewAlert resolving. Deleting a rule group does not
 resolve its Azure alert instance, so removing a synthetic alert cannot show it clearing.

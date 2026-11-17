@@ -141,10 +141,15 @@ var _ = Describe("Engineering", func() {
 			}()
 
 			By("waiting for the during-upgrade alert while the pre-upgrade alert remains firing")
-			_, err = workspace.WaitForAlerts(upgradeCtx, []framework.ExpectedAlert{
+			// Allow the remaining upgrade time plus the observation time: the upgrade or its metrics can start late.
+			// The post-upgrade alert must not fire yet; it needs recorded completion, so this proves the
+			// during-upgrade alert started before the upgrade completed.
+			duringUpgradeTimeout := time.Until(upgradeStarted.Add(framework.HCPClusterVersionUpgradeTimeout + observationTimeout))
+			_, err = workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
 				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
 				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: true},
-			}, observationTimeout, GinkgoLogr)
+				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "test_run": runID}, Firing: false},
+			}, duringUpgradeTimeout, GinkgoLogr)
 			Expect(err).NotTo(HaveOccurred(), "expected the during-upgrade and pre-upgrade alerts firing after the upgrade starts")
 
 			By("waiting for the upgrade API operation to finish")

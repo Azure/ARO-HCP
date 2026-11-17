@@ -153,7 +153,8 @@ type ExpectedAlert struct {
 }
 
 // WaitForAlerts polls Azure alert instances scoped to this workspace every 30 seconds
-// until every expectation holds at once. It returns the labels of the Fired instances
+// until every expectation holds at once. It lists instances from the last 30 days, the
+// longest range the API supports; the default of one day would hide older instances. It returns the labels of the Fired instances
 // matched by each expectation, keyed by ExpectedAlert.Name.
 // State changes, instance IDs, Azure timestamps and elapsed wait time are logged.
 func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, expected []ExpectedAlert, timeout time.Duration, logger logr.Logger) (map[string][]map[string]string, error) {
@@ -179,7 +180,7 @@ func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, expected []Ex
 		observed := map[string][]string{}
 		firingLabels = map[string][]map[string]string{}
 		queryErr := func() error {
-			pager := w.alerts.NewGetAllPager(&armalertsmanagement.AlertsClientGetAllOptions{IncludeContext: to.Ptr(true)})
+			pager := w.alerts.NewGetAllPager(&armalertsmanagement.AlertsClientGetAllOptions{IncludeContext: to.Ptr(true), TimeRange: to.Ptr(armalertsmanagement.TimeRangeThirtyD)})
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
 				if err != nil {
