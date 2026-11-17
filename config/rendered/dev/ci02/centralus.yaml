@@ -192,7 +192,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci02
   image:
-    digest: sha256:708223375b0ecfc0f0947c270fa60dbaf8469b49d2969b44370395ecce51a4a0
+    digest: sha256:7313e82431a6a80046ae65c856455d201ccea1909c8892bd5801c11ba3208438
     registry: arohcpsvcdev.azurecr.io
     repository: lkeren/aro-hcp-clusters-service
   k8s:
