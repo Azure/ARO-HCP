@@ -5,7 +5,7 @@
 # * SVC Key Vault with OneCert registration
 # * MIs, CosmosDB containers and RBAC for the RP
 # * MIs, Postgres DB, OIDC storage and RBAC for Cluster Service
-# * MIs, Postgres DB, certificates and RBAC for the Maestro Server
+# * MIs, Postgres DB and RBAC for the Maestro Server
 # * MIs and RBAC for ACRPull
 # * metrics collection
 # Managed Processes:
@@ -351,42 +351,6 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: maestro-server-cert
-    action: CreateCertificate
-    secretKeyVault:
-      configRef: ev2.assistedId.certificate.keyVault
-    secretName:
-      configRef: ev2.assistedId.certificate.name
-    applicationId:
-      configRef: ev2.assistedId.applicationId
-    vaultBaseUrl:
-      input:
-        resourceGroup: service
-        step: infra-output
-        name: svcKeyVaultUrl
-    certificateName:
-      configRef: maestro.server.mqttClientName
-    contentType:
-      value: x-pkcs12
-    san:
-      configRef: maestro.server.certSAN
-    issuer:
-      configRef: maestro.certIssuer
-    commonName:
-      configRef: maestro.server.certCN
-    dependsOn:
-    - resourceGroup: service
-      step: infra-output
-    - resourceGroup: service
-      step: oncert-private-kv-issuer
-    - resourceGroup: service
-      step: oncert-public-kv-issuer
-    automatedRetry:
-      errorContainsAny:
-      - "InternalServerError"
-      - "ServiceUnavailable"
-      maximumRetryCount: 3
-      durationBetweenRetries: 1m
   - name: fpa-cert
     action: CreateCertificate
     manage:
@@ -686,8 +650,6 @@ resourceGroups:
       step: admin-api-cert
     - resourceGroup: service
       step: sessiongate-cert
-    - resourceGroup: service
-      step: maestro-server-cert
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -756,43 +718,6 @@ resourceGroups:
       configRef: global.globalMSIName
     - name: DEPLOY_POSTGRES
       configRef: clustersService.postgres.deploy
-    dependsOn:
-    - resourceGroup: service
-      step: cluster-output
-    - resourceGroup: service
-      step: subscription-output
-  - name: maestro-postgres-access
-    action: Shell
-    command: ./postgres-access
-    workingDir: ./scripts/postgres-access
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: SUBSCRIPTION_ID
-      input:
-        resourceGroup: service
-        step: subscription-output
-        name: subscriptionId
-    - name: RESOURCE_GROUP
-      configRef: regionRG
-    - name: MI_RESOURCE_GROUP
-      input:
-        resourceGroup: service
-        step: cluster-output
-        name: identityResourceGroup
-    - name: PG_SERVER_NAME
-      configRef: maestro.postgres.name
-    - name: DATABASE_NAME
-      configRef: maestro.postgres.databaseName
-    - name: NEW_USER_NAME
-      configRef: maestro.server.managedIdentityName
-    - name: ADMIN_USER_NAME
-      configRef: global.globalMSIName
-    - name: DEPLOY_POSTGRES
-      configRef: maestro.postgres.deploy
     dependsOn:
     - resourceGroup: service
       step: cluster-output
