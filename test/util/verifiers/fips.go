@@ -157,17 +157,17 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 		if p.Status.Phase == corev1.PodFailed {
 			// Log container status for debugging
 			var errMsg strings.Builder
-			errMsg.WriteString(fmt.Sprintf("pod %s failed", createdPod.Name))
+			fmt.Fprintf(&errMsg, "pod %s failed", createdPod.Name)
 			for _, cs := range p.Status.ContainerStatuses {
 				if cs.State.Terminated != nil {
-					errMsg.WriteString(fmt.Sprintf("; container %s terminated with exit code %d, reason: %s, message: %s",
-						cs.Name, cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message))
+					fmt.Fprintf(&errMsg, "; container %s terminated with exit code %d, reason: %s, message: %s",
+						cs.Name, cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message)
 				}
 			}
 			// Attempt to fetch pod logs for diagnostics
 			logs, logErr := kubeClient.CoreV1().Pods(namespace.Name).GetLogs(createdPod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
 			if logErr == nil && len(logs) > 0 {
-				errMsg.WriteString(fmt.Sprintf("; pod logs: %s", string(logs)))
+				fmt.Fprintf(&errMsg, "; pod logs: %s", string(logs))
 			}
 			return false, fmt.Errorf("%s", errMsg.String())
 		}
