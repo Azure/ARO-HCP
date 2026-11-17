@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,11 +60,23 @@ func listAll(ctx context.Context, resource dynamic.ResourceInterface) ([]unstruc
 // legacyOwnerBlock reports a live ManifestWork or ManagedClusterAddon that may
 // still publish the target. Maestro itself no longer runs in the target
 // deployment, but a surviving OCM work object must still block cleanup.
+//
+// The OCM APIs are optional. ARO-HCP removes ACM from its management clusters:
+// mgmt-agent's acm-uninstall controller deletes every CRD whose name ends in
+// .open-cluster-management.io. Once that has run, the API server answers these
+// lists with 404 "the server could not find the requested resource", which
+// means the type is not served and therefore no object of that type can exist.
+// Treating that as a failed lookup would block finalization forever, so a
+// missing type is a valid "no legacy owners" answer. Any other read failure
+// still blocks: it is not evidence of absence.
 func (c *ApplyDesireController) legacyOwnerBlock(ctx context.Context, hostedClusterNamespace, controlPlaneNamespace string) (string, error) {
 	clusterID := clusterIDFromNamespace(hostedClusterNamespace)
 	works, err := listAll(ctx, c.dyn.Resource(manifestWorksGVR).Namespace("local-cluster"))
 	if err != nil {
-		return "", fmt.Errorf("list ManifestWorks: %w", err)
+		if !ocmAPITypeAbsent(err) {
+			return "", fmt.Errorf("list ManifestWorks: %w", err)
+		}
+		works = nil
 	}
 	for _, work := range works {
 		name := work.GetName()
@@ -74,12 +88,22 @@ func (c *ApplyDesireController) legacyOwnerBlock(ctx context.Context, hostedClus
 
 	addons, err := listAll(ctx, c.dyn.Resource(managedClusterAddonsGVR).Namespace(clusterID))
 	if err != nil {
-		return "", fmt.Errorf("list ManagedClusterAddons in %s: %w", clusterID, err)
+		if !ocmAPITypeAbsent(err) {
+			return "", fmt.Errorf("list ManagedClusterAddons in %s: %w", clusterID, err)
+		}
+		addons = nil
 	}
 	if len(addons) > 0 {
 		return fmt.Sprintf("ManagedClusterAddon %s/%s still exists", clusterID, addons[0].GetName()), nil
 	}
 	return "", nil
+}
+
+// ocmAPITypeAbsent reports whether err means this cluster does not serve the
+// OCM API type at all, as opposed to a transient failure to read it. Only the
+// former is evidence that no legacy owner object exists.
+func ocmAPITypeAbsent(err error) bool {
+	return apierrors.IsNotFound(err) || meta.IsNoMatchError(err)
 }
 
 func manifestWorkMentionsNamespace(work *unstructured.Unstructured, hostedClusterNamespace, controlPlaneNamespace string) bool {
