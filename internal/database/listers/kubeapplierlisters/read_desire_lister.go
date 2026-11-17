@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
+//go:generate $MOCKGEN -typed -source=read_desire_lister.go -destination=mock_read_desire_lister.go -package kubeapplierlisters ReadDesireLister
+
 // ReadDesireLister lists and gets ReadDesires from an informer's indexer.
 type ReadDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplierapi.ReadDesire, error)
