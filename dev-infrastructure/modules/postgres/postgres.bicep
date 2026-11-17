@@ -85,7 +85,7 @@ param vnetId string = ''
 @description('The administrator login password. Nullable to avoid sending an empty string on updates, which triggers an FSPG RP bug in some regions (AROSLSRE-636).')
 param administratorLoginPassword string?
 
-resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
+resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2026-10-01' = {
   name: name
   location: resourceGroup().location
   sku: {
@@ -123,7 +123,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   }
 }
 
-resource postgres_allow_public_access 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = if (!private) {
+resource postgres_allow_public_access 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2026-10-01' = if (!private) {
   name: 'AllowPublicAccess'
   parent: postgres
   properties: {
@@ -132,7 +132,7 @@ resource postgres_allow_public_access 'Microsoft.DBforPostgreSQL/flexibleServers
   }
 }
 
-resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = {
+resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2026-10-01' = {
   name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
   parent: postgres
   properties: {
@@ -143,7 +143,7 @@ resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServer
 }
 
 @batchSize(1)
-resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2023-12-01-preview' = [
+resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2026-10-01' = [
   for admin in filter(databaseAdministrators, a => a.principalId != ''): {
     name: admin.principalId
     parent: postgres
@@ -157,7 +157,7 @@ resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrator
 ]
 
 @batchSize(1)
-resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-12-01-preview' = [
+resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2026-10-01' = [
   for config in configurations: {
     name: config.source
     parent: postgres
@@ -169,7 +169,7 @@ resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configuratio
   }
 ]
 
-resource postgres_min_tls 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-12-01-preview' = {
+resource postgres_min_tls 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2026-10-01' = {
   name: 'ssl_min_protocol_version'
   parent: postgres
   properties: {
@@ -180,7 +180,7 @@ resource postgres_min_tls 'Microsoft.DBforPostgreSQL/flexibleServers/configurati
 }
 
 @batchSize(1)
-resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-01-preview' = [
+resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2026-10-01' = [
   for database in databases: {
     name: database.name
     parent: postgres
