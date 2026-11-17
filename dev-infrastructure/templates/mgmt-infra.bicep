@@ -192,7 +192,10 @@ module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: mgmtKeyVaultName
       roleName: role
-      managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
+      // Certificate cleanup runs as the pipeline managed identity.
+      managedIdentityPrincipalIds: role == 'Key Vault Certificates Officer'
+        ? union([kvCertOfficerPrincipalId], [reference(globalMSIId, '2023-01-31').principalId])
+        : [kvCertOfficerPrincipalId]
     }
     dependsOn: [
       mgmtKeyVault
