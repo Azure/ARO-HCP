@@ -12,12 +12,12 @@ tests:
     values: "1+0x30"
   promql_expr_test:
   - eval_time: 20m
-    expr: hostedClusterAPI_kubeapiserver_available:sli_sum_5m{name="test-cluster"}
+    expr: hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known{name="test-cluster"}
     exp_samples:
-    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
       value: 5
   - eval_time: 20m
-    expr: hostedClusterAPI_kubeapiserver_available:sli_count_5m{name="test-cluster"}
+    expr: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known{name="test-cluster"}
     exp_samples:
-    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
       value: 5

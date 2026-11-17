@@ -1,5 +1,9 @@
 rule_files:
+- UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml
 - HCPkasRecord-prometheusRule-KSM.yaml
+group_eval_order:
+- userjourney-kubeapiserver-availability-alert-exclusion-recording-rules
+- hcp-kms-recording-rules
 evaluation_interval: 1m
 tests:
 # Test 1: 100% Availability (Perfect Success)
@@ -160,3 +164,43 @@ tests:
   - expr: hostedClusterAPI_kubeapiserver_available:sli_count_15m{name="test-cluster-6"}
     eval_time: 10m
     exp_samples: []
+# Test 7: sample-level exclusion -- a brief KMS-caused blip inside the 6h window is removed
+# from both sli_sum_6h_excl_known and sli_count_6h_excl_known at exactly the excluded
+# instants, while the raw sli_sum_6h/sli_count_6h (charted on the kas_golden_signals
+# dashboard) are unaffected and keep counting those samples. This is the alternative to the
+# blanket per-cluster `unless` gate: only the specific excluded instants are discounted, so
+# a brand-new unrelated failure immediately after the blip clears is not blinded (see
+# UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM_test.yaml for the
+# alert-level proof of that).
+- interval: 5m
+  name: "Test 7: sample-level KMS exclusion inside the 6h window"
+  input_series:
+  # Perfectly available for 500m (101 samples at 5m interval)
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+    values: "1+0x100"
+  # KMS invalid for exactly two samples (t=100m, t=105m), valid everywhere else
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+    values: "0+0x19 1 1 0+0x78"
+  promql_expr_test:
+  # Raw sum/count (dashboard-facing) see every in-gate sample, including the KMS blip
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_6h{name="test-cluster-7"}
+    eval_time: 300m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_sum_6h", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+      value: 58
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_count_6h{name="test-cluster-7"}
+    eval_time: 300m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_count_6h", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+      value: 58
+  # Alerting-only sum/count drop exactly the 2 KMS-excluded samples from both numerator and denominator
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known{name="test-cluster-7"}
+    eval_time: 300m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+      value: 56
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known{name="test-cluster-7"}
+    eval_time: 300m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known", name="test-cluster-7", namespace="clusters", _id="sli-excl", cluster="mgmt-cluster", resource_id="test-resource-7"}'
+      value: 56

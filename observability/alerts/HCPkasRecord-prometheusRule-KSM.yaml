@@ -115,6 +115,10 @@ spec:
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    # sli_sum_6h/sli_count_6h are also charted raw (unexcluded) on the kas_golden_signals
+    # dashboard, which needs true availability regardless of cause -- so exclusion is NOT
+    # applied here. The 6h30m and 3d6h burn-rate alerts instead consume the
+    # _excl_known variants below, which are identical except for the exclusion filter.
     - record: hostedClusterAPI_kubeapiserver_available:sli_sum_6h
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
@@ -141,7 +145,13 @@ spec:
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_3d
+    # Alerting-only 6h window: same shape as sli_sum_6h/sli_count_6h, with
+    # `unless on (...) hostedClusterAPI_alert_excluded:any == 1` dropping a known-
+    # inactionable instant from both sum and count at exactly that timestamp (sample-level,
+    # self-expiring, no blind spot for a new unrelated failure a step later). Consumed only
+    # by the userJourneyKubeApiserverAvailability6h30m and 3d6h burn-rate alerts -- the
+    # dashboard keeps using the raw sli_sum_6h/sli_count_6h above.
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           sum_over_time(
@@ -149,12 +159,14 @@ spec:
               hostedClusterAPI_kubeapiserver_available{status="True"}
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
-            )[3d:30m]
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
+            )[6h:5m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_count_3d
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           count_over_time(
@@ -162,6 +174,40 @@ spec:
               max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
+            )[6h:5m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    # Alert-only -- no dashboard consumer -- so exclusion applies directly here, with the
+    # same _excl_known naming as sli_sum_6h_excl_known above for consistency.
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          sum_over_time(
+            (
+              hostedClusterAPI_kubeapiserver_available{status="True"}
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
+            )[3d:30m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          count_over_time(
+            (
+              max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[3d:30m]
           )
         )
