@@ -274,11 +274,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 // to 0 so callers leave them unscaled rather than dividing by zero.
 func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxLookup, error) {
 	fixed := map[string]string{
-		"Resources":      "frontend.cosmosDB.resourceContainerMaxScale",
-		"AzureResources": "frontend.cosmosDB.azureResourcesContainerMaxScale",
-		"Billing":        "frontend.cosmosDB.billingContainerMaxScale",
-		"Fleet":          "frontend.cosmosDB.fleetContainerMaxScale",
-		"Locks":          "frontend.cosmosDB.locksContainerMaxScale",
+		"Resources": "frontend.cosmosDB.resourceContainerMaxScale",
+		"Billing":   "frontend.cosmosDB.billingContainerMaxScale",
+		"Fleet":     "frontend.cosmosDB.fleetContainerMaxScale",
+		"Locks":     "frontend.cosmosDB.locksContainerMaxScale",
 	}
 	byContainer := make(map[string]float64, len(fixed))
 	var configErrors []error

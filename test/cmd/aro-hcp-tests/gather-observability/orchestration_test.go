@@ -220,7 +220,7 @@ func TestCompleteRetainsIndependentSetupResults(t *testing.T) {
 				"regionRG":   "region",
 				"monitoring": map[string]any{"svcWorkspaceName": "svc", "hcpWorkspaceName": "hcp"},
 				"frontend": map[string]any{"cosmosDB": map[string]any{
-					"name": "cosmos", "resourceContainerMaxScale": 1000, "azureResourcesContainerMaxScale": 4000,
+					"name": "cosmos", "resourceContainerMaxScale": 1000,
 					"billingContainerMaxScale": 2000, "fleetContainerMaxScale": 3000, "locksContainerMaxScale": 4000,
 				}},
 				"kubeApplier": map[string]any{"cosmosContainerMaxScale": 5000},
