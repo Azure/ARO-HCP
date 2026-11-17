@@ -36,89 +36,52 @@ import (
 // Cluster-creation start pacing. Opt-in: off unless
 // ClusterCreatePacingEnvvar is set to a "<max>/<window>" sizing.
 //
-// e2e-parallel specs start synchronized, and each reaches its ARM-heavy phase
-// (node VMs, guest CCM load-balancer ensure) roughly ten minutes later. Enough
-// clusters bringing up at once saturate the subscription-level ARM read quota,
-// and the guest CCM cannot ensure the router-default load balancer until the
-// storm relents (ARO-29937: 20m03s from Service creation to "Ensured load
-// balancer" under throttling, and still unbound 22m23s in a heavier run).
+// It spaces out cluster-creation starts across a run's spec subprocesses so
+// their ARM-heavy phases do not arrive as one wave that saturates
+// subscription-level ARM quotas (the ARO-29937 failure mode). It only helps
+// when the creation burst itself saturates the quota; where throttling tracks
+// steady-state load instead, spreading starts moves load around without
+// removing it.
 //
-// The pacer spreads that wave: before a creation starts it records a timestamp
-// in a state file shared by all spec subprocesses — the file-plus-flock pattern
-// of the managed identities pool — and waits until fewer than max starts were
-// recorded within the trailing window. Nothing is held for a cluster's
-// lifetime, so a crashed spec strands nothing. Once the window has filled, a
-// persisted next-admission timestamp also spaces starts at least window/max
-// apart, so freed capacity refills one start at a time instead of as another
-// batch.
-//
-// Whether spreading the wave helps depends on where the load comes from. It
-// targets the case where the creation burst itself saturates the budget; where
-// throttling instead tracks steady-state subscription load — other clients, or
-// long-lived clusters being reconciled — pacing starts moves load around
-// without removing it. Measure before enabling it for a suite.
-//
-// The pacer fails open — pacing is best-effort storm mitigation, never a
-// correctness gate: unreadable state, an unavailable lock, or a wait exceeding
-// maxClusterCreatePacingWait proceeds unpaced. Only context cancellation while
-// waiting aborts the creation.
+// The pacer fails open: unreadable state, an unavailable lock, or a wait
+// exceeding maxClusterCreatePacingWait proceeds unpaced. Only context
+// cancellation while waiting aborts the creation.
 
 const (
 	// ClusterCreatePacingEnvvar opts a run in to cluster-creation start
 	// pacing: "<max>/<window>", e.g. "12/6m" allows at most 12 starts within
 	// any trailing 6-minute window, shared by every spec subprocess through
-	// ARTIFACT_DIR. "0", "off" or "disabled" turns pacing off explicitly.
-	//
-	// Pacing is OFF unless this variable is set. It is a targeted mitigation
-	// for a specific failure mode (ARO-29937: a synchronized creation wave
-	// saturating subscription-level ARM quotas), not a property every suite
-	// wants: it can add up to maxClusterCreatePacingWait per creation, and at
-	// high concurrency the suite makespan is the critical path, so the delay
-	// lands on the tail. Observed ARM throttling has also been seen to track
-	// steady-state subscription load rather than the creation wave, in which
-	// case spreading starts moves load around without removing it. A suite
-	// that wants pacing asks for it.
+	// ARTIFACT_DIR. "0", "off" or "disabled" turns pacing off.
 	ClusterCreatePacingEnvvar = "ARO_HCP_E2E_CLUSTER_CREATE_PACING"
 
-	// RecommendedClusterCreatePacing is the sizing to use when a suite opts in
-	// and has no measurement of its own: an initial burst of 12 starts, then
-	// one per window/max = 30s once that burst ages out. Sized against
-	// e2e-parallel's 58-container CI leases, so the wave spreads over ~30
-	// minutes and runs with fewer than 12 concurrent creations are not delayed
-	// at all. It is a documented value for callers to pass in, never a
-	// fallback applied on their behalf.
+	// RecommendedClusterCreatePacing is the sizing for a suite that opts in
+	// without measuring its own: an initial burst of 12 starts, then one per
+	// 30s. It is a value for callers to pass in, never a fallback.
 	RecommendedClusterCreatePacing = "12/6m"
 
-	// clusterCreatePacingStateFile lives in ARTIFACT_DIR, next to the managed
-	// identities pool state, so every spec subprocess of a run shares it;
-	// without ARTIFACT_DIR there is no shared state and pacing stays off.
+	// clusterCreatePacingStateFile is shared by every spec subprocess of a run
+	// through ARTIFACT_DIR; without ARTIFACT_DIR pacing stays off.
 	clusterCreatePacingStateFile = "cluster-create-pacing-state.yaml"
 
-	// clusterCreatePacingLockFile guards clusterCreatePacingStateFile and sits
-	// beside it in ARTIFACT_DIR, so the lock's scope matches the state's: a
-	// second run on the same host with a different ARTIFACT_DIR gets its own
-	// state and lock rather than contending on — or being stalled by — the
-	// first run's.
+	// clusterCreatePacingLockFile guards the state file and sits beside it, so
+	// the lock is scoped per run like the state is.
 	clusterCreatePacingLockFile = "cluster-create-pacing.lock"
 
-	// maxClusterCreatePacingWait bounds a single creation's total wait for
-	// window capacity — a safety valve so a saturated or pathological state
-	// file cannot stall a spec past its budget; at the bound it proceeds
-	// unpaced.
+	// maxClusterCreatePacingWait bounds one creation's total wait for window
+	// capacity; at the bound it proceeds unpaced.
 	maxClusterCreatePacingWait = 30 * time.Minute
 
 	// clusterCreatePacingPollInterval caps how often a waiting creation
 	// re-checks the window.
 	clusterCreatePacingPollInterval = 15 * time.Second
 
-	// clusterCreatePacingLockRetryInterval is the retry cadence while waiting
-	// for a contended pacer lock; both lock acquisitions are non-blocking.
+	// clusterCreatePacingLockRetryInterval is the retry cadence while a pacer
+	// lock is contended.
 	clusterCreatePacingLockRetryInterval = 250 * time.Millisecond
 )
 
 // errPacingLockUnavailable reports that an admission did not complete within
-// the pacing deadline — the state lock not becoming available, or the deadline
-// crossing while the locks were being acquired; pace fails open on it.
+// the pacing deadline; pace fails open on it.
 var errPacingLockUnavailable = errors.New("cluster-creation pacing lock not acquired within the pacing wait bound")
 
 // clusterCreatePacing is a sliding-window limit on cluster-creation starts.
@@ -131,10 +94,8 @@ func (p clusterCreatePacing) enabled() bool {
 	return p.max > 0 && p.window > 0
 }
 
-// parseClusterCreatePacing parses "<max>/<window>" (e.g. "12/6m"). An empty
-// or unset value disables pacing — it is opt-in, so no sizing is ever applied
-// on a caller's behalf. "0", "off" and "disabled" (case-insensitive) disable
-// it explicitly and are equivalent to leaving it unset.
+// parseClusterCreatePacing parses "<max>/<window>" (e.g. "12/6m"). Empty,
+// "0", "off" and "disabled" all disable pacing: it is opt-in.
 func parseClusterCreatePacing(value string) (clusterCreatePacing, error) {
 	value = strings.TrimSpace(value)
 	if value == "" || strings.EqualFold(value, "off") || strings.EqualFold(value, "disabled") || value == "0" {
@@ -155,15 +116,13 @@ func parseClusterCreatePacing(value string) (clusterCreatePacing, error) {
 	return clusterCreatePacing{max: max, window: duration}, nil
 }
 
-// clusterCreatePacingState is the on-disk sliding window plus refill
-// smoothing: RFC3339Nano timestamps of recent starts and the earliest
-// admissible time for the next start once the window has filled. It is only
-// read and written while holding the flock, mirroring leasedIdentityPoolState.
+// clusterCreatePacingState is the on-disk sliding window, plus the smoothing
+// gate described on NextAdmission.
 type clusterCreatePacingState struct {
 	Starts []string `yaml:"starts,omitempty"`
-	// NextAdmission spaces starts once the window has filled: no new start is
-	// admissible before this timestamp, so freed capacity refills one start
-	// per window/max instead of as a batch. Empty until the window first fills.
+	// NextAdmission is the earliest admissible start once the window has
+	// filled. Without it, capacity freed as the burst ages out would be
+	// refilled as another batch instead of one start at a time.
 	NextAdmission string `yaml:"nextAdmission,omitempty"`
 }
 
@@ -178,46 +137,32 @@ type clusterCreatePacer struct {
 	sleep     func(ctx context.Context, d time.Duration) error
 }
 
-// clusterCreatePacingMu serializes pacer state access within one process,
-// mirroring the in-process half of leasedIdentityPoolState's locking. It is
-// acquired non-blockingly (try-lock with bounded retries) inside lockState, so
-// a wedged goroutine holding it cannot stall the process forever.
+// clusterCreatePacingMu serializes pacer state access within one process. It is
+// only ever try-locked (see lockState), so a wedged holder cannot stall the
+// process.
 var clusterCreatePacingMu sync.Mutex
 
 // pacedClusterCreates memoizes admissions per cluster so the FromParam →
-// AndWait hook chain paces each cluster exactly once per process; each spec
-// subprocess is its own process, so cross-process coordination still happens
-// through the state file. The value is a clusterCreatePaceCall: concurrent
-// paces of the same cluster wait for the in-flight admission, and a failed
-// admission is dropped for the retry to re-pace.
-//
-// Entries are never expired or invalidated, so the memo assumes at most one
-// creation per (resource group, cluster name) per process: a spec that deleted
-// a cluster and recreated it under the same names would find the second start
-// already memoized and begin it unpaced. No current spec deletes and recreates
-// under the same key; a future one needs distinct names or an invalidation
-// hook here.
+// AndWait hook chain paces each cluster once per process. Entries are never
+// expired: a spec that deleted and recreated a cluster under the same names
+// would begin the second creation unpaced.
 var pacedClusterCreates sync.Map
 
-// clusterCreatePacingKey identifies a cluster for the in-process memo: the
-// subscription is fixed per spec subprocess, so resource group and name
-// suffice. Keying by name alone would let a same-named cluster in another
-// resource group piggyback on another's admission.
+// clusterCreatePacingKey keys the memo by resource group and name; the
+// subscription is fixed per spec subprocess.
 func clusterCreatePacingKey(resourceGroupName, clusterName string) string {
 	return resourceGroupName + "/" + clusterName
 }
 
-// clusterCreatePaceCall is one admission through the memo: done closes when
-// the admission finishes, and err carries its result to every waiter.
+// clusterCreatePaceCall is one admission through the memo.
 type clusterCreatePaceCall struct {
 	done chan struct{}
 	err  error
 }
 
 // paceClusterCreateOnce runs admit for key at most once at a time: concurrent
-// callers with the same key wait for the in-flight result, a completed success
-// memoizes (later calls are no-ops), and a failed admission is removed so a
-// retry — e.g. after a cancellation — paces again.
+// callers wait for the in-flight result, a success memoizes, and a failed
+// admission is removed so a retry paces again.
 func paceClusterCreateOnce(ctx context.Context, key string, admit func(context.Context) error) error {
 	call := &clusterCreatePaceCall{done: make(chan struct{})}
 	if existing, alreadyPaced := pacedClusterCreates.LoadOrStore(key, call); alreadyPaced {
@@ -239,21 +184,16 @@ func paceClusterCreateOnce(ctx context.Context, key string, admit func(context.C
 	}
 	call.err = admit(ctx)
 	if call.err != nil {
-		// A failed admission must not memoize: drop it so the next pace for
-		// this key re-runs. CompareAndDelete leaves any newer call alone.
-		// Remove before closing done so a retry that observed the failure
-		// re-paces instead of re-storing this entry.
+		// Drop a failed admission so the next pace for this key re-runs; do it
+		// before closing done so a retry cannot re-store this entry.
 		pacedClusterCreates.CompareAndDelete(key, call)
 	}
 	close(call.done)
 	return call.err
 }
 
-// newClusterCreatePacer builds a pacer scoped to this run: the state file and
-// the lock that guards it both live in ARTIFACT_DIR, so two runs on one host
-// with different ARTIFACT_DIRs neither share state nor contend on each other's
-// lock. Callers only reach this with a non-empty ARTIFACT_DIR —
-// paceHCPClusterCreateStart checks it first.
+// newClusterCreatePacer builds a pacer scoped to this run. Callers only reach
+// it with a non-empty ARTIFACT_DIR — paceHCPClusterCreateStart checks first.
 func newClusterCreatePacer(cfg clusterCreatePacing) *clusterCreatePacer {
 	return &clusterCreatePacer{
 		cfg:       cfg,
@@ -264,11 +204,9 @@ func newClusterCreatePacer(cfg clusterCreatePacing) *clusterCreatePacer {
 	}
 }
 
-// paceHCPClusterCreateStart waits until starting a new HCP cluster creation is
-// admissible under the shared sliding-window limiter, then records the start.
-// It must be called before a per-call creation timeout is armed (in both the
-// CreateHCPClusterFromParam wrappers and the CreateHCPClusterAndWait functions
-// they call), so the wait consumes the spec's budget, not
+// paceHCPClusterCreateStart waits until a new HCP cluster creation is
+// admissible, then records the start. It must run before a per-call creation
+// timeout is armed, so the wait consumes the spec's budget rather than
 // ClusterCreationTimeout.
 func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resourceGroupName, clusterName string) error {
 	cfg, err := parseClusterCreatePacing(os.Getenv(ClusterCreatePacingEnvvar))
@@ -283,8 +221,7 @@ func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resource
 	if !cfg.enabled() {
 		return nil
 	}
-	// Pacing coordinates spec subprocesses through ARTIFACT_DIR; without it
-	// there is nothing to coordinate through, so pacing stays off.
+	// Without ARTIFACT_DIR there is no shared state to coordinate through.
 	if artifactDir() == "" {
 		return nil
 	}
@@ -294,29 +231,24 @@ func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resource
 	})
 }
 
-// PaceHCPClusterCreateStart is the exported pacing entry point for callers
-// that begin a creation through the asynchronous BeginCreateHCPCluster...
-// helpers while arming a provisioning timeout of their own: call it on the
-// context *before* the timeout is armed, so the pacing wait consumes the
-// spec's budget; the later pace inside the helper becomes a memoized no-op.
+// PaceHCPClusterCreateStart is for callers that begin a creation through the
+// asynchronous BeginCreateHCPCluster... helpers and arm their own provisioning
+// timeout: call it before arming that timeout; the later pace inside the
+// helper is then a memoized no-op.
 func PaceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resourceGroupName, clusterName string) error {
 	return paceHCPClusterCreateStart(ctx, logger, resourceGroupName, clusterName)
 }
 
 // pace blocks until a new cluster-creation start fits in the sliding window.
-// It fails open on state-file errors and once the total wait would exceed
-// maxClusterCreatePacingWait; the bound is checked before each admission
-// attempt (so a start is never recorded past it) and caps every poll sleep.
-// Only context cancellation arriving while the wait is inside its budget can
-// abort the creation.
+// It fails open on state-file errors and once the wait would exceed
+// maxClusterCreatePacingWait; only context cancellation aborts the creation.
 func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clusterName string) error {
 	start := p.now()
 	deadline := start.Add(maxClusterCreatePacingWait)
 	waited := false
 	for {
-		// Check the deadline before attempting an admission, never only
-		// after: tryRecordStart returning success (retryAfter == 0) must not
-		// bypass the fail-open bound.
+		// Checked before the admission attempt: a success must not bypass the
+		// fail-open bound.
 		if p.now().After(deadline) {
 			logger.Info("WARN: cluster-creation pacing wait exceeded, proceeding unpaced",
 				"clusterName", clusterName,
@@ -349,16 +281,14 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 			return nil
 		}
 		waited = true
-		// Cap the sleep by the remaining budget as well as the poll interval:
-		// an uncapped sleep can cross the deadline, where a caller
-		// cancellation aborts a creation that should proceed unpaced.
+		// Cap the sleep by the remaining budget: crossing the deadline would
+		// let a cancellation abort a creation that should proceed unpaced.
 		if remaining := deadline.Sub(p.now()); remaining > 0 {
 			if err := p.sleep(ctx, min(retryAfter, clusterCreatePacingPollInterval, remaining)); err != nil {
 				return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
 			}
 		} else {
-			// No budget left: fail open here rather than retrying an
-			// admission at the deadline.
+			// No budget left: fail open rather than retry at the deadline.
 			logger.Info("WARN: cluster-creation pacing wait exceeded, proceeding unpaced",
 				"clusterName", clusterName,
 				"maxWait", maxClusterCreatePacingWait.String(),
@@ -369,14 +299,10 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 	}
 }
 
-// lockState acquires the pacer locks — first the in-process mutex, then the
-// cross-process flock — without ever blocking indefinitely: both acquisitions
-// are non-blocking, retried on clusterCreatePacingLockRetryInterval with the
-// retry sleep capped by the remaining budget, so a stalled lock holder can
-// neither stall a creation past the pacing deadline nor swallow its
-// cancellation. It returns a release callback when both locks are held;
-// ctx.Err() when the context is cancelled first, and errPacingLockUnavailable
-// when the deadline passes first.
+// lockState takes the in-process mutex, then the cross-process flock, both
+// non-blockingly and with retries bounded by deadline, so a stalled holder
+// cannot outlast the pacing deadline or swallow cancellation. It returns a
+// release callback, ctx.Err() on cancellation, or errPacingLockUnavailable.
 func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) (func(), error) {
 	lockFile, err := os.OpenFile(p.lockPath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
@@ -408,17 +334,14 @@ func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) 
 				_ = lockFile.Close()
 				return nil, fmt.Errorf("failed to acquire cluster-creation pacing lock: %w", lockErr)
 			} else {
-				// Contended file lock: give the in-process mutex back while
-				// waiting, so other pacer calls in this process are not
-				// starved by cross-process contention.
+				// Give the mutex back while waiting on the file lock, so
+				// cross-process contention does not starve this process.
 				clusterCreatePacingMu.Unlock()
 			}
 		}
 
-		// Cap the retry sleep by the remaining budget so it cannot cross the
-		// deadline, where a caller cancellation would abort a creation that
-		// should proceed unpaced; with no budget left, fail open like the
-		// deadline check above.
+		// Cap the retry sleep by the remaining budget; with no budget left,
+		// fail open like the deadline check above.
 		if remaining := deadline.Sub(p.now()); remaining > 0 {
 			if err := p.sleep(ctx, min(clusterCreatePacingLockRetryInterval, remaining)); err != nil {
 				_ = lockFile.Close()
@@ -431,13 +354,9 @@ func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) 
 	}
 }
 
-// tryRecordStart records a start timestamp if the trailing window has
-// capacity and the refill-smoothing gate has passed. It returns the duration
-// after which the caller should retry (zero when the start was recorded). A
-// cancelled context aborts; any other error — state-file trouble, the lock
-// not becoming free within the pacing deadline, or the deadline crossing
-// while the locks are acquired — means fail-open, which pace treats as
-// proceeding unpaced.
+// tryRecordStart records a start timestamp if the window has capacity,
+// returning how long to wait before retrying (zero when recorded). An error
+// means fail open, unless the context was cancelled.
 func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.Time) (time.Duration, error) {
 	release, err := p.lockState(ctx, deadline)
 	if err != nil {
@@ -445,10 +364,9 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 	}
 	defer release()
 
-	// The deadline is rechecked on this read — the one an admission would be
-	// recorded with — because lockState last checked it before acquiring the
-	// locks and the acquisition can straddle the bound: capacity that ages out
-	// during it must not be admitted and persisted past the bound.
+	// Recheck the deadline on the read an admission is recorded with: the lock
+	// acquisition can straddle the bound, and capacity that ages out during it
+	// must not be persisted past the bound.
 	now := p.now()
 	if now.After(deadline) {
 		return 0, errPacingLockUnavailable
@@ -459,11 +377,8 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 		return 0, err
 	}
 
-	// The refill-smoothing gate: once armed (the window has filled once), no
-	// start is admissible before NextAdmission. A malformed value disarms
-	// smoothing for this attempt and is dropped rather than carried forward,
-	// so the gate re-arms predictably once the window next fills; the
-	// trailing-window cap below still holds.
+	// A malformed gate value is dropped rather than carried forward, so it
+	// re-arms predictably when the window next fills; the cap below still holds.
 	nextAdmission := time.Time{}
 	if state.NextAdmission != "" {
 		if t, err := time.Parse(time.RFC3339, state.NextAdmission); err == nil {
@@ -486,15 +401,11 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 	}
 
 	if len(recent) < p.cfg.max && (nextAdmission.IsZero() || !now.Before(nextAdmission)) {
-		// RFC3339Nano keeps sub-second precision: a truncated timestamp would
-		// let a start recorded in the same second as "now" appear already aged
-		// out of a sub-second window. Parsing accepts fractional seconds, so
-		// prior RFC3339 records stay readable.
+		// RFC3339Nano: a second-truncated timestamp would look aged out of a
+		// sub-second window the instant it was written.
 		recent = append(recent, now.UTC().Format(time.RFC3339Nano))
-		// Arm (or advance) the smoothing gate once the window has filled: the
-		// initial burst itself stays unpaced, but everything after it is
-		// spaced at least window/max apart, so freed capacity refills one
-		// start at a time.
+		// Arm (or advance) the smoothing gate once the window has filled; the
+		// initial burst stays unpaced, everything after it is spaced.
 		next := state.NextAdmission
 		if !nextAdmission.IsZero() || len(recent) >= p.cfg.max {
 			next = now.Add(p.cfg.window / time.Duration(p.cfg.max)).UTC().Format(time.RFC3339Nano)
@@ -505,9 +416,8 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 		return 0, nil
 	}
 
-	// Not admissible yet: retry once the oldest recorded start ages out and,
-	// once armed, the smoothing gate has passed. While the window is full
-	// every recorded start is inside it, so the aging wait is positive.
+	// Not admissible yet: retry once the oldest start ages out and, once
+	// armed, the smoothing gate has passed.
 	retryAfter := time.Duration(0)
 	if len(recent) >= p.cfg.max {
 		oldest, err := time.Parse(time.RFC3339, recent[0])
