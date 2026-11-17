@@ -178,3 +178,15 @@ func TestPostgresUsesSelectedIdentityResourceGroup(t *testing.T) {
 		}
 	}
 }
+
+func TestServicePipelineDoesNotProvisionMaestro(t *testing.T) {
+	data, err := os.ReadFile("svc-pipeline.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []string{"maestro-server-cert", "maestro-postgres-access"} {
+		if strings.Contains(string(data), step) {
+			t.Errorf("service pipeline must not reference retired Maestro step %q", step)
+		}
+	}
+}
