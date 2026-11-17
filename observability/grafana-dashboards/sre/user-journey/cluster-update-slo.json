@@ -511,7 +511,7 @@
       "id": 11,
       "options": {
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "subscription_id" }]
+        "sortBy": [{ "desc": true, "displayName": "Subscription" }]
       },
       "pluginVersion": "11.6.9",
       "targets": [
@@ -527,7 +527,6 @@
       ],
       "title": "Clusters with Failed Latest Update — Detail",
       "transformations": [
-        { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} },
         {
           "id": "organize",
