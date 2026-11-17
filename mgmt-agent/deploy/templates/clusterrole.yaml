@@ -72,6 +72,17 @@ rules:
   - list
   - watch
   - create
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - update
   - patch
 - apiGroups:
   - ""
@@ -153,8 +164,11 @@ rules:
   resources:
   - namespaces
   verbs:
+  - get
   - list
   - watch
+  - update
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -162,7 +176,6 @@ rules:
   resourceNames:
   - multicluster-engine
   verbs:
-  - get
   - delete
 - apiGroups:
   - cluster.open-cluster-management.io
@@ -191,6 +204,58 @@ rules:
   - list
   - watch
   - delete
+  - update
+  - patch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedclusters
+  - nodepools
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - secret-sync.x-k8s.io
+  resources:
+  - secretsyncs
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - secrets-store.csi.x-k8s.io
+  resources:
+  - secretproviderclasses
+  verbs:
+  - get
+  - list
+  - watch
   - update
   - patch
 - apiGroups:
