@@ -34,33 +34,29 @@ import (
 )
 
 const (
-	ingressNamespace  = "openshift-ingress"
-	networkPolicyName = "block-ingress-traffic"
+	canaryNamespace   = "openshift-ingress-canary"
+	networkPolicyName = "block-canary-traffic"
 )
 
 func createIngressBlockingNetworkPolicy(ctx context.Context, kubeClient kubernetes.Interface) {
 	networkPolicy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkPolicyName,
-			Namespace: ingressNamespace,
+			Namespace: canaryNamespace,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"ingresscontroller.operator.openshift.io/deployment-ingresscontroller": "default",
-				},
-			},
+			PodSelector: metav1.LabelSelector{},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
 			},
 		},
 	}
-	_, err := kubeClient.NetworkingV1().NetworkPolicies(ingressNamespace).Create(ctx, networkPolicy, metav1.CreateOptions{})
-	Expect(err).NotTo(HaveOccurred(), "failed to create NetworkPolicy %s in namespace %s", networkPolicyName, ingressNamespace)
+	_, err := kubeClient.NetworkingV1().NetworkPolicies(canaryNamespace).Create(ctx, networkPolicy, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred(), "failed to create NetworkPolicy %s in namespace %s", networkPolicyName, canaryNamespace)
 }
 
 func deleteIngressBlockingNetworkPolicy(ctx context.Context, kubeClient kubernetes.Interface) {
-	err := kubeClient.NetworkingV1().NetworkPolicies(ingressNamespace).Delete(ctx, networkPolicyName, metav1.DeleteOptions{})
+	err := kubeClient.NetworkingV1().NetworkPolicies(canaryNamespace).Delete(ctx, networkPolicyName, metav1.DeleteOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to delete NetworkPolicy %s", networkPolicyName)
 }
 
