@@ -38,7 +38,9 @@ and after the upgrade. The test checks:
 1. Only the pre-upgrade alert fires before upgrade, and no HCPUpgradeNewAlert fires
    for the HCP.
 2. After completion, all three actual alerts fire, and HCPUpgradeNewAlert fires for
-   the during-upgrade and post-upgrade alerts but not the pre-upgrade alert.
+   the during-upgrade and post-upgrade alerts but not the pre-upgrade alert. The
+   post-upgrade alert has no `resource_id` and fires in the control-plane namespace,
+   so its HCPUpgradeNewAlert proves ownership through the Namespace annotation.
 3. HCPUpgradeNewAlert carries the management cluster of its triggering alert, and
    HCPUpgradeVersionNewAlerts fires for the region, that cluster and the exact version
    reported by HCPUpgradeNewAlert. It is not tied to the test HCP: another HCP upgraded
@@ -72,7 +74,10 @@ instances stay Fired in Azure after cleanup.
 ## Validation limits
 
 Historical AMW checks covered eight upgrades and verified timestamp filtering and
-`@ end()`. They establish query feasibility, not fleet-scale cost. Local tests and
+`@ end()`. They establish query feasibility, not fleet-scale cost. In a personal-dev
+workspace with two HCPs (547 `hcp:alerts` series over 72 hours), one HCPUpgradeNewAlert
+evaluation took 2–4 seconds. The rule evaluates every minute, so measure cost with
+fleet-sized data before production rollout. Local tests and
 historical queries do not replace a passing E2E of the deployed rules.
 
 AMA collection remains unverified. Before claiming support, check both history

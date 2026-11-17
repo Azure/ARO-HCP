@@ -31,7 +31,9 @@ preserve actual alert labels and values:
 They preserve existing HCP resource IDs or add ownership from the Namespace
 annotation. Namespace ownership must be immutable and namespaces fleet-unique.
 Signals carrying `hostedcontrolplane` are excluded as guest signals; source rules
-must retain that label. The detector excludes missing namespaces, missing ownership
+must retain that label. A guest alert whose source rule aggregates the label away is
+only misattributed when its namespace matches an annotated control-plane namespace
+(`ocm-<env>-…`) on the same management cluster. The detector excludes missing namespaces, missing ownership
 and `hcp_upgrade_new_alert="true"`.
 
 [KSM](../../../observability/prometheus/values-mgmt.yaml) exports the latest five

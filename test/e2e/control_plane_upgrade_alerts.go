@@ -110,7 +110,7 @@ var _ = Describe("Engineering", func() {
 			_, err = workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
 				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
 				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: false},
-				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "resource_id": resourceID}, Firing: false},
+				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "test_run": runID}, Firing: false},
 				{Name: upgradeAlertName, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID}, Firing: false},
 			}, observationTimeout, GinkgoLogr)
 			Expect(err).NotTo(HaveOccurred(), "expected only the pre-upgrade alert firing before upgrade")
@@ -158,8 +158,9 @@ var _ = Describe("Engineering", func() {
 			firing, err := workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
 				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
 				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: true},
-				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "test_run": runID}, Firing: true},
 				{Name: upgradeAlertName + " for " + duringUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": duringUpgradeAlert}, Firing: true},
+				// The post-upgrade input carries no resource_id, so this also proves the namespace-annotation ownership path.
 				{Name: upgradeAlertName + " for " + postUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": postUpgradeAlert}, Firing: true},
 				{Name: upgradeAlertName + " for " + preUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": preUpgradeAlert}, Firing: false},
 			}, postUpgradeTimeout, GinkgoLogr)
@@ -185,22 +186,32 @@ var _ = Describe("Engineering", func() {
 // upgradeAlertInputRules creates inputs for a fresh HCP followed by one upgrade.
 // Count distinct attempts, ignoring collector labels.
 // The during-upgrade alert remains active after completion; the post-upgrade alert requires both attempts completed.
+// The post-upgrade alert omits resource_id and fires in the control-plane namespace (HostedCluster
+// namespace + "-" + name), like real control-plane alerts that rely on the Namespace annotation for ownership.
 func upgradeAlertInputRules(workspaceID, resourceID, location, runID string) armresources.GenericResource {
 	started := fmt.Sprintf("count by (namespace, cluster) (group by (namespace, cluster, attempt_started_at) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q}))", resourceID)
 	completed := fmt.Sprintf("count by (namespace, cluster) (group by (namespace, cluster, attempt_started_at) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id=%q}))", resourceID)
-	inputs := []struct{ name, expression string }{
+	completedInControlPlaneNamespace := fmt.Sprintf(`count by (namespace, cluster) (group by (namespace, cluster, attempt_started_at) (label_join(hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id=%q}, "namespace", "-", "namespace", "name")))`, resourceID)
+	inputs := []struct {
+		name, expression string
+		withResourceID   bool
+	}{
 		// History supplies the actual HostedCluster namespace and management cluster as soon as it is collected.
-		{"TestAlertPreUpgrade", fmt.Sprintf("group by (namespace, cluster) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q})", resourceID)},
-		{"TestAlertPostUpgrade", completed + " >= 2"},
-		{"TestAlertDuringUpgrade", started + " >= 2 and (" + completed + " >= 1)"},
+		{"TestAlertPreUpgrade", fmt.Sprintf("group by (namespace, cluster) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q})", resourceID), true},
+		{"TestAlertPostUpgrade", completedInControlPlaneNamespace + " >= 2", false},
+		{"TestAlertDuringUpgrade", started + " >= 2 and (" + completed + " >= 1)", true},
 	}
 	rules := make([]map[string]any, 0, 3)
 	for _, input := range inputs {
+		labels := map[string]string{"region": location, "test_run": runID}
+		if input.withResourceID {
+			labels["resource_id"] = resourceID
+		}
 		rules = append(rules, map[string]any{
 			"alert":      input.name + "_" + runID,
 			"expression": input.expression,
 			"enabled":    true, "severity": 4, "for": "PT1M",
-			"labels":               map[string]string{"resource_id": resourceID, "region": location, "test_run": runID},
+			"labels":               labels,
 			"annotations":          map[string]string{"summary": "Synthetic upgrade HCPUpgradeNewAlert E2E input; no workload fault"},
 			"resolveConfiguration": map[string]any{"autoResolved": true, "timeToResolve": "PT1M"},
 		})
