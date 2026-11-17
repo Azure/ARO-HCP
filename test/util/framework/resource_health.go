@@ -27,8 +27,16 @@ import (
 
 // NewAvailabilityStatusesClient builds an Azure Resource Health client for
 // reading the availability status of an ARM resource.
-func NewAvailabilityStatusesClient(subscriptionID string, cred azcore.TokenCredential) (*armresourcehealth.AvailabilityStatusesClient, error) {
-	client, err := armresourcehealth.NewAvailabilityStatusesClient(subscriptionID, cred, nil)
+func (tc *perItOrDescribeTestContext) NewAvailabilityStatusesClient(ctx context.Context) (*armresourcehealth.AvailabilityStatusesClient, error) {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Azure credentials for resource health client: %w", err)
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription ID for resource health client: %w", err)
+	}
+	client, err := armresourcehealth.NewAvailabilityStatusesClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource health availability statuses client for subscription %s: %w", subscriptionID, err)
 	}
@@ -38,20 +46,46 @@ func NewAvailabilityStatusesClient(subscriptionID string, cred azcore.TokenCrede
 // GetAvailabilityStatus returns the current Azure Resource Health availability
 // status for an ARM resource — the same data the Resource Health blade shows.
 //
-// A 404 here almost always means the Microsoft.ResourceHealth provider is not
-// registered on the subscription rather than "the resource is not healthy yet",
-// so that case is called out explicitly: a caller polling for Available would
-// otherwise burn its whole timeout on a misconfiguration.
+// A 404 is reported with a hint but is NOT treated as fatal: Resource Health
+// legitimately returns one for a resource it has not observed yet, so a poller
+// should keep trying. Use IsPermanentConfigError to decide when to give up.
 func GetAvailabilityStatus(ctx context.Context, client *armresourcehealth.AvailabilityStatusesClient, resourceID string) (*armresourcehealth.AvailabilityStatus, error) {
 	resp, err := client.GetByResource(ctx, resourceID, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("resource health returned 404 for %s (is the Microsoft.ResourceHealth provider registered on this subscription?): %w", resourceID, err)
+			return nil, fmt.Errorf("resource health returned 404 for %s (expected until the resource is observed; if it persists, check that the Microsoft.ResourceHealth provider is registered on this subscription): %w", resourceID, err)
 		}
 		return nil, fmt.Errorf("failed to get resource health availability status for %s: %w", resourceID, err)
 	}
 	return &resp.AvailabilityStatus, nil
+}
+
+// permanentConfigErrorCodes are the ARM error codes that no amount of waiting
+// will clear, because they describe the subscription being misconfigured rather
+// than the resource not being ready.
+var permanentConfigErrorCodes = map[string]struct{}{
+	"MissingSubscriptionRegistration":        {},
+	"SubscriptionNotRegistered":              {},
+	"MissingRegistrationForResourceProvider": {},
+}
+
+// IsPermanentConfigError reports whether err describes a subscription
+// misconfiguration that will never resolve on its own, so a poller should stop
+// immediately instead of spending its whole budget re-issuing a request that
+// cannot succeed.
+//
+// Only explicit provider-registration error codes qualify. A bare 404 or 403 is
+// deliberately excluded: the former is expected while Resource Health has yet
+// to observe a new resource, and the latter can be RBAC propagation that clears
+// on its own.
+func IsPermanentConfigError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	_, permanent := permanentConfigErrorCodes[respErr.ErrorCode]
+	return permanent
 }
 
 // FormatAvailabilityStatus renders an availability status as a single compact
