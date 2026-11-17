@@ -61,6 +61,11 @@ func NewApplyDesireInformerWithRelistDuration(
 			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+			// Management-cluster-scoped desires carry the NamespaceDeletion
+			// cleanup operations. The lister already covers them; without this
+			// entry the change feed filters them out and kube-applier never
+			// observes the desire.
+			kubeapplierapi.ManagementClusterScopedApplyDesireResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,
