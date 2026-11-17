@@ -14,9 +14,8 @@
 
 // Command depctl runs the ARO-HCP dependency automation lifecycle locally.
 //
-// The commands are thin adapters over reusable workflow code. Only commands
-// whose guards exist are registered: no live publication, remote mutation or
-// scheduled execution path is reachable from this binary.
+// The commands are thin adapters over reusable workflow code. Maintenance writes
+// are limited to fixed hold-recovery comments after fresh trusted authorization.
 package main
 
 import (

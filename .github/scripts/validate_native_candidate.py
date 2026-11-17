@@ -122,7 +122,7 @@ def load_group(repo, inventory_file, group_id):
     observed = native.replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
     require(isinstance(observed, dict) and observed.get("repository") == repo
             and isinstance(observed.get("groups"), list), "inventory repository or groups are invalid")
-    native.maintenance.validate_target(repo, 1, observed.get("base_sha"))
+    native.validate_target(repo, 1, observed.get("base_sha"))
     require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
     require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
     matches = [group for group in observed["groups"] if group.get("group") == group_id]

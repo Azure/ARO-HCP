@@ -3,6 +3,7 @@
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
+export DEPCTL_BINARY=${DEPCTL_BINARY:-"$root/tooling/depctl/depctl"}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/gh" <<'EOF'

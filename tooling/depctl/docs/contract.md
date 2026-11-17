@@ -12,9 +12,9 @@ explicit targets, isolated candidate preparation with native generation,
 baseline and candidate consumer validation, proposal packaging, and read-only
 maintenance investigation.
 
-Publication, hold release, retest, compiler refresh and scheduling require an
-authorized execution integration. The engine refuses to publish without an
-injected writer, and no command constructs one.
+General proposal publication and scheduling require an authorized execution
+integration. Explicit maintenance commands can post only fixed recovery comments
+after revalidating ownership, scope and complete current-head evidence.
 
 ## Preserved policy
 
@@ -30,10 +30,10 @@ change and not an implementation detail.
 | tool family marker | `<!-- agentic-tool-family: … -->` | `tool-version-updates.md` |
 | security title and label | `fix(deps): ` / `agentic-dependabot` | `dependabot-remediation.md` |
 | native label and marker | `agentic-dependency-upgrade` / `<!-- native-dependabot-maintenance:` | `dependency-maintenance.md`, continuation workflow |
-| hold label | `do-not-merge/hold` | `agentic_pr_maintenance.py` |
-| retry-exhaustion hold | `/hold\n\nRevision <sha> was retested N times: holding` from `openshift-merge-bot[bot]` | `agentic_pr_maintenance.py` |
-| per-head recovery marker | `gh-aw-recompile:recovery:<sha>` | `agentic_pr_maintenance.py` |
-| required checks for hold release | `ci/pipeline-gate`, `ci/prow/e2e-parallel` | `agentic_pr_maintenance.py` |
+| hold label | `do-not-merge/hold` | `internal/policy/maintenance.go` |
+| retry-exhaustion hold | `/hold\n\nRevision <sha> was retested N times: holding` from `openshift-merge-bot[bot]` | `internal/policy/maintenance.go` |
+| per-head recovery marker | `gh-aw-recompile:recovery:<sha>` | `internal/policy/maintenance.go` |
+| required checks for hold release | `ci/pipeline-gate`, `ci/prow/e2e-parallel` | `internal/policy/maintenance.go` |
 | tool throughput | at most two eligible family attempts, one family prepared per run, one proposal per run, one open owned tool proposal on `main` | `tool-version-updates.md` |
 | security throughput | at most six groups, one proposal per manifest, 20 reconciles plus one repair, 24-hour retest cooldown | `dependabot-remediation.md`, `depctl dependabot guard` |
 | native throughput | one family and one lifecycle action per run | `dependency-maintenance.md` |
@@ -59,7 +59,7 @@ until that phase is reviewed.
 | D01 | Naming, module, configuration | `tooling/depctl`, workspace member, Cobra CLI, compiled policy defaults, no configuration file | interface freeze |
 | D02 | Tool ranking | explicit `--target` only; no oldest-pin ordering | automatic selection |
 | D03 | Publisher and head repository | not selected; publication requires an injected writer | live publication |
-| D04 | Authority matrix | local Git, public Prow and `gh api` reads only; no write authority registered | live read and write scopes |
+| D04 | Authority matrix | explicit guarded maintenance comments use workflow credentials; general publication still requires injected adapters | general publication |
 | D05 | Lifecycle owner | existing workflows remain the only producers | scheduling cutover |
 | D06 | Execution integration | local CLI only; adapters injected by the caller | hosted pilot |
 | D07 | Coordination | single-host journal lock, insufficient for multiple publishers | multiple live runners |
@@ -71,15 +71,15 @@ until that phase is reviewed.
 
 ## Deferred capabilities
 
-- Live publication, hold release, retest and compiler refresh are not registered;
-  D03 to D07 gate them.
+- General proposal publication and automated scheduling are not registered;
+  maintenance comment actions do not grant authority to publish or merge.
 - Shared coordination across hosts is not implemented; the journal lock is
   single-host only.
 - Resume and restart recovery after an interrupted phase are not implemented. An
   interrupted run reports `interrupted` and requires reconciliation against
   remote truth.
-- The security, native Dependabot, compiler and image profiles are preserved as
-  constants and decisions but not ported.
+- Native Dependabot candidate preparation and publication and image profiles are
+  not ported; shared hold, CI and compiler recovery policy is implemented in Go.
 - Bounded repair has no provider; the phase reports `repair-required`.
 - Docker replacement, runtime and toolchain upgrades remain unsupported.
 

@@ -63,7 +63,7 @@ const (
 
 var (
 	shaPattern       = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	retryHoldPattern = regexp.MustCompile(`/hold\s*\n\s*\nRevision ([0-9a-f]{40}) was retested ([1-9][0-9]*) times: holding\s*`)
+	retryHoldPattern = regexp.MustCompile(`^/hold\s*\n\s*\nRevision ([0-9a-f]{40}) was retested ([1-9][0-9]*) times: holding\s*$`)
 	holdCommand      = regexp.MustCompile(`(?im)^/hold(?:\s.*)?$`)
 	cancelCommand    = regexp.MustCompile(`(?im)^/(?:remove-hold|hold\s+cancel|unhold)(?:\s.*)?$`)
 	upgradeBranch    = regexp.MustCompile(`^upgrade-agentic-workflows-[A-Za-z0-9_-]+$`)
@@ -258,9 +258,6 @@ func CIEvidence(statuses []forge.Status, checks []forge.Check, expectedHead stri
 			positive[check.Name] = true
 		case check.Conclusion == "neutral" || check.Conclusion == "skipped":
 			// Neutral and skipped checks are never positive evidence.
-			evidence.Blocked = append(evidence.Blocked, model.BlockedCheck{
-				Name: check.Name, State: check.Conclusion, URL: check.DetailsURL,
-			})
 		default:
 			evidence.Blocked = append(evidence.Blocked, model.BlockedCheck{
 				Name: check.Name, State: check.Conclusion, URL: check.DetailsURL,
@@ -290,7 +287,12 @@ func TrustedHoldLabel(events []forge.HoldEvent) (bool, error) {
 		time  time.Time
 	}
 	var entries []recorded
+	seen := map[int]forge.HoldEvent{}
 	for _, event := range events {
+		if previous, ok := seen[event.ID]; ok && previous != event {
+			return false, errors.New("conflicting hold label history")
+		}
+		seen[event.ID] = event
 		if event.ID <= 0 || (event.Event != "labeled" && event.Event != "unlabeled") || event.Actor == "" {
 			return false, fmt.Errorf("%w: hold label provenance is missing", forge.ErrEvidenceIncomplete)
 		}

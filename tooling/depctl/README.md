@@ -3,12 +3,13 @@
 `depctl` prepares, validates and investigates ARO-HCP dependency and tool
 updates locally. It runs the repository's own generators and consumers against an
 isolated candidate, so a broken bump is caught before a pull request exists.
-It does not publish: no command in this build pushes, opens a pull request,
-comments or changes scheduling.
+Candidate preparation does not publish branches or pull requests. Explicit
+`maintenance` commands can post fixed, guarded recovery comments using the
+workflow's scoped credentials; they never approve or merge a PR.
 
-This build implements the **tools** profile. Publication, hold recovery, retest
-and scheduling require an authorized execution integration; the engine refuses
-to publish without an injected writer and the CLI never constructs one.
+This build implements the **tools** profile and shared maintenance policy.
+General proposal publication and scheduling require an authorized execution
+integration; the engine refuses to publish without an injected writer.
 
 ## The problem
 
@@ -33,15 +34,16 @@ packaging and read-only failure investigation.
 | Observe and diagnose | `maintenance inspect`, `evidence prow` | hold and CI evidence, retrieved run artifacts, one diagnosis |
 | Exercise without publication | `run --mode simulate` | a full lifecycle against fixture repositories and fake services |
 
-Publication, CI observation, maintenance actions and continuation exist in the
-engine but are reachable only with injected adapters; that separation is
-described in [docs/design.md](docs/design.md).
+General publication and continuation require injected engine adapters. The
+explicit maintenance CLI exposes only bounded comment actions, described below.
 
 ## Commands
 
 Commands that produce a record print it on stdout, or write it to `--output`;
-diagnostics go to stderr. A record is `schemaVersion: depctl/v1`. `guard`
-rewrites the safe-output artifact in place, `version` prints provenance text, and
+diagnostics go to stderr. Lifecycle records use `schemaVersion: depctl/v1`.
+Maintenance assessment, inventory, compiler provenance and snapshot-evidence
+commands emit the JSON shapes consumed by the workflows. `guard` rewrites the
+safe-output artifact in place, `version` prints provenance text, and
 `run --mode simulate` prints its scenario report.
 
 ### inventory
@@ -267,7 +269,7 @@ the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
 ### maintenance inventory
 
 ```bash
-depctl maintenance inventory --repository OWNER/REPO [--output FILE]
+depctl maintenance inventory --repository OWNER/REPO [--kind KIND] [--output FILE]
 ```
 
 Assesses every open proposal owned by `aro-hcp-robot[bot]` with the same
@@ -282,6 +284,33 @@ depctl maintenance inventory --repository Azure/ARO-HCP --output inventory.json
 ```
 
 The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
+
+`--kind upgrade` restricts discovery and recovery to compiler PRs;
+`non-compiler` selects dependency and tool PRs. `dependency` and `tool` are also
+supported. Filtering happens before fetching complete evidence.
+
+### maintenance recovery
+
+```bash
+depctl maintenance assess --repository OWNER/REPO --number N --head SHA [--kind KIND]
+depctl maintenance release-hold --repository OWNER/REPO --number N --head SHA --kind KIND
+depctl maintenance recover-retry --repository OWNER/REPO --number N --head SHA \
+  --kind KIND --evidence "diagnosed cause with failed and comparison run URLs"
+depctl maintenance verify-upgrade --repository OWNER/REPO --number N --head SHA
+depctl maintenance release-regenerated --repository OWNER/REPO --number N \
+  --head SHA --previous-head SHA
+depctl maintenance compiler-versions --ref HEAD
+```
+
+Recovery re-fetches complete evidence immediately before the fixed comment.
+Ownership, scope, head, hold provenance, current-head CI and permanent recovery
+markers must still authorize the action. Human and unexplained holds are never
+cancelled. Compiler regeneration also requires compiler provenance changes,
+ancestry and compiler-owned file scope.
+
+`maintenance snapshot-evidence` reads a complete hold/CI snapshot on stdin and
+returns the shared policy assessment without network access or mutation. Native
+dependency maintenance uses this command rather than a separate policy engine.
 
 ### evidence prow
 
