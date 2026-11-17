@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -146,18 +147,29 @@ var _ = Describe("Customer", func() {
 			resourceID := *clusterResp.ID
 
 			By("building the Azure Resource Health client")
-			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
-			cred, err := tc.AzureCredential()
-			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
-			healthClient, err := framework.NewAvailabilityStatusesClient(subscriptionID, cred)
+			healthClient, err := tc.NewAvailabilityStatusesClient(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource health client")
 
 			By("polling Azure Resource Health until the cluster reports Available")
+			// Bound the polling phase itself, so a request that stalls cannot run
+			// past the health-check budget on the spec's much longer context. The
+			// Eventually timeout alone cannot interrupt an in-flight call.
+			healthCtx, cancelHealth := context.WithTimeout(ctx, resourceHealthAvailableTimeout)
+			defer cancelHealth()
+
 			var lastObserved string
-			Eventually(func(g Gomega) {
-				status, err := framework.GetAvailabilityStatus(ctx, healthClient, resourceID)
-				g.Expect(err).NotTo(HaveOccurred(), "failed to read Azure Resource Health for %s", resourceID)
+			Eventually(func(g Gomega) error {
+				status, err := framework.GetAvailabilityStatus(healthCtx, healthClient, resourceID)
+				if err != nil {
+					// A misconfigured subscription will never start answering, so
+					// report it now instead of spending the rest of the budget
+					// re-issuing a request that cannot succeed. Transient failures
+					// and not-yet-observed resources still retry.
+					if framework.IsPermanentConfigError(err) {
+						return StopTrying(fmt.Sprintf("Azure Resource Health is not usable for %s", resourceID)).Wrap(err)
+					}
+					g.Expect(err).NotTo(HaveOccurred(), "failed to read Azure Resource Health for %s", resourceID)
+				}
 
 				// Delta-only logging: a new line is emitted only when the observed
 				// state changes, so the transition is visible without 45 minutes of
@@ -172,9 +184,10 @@ var _ = Describe("Customer", func() {
 				g.Expect(status.Properties.AvailabilityState).NotTo(BeNil(), "resource health response for %s had nil AvailabilityState", resourceID)
 				g.Expect(*status.Properties.AvailabilityState).To(Equal(armresourcehealth.AvailabilityStateValuesAvailable),
 					"expected Resource Health Available for %s, observed %s", resourceID, observed)
+				return nil
 			}).WithTimeout(resourceHealthAvailableTimeout).
 				WithPolling(resourceHealthPollInterval).
-				WithContext(ctx).
+				WithContext(healthCtx).
 				Should(Succeed(), "Azure Resource Health never reported Available for %s; last observed %s", resourceID, lastObserved)
 
 			GinkgoWriter.Printf("  [OK] resource health Available for %s\n", resourceID)

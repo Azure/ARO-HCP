@@ -1081,6 +1081,88 @@ func TestExpectFailureSuiteSelection(t *testing.T) {
 	})
 }
 
+// TestProdOnlySuiteSelection pins the cross-environment behavior of
+// labels.ProdOnly: a spec carrying it must reach the prod suites and no other
+// environment's. The fast/slow/all partition tests only check consistency
+// within a single environment, so they would stay green if a production-only
+// spec leaked into integration or stage.
+func TestProdOnlySuiteSelection(t *testing.T) {
+	t.Setenv("AROHCP_ENV", "")
+	suites := listSuites(t)
+
+	// Both the ordinary and the Slow variant are covered, because the two land
+	// in different suites within each environment and the ProdOnly exclusion
+	// has to hold for both.
+	for _, variant := range []struct {
+		name  string
+		extra []string
+		// included/excluded name the suites for this variant in each environment.
+		included []string
+		excluded []string
+	}{
+		{
+			name:     "ordinary",
+			extra:    nil,
+			included: []string{"prod/parallel", "prod/parallel/all"},
+			excluded: []string{"integration/parallel", "integration/parallel/all", "stage/parallel", "stage/parallel/all"},
+		},
+		{
+			name:     "slow",
+			extra:    []string{labels.Slow[0]},
+			included: []string{"prod/parallel/slow", "prod/parallel/all"},
+			excluded: []string{"integration/parallel/slow", "integration/parallel/all", "stage/parallel/slow", "stage/parallel/all"},
+		},
+	} {
+		t.Run(variant.name, func(t *testing.T) {
+			baseLabels := append([]string{labels.RequireNothing[0]}, variant.extra...)
+			prodOnlyLabels := append(append([]string{}, baseLabels...), labels.ProdOnly[0])
+
+			base := specWithLabels("base", baseLabels...)
+			prodOnly := specWithLabels("prod-only", prodOnlyLabels...)
+
+			for _, name := range variant.included {
+				suite, ok := suites[name]
+				if !ok {
+					t.Fatalf("suite %q is not registered", name)
+				}
+				if !selectedBy(t, suite, prodOnly) {
+					t.Errorf("ProdOnly spec with labels %v should be a member of %q but was excluded", prodOnlyLabels, name)
+				}
+			}
+
+			for _, name := range variant.excluded {
+				suite, ok := suites[name]
+				if !ok {
+					t.Fatalf("suite %q is not registered", name)
+				}
+				// The base spec must be a member, otherwise the ProdOnly
+				// assertion below would pass for the wrong reason.
+				if !selectedBy(t, suite, base) {
+					t.Fatalf("base spec with labels %v should be a member of %q but was excluded", baseLabels, name)
+				}
+				if selectedBy(t, suite, prodOnly) {
+					t.Errorf("ProdOnly spec with labels %v must be excluded from %q", prodOnlyLabels, name)
+				}
+			}
+		})
+	}
+
+	// ProdOnly must not drag a spec into suites gated on an unrelated opt-in
+	// label, which would make it run in environments it was meant to avoid.
+	t.Run("does not opt into unrelated suites", func(t *testing.T) {
+		prodOnly := specWithLabels("prod-only", labels.RequireNothing[0], labels.ProdOnly[0])
+		for _, name := range []string{"dev-cd-check/parallel", "rp-api-compat-all/parallel", "hypershift-presubmit/parallel", "upgrade/in-place"} {
+			suite, ok := suites[name]
+			if !ok {
+				t.Fatalf("suite %q is not registered", name)
+			}
+			if selectedBy(t, suite, prodOnly) {
+				t.Errorf("ProdOnly spec must be excluded from %q", name)
+			}
+		}
+	})
+}
+
 // listSpecs returns every registered spec, as the list command renders them.
 func listSpecs(t *testing.T) []et.ExtensionTestSpec {
 	t.Helper()
