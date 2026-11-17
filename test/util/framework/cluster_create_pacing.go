@@ -94,6 +94,13 @@ const (
 	// without ARTIFACT_DIR there is no shared state and pacing stays off.
 	clusterCreatePacingStateFile = "cluster-create-pacing-state.yaml"
 
+	// clusterCreatePacingLockFile guards clusterCreatePacingStateFile and sits
+	// beside it in ARTIFACT_DIR, so the lock's scope matches the state's: a
+	// second run on the same host with a different ARTIFACT_DIR gets its own
+	// state and lock rather than contending on — or being stalled by — the
+	// first run's.
+	clusterCreatePacingLockFile = "cluster-create-pacing.lock"
+
 	// maxClusterCreatePacingWait bounds a single creation's total wait for
 	// window capacity — a safety valve so a saturated or pathological state
 	// file cannot stall a spec past its budget; at the bound it proceeds
@@ -242,11 +249,16 @@ func paceClusterCreateOnce(ctx context.Context, key string, admit func(context.C
 	return call.err
 }
 
+// newClusterCreatePacer builds a pacer scoped to this run: the state file and
+// the lock that guards it both live in ARTIFACT_DIR, so two runs on one host
+// with different ARTIFACT_DIRs neither share state nor contend on each other's
+// lock. Callers only reach this with a non-empty ARTIFACT_DIR —
+// paceHCPClusterCreateStart checks it first.
 func newClusterCreatePacer(cfg clusterCreatePacing) *clusterCreatePacer {
 	return &clusterCreatePacer{
 		cfg:       cfg,
 		statePath: filepath.Join(artifactDir(), clusterCreatePacingStateFile),
-		lockPath:  filepath.Join(os.TempDir(), "cluster-create-pacing.lock"),
+		lockPath:  filepath.Join(artifactDir(), clusterCreatePacingLockFile),
 		now:       time.Now,
 		sleep:     sleepContext,
 	}
@@ -262,7 +274,10 @@ func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resource
 	cfg, err := parseClusterCreatePacing(os.Getenv(ClusterCreatePacingEnvvar))
 	if err != nil {
 		// Fail open: a malformed value disables pacing rather than failing tests.
-		logger.Info(fmt.Sprintf("WARN: invalid %s, cluster-creation pacing disabled: %v", ClusterCreatePacingEnvvar, err))
+		logger.Info("WARN: invalid cluster-creation pacing setting, pacing disabled",
+			"envvar", ClusterCreatePacingEnvvar,
+			"value", os.Getenv(ClusterCreatePacingEnvvar),
+			"error", err)
 		return nil
 	}
 	if !cfg.enabled() {
@@ -303,7 +318,11 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 		// after: tryRecordStart returning success (retryAfter == 0) must not
 		// bypass the fail-open bound.
 		if p.now().After(deadline) {
-			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing wait exceeded %s for cluster %s, proceeding unpaced", maxClusterCreatePacingWait, clusterName))
+			logger.Info("WARN: cluster-creation pacing wait exceeded, proceeding unpaced",
+				"clusterName", clusterName,
+				"maxWait", maxClusterCreatePacingWait.String(),
+				"max", p.cfg.max,
+				"window", p.cfg.window.String())
 			return nil
 		}
 		retryAfter, err := p.tryRecordStart(ctx, deadline)
@@ -313,7 +332,9 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 			if ctx.Err() != nil {
 				return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
 			}
-			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing state unavailable, proceeding unpaced for cluster %s: %v", clusterName, err))
+			logger.Info("WARN: cluster-creation pacing state unavailable, proceeding unpaced",
+				"clusterName", clusterName,
+				"error", err)
 			return nil
 		}
 		if retryAfter == 0 {
@@ -338,7 +359,11 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 		} else {
 			// No budget left: fail open here rather than retrying an
 			// admission at the deadline.
-			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing wait exceeded %s for cluster %s, proceeding unpaced", maxClusterCreatePacingWait, clusterName))
+			logger.Info("WARN: cluster-creation pacing wait exceeded, proceeding unpaced",
+				"clusterName", clusterName,
+				"maxWait", maxClusterCreatePacingWait.String(),
+				"max", p.cfg.max,
+				"window", p.cfg.window.String())
 			return nil
 		}
 	}
