@@ -8,6 +8,7 @@ param nodeSubnetId = '__nodeSubnetId__'
 param vnetId = '__vnetId__'
 param istioIngressGatewayIP = '__istioIngressGatewayIP__'
 param opsIngressGatewayIP = '__opsIngressGatewayIP__'
+param rpIngressActivate = {{ .svc.rpIngress.activate }}
 param aksClusterName = '{{ .svc.aks.name }}'
 param aksKeyVaultName = '{{ .svc.aks.etcd.name }}'
 

@@ -651,6 +651,11 @@ defaults:
       gateway:
         ipAddressName: "aro-hcp-ops-ingress"
         ipAddressTags: ""
+    # Prepare the HA Gateway API endpoint first; cut over DNS in a later rollout.
+    rpIngress:
+      enabled: false
+      activate: false
+      ipAddressName: "aro-hcp-rp-ingress"
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
       systemPoolOnly: false

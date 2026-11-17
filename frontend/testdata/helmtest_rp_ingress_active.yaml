@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: frontend-rp-ingress-active
+namespace: aro-hcp
+testData:
+  svc:
+    rpIngress:
+      enabled: true
+      activate: true

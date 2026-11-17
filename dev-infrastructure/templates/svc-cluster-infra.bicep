@@ -43,6 +43,12 @@ param istioIngressGatewayIPAddressName string = ''
 @description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param istioIngressGatewayIPAddressIPTags string = ''
 
+@description('Prepare a separate RP Gateway API public IP without changing the existing RP endpoint.')
+param rpIngressEnabled bool = false
+
+@description('Public IP resource name for the ARO-owned RP Gateway API gateway.')
+param rpIngressIPAddressName string = 'aro-hcp-rp-ingress'
+
 @description('Admin API Istio Ingress Gateway IP Address Name')
 param opsIngressGatewayIPAddressName string = ''
 
@@ -131,6 +137,26 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
   }
 }
 
+module rpIngressIPAddress '../modules/network/publicipaddress.bicep' = if (rpIngressEnabled) {
+  name: rpIngressIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: rpIngressIPAddressName
+    ipTags: istioIngressGatewayIPAddressIPTags
+    location: location
+    zones: locationAvailabilityZoneList
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentityPrincipalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: networkContributorRoleId
+    }
+  }
+}
+
+var rpIngressAddresses = rpIngressEnabled
+  ? [istioIngressGatewayIPAddress.outputs.ipAddress, rpIngressIPAddress!.outputs.ipAddress]
+  : [istioIngressGatewayIPAddress.outputs.ipAddress]
+
 var additionalIngressRuleEntries = [
   for rule in csvToArray(additionalIngressRules): {
     name: split(rule, '=')[0]
@@ -163,7 +189,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           name: 'rp-in-arm'
           properties: {
             access: 'Allow'
-            destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
+            destinationAddressPrefixes: rpIngressAddresses
             destinationPortRange: '443'
             direction: 'Inbound'
             priority: 120

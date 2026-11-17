@@ -3858,6 +3858,46 @@
             "versions"
           ]
         },
+        "rpIngress": {
+          "description": "ARO-owned Gateway API RP ingress. Prepare with enabled, then activate in a separate validated rollout.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "activate": {
+              "type": "boolean"
+            },
+            "ipAddressName": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "enabled",
+            "activate",
+            "ipAddressName"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "activate": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          ]
+        },
         "opsIngress": {
           "type": "object",
           "description": "Operations ingress configuration for Admin API and other ops components",
@@ -3906,6 +3946,7 @@
         "monitoringApiGroup",
         "aks",
         "istio",
+        "rpIngress",
         "opsIngress"
       ]
     },

@@ -1,0 +1,169 @@
+{{- if .Values.rpIngress.activate }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rp-ingress-check
+  namespace: aks-istio-ingress
+rules:
+- apiGroups: [""]
+  resources: [services]
+  resourceNames: [rp-ingress-gateway-istio]
+  verbs: [get]
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [gateways]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch]
+- apiGroups: [discovery.k8s.io]
+  resources: [endpointslices]
+  verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rp-ingress-check
+  namespace: aks-istio-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rp-ingress-check
+subjects:
+- kind: ServiceAccount
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+rules:
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [httproutes]
+  resourceNames: [frontend-gateway-api]
+  verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rp-ingress-check
+subjects:
+- kind: ServiceAccount
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+data:
+  check.sh: |
+    #!/bin/sh
+    set -eu
+    kctl() { kubectl --request-timeout=15s --cache-dir=/tmp/kubectl "$@"; }
+    kctl -n aks-istio-ingress wait gateways.gateway.networking.k8s.io/rp-ingress-gateway --for=condition=Programmed --timeout=180s
+    kctl -n aks-istio-ingress rollout status deployment/rp-ingress-gateway-istio --timeout=180s
+    [ "$(kctl -n aks-istio-ingress get service/rp-ingress-gateway-istio -o jsonpath='{.spec.type}')" = LoadBalancer ] || { echo 'RP ingress is not a LoadBalancer Service' >&2; exit 1; }
+    [ -n "$(kctl -n aks-istio-ingress get service/rp-ingress-gateway-istio -o jsonpath='{.status.loadBalancer.ingress[0].ip}')" ] || { echo 'RP ingress has no load-balancer IP' >&2; exit 1; }
+
+    # Do not accept conditions from an older HTTPRoute generation.
+    attempt=0
+    while [ "$attempt" -lt 60 ]; do
+      status=$(kctl -n "$FRONTEND_NAMESPACE" get httproute/frontend-gateway-api -o jsonpath='{.metadata.generation}{" "}{.status.parents[0].conditions[?(@.type=="Accepted")].status}{" "}{.status.parents[0].conditions[?(@.type=="Accepted")].observedGeneration}{" "}{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}{" "}{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].observedGeneration}')
+      set -- $status
+      if [ "$#" -eq 5 ] && [ "$2" = True ] && [ "$4" = True ] && [ "$3" -ge "$1" ] && [ "$5" -ge "$1" ]; then
+        break
+      fi
+      attempt=$((attempt + 1))
+      sleep 2
+    done
+    [ "$attempt" -lt 60 ] || { echo 'RP HTTPRoute did not converge; DNS must not change' >&2; exit 1; }
+
+    attempt=0
+    while [ "$attempt" -lt 60 ]; do
+      nodes=$(kctl -n aks-istio-ingress get endpointslices -l kubernetes.io/service-name=rp-ingress-gateway-istio -o jsonpath='{range .items[*].endpoints[?(@.conditions.ready==true)]}{.nodeName}{"\n"}{end}' | sort -u | sed '/^$/d')
+      count=$(printf '%s\n' "$nodes" | grep -c . || true)
+      if [ "$count" -ge 2 ]; then
+        echo 'RP ingress has Ready endpoints on at least two nodes; DNS cutover may proceed'
+        exit 0
+      fi
+      attempt=$((attempt + 1))
+      sleep 2
+    done
+    echo 'RP ingress lacks Ready endpoints on two nodes; DNS must not change' >&2
+    exit 1
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rp-ingress-check
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 540
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: rp-ingress-check
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: check
+        image: '{{ .Values.rpIngress.readinessImage }}'
+        command: [/bin/sh, /scripts/check.sh]
+        env:
+        - name: HOME
+          value: /tmp
+        - name: FRONTEND_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: script
+        configMap:
+          name: rp-ingress-check
+      - name: tmp
+        emptyDir: {}
+{{- end }}

@@ -1,0 +1,709 @@
+---
+# Source: frontend/templates/frontend.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aro-hcp-frontend
+  namespace: aro-hcp
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: aro-hcp-frontend
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+---
+# Source: frontend/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    azure.workload.identity/client-id: '__frontendMsiClientId__'
+    azure.workload.identity/tenant-id: '__frontendMsiTenantId__'
+  name: frontend
+  namespace: 'aro-hcp'
+---
+# Source: frontend/templates/frontend.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: 'aro-hcp'
+data:
+  DB_NAME: 'arohcpdev-rp-usw3'
+  DB_URL: '__cosmosDBDocumentEndpoint__'
+  FRONTEND_MI_CLIENT_ID: '__frontendMsiClientId__'
+  LOCATION: 'westus3'
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+data:
+  check.sh: |
+    #!/bin/sh
+    set -eu
+    kctl() { kubectl --request-timeout=15s --cache-dir=/tmp/kubectl "$@"; }
+    kctl -n aks-istio-ingress wait gateways.gateway.networking.k8s.io/rp-ingress-gateway --for=condition=Programmed --timeout=180s
+    kctl -n aks-istio-ingress rollout status deployment/rp-ingress-gateway-istio --timeout=180s
+    [ "$(kctl -n aks-istio-ingress get service/rp-ingress-gateway-istio -o jsonpath='{.spec.type}')" = LoadBalancer ] || { echo 'RP ingress is not a LoadBalancer Service' >&2; exit 1; }
+    [ -n "$(kctl -n aks-istio-ingress get service/rp-ingress-gateway-istio -o jsonpath='{.status.loadBalancer.ingress[0].ip}')" ] || { echo 'RP ingress has no load-balancer IP' >&2; exit 1; }
+
+    # Do not accept conditions from an older HTTPRoute generation.
+    attempt=0
+    while [ "$attempt" -lt 60 ]; do
+      status=$(kctl -n "$FRONTEND_NAMESPACE" get httproute/frontend-gateway-api -o jsonpath='{.metadata.generation}{" "}{.status.parents[0].conditions[?(@.type=="Accepted")].status}{" "}{.status.parents[0].conditions[?(@.type=="Accepted")].observedGeneration}{" "}{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}{" "}{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].observedGeneration}')
+      set -- $status
+      if [ "$#" -eq 5 ] && [ "$2" = True ] && [ "$4" = True ] && [ "$3" -ge "$1" ] && [ "$5" -ge "$1" ]; then
+        break
+      fi
+      attempt=$((attempt + 1))
+      sleep 2
+    done
+    [ "$attempt" -lt 60 ] || { echo 'RP HTTPRoute did not converge; DNS must not change' >&2; exit 1; }
+
+    attempt=0
+    while [ "$attempt" -lt 60 ]; do
+      nodes=$(kctl -n aks-istio-ingress get endpointslices -l kubernetes.io/service-name=rp-ingress-gateway-istio -o jsonpath='{range .items[*].endpoints[?(@.conditions.ready==true)]}{.nodeName}{"\n"}{end}' | sort -u | sed '/^$/d')
+      count=$(printf '%s\n' "$nodes" | grep -c . || true)
+      if [ "$count" -ge 2 ]; then
+        echo 'RP ingress has Ready endpoints on at least two nodes; DNS cutover may proceed'
+        exit 0
+      fi
+      attempt=$((attempt + 1))
+      sleep 2
+    done
+    echo 'RP ingress lacks Ready endpoints on two nodes; DNS must not change' >&2
+    exit 1
+---
+# Source: frontend/templates/rp-ingress.gateway.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rp-ingress-options
+  namespace: aks-istio-ingress
+data:
+  service: |
+    spec:
+      type: LoadBalancer
+  deployment: |
+    spec:
+      template:
+        spec:
+          topologySpreadConstraints:
+          - maxSkew: 1
+            minDomains: 2
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+            nodeTaintsPolicy: Honor
+            labelSelector:
+              matchLabels:
+                gateway.networking.k8s.io/gateway-name: rp-ingress-gateway
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                gateway.networking.k8s.io/gateway-name: rp-ingress-gateway
+  horizontalPodAutoscaler: |
+    spec:
+      minReplicas: 2
+      maxReplicas: 5
+  podDisruptionBudget: |
+    spec:
+      minAvailable: 1
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rp-ingress-check
+  namespace: aks-istio-ingress
+rules:
+- apiGroups: [""]
+  resources: [services]
+  resourceNames: [rp-ingress-gateway-istio]
+  verbs: [get]
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [gateways]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch]
+- apiGroups: [discovery.k8s.io]
+  resources: [endpointslices]
+  verbs: [get, list]
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+rules:
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [httproutes]
+  resourceNames: [frontend-gateway-api]
+  verbs: [get]
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rp-ingress-check
+  namespace: aks-istio-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rp-ingress-check
+subjects:
+- kind: ServiceAccount
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rp-ingress-check
+subjects:
+- kind: ServiceAccount
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+---
+# Source: frontend/templates/frontend.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aro-hcp-frontend
+  name: aro-hcp-frontend
+  namespace: 'aro-hcp'
+spec:
+  ports:
+  - port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: aro-hcp-frontend
+  type: ClusterIP
+---
+# Source: frontend/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/part-of: aro-hcp-frontend
+    port: metrics
+  name: aro-hcp-frontend-metrics
+  namespace: 'aro-hcp'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app.kubernetes.io/part-of: aro-hcp-frontend
+---
+# Source: frontend/templates/frontend.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: aro-hcp-frontend
+  name: aro-hcp-frontend
+  namespace: 'aro-hcp'
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: aro-hcp-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 50%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: aro-hcp-frontend
+        app.kubernetes.io/part-of: aro-hcp-frontend
+        azure.workload.identity/use: "true"
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-frontend
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-frontend
+      serviceAccountName: 'frontend'
+      containers:
+      - name: aro-hcp-frontend
+        image: 'arohcpsvcdev.azurecr.io/arohcpfrontend@sha256:1234567890'
+        imagePullPolicy: Always
+        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000", "--exit-on-panic=true", "--log-verbosity=0", "--azure-cluster-scoped-identities-role-set-name=dev"]
+        env:
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: DB_NAME
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: DB_URL
+        - name: LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: LOCATION
+        - name: AUDIT_CONNECT_SOCKET
+          value: "false"
+        - name: AUDIT_SERVICE_TREE_ID
+          value: "00000000-0000-0000-0000-000000000000"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        - containerPort: 8081
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 8443
+          timeoutSeconds: 6
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+# Source: frontend/templates/frontend.secret-refresher.yaml
+################################
+#
+# This keeps the certificate secret fresh because the secret is mounted from the keyVault (via the SecretProviderClass) and
+# it's if the certificate changes in the keyvault this will trigger the refreshing of the kubernetes secret.
+#
+# Note: the istio plugin doesn't support using the SecretProviderClass directly. When it does this can be removed.
+#
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-certificate-refresher
+  namespace: aks-istio-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-certificate-refresher
+  template:
+    metadata:
+      labels:
+        app: frontend-certificate-refresher
+    spec:
+      containers:
+      - command:
+        - "/bin/sleep"
+        - "infinity"
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
+        name: init-container-msg-container-init
+        volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store01-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "frontend-scp"
+---
+# Source: frontend/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: frontend-pull-binding
+  namespace: 'aro-hcp'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:arohcpfrontend:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'frontend'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'frontend'
+---
+# Source: frontend/templates/allow-admin.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-admin-api-to-frontend
+  namespace: 'aro-hcp'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/aro-hcp-admin-api/sa/admin-api"
+    to:
+    - operation:
+        ports:
+        - "8443"
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: "aro-hcp-frontend"
+---
+# Source: frontend/templates/allow-ingress.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: 'aro-hcp'
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        methods: ["GET", "PUT", "POST", "PATCH", "DELETE"]
+        ports:
+        - "8443"
+---
+# Source: frontend/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-frontend
+  namespace: 'aro-hcp'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8081"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: "aro-hcp-frontend"
+---
+# Source: frontend/templates/authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: 'aro-hcp'
+spec: {}
+---
+# Source: frontend/templates/frontend.gateway.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: aro-hcp-gateway-external
+  namespace: aks-istio-ingress
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  selector:
+    istio: aks-istio-ingressgateway-external
+  servers:
+  - port:
+      number: 443
+      name: frontend-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: frontend-credential
+    hosts:
+    - "rp.westus3.hcpsvc.osadev.cloud"
+  # TODO: ops-ingress phase 4: cleanup, remove routing for admin API
+  - port:
+      number: 443
+      name: admin-api-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: admin-api-credential
+    hosts:
+    - "admin.westus3.hcpsvc.osadev.cloud"
+---
+# Source: frontend/templates/rp-ingress.gateway.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: rp-ingress-gateway
+  namespace: aks-istio-ingress
+spec:
+  gatewayClassName: istio
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/azure-pip-name: "aro-hcp-rp-ingress"
+      service.beta.kubernetes.io/azure-load-balancer-resource-group: "hcp-underlay-dev-westus3"
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: rp-ingress-options
+  listeners:
+  - name: rp-https
+    port: 443
+    protocol: HTTPS
+    hostname: "rp.westus3.hcpsvc.osadev.cloud"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: frontend-credential
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            kubernetes.io/metadata.name: "aro-hcp"
+---
+# Source: frontend/templates/frontend.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend-gateway-api
+  namespace: 'aro-hcp'
+spec:
+  parentRefs:
+  - name: rp-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: rp-https
+  hostnames:
+  - "rp.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "ARM Policy"
+    backendRefs:
+    - name: aro-hcp-frontend
+      port: 8443
+---
+# Source: frontend/templates/peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: aro-hcp-frontend-metrics
+  namespace: 'aro-hcp'
+spec:
+  selector:
+    matchLabels:
+      app: aro-hcp-frontend
+  portLevelMtls:
+    8081:
+      mode: PERMISSIVE
+---
+# Source: frontend/templates/frontend.secretproviderclass.yaml
+################################
+#
+# The addition of the secretObjects is to facilitate the istio plugin as it can't yet consume  the SecretProviderClass directly.
+# When it does this can be simplified and the secret.refresher removed.
+#
+################################
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: frontend-scp
+  namespace: aks-istio-ingress
+spec:
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: '__csiSecretStoreClientId__'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'frontend-cert-dev-usw3'
+          objectType: secret
+          objectAlias: frontend-cert
+    tenantId: '__tenantId__'
+  provider: azure
+  secretObjects:
+  - secretName: frontend-credential
+    type: kubernetes.io/tls
+    data:
+    - objectName: frontend-cert
+      key: tls.crt
+    - objectName: frontend-cert
+      key: tls.key
+---
+# Source: frontend/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-frontend
+  namespace: 'aro-hcp'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp'
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: aro-hcp-frontend
+      port: metrics
+---
+# Source: frontend/templates/frontend.virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aro-hcp-vs-frontend
+  namespace: 'aro-hcp'
+spec:
+  hosts:
+  - "rp.westus3.hcpsvc.osadev.cloud"
+  gateways:
+  - aks-istio-ingress/aro-hcp-gateway-external
+  http:
+  - match:
+    - uri:
+        regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "ARM Policy"
+    route:
+    - destination:
+        host: aro-hcp-frontend
+        port:
+          number: 8443
+
+---
+# Source: frontend/templates/rp-ingress-readiness.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rp-ingress-check
+  namespace: 'aro-hcp'
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 540
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: rp-ingress-check
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: check
+        image: 'mcr.microsoft.com/aks/command/runtime@sha256:1234567890'
+        command: [/bin/sh, /scripts/check.sh]
+        env:
+        - name: HOME
+          value: /tmp
+        - name: FRONTEND_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: script
+        configMap:
+          name: rp-ingress-check
+      - name: tmp
+        emptyDir: {}

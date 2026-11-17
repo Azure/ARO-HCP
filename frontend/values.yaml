@@ -44,6 +44,12 @@ adminApi:
 apiBindPort: 8443
 virtualService:
   host: "rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+rpIngress:
+  enabled: {{ .svc.rpIngress.enabled }}
+  activate: {{ .svc.rpIngress.activate }}
+  publicIpAddress: "{{ .svc.rpIngress.ipAddressName }}"
+  publicIpResourceGroup: "{{ .regionRG }}"
+  readinessImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 # here just temporary until we move the gateway to the istio chart
 adminApiHost: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
 exitOnPanic: {{ .frontend.exitOnPanic }}

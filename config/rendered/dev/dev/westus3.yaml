@@ -1146,6 +1146,10 @@ svc:
         sha: 0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-svc
+  rpIngress:
+    activate: false
+    enabled: false
+    ipAddressName: aro-hcp-rp-ingress
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'

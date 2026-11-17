@@ -1,0 +1,69 @@
+{{- if .Values.rpIngress.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rp-ingress-options
+  namespace: aks-istio-ingress
+data:
+  service: |
+    spec:
+      type: LoadBalancer
+  deployment: |
+    spec:
+      template:
+        spec:
+          topologySpreadConstraints:
+          - maxSkew: 1
+            minDomains: 2
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+            nodeTaintsPolicy: Honor
+            labelSelector:
+              matchLabels:
+                gateway.networking.k8s.io/gateway-name: rp-ingress-gateway
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                gateway.networking.k8s.io/gateway-name: rp-ingress-gateway
+  horizontalPodAutoscaler: |
+    spec:
+      minReplicas: 2
+      maxReplicas: 5
+  podDisruptionBudget: |
+    spec:
+      minAvailable: 1
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: rp-ingress-gateway
+  namespace: aks-istio-ingress
+spec:
+  gatewayClassName: istio
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/azure-pip-name: "{{ .Values.rpIngress.publicIpAddress }}"
+      service.beta.kubernetes.io/azure-load-balancer-resource-group: "{{ .Values.rpIngress.publicIpResourceGroup }}"
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: rp-ingress-options
+  listeners:
+  - name: rp-https
+    port: 443
+    protocol: HTTPS
+    hostname: "{{ .Values.virtualService.host }}"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: frontend-credential
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            kubernetes.io/metadata.name: "{{ .Release.Namespace }}"
+{{- end }}

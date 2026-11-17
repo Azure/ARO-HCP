@@ -29,6 +29,9 @@ param istioIngressGatewayIP string
 @description('Operations ingress public IP from svc-cluster-infra.')
 param opsIngressGatewayIP string
 
+@description('Leave RP DNS unchanged until the frontend pipeline validates the prepared Gateway API ingress.')
+param rpIngressActivate bool = false
+
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
 
@@ -692,7 +695,9 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   }
 }
 
-module frontendDNS '../modules/dns/a-record.bicep' = {
+// In activation mode the frontend pipeline owns DNS only after its readiness
+// hook succeeds. Incremental deployment retains the old record until that step.
+module frontendDNS '../modules/dns/a-record.bicep' = if (!rpIngressActivate) {
   name: 'frontend-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {

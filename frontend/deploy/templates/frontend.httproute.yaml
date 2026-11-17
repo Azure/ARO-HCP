@@ -1,0 +1,31 @@
+{{- if and .Values.rpIngress.activate (not .Values.rpIngress.enabled) }}
+{{- fail "RP ingress activation requires svc.rpIngress.enabled" }}
+{{- end }}
+{{- if .Values.rpIngress.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend-gateway-api
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  parentRefs:
+  - name: rp-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: rp-https
+  hostnames:
+  - "{{ .Values.virtualService.host }}"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "{{ .Values.mise.policyLabel }}"
+    backendRefs:
+    - name: aro-hcp-frontend
+      port: 8443
+{{- end }}
