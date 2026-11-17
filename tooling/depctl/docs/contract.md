@@ -29,14 +29,14 @@ change and not an implementation detail.
 | tool title prefix | `chore(tools): ` | `internal/policy/tools.go`, `internal/safeoutput` |
 | tool family marker | `<!-- agentic-tool-family: … -->` | `tool-version-updates.md` |
 | security title and label | `fix(deps): ` / `agentic-dependabot` | `dependabot-remediation.md` |
-| native label and marker | `agentic-dependency-upgrade` / `<!-- native-dependabot-maintenance:` | `dependency-maintenance.md`, continuation workflow |
+| native label and marker | `agentic-dependency-upgrade` / `<!-- native-dependabot-maintenance:` | `gh-aw-recompile.md`, continuation workflow |
 | hold label | `do-not-merge/hold` | `internal/policy/maintenance.go` |
 | retry-exhaustion hold | `/hold\n\nRevision <sha> was retested N times: holding` from `openshift-merge-bot[bot]` | `internal/policy/maintenance.go` |
 | per-head recovery marker | `gh-aw-recompile:recovery:<sha>` | `internal/policy/maintenance.go` |
 | required checks for hold release | `ci/pipeline-gate`, `ci/prow/e2e-parallel` | `internal/policy/maintenance.go` |
 | tool throughput | at most two eligible family attempts, one family prepared per run, one proposal per run, one open owned tool proposal on `main` | `tool-version-updates.md` |
 | security throughput | at most six groups, one proposal per manifest, 20 reconciles plus one repair, 24-hour retest cooldown | `dependabot-remediation.md`, `depctl dependabot guard` |
-| native throughput | one family and one lifecycle action per run | `dependency-maintenance.md` |
+| native throughput | one family and one lifecycle action per run | `gh-aw-recompile.md` |
 | public run evidence | 64 MiB per artifact, 60-second timeout, `finished.json` and `build-log.txt`, manifest published last | `internal/evidence` |
 
 Tool ownership requires the author, head and base repository, base ref and the
@@ -44,10 +44,9 @@ profile markers to agree. A title or label alone never confers mutation
 authority. CI evidence requires positive results at the exact current head; a
 missing, pending, old-head, neutral or skipped result is never positive.
 
-The compiler workflow owns only compiler release reconciliation and compiler-PR
-recovery. `dependency-maintenance.md` owns native Dependabot replacements and
-non-compiler PR recovery. Both preserve existing per-head recovery markers;
-moving a workflow does not renew a retry budget.
+The combined compiler and dependency workflow uses shared Go maintenance policy.
+Scope filters are available to callers without changing workflow ownership.
+Permanent per-head recovery markers remain authoritative across invocations.
 
 ## Decisions
 

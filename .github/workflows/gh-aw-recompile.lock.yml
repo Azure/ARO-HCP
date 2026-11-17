@@ -1,5 +1,5 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"6d4371470d55ac2ade503393f0e5bd365a3889d23a754ffebba44718003f9ac7","body_hash":"584965360e02d0bb0dbd4e56a8214b39956f862d40568e5128ff539c2cc1f7fd","compiler_version":"v1.2.2","strict":true,"agent_id":"copilot","agent_model":"sonnet","engine_versions":{"copilot":"1.0.103"}}
-# gh-aw-manifest: {"version":1,"secrets":["DEPENDABOT_APP_CLIENT_ID","DEPENDABOT_APP_PRIVATE_KEY","GH_AW_DEFAULT_OTLP_ENDPOINT","GH_AW_DEFAULT_OTLP_HEADERS","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"3d3c42e5aac5ba805825da76410c181273ba90b1","version":"v7.0.1"},{"repo":"actions/create-github-app-token","sha":"64ab729a6294000f5aa4a4bc0b73d1f32bc45510","version":"v3.3.0"},{"repo":"actions/download-artifact","sha":"9000827ccba6bdab643e8b6fd33ac0654aef8333","version":"v8.0.2"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-go","sha":"b7ad1dad31e06c5925ef5d2fc7ad053ef454303e","version":"v7.0.0"},{"repo":"actions/setup-node","sha":"949feb2413d6458794dcd2491c4babbbce0c15c1","version":"v7.1.0"},{"repo":"actions/upload-artifact","sha":"cf430e030ddbb5b0abf93d22962f4752f3646cd9","version":"v7.0.2"},{"repo":"github/gh-aw-actions/setup","sha":"53d0749e19424a918acd82b4d140264ce48f2f14","version":"v1.2.2"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.29.11","digest":"sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e","pinned_image":"ghcr.io/github/gh-aw-firewall/agent:0.29.11@sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.29.11","digest":"sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c","pinned_image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.29.11@sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.29.11","digest":"sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847","pinned_image":"ghcr.io/github/gh-aw-firewall/squid:0.29.11@sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.5.6","digest":"sha256:342cd624e1f179d91be2de7a146fc4f387092e62e6c8a47506d7932e113d2311","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.5.6@sha256:342cd624e1f179d91be2de7a146fc4f387092e62e6c8a47506d7932e113d2311"},{"image":"ghcr.io/github/gh-aw-node","digest":"sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f","pinned_image":"ghcr.io/github/gh-aw-node@sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f"},{"image":"ghcr.io/github/github-mcp-server:v2.1.0","digest":"sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a","pinned_image":"ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a"}],"mcp_servers":[{"name":"github","tools":["actions_get","actions_list","get_commit","get_file_contents","get_job_logs","get_latest_release","get_pull_request","get_pull_request_comments","get_pull_request_diff","get_pull_request_files","get_pull_request_review_comments","get_pull_request_reviews","get_pull_request_status","get_release_by_tag","get_tag","list_branches","list_commits","list_pull_requests","list_releases","list_starred_repositories","list_tags","pull_request_read","search_code","search_pull_requests","search_repositories"]},{"name":"safeoutputs","tools":["noop","recover_owned_pr","report_incomplete","report_missing_data","report_missing_tool"]}],"threat_detection":{"mode":"enabled"},"admission":false,"agent_metadata":{"03cbf8931deff21d5116":{"name":"Agentic Workflows"}}}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"8835adab8d13a0701e669c3d90a4f58707a305ede47e1a27a6f2d9c875b1fa25","body_hash":"fbd88584df1f6f0cdc469a5bf37f551e319cd4366b205c3522cde427f677a489","compiler_version":"v1.2.2","strict":true,"agent_id":"copilot","agent_model":"sonnet","engine_versions":{"copilot":"1.0.103"}}
+# gh-aw-manifest: {"version":1,"secrets":["DEPENDABOT_APP_CLIENT_ID","DEPENDABOT_APP_PRIVATE_KEY","GH_AW_DEFAULT_OTLP_ENDPOINT","GH_AW_DEFAULT_OTLP_HEADERS","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"3d3c42e5aac5ba805825da76410c181273ba90b1","version":"3d3c42e5aac5ba805825da76410c181273ba90b1"},{"repo":"actions/create-github-app-token","sha":"64ab729a6294000f5aa4a4bc0b73d1f32bc45510","version":"v3.3.0"},{"repo":"actions/download-artifact","sha":"9000827ccba6bdab643e8b6fd33ac0654aef8333","version":"v8.0.2"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-go","sha":"b7ad1dad31e06c5925ef5d2fc7ad053ef454303e","version":"v7.0.0"},{"repo":"actions/setup-node","sha":"949feb2413d6458794dcd2491c4babbbce0c15c1","version":"v7.1.0"},{"repo":"actions/setup-python","sha":"6d4fd22b20465ccc0f7354476588e8df7c9ca0e0","version":"v7.1.0"},{"repo":"actions/upload-artifact","sha":"cf430e030ddbb5b0abf93d22962f4752f3646cd9","version":"v7.0.2"},{"repo":"github/gh-aw-actions/setup","sha":"53d0749e19424a918acd82b4d140264ce48f2f14","version":"v1.2.2"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.29.11","digest":"sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e","pinned_image":"ghcr.io/github/gh-aw-firewall/agent:0.29.11@sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.29.11","digest":"sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c","pinned_image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.29.11@sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.29.11","digest":"sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847","pinned_image":"ghcr.io/github/gh-aw-firewall/squid:0.29.11@sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.5.6","digest":"sha256:342cd624e1f179d91be2de7a146fc4f387092e62e6c8a47506d7932e113d2311","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.5.6@sha256:342cd624e1f179d91be2de7a146fc4f387092e62e6c8a47506d7932e113d2311"},{"image":"ghcr.io/github/gh-aw-node","digest":"sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f","pinned_image":"ghcr.io/github/gh-aw-node@sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f"},{"image":"ghcr.io/github/github-mcp-server:v2.1.0","digest":"sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a","pinned_image":"ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a"}],"mcp_servers":[{"name":"github","tools":["actions_get","actions_list","get_commit","get_file_contents","get_job_logs","get_latest_release","get_pull_request","get_pull_request_comments","get_pull_request_diff","get_pull_request_files","get_pull_request_review_comments","get_pull_request_reviews","get_pull_request_status","get_release_by_tag","get_tag","list_branches","list_commits","list_pull_requests","list_releases","list_starred_repositories","list_tags","pull_request_read","search_code","search_pull_requests","search_repositories"]},{"name":"safeoutputs","tools":["native_action","native_replacement","noop","recover_owned_pr","report_incomplete","report_missing_data","report_missing_tool"]}],"threat_detection":{"mode":"enabled"},"admission":false,"agent_metadata":{"03cbf8931deff21d5116":{"name":"Agentic Workflows"}}}
 # This file was automatically generated by gh-aw (v1.2.2). DO NOT EDIT. To debug this workflow, load the skill at https://github.com/github/gh-aw/blob/main/debug.md
 #
 #    ___                   _   _
@@ -37,12 +37,14 @@
 #   - GITHUB_TOKEN
 #
 # Custom actions used:
+#   - actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 #   - actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 #   - actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
 #   - actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
 #   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
 #   - actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
 #   - actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+#   - actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
 #   - actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
 #   - github/gh-aw-actions/setup@53d0749e19424a918acd82b4d140264ce48f2f14 # v1.2.2
 #
@@ -154,7 +156,7 @@ jobs:
           GH_AW_INFO_EXPERIMENTAL: "false"
           GH_AW_INFO_SUPPORTS_TOOLS_ALLOWLIST: "true"
           GH_AW_INFO_STAGED: "false"
-          GH_AW_INFO_ALLOWED_DOMAINS: '["defaults","go","release-assets.githubusercontent.com","objects.githubusercontent.com","prow.ci.openshift.org","gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com","gcs.ci.openshift.org","storage.googleapis.com"]'
+          GH_AW_INFO_ALLOWED_DOMAINS: '["defaults","go","node","release-assets.githubusercontent.com","objects.githubusercontent.com","prow.ci.openshift.org","gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com","gcs.ci.openshift.org","storage.googleapis.com"]'
           GH_AW_INFO_FIREWALL_ENABLED: "true"
           GH_AW_INFO_AWF_VERSION: "v0.29.11"
           GH_AW_INFO_AWMG_VERSION: ""
@@ -312,7 +314,7 @@ jobs:
             <system>
           GH_AW_PROMPT_CONTENT_0001: |
             <safe-output-tools>
-            Tools: report_missing_tool, report_missing_data, noop(max:2), recover_owned_pr
+            Tools: report_missing_tool, report_missing_data, noop(max:2), native_action, native_replacement, recover_owned_pr
           GH_AW_PROMPT_CONTENT_0002: |
             </safe-output-tools>
           GH_AW_PROMPT_CONTENT_0003: |+
@@ -646,6 +648,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.repository.default_branch }}
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install sandbox workflow validation
+        run: python3 -m pip install --disable-pip-version-check yamllint==1.38.0
       - name: Set up sandbox Go from go.work
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -654,12 +662,28 @@ jobs:
           go-version-file: go.work
       - name: Build depctl
         run: "mkdir -p \"$RUNNER_TEMP/gh-aw/bin\"\nmake -C tooling/depctl build BINARY=\"$RUNNER_TEMP/gh-aw/bin/depctl\"\nprintf 'DEPCTL_BINARY=%s/gh-aw/bin/depctl\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"\n"
+      - name: Set up sandbox Node using the repository convention
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        name: Install the repository-pinned workflow compiler
+        run: "set -euo pipefail\nversion=$(\"$DEPCTL_BINARY\" maintenance compiler-versions --ref HEAD | jq -er 'select(length == 1) | .[0]')\n[[ \"$version\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]\ndirectory=\"$RUNNER_TEMP/native-gh-aw\"\nmkdir -p \"$directory\"\ngh release download \"$version\" --repo github/gh-aw --pattern linux-amd64 --dir \"$directory\"\ndigest=$(gh api \"repos/github/gh-aw/releases/tags/$version\" --jq '.assets[] | select(.name == \"linux-amd64\") | .digest')\n[[ \"$digest\" =~ ^sha256:[0-9a-f]{64}$ ]]\nprintf '%s  %s\\n' \"${digest#sha256:}\" \"$directory/linux-amd64\" | sha256sum -c -\ninstall -m 0755 \"$directory/linux-amd64\" \"$(git rev-parse --git-path native-gh-aw)\"\n"
       - env:
           CI_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        name: Inspect owned compiler PR after compiler reconciliation
-        run: "set -euo pipefail\n\"$DEPCTL_BINARY\" maintenance inventory --repository \"$REPO\" --kind upgrade --output agentic-maintenance-inventory.json\nprintf '%s\\n' /agentic-maintenance-inventory.json >> .git/info/exclude"
+        name: Inspect owned automation PRs after compiler reconciliation
+        run: |
+          set -euo pipefail
+          "$DEPCTL_BINARY" maintenance inventory --repository "$REPO" --output agentic-maintenance-inventory.json
+      - env:
+          CI_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        name: Inventory native Dependabot groups and verified robot replacements
+        run: "set -euo pipefail\npython3 .github/scripts/native_dependabot_maintenance.py inventory \"$REPO\" > native-maintenance-inventory.json\nprintf '%s\\n' /agentic-maintenance-inventory.json /native-maintenance-inventory.json >> .git/info/exclude"
 
       - name: Configure Git credentials
         env:
@@ -711,7 +735,7 @@ jobs:
         env:
           GH_AW_FILE_ROOT: "${{ runner.temp }}/gh-aw"
           GH_AW_FILE_CONFIG: "{\"files\":[{\"path\":\"safeoutputs/config.json\",\"content_env\":\"GH_AW_SAFE_OUTPUTS_CONFIG\"}]}"
-          GH_AW_SAFE_OUTPUTS_CONFIG: "{\"noop\":{\"max\":2,\"report-as-issue\":\"false\"},\"recover-owned-pr\":{\"description\":\"Release a green automatic hold or request one evidenced unchanged-head transient-failure recovery\",\"inputs\":{\"action\":{\"default\":null,\"description\":\"Green CI release or one justified transient failure recovery\",\"options\":[\"release-hold\",\"recover-retry\"],\"required\":true,\"type\":\"choice\"},\"evidence\":{\"default\":null,\"description\":\"Diagnosed transient cause with current failing run and comparison run links, without commands\",\"required\":false,\"type\":\"string\"},\"expected_head_sha\":{\"default\":null,\"description\":\"Exact current head SHA from the inventory\",\"required\":true,\"type\":\"string\"},\"pull_request_number\":{\"default\":null,\"description\":\"Exact owned PR number from the inventory\",\"required\":true,\"type\":\"string\"}},\"max\":1,\"supports_dependencies\":false},\"report_incomplete\":{},\"report_missing_data\":{},\"report_missing_tool\":{}}"
+          GH_AW_SAFE_OUTPUTS_CONFIG: "{\"native-action\":{\"description\":\"Apply one verified native admission, bounded recovery, green release or merged-coverage cleanup\",\"inputs\":{\"request\":{\"default\":null,\"description\":\"JSON object with number, expected_head_sha, action (admit, recover-retry, release-hold or close-superseded), optional evidence and replacement_pr\",\"required\":true,\"type\":\"string\"}},\"max\":1,\"supports_dependencies\":false},\"native-replacement\":{\"description\":\"Publish or fast-forward one validated native Dependabot family replacement, without executing candidate code\",\"inputs\":{\"request_sha256\":{\"default\":null,\"description\":\"SHA-256 of the complete native replacement request artifact produced by validate_native_candidate.py\",\"required\":true,\"type\":\"string\"}},\"max\":1,\"supports_dependencies\":false},\"noop\":{\"max\":2,\"report-as-issue\":\"false\"},\"recover-owned-pr\":{\"description\":\"Release a green automatic hold or request one evidenced unchanged-head transient-failure recovery\",\"inputs\":{\"action\":{\"default\":null,\"description\":\"Green CI release or one justified transient failure recovery\",\"options\":[\"release-hold\",\"recover-retry\"],\"required\":true,\"type\":\"choice\"},\"evidence\":{\"default\":null,\"description\":\"Diagnosed transient cause with current failing run and comparison run links, without commands\",\"required\":false,\"type\":\"string\"},\"expected_head_sha\":{\"default\":null,\"description\":\"Exact current head SHA from the inventory\",\"required\":true,\"type\":\"string\"},\"pull_request_number\":{\"default\":null,\"description\":\"Exact owned PR number from the inventory\",\"required\":true,\"type\":\"string\"}},\"max\":1,\"supports_dependencies\":false},\"report_incomplete\":{},\"report_missing_data\":{},\"report_missing_tool\":{}}"
         with:
           script: |
             const path = require('path');
@@ -727,6 +751,40 @@ jobs:
               "description_suffixes": {},
               "repo_params": {},
               "dynamic_tools": [
+                {
+                  "description": "Apply one verified native admission, bounded recovery, green release or merged-coverage cleanup",
+                  "inputSchema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "request": {
+                        "description": "JSON object with number, expected_head_sha, action (admit, recover-retry, release-hold or close-superseded), optional evidence and replacement_pr",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "request"
+                    ],
+                    "type": "object"
+                  },
+                  "name": "native_action"
+                },
+                {
+                  "description": "Publish or fast-forward one validated native Dependabot family replacement, without executing candidate code",
+                  "inputSchema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "request_sha256": {
+                        "description": "SHA-256 of the complete native replacement request artifact produced by validate_native_candidate.py",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "request_sha256"
+                    ],
+                    "type": "object"
+                  },
+                  "name": "native_replacement"
+                },
                 {
                   "description": "Release a green automatic hold or request one evidenced unchanged-head transient-failure recovery",
                   "inputSchema": {
@@ -1072,7 +1130,7 @@ jobs:
             echo "No component admission allowance; retaining existing budget policy (value withheld)."
           fi
           unset GH_AW_ADMISSION_RESULT GH_AW_ADMISSION_MAX_AI_CREDITS
-          printf '%s\n' "{\"\$schema\":\"https://github.com/github/gh-aw-firewall/releases/download/v0.29.11/awf-config.schema.json\",\"network\":{\"allowDomains\":[\"archive.ubuntu.com\",\"azure.archive.ubuntu.com\",\"crl.geotrust.com\",\"crl.globalsign.com\",\"crl.identrust.com\",\"crl.sectigo.com\",\"crl.thawte.com\",\"crl.usertrust.com\",\"crl.verisign.com\",\"crl3.digicert.com\",\"crl4.digicert.com\",\"crls.ssl.com\",\"gcs.ci.openshift.org\",\"gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com\",\"go.dev\",\"golang.org\",\"goproxy.io\",\"json-schema.org\",\"json.schemastore.org\",\"keyserver.ubuntu.com\",\"objects.githubusercontent.com\",\"ocsp.digicert.com\",\"ocsp.geotrust.com\",\"ocsp.globalsign.com\",\"ocsp.identrust.com\",\"ocsp.sectigo.com\",\"ocsp.ssl.com\",\"ocsp.thawte.com\",\"ocsp.usertrust.com\",\"ocsp.verisign.com\",\"pkg.go.dev\",\"prow.ci.openshift.org\",\"proxy.golang.org\",\"release-assets.githubusercontent.com\",\"s.symcb.com\",\"s.symcd.com\",\"security.ubuntu.com\",\"storage.googleapis.com\",\"sum.golang.org\",\"ts-crl.ws.symantec.com\",\"ts-ocsp.ws.symantec.com\"],\"isolation\":true,\"topologyAttach\":[\"awmg-mcpg\"]},\"apiProxy\":{\"enabled\":true,\"enableTokenSteering\":true,\"maxRuns\":500,\"maxAiCredits\":${GH_AW_MAX_AI_CREDITS},\"maxCacheMisses\":5,\"models\":{\"agent\":[\"sonnet-6x\",\"gpt-6\",\"gpt-5.4\",\"gpt-5.5\",\"gpt-5.6\",\"gpt-5.3\",\"gemini-pro\",\"any\"],\"antigravity\":[\"copilot/antigravity*\",\"google/antigravity*\",\"gemini/antigravity*\"],\"any\":[\"copilot/*\",\"anthropic/*\",\"openai/*\",\"google/*\",\"gemini/*\"],\"auto\":[\"copilot/auto\",\"large\"],\"claude\":[\"agent\"],\"codex\":[\"agent\"],\"coding\":[\"copilot/gpt-5*codex*\",\"openai/gpt-5*codex*\",\"gpt-5-codex\",\"kimi\"],\"computer-use\":[\"copilot/*computer-use*\",\"google/*computer-use*\",\"gemini/*computer-use*\",\"openai/*computer-use*\"],\"copilot\":[\"agent\"],\"deep-research\":[\"copilot/deep-research*\",\"copilot/o3-deep-research*\",\"copilot/o4-mini-deep-research*\",\"google/deep-research*\",\"gemini/deep-research*\",\"openai/o3-deep-research*\",\"openai/o4-mini-deep-research*\"],\"detection\":[\"small\",\"copilot/gpt-*-luna\",\"openai/gpt-*-luna\",\"small-agent\",\"agent\"],\"evals\":[\"copilot/gpt-6-luna-decisions\"],\"fable\":[\"copilot/*fable*\",\"anthropic/*fable*\"],\"gemini\":[\"agent\"],\"gemini-3-flash\":[\"copilot/gemini-3*flash*\",\"google/gemini-3*flash*\",\"gemini/gemini-3*flash*\"],\"gemini-3-pro\":[\"copilot/gemini-3*pro*\",\"google/gemini-3*pro*\",\"google/nano-banana*\",\"gemini/gemini-3*pro*\"],\"gemini-3.1-flash\":[\"copilot/gemini-3.1*flash*\",\"google/gemini-3.1*flash*\",\"gemini/gemini-3.1*flash*\"],\"gemini-3.1-pro\":[\"copilot/gemini-3.1*pro*\",\"google/gemini-3.1*pro*\",\"gemini/gemini-3.1*pro*\"],\"gemini-3.5-flash\":[\"copilot/gemini-3.5*flash*\",\"google/gemini-3.5*flash*\",\"gemini/gemini-3.5*flash*\"],\"gemini-3.6-flash\":[\"copilot/gemini-3.6*flash*\",\"google/gemini-3.6*flash*\",\"gemini/gemini-3.6*flash*\"],\"gemini-3.7-flash\":[\"copilot/gemini-3.7*flash*\",\"google/gemini-3.7*flash*\",\"gemini/gemini-3.7*flash*\"],\"gemini-3.8-flash\":[\"copilot/gemini-3.8*flash*\",\"google/gemini-3.8*flash*\",\"gemini/gemini-3.8*flash*\"],\"gemini-flash\":[\"copilot/gemini-*flash*\",\"google/gemini-*flash*\",\"gemini/gemini-*flash*\"],\"gemini-flash-lite\":[\"copilot/gemini-*flash*lite*\",\"google/gemini-*flash*lite*\",\"gemini/gemini-*flash*lite*\"],\"gemini-omni\":[\"copilot/gemini-omni*\",\"google/gemini-omni*\",\"gemini/gemini-omni*\"],\"gemini-pro\":[\"copilot/gemini-*pro*\",\"google/gemini-*pro*\",\"gemini/gemini-*pro*\"],\"gemma\":[\"copilot/gemma*\",\"google/gemma*\",\"gemini/gemma*\"],\"gpt-5\":[\"copilot/gpt-5*\",\"openai/gpt-5*\"],\"gpt-5-codex\":[\"copilot/gpt-5*codex*\",\"openai/gpt-5*codex*\"],\"gpt-5-mini\":[\"copilot/gpt-5*mini*\",\"openai/gpt-5*mini*\"],\"gpt-5-nano\":[\"copilot/gpt-5*nano*\",\"openai/gpt-5*nano*\"],\"gpt-5-pro\":[\"copilot/gpt-5*pro*\",\"openai/gpt-5*pro*\"],\"gpt-5.1\":[\"copilot/gpt-5.1*\",\"openai/gpt-5.1*\"],\"gpt-5.2\":[\"copilot/gpt-5.2*\",\"openai/gpt-5.2*\"],\"gpt-5.3\":[\"copilot/gpt-5.3*\",\"openai/gpt-5.3*\"],\"gpt-5.4\":[\"copilot/gpt-5.4*\",\"openai/gpt-5.4*\"],\"gpt-5.5\":[\"copilot/gpt-5.5*\",\"openai/gpt-5.5*\"],\"gpt-5.6\":[\"copilot/gpt-5.6*\",\"openai/gpt-5.6*\"],\"gpt-6\":[\"copilot/gpt-6*\",\"openai/gpt-6*\"],\"grok\":[\"copilot/*grok*\",\"openai/*grok*\"],\"haiku\":[\"copilot/*haiku*\",\"anthropic/*haiku*\"],\"image-generation\":[\"copilot/gpt-image*\",\"openai/gpt-image*\",\"openai/chatgpt-image*\",\"copilot/gemini-*image*\",\"google/gemini-*image*\",\"gemini/gemini-*image*\",\"google/imagen*\"],\"kimi\":[\"copilot/kimi*\",\"openai/kimi*\"],\"kiwi\":[\"copilot/kiwi*\",\"openai/kiwi*\"],\"large\":[\"sonnet\",\"gpt-6\",\"gpt-5-pro\",\"gpt-5\",\"gemini-pro\"],\"lyria\":[\"google/lyria*\",\"gemini/lyria*\",\"copilot/lyria*\"],\"mai-code\":[\"copilot/MAI-Code*\",\"copilot/mai-code*\",\"openai/MAI-Code*\"],\"mini\":[\"haiku\",\"gpt-5-mini\",\"gpt-5-nano\",\"gemini-flash-lite\"],\"nano-banana\":[\"copilot/nano-banana*\",\"google/nano-banana*\",\"gemini/nano-banana*\"],\"opus\":[\"copilot/*opus*\",\"anthropic/*opus*\"],\"opusplan\":[\"opus?effort=high\"],\"raptor-mini\":[\"copilot/raptor*\",\"openai/raptor*\"],\"reasoning\":[\"copilot/o1*\",\"copilot/o3*\",\"copilot/o4*\",\"openai/o1*\",\"openai/o3*\",\"openai/o4*\"],\"robotics\":[\"copilot/*robotics*\",\"google/*robotics*\",\"gemini/*robotics*\"],\"small\":[\"mini\"],\"small-agent\":[\"haiku\",\"gpt-5-mini\",\"gemini-flash\"],\"sonnet\":[\"copilot/*sonnet*\",\"anthropic/*sonnet*\"],\"sonnet-6x\":[\"copilot/*sonnet-4.5*\",\"copilot/*sonnet-4.6*\",\"copilot/*sonnet-5*\",\"copilot/*sonnet-4-5-*\",\"anthropic/*sonnet-4-5-*\",\"copilot/*sonnet-4-6*\",\"anthropic/*sonnet-4-6*\",\"anthropic/*sonnet-5*\"],\"summarization\":[\"haiku\",\"gpt-5-mini\",\"gemini-flash-lite\",\"mini\"],\"veo\":[\"google/veo*\",\"gemini/veo*\"],\"vision\":[\"copilot/gemini-*image*\",\"google/gemini-*image*\",\"gemini/gemini-*image*\",\"copilot/gemini-*flash*\",\"google/gemini-*flash*\",\"gemini/gemini-*flash*\"]}},\"container\":{\"imageTag\":\"0.29.11,squid=sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847,agent=sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e,agent-act=sha256:ab786b54e96f95204366fdf195f80758e14891ebb17afe9e2ddc8d98555ebb46,api-proxy=sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c,cli-proxy=sha256:97782bc0d8ff7f80f19ae2fdc5e1668517aa732a6fa077e64b8d3919238496d2\",\"agentTimeout\":120},\"logging\":{\"proxyLogsDir\":\"/tmp/gh-aw/sandbox/firewall/logs\",\"auditDir\":\"/tmp/gh-aw/sandbox/firewall/audit\"}}" > "${RUNNER_TEMP}/gh-aw/awf-config.json"
+          printf '%s\n' "{\"\$schema\":\"https://github.com/github/gh-aw-firewall/releases/download/v0.29.11/awf-config.schema.json\",\"network\":{\"allowDomains\":[\"api.npms.io\",\"archive.ubuntu.com\",\"azure.archive.ubuntu.com\",\"bun.sh\",\"cdn.jsdelivr.net\",\"crl.geotrust.com\",\"crl.globalsign.com\",\"crl.identrust.com\",\"crl.sectigo.com\",\"crl.thawte.com\",\"crl.usertrust.com\",\"crl.verisign.com\",\"crl3.digicert.com\",\"crl4.digicert.com\",\"crls.ssl.com\",\"deb.nodesource.com\",\"deno.land\",\"esm.sh\",\"gcs.ci.openshift.org\",\"gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com\",\"get.pnpm.io\",\"go.dev\",\"golang.org\",\"googleapis.deno.dev\",\"googlechromelabs.github.io\",\"goproxy.io\",\"json-schema.org\",\"json.schemastore.org\",\"jsr.io\",\"keyserver.ubuntu.com\",\"nodejs.org\",\"npm.pkg.github.com\",\"npmjs.com\",\"npmjs.org\",\"objects.githubusercontent.com\",\"ocsp.digicert.com\",\"ocsp.geotrust.com\",\"ocsp.globalsign.com\",\"ocsp.identrust.com\",\"ocsp.sectigo.com\",\"ocsp.ssl.com\",\"ocsp.thawte.com\",\"ocsp.usertrust.com\",\"ocsp.verisign.com\",\"pkg.go.dev\",\"prow.ci.openshift.org\",\"proxy.golang.org\",\"registry.bower.io\",\"registry.npmjs.com\",\"registry.npmjs.org\",\"registry.yarnpkg.com\",\"release-assets.githubusercontent.com\",\"repo.yarnpkg.com\",\"s.symcb.com\",\"s.symcd.com\",\"security.ubuntu.com\",\"skimdb.npmjs.com\",\"storage.googleapis.com\",\"sum.golang.org\",\"ts-crl.ws.symantec.com\",\"ts-ocsp.ws.symantec.com\",\"www.npmjs.com\",\"www.npmjs.org\",\"yarnpkg.com\"],\"isolation\":true,\"topologyAttach\":[\"awmg-mcpg\"]},\"apiProxy\":{\"enabled\":true,\"enableTokenSteering\":true,\"maxRuns\":500,\"maxAiCredits\":${GH_AW_MAX_AI_CREDITS},\"maxCacheMisses\":5,\"models\":{\"agent\":[\"sonnet-6x\",\"gpt-6\",\"gpt-5.4\",\"gpt-5.5\",\"gpt-5.6\",\"gpt-5.3\",\"gemini-pro\",\"any\"],\"antigravity\":[\"copilot/antigravity*\",\"google/antigravity*\",\"gemini/antigravity*\"],\"any\":[\"copilot/*\",\"anthropic/*\",\"openai/*\",\"google/*\",\"gemini/*\"],\"auto\":[\"copilot/auto\",\"large\"],\"claude\":[\"agent\"],\"codex\":[\"agent\"],\"coding\":[\"copilot/gpt-5*codex*\",\"openai/gpt-5*codex*\",\"gpt-5-codex\",\"kimi\"],\"computer-use\":[\"copilot/*computer-use*\",\"google/*computer-use*\",\"gemini/*computer-use*\",\"openai/*computer-use*\"],\"copilot\":[\"agent\"],\"deep-research\":[\"copilot/deep-research*\",\"copilot/o3-deep-research*\",\"copilot/o4-mini-deep-research*\",\"google/deep-research*\",\"gemini/deep-research*\",\"openai/o3-deep-research*\",\"openai/o4-mini-deep-research*\"],\"detection\":[\"small\",\"copilot/gpt-*-luna\",\"openai/gpt-*-luna\",\"small-agent\",\"agent\"],\"evals\":[\"copilot/gpt-6-luna-decisions\"],\"fable\":[\"copilot/*fable*\",\"anthropic/*fable*\"],\"gemini\":[\"agent\"],\"gemini-3-flash\":[\"copilot/gemini-3*flash*\",\"google/gemini-3*flash*\",\"gemini/gemini-3*flash*\"],\"gemini-3-pro\":[\"copilot/gemini-3*pro*\",\"google/gemini-3*pro*\",\"google/nano-banana*\",\"gemini/gemini-3*pro*\"],\"gemini-3.1-flash\":[\"copilot/gemini-3.1*flash*\",\"google/gemini-3.1*flash*\",\"gemini/gemini-3.1*flash*\"],\"gemini-3.1-pro\":[\"copilot/gemini-3.1*pro*\",\"google/gemini-3.1*pro*\",\"gemini/gemini-3.1*pro*\"],\"gemini-3.5-flash\":[\"copilot/gemini-3.5*flash*\",\"google/gemini-3.5*flash*\",\"gemini/gemini-3.5*flash*\"],\"gemini-3.6-flash\":[\"copilot/gemini-3.6*flash*\",\"google/gemini-3.6*flash*\",\"gemini/gemini-3.6*flash*\"],\"gemini-3.7-flash\":[\"copilot/gemini-3.7*flash*\",\"google/gemini-3.7*flash*\",\"gemini/gemini-3.7*flash*\"],\"gemini-3.8-flash\":[\"copilot/gemini-3.8*flash*\",\"google/gemini-3.8*flash*\",\"gemini/gemini-3.8*flash*\"],\"gemini-flash\":[\"copilot/gemini-*flash*\",\"google/gemini-*flash*\",\"gemini/gemini-*flash*\"],\"gemini-flash-lite\":[\"copilot/gemini-*flash*lite*\",\"google/gemini-*flash*lite*\",\"gemini/gemini-*flash*lite*\"],\"gemini-omni\":[\"copilot/gemini-omni*\",\"google/gemini-omni*\",\"gemini/gemini-omni*\"],\"gemini-pro\":[\"copilot/gemini-*pro*\",\"google/gemini-*pro*\",\"gemini/gemini-*pro*\"],\"gemma\":[\"copilot/gemma*\",\"google/gemma*\",\"gemini/gemma*\"],\"gpt-5\":[\"copilot/gpt-5*\",\"openai/gpt-5*\"],\"gpt-5-codex\":[\"copilot/gpt-5*codex*\",\"openai/gpt-5*codex*\"],\"gpt-5-mini\":[\"copilot/gpt-5*mini*\",\"openai/gpt-5*mini*\"],\"gpt-5-nano\":[\"copilot/gpt-5*nano*\",\"openai/gpt-5*nano*\"],\"gpt-5-pro\":[\"copilot/gpt-5*pro*\",\"openai/gpt-5*pro*\"],\"gpt-5.1\":[\"copilot/gpt-5.1*\",\"openai/gpt-5.1*\"],\"gpt-5.2\":[\"copilot/gpt-5.2*\",\"openai/gpt-5.2*\"],\"gpt-5.3\":[\"copilot/gpt-5.3*\",\"openai/gpt-5.3*\"],\"gpt-5.4\":[\"copilot/gpt-5.4*\",\"openai/gpt-5.4*\"],\"gpt-5.5\":[\"copilot/gpt-5.5*\",\"openai/gpt-5.5*\"],\"gpt-5.6\":[\"copilot/gpt-5.6*\",\"openai/gpt-5.6*\"],\"gpt-6\":[\"copilot/gpt-6*\",\"openai/gpt-6*\"],\"grok\":[\"copilot/*grok*\",\"openai/*grok*\"],\"haiku\":[\"copilot/*haiku*\",\"anthropic/*haiku*\"],\"image-generation\":[\"copilot/gpt-image*\",\"openai/gpt-image*\",\"openai/chatgpt-image*\",\"copilot/gemini-*image*\",\"google/gemini-*image*\",\"gemini/gemini-*image*\",\"google/imagen*\"],\"kimi\":[\"copilot/kimi*\",\"openai/kimi*\"],\"kiwi\":[\"copilot/kiwi*\",\"openai/kiwi*\"],\"large\":[\"sonnet\",\"gpt-6\",\"gpt-5-pro\",\"gpt-5\",\"gemini-pro\"],\"lyria\":[\"google/lyria*\",\"gemini/lyria*\",\"copilot/lyria*\"],\"mai-code\":[\"copilot/MAI-Code*\",\"copilot/mai-code*\",\"openai/MAI-Code*\"],\"mini\":[\"haiku\",\"gpt-5-mini\",\"gpt-5-nano\",\"gemini-flash-lite\"],\"nano-banana\":[\"copilot/nano-banana*\",\"google/nano-banana*\",\"gemini/nano-banana*\"],\"opus\":[\"copilot/*opus*\",\"anthropic/*opus*\"],\"opusplan\":[\"opus?effort=high\"],\"raptor-mini\":[\"copilot/raptor*\",\"openai/raptor*\"],\"reasoning\":[\"copilot/o1*\",\"copilot/o3*\",\"copilot/o4*\",\"openai/o1*\",\"openai/o3*\",\"openai/o4*\"],\"robotics\":[\"copilot/*robotics*\",\"google/*robotics*\",\"gemini/*robotics*\"],\"small\":[\"mini\"],\"small-agent\":[\"haiku\",\"gpt-5-mini\",\"gemini-flash\"],\"sonnet\":[\"copilot/*sonnet*\",\"anthropic/*sonnet*\"],\"sonnet-6x\":[\"copilot/*sonnet-4.5*\",\"copilot/*sonnet-4.6*\",\"copilot/*sonnet-5*\",\"copilot/*sonnet-4-5-*\",\"anthropic/*sonnet-4-5-*\",\"copilot/*sonnet-4-6*\",\"anthropic/*sonnet-4-6*\",\"anthropic/*sonnet-5*\"],\"summarization\":[\"haiku\",\"gpt-5-mini\",\"gemini-flash-lite\",\"mini\"],\"veo\":[\"google/veo*\",\"gemini/veo*\"],\"vision\":[\"copilot/gemini-*image*\",\"google/gemini-*image*\",\"gemini/gemini-*image*\",\"copilot/gemini-*flash*\",\"google/gemini-*flash*\",\"gemini/gemini-*flash*\"]}},\"container\":{\"imageTag\":\"0.29.11,squid=sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847,agent=sha256:8774a73c351395b41d2ad0af4ddb4689007c67de3cd08bd9f43bb8a0e300690e,agent-act=sha256:ab786b54e96f95204366fdf195f80758e14891ebb17afe9e2ddc8d98555ebb46,api-proxy=sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c,cli-proxy=sha256:97782bc0d8ff7f80f19ae2fdc5e1668517aa732a6fa077e64b8d3919238496d2\",\"agentTimeout\":120},\"logging\":{\"proxyLogsDir\":\"/tmp/gh-aw/sandbox/firewall/logs\",\"auditDir\":\"/tmp/gh-aw/sandbox/firewall/audit\"}}" > "${RUNNER_TEMP}/gh-aw/awf-config.json"
           cp "${RUNNER_TEMP}/gh-aw/awf-config.json" /tmp/gh-aw/awf-config.json
           export GH_AW_MODELS_JSON_PATH="/tmp/gh-aw/models.json"
           GH_AW_DOCKER_HOST=""
@@ -1231,7 +1289,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           GH_AW_SAFE_OUTPUTS: ${{ steps.set-runtime-paths.outputs.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_ALLOWED_DOMAINS: "archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,gcs.ci.openshift.org,gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com,go.dev,golang.org,goproxy.io,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,objects.githubusercontent.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,pkg.go.dev,prow.ci.openshift.org,proxy.golang.org,release-assets.githubusercontent.com,s.symcb.com,s.symcd.com,security.ubuntu.com,storage.googleapis.com,sum.golang.org,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com"
+          GH_AW_ALLOWED_DOMAINS: "api.npms.io,archive.ubuntu.com,azure.archive.ubuntu.com,bun.sh,cdn.jsdelivr.net,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,deb.nodesource.com,deno.land,esm.sh,gcs.ci.openshift.org,gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com,get.pnpm.io,go.dev,golang.org,googleapis.deno.dev,googlechromelabs.github.io,goproxy.io,json-schema.org,json.schemastore.org,jsr.io,keyserver.ubuntu.com,nodejs.org,npm.pkg.github.com,npmjs.com,npmjs.org,objects.githubusercontent.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,pkg.go.dev,prow.ci.openshift.org,proxy.golang.org,registry.bower.io,registry.npmjs.com,registry.npmjs.org,registry.yarnpkg.com,release-assets.githubusercontent.com,repo.yarnpkg.com,s.symcb.com,s.symcd.com,security.ubuntu.com,skimdb.npmjs.com,storage.googleapis.com,sum.golang.org,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com,www.npmjs.com,www.npmjs.org,yarnpkg.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
         with:
@@ -1325,7 +1383,7 @@ jobs:
           GH_AW_OBJECT_PACK_MAX_OBJECTS: ${{ vars.GH_AW_OBJECT_PACK_MAX_OBJECTS }}
           GH_AW_OBJECT_PACK_TIMEOUT_MS: ${{ vars.GH_AW_OBJECT_PACK_TIMEOUT_MS }}
           GH_AW_OBJECT_PACK_FETCH_DEPTHS: ${{ vars.GH_AW_OBJECT_PACK_FETCH_DEPTHS }}
-          GH_AW_RECOVERY_ADDITIONAL_ROOTS: '["/tmp/gh-aw/aw-prompts/prompt.txt","/tmp/gh-aw/agent_execution.json","/tmp/gh-aw/agent_execution_exit_code.txt","/tmp/gh-aw/agent-session.jsonl","/tmp/gh-aw/agent-errors.jsonl","/tmp/gh-aw/aw-prompts/user.txt","/tmp/gh-aw/aw-prompts/system.txt","/tmp/gh-aw/skill_inventory.json","/tmp/gh-aw/sandbox/agent/logs/","/tmp/gh-aw/redacted-urls.log","/tmp/gh-aw/mcp-logs/","/tmp/gh-aw/agent_usage.json","/tmp/gh-aw/runtime/aw_info.json","/tmp/gh-aw/agent_usage.jsonl","/tmp/gh-aw/agent/model-endpoint-mismatch.json","/tmp/gh-aw/agent/model-resolution.json","/tmp/gh-aw/agent-stdio.log","/tmp/gh-aw/agent/harness_retry.json","/tmp/gh-aw/pre-agent-audit.txt","/tmp/gh-aw/github_rate_limits.jsonl","/tmp/gh-aw/otel.jsonl","/tmp/gh-aw/otlp-export-errors.jsonl","/tmp/gh-aw/safeoutputs.jsonl","/tmp/gh-aw/agent_output.json","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw","/tmp/gh-aw","/tmp/gh-aw/awf-config.json","/tmp/gh-aw/awf-resolved-config.json","/tmp/gh-aw/sandbox/firewall/logs/","/tmp/gh-aw/sandbox/firewall/audit/","/tmp/gh-aw/sandbox/firewall/awf-reflect.json"]'
+          GH_AW_RECOVERY_ADDITIONAL_ROOTS: '["/tmp/gh-aw/aw-prompts/prompt.txt","/tmp/gh-aw/agent_execution.json","/tmp/gh-aw/agent_execution_exit_code.txt","/tmp/gh-aw/agent-session.jsonl","/tmp/gh-aw/agent-errors.jsonl","/tmp/gh-aw/aw-prompts/user.txt","/tmp/gh-aw/aw-prompts/system.txt","/tmp/gh-aw/skill_inventory.json","/tmp/gh-aw/sandbox/agent/logs/","/tmp/gh-aw/redacted-urls.log","/tmp/gh-aw/mcp-logs/","/tmp/gh-aw/agent_usage.json","/tmp/gh-aw/runtime/aw_info.json","/tmp/gh-aw/agent_usage.jsonl","/tmp/gh-aw/agent/model-endpoint-mismatch.json","/tmp/gh-aw/agent/model-resolution.json","/tmp/gh-aw/agent-stdio.log","/tmp/gh-aw/agent/harness_retry.json","/tmp/gh-aw/pre-agent-audit.txt","/tmp/gh-aw/github_rate_limits.jsonl","/tmp/gh-aw/otel.jsonl","/tmp/gh-aw/otlp-export-errors.jsonl","/tmp/gh-aw/safeoutputs.jsonl","/tmp/gh-aw/agent_output.json","/tmp/gh-aw/agent/native-replacement-request.json","/tmp/gh-aw/agent/native-validation-results.json","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw/agent/prow-logs","/tmp/gh-aw","/tmp/gh-aw","/tmp/gh-aw/awf-config.json","/tmp/gh-aw/awf-resolved-config.json","/tmp/gh-aw/sandbox/firewall/logs/","/tmp/gh-aw/sandbox/firewall/audit/","/tmp/gh-aw/sandbox/firewall/awf-reflect.json"]'
         with:
           script: |
             const path = require('path');
@@ -1389,6 +1447,17 @@ jobs:
             /tmp/gh-aw/otlp-export-errors.jsonl
             /tmp/gh-aw/safeoutputs.jsonl
             /tmp/gh-aw/agent_output.json
+            /tmp/gh-aw/agent/native-replacement-request.json
+            /tmp/gh-aw/agent/native-validation-results.json
+            /tmp/gh-aw/agent/native-validation-*/**/*.txt
+            /tmp/gh-aw/agent/native-validation-*/**/*.json
+            /tmp/gh-aw/agent/native-validation-*/**/*.log
+            /tmp/gh-aw/agent/native-validation-*/**/*.md
+            /tmp/gh-aw/agent/native-validation-*/**/*.mdx
+            /tmp/gh-aw/agent/native-validation-*/**/*.yml
+            /tmp/gh-aw/agent/native-validation-*/**/*.jsonl
+            /tmp/gh-aw/agent/native-validation-*/**/*.patch
+            /tmp/gh-aw/agent/native-validation-*/**/*.html
             /tmp/gh-aw/agent/prow-logs/**/*.txt
             /tmp/gh-aw/agent/prow-logs/**/*.json
             /tmp/gh-aw/agent/prow-logs/**/*.log
@@ -1414,6 +1483,8 @@ jobs:
       - activation
       - agent
       - detection
+      - native_action
+      - native_replacement
       - recompile
       - recover_owned_pr
       - safe_outputs
@@ -1431,9 +1502,9 @@ jobs:
       cancel-in-progress: false
       queue: max
     env:
-      GH_AW_JOB_DISPLAY_NAMES: "{\"activation\":\"activation\",\"agent\":\"agent\",\"conclusion\":\"conclusion\",\"detection\":\"detection\",\"pre_activation\":\"pre_activation\",\"recompile\":\"Bootstrap compiler release reconciliation\",\"recover_owned_pr\":\"recover_owned_pr\",\"safe_outputs\":\"safe_outputs\"}"
-      GH_AW_JOB_RESULTS: "{\"activation\":{\"result\":\"${{ needs.activation.result }}\"},\"agent\":{\"result\":\"${{ needs.agent.result }}\"},\"detection\":{\"result\":\"${{ needs.detection.result }}\"},\"recompile\":{\"result\":\"${{ needs.recompile.result }}\"},\"recover_owned_pr\":{\"result\":\"${{ needs.recover_owned_pr.result }}\"},\"safe_outputs\":{\"result\":\"${{ needs.safe_outputs.result }}\"}}"
-      GH_AW_JOB_TIMING_ELIGIBLE: "{\"activation\":true,\"agent\":true,\"conclusion\":true,\"detection\":true,\"pre_activation\":true,\"recompile\":true,\"recover_owned_pr\":true,\"safe_outputs\":true}"
+      GH_AW_JOB_DISPLAY_NAMES: "{\"activation\":\"activation\",\"agent\":\"agent\",\"conclusion\":\"conclusion\",\"detection\":\"detection\",\"native_action\":\"native_action\",\"native_replacement\":\"native_replacement\",\"pre_activation\":\"pre_activation\",\"recompile\":\"Bootstrap compiler release reconciliation\",\"recover_owned_pr\":\"recover_owned_pr\",\"safe_outputs\":\"safe_outputs\"}"
+      GH_AW_JOB_RESULTS: "{\"activation\":{\"result\":\"${{ needs.activation.result }}\"},\"agent\":{\"result\":\"${{ needs.agent.result }}\"},\"detection\":{\"result\":\"${{ needs.detection.result }}\"},\"native_action\":{\"result\":\"${{ needs.native_action.result }}\"},\"native_replacement\":{\"result\":\"${{ needs.native_replacement.result }}\"},\"recompile\":{\"result\":\"${{ needs.recompile.result }}\"},\"recover_owned_pr\":{\"result\":\"${{ needs.recover_owned_pr.result }}\"},\"safe_outputs\":{\"result\":\"${{ needs.safe_outputs.result }}\"}}"
+      GH_AW_JOB_TIMING_ELIGIBLE: "{\"activation\":true,\"agent\":true,\"conclusion\":true,\"detection\":true,\"native_action\":true,\"native_replacement\":true,\"pre_activation\":true,\"recompile\":true,\"recover_owned_pr\":true,\"safe_outputs\":true}"
       GH_AW_RUNTIME_FEATURES: ${{ vars.GH_AW_RUNTIME_FEATURES }}
     outputs:
       incomplete_count: ${{ steps.report_incomplete.outputs.incomplete_count }}
@@ -1641,8 +1712,8 @@ jobs:
         env:
           GH_AW_GRADER_MANIFEST_0: '{"version":2,"graders":[]}'
           GH_AW_GRADER_MANIFEST_CHUNKS: '1'
-          GH_AW_SAFE_JOB_NAMES: "[\"recover_owned_pr\"]"
-          GH_AW_SAFE_JOB_RESULTS: "{\"recover_owned_pr\":{\"result\":${{ toJSON(needs.recover_owned_pr.result) }},\"outputs\":{}}}"
+          GH_AW_SAFE_JOB_NAMES: "[\"native_action\",\"native_replacement\",\"recover_owned_pr\"]"
+          GH_AW_SAFE_JOB_RESULTS: "{\"native_action\":{\"result\":${{ toJSON(needs.native_action.result) }},\"outputs\":{}},\"native_replacement\":{\"result\":${{ toJSON(needs.native_replacement.result) }},\"outputs\":{}},\"recover_owned_pr\":{\"result\":${{ toJSON(needs.recover_owned_pr.result) }},\"outputs\":{}}}"
           GH_AW_DAILY_AI_CREDITS_GUARDRAIL_STATUS: ${{ needs.activation.outputs.daily_ai_credits_guardrail_status }}
           GH_AW_DAILY_AI_CREDITS_EXCEEDED: ${{ needs.activation.outputs.daily_ai_credits_exceeded }}
           GH_AW_DAILY_AI_CREDITS_TOTAL: ${{ needs.activation.outputs.daily_ai_credits_total }}
@@ -1840,6 +1911,17 @@ jobs:
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/prepare_threat_detection_files.sh"
+      - name: Checkout trusted native detection guard
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Stage verified native replacement for detection
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        run: python3 .github/scripts/native_dependabot_maintenance.py stage-detection "$REPO" /tmp/gh-aw/agent_output.json /tmp/gh-aw/threat-detection
+        env:
+          REPO: ${{ github.repository }}
       - name: Setup threat detection
         id: detection_setup
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
@@ -2089,6 +2171,197 @@ jobs:
           if-no-files-found: ignore
           retention-days: ${{ vars.GH_AW_DEFAULT_ARTIFACT_RETENTION_DAYS || '0' }}
 
+  native_action:
+    name: native_action
+    needs:
+      - agent
+      - detection
+    if: >
+      (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'native_action') &&
+      needs.detection.result == 'success' && (needs.detection.result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    # Permissions for the native_action job (workflow permissions default to none).
+    permissions:
+      actions: read # Read workflow runs and artifacts for workflow context.
+      checks: read # Read check runs for workflow context.
+      contents: read
+      pull-requests: read # Read pull requests and review comments for workflow context.
+      statuses: read # Read commit statuses for workflow context.
+    env:
+      GH_AW_AGENT_AIC: ${{ needs.agent.outputs.aic }}
+      GH_AW_AIC: ${{ needs.agent.outputs.aic }}
+      GH_AW_AMBIENT_CONTEXT: ${{ needs.agent.outputs.ambient_context }}
+      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/gh-aw-recompile"
+      GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+      GH_AW_DETECTION_REASON: ${{ needs.detection.outputs.detection_reason }}
+      GH_AW_DETECTION_THREAT_KINDS: ${{ needs.detection.outputs.detection_threat_kinds }}
+      GH_AW_ENGINE_ID: "copilot"
+      GH_AW_ENGINE_MODEL: "sonnet"
+      GH_AW_OBJECT_PACK_FETCH_DEPTHS: ${{ vars.GH_AW_OBJECT_PACK_FETCH_DEPTHS }}
+      GH_AW_OBJECT_PACK_MAX_BYTES: ${{ vars.GH_AW_OBJECT_PACK_MAX_BYTES }}
+      GH_AW_OBJECT_PACK_MAX_OBJECTS: ${{ vars.GH_AW_OBJECT_PACK_MAX_OBJECTS }}
+      GH_AW_OBJECT_PACK_TIMEOUT_MS: ${{ vars.GH_AW_OBJECT_PACK_TIMEOUT_MS }}
+      GH_AW_RUN_DETECTION: ${{ needs.detection.outputs.run_detection }}
+      GH_AW_THREAT_DETECTION_AIC: ${{ needs.detection.outputs.aic }}
+      GH_AW_WORKFLOW_ID: "gh-aw-recompile"
+      GH_AW_WORKFLOW_NAME: "gh-aw recompile"
+      GH_AW_WORKFLOW_SOURCE_URL: "${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/.github/workflows/gh-aw-recompile.md"
+    steps:
+      - name: Download agent output artifact
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: "{agent,agent-output-fallback}"
+          merge-multiple: true
+          path: ${{ runner.temp }}/gh-aw/safe-jobs/
+      - name: Checkout trusted native reconciliation guard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Set up trusted guard Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          cache: false
+          go-version-file: go.work
+      - name: Build trusted maintenance guard
+        run: |
+          mkdir -p "$RUNNER_TEMP/gh-aw/bin"
+          make -C tooling/depctl build BINARY="$RUNNER_TEMP/gh-aw/bin/depctl"
+          printf 'DEPCTL_BINARY=%s/gh-aw/bin/depctl\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+      - name: Mint scoped native PR-comment token
+        id: write-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          permission-pull-requests: write
+          private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Apply only the fixed guarded native lifecycle action
+        run: python3 .github/scripts/native_dependabot_maintenance.py reconcile "$REPO" "$GH_AW_AGENT_OUTPUT"
+        env:
+          CI_TOKEN: ${{ github.token }}
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ steps.write-token.outputs.token }}
+          REPO: ${{ github.repository }}
+
+  native_replacement:
+    name: native_replacement
+    needs:
+      - agent
+      - detection
+    if: >
+      (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'native_replacement') &&
+      needs.detection.result == 'success' && (needs.detection.result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    # Permissions for the native_replacement job (workflow permissions default to none).
+    permissions:
+      actions: read # Read workflow runs and artifacts for workflow context.
+      checks: read # Read check runs for workflow context.
+      contents: read
+      pull-requests: read # Read pull requests and review comments for workflow context.
+      statuses: read # Read commit statuses for workflow context.
+    env:
+      GH_AW_AGENT_AIC: ${{ needs.agent.outputs.aic }}
+      GH_AW_AIC: ${{ needs.agent.outputs.aic }}
+      GH_AW_AMBIENT_CONTEXT: ${{ needs.agent.outputs.ambient_context }}
+      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/gh-aw-recompile"
+      GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+      GH_AW_DETECTION_REASON: ${{ needs.detection.outputs.detection_reason }}
+      GH_AW_DETECTION_THREAT_KINDS: ${{ needs.detection.outputs.detection_threat_kinds }}
+      GH_AW_ENGINE_ID: "copilot"
+      GH_AW_ENGINE_MODEL: "sonnet"
+      GH_AW_OBJECT_PACK_FETCH_DEPTHS: ${{ vars.GH_AW_OBJECT_PACK_FETCH_DEPTHS }}
+      GH_AW_OBJECT_PACK_MAX_BYTES: ${{ vars.GH_AW_OBJECT_PACK_MAX_BYTES }}
+      GH_AW_OBJECT_PACK_MAX_OBJECTS: ${{ vars.GH_AW_OBJECT_PACK_MAX_OBJECTS }}
+      GH_AW_OBJECT_PACK_TIMEOUT_MS: ${{ vars.GH_AW_OBJECT_PACK_TIMEOUT_MS }}
+      GH_AW_RUN_DETECTION: ${{ needs.detection.outputs.run_detection }}
+      GH_AW_THREAT_DETECTION_AIC: ${{ needs.detection.outputs.aic }}
+      GH_AW_WORKFLOW_ID: "gh-aw-recompile"
+      GH_AW_WORKFLOW_NAME: "gh-aw recompile"
+      GH_AW_WORKFLOW_SOURCE_URL: "${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/.github/workflows/gh-aw-recompile.md"
+    steps:
+      - name: Download agent output artifact
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: "{agent,agent-output-fallback}"
+          merge-multiple: true
+          path: ${{ runner.temp }}/gh-aw/safe-jobs/
+      - name: Checkout trusted native publication guard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Set up trusted guard Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          cache: false
+          go-version-file: go.work
+      - name: Build trusted maintenance guard
+        run: |
+          mkdir -p "$RUNNER_TEMP/gh-aw/bin"
+          make -C tooling/depctl build BINARY="$RUNNER_TEMP/gh-aw/bin/depctl"
+          printf 'DEPCTL_BINARY=%s/gh-aw/bin/depctl\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+      - name: Mint scoped replacement publication token
+        id: write-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+        with:
+          client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-workflows: write
+          private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Publish only the fixed guarded native replacement request
+        run: python3 .github/scripts/native_dependabot_maintenance.py publish "$REPO" "$GH_AW_AGENT_OUTPUT"
+        env:
+          CI_TOKEN: ${{ github.token }}
+          GH_AW_AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+          GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+          GH_AW_JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ steps.write-token.outputs.token }}
+          REPO: ${{ github.repository }}
+
   pre_activation:
     name: pre_activation
     needs: recompile
@@ -2298,9 +2571,9 @@ jobs:
           action=$(jq -er '.action | select(. == "release-hold" or . == "recover-retry")' <<<"$item")
           if [[ "$action" == recover-retry ]]; then
             evidence=$(jq -er '.evidence | select(type == "string")' <<<"$item")
-            "$DEPCTL_BINARY" maintenance "$action" --repository "$REPO" --number "$number" --head "$head" --evidence "$evidence" --kind upgrade
+            "$DEPCTL_BINARY" maintenance "$action" --repository "$REPO" --number "$number" --head "$head" --evidence "$evidence"
           else
-            "$DEPCTL_BINARY" maintenance "$action" --repository "$REPO" --number "$number" --head "$head" --kind upgrade
+            "$DEPCTL_BINARY" maintenance "$action" --repository "$REPO" --number "$number" --head "$head"
           fi
         env:
           CI_TOKEN: ${{ github.token }}
@@ -2407,10 +2680,10 @@ jobs:
           GH_AW_AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
           GH_AW_COMMENT_ID: ${{ needs.activation.outputs.comment_id }}
           GH_AW_MENTIONS_GITHUB_TOKEN: ${{ github.token }}
-          GH_AW_ALLOWED_DOMAINS: "archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,gcs.ci.openshift.org,gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com,go.dev,golang.org,goproxy.io,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,objects.githubusercontent.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,pkg.go.dev,prow.ci.openshift.org,proxy.golang.org,release-assets.githubusercontent.com,s.symcb.com,s.symcd.com,security.ubuntu.com,storage.googleapis.com,sum.golang.org,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com"
+          GH_AW_ALLOWED_DOMAINS: "api.npms.io,archive.ubuntu.com,azure.archive.ubuntu.com,bun.sh,cdn.jsdelivr.net,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,deb.nodesource.com,deno.land,esm.sh,gcs.ci.openshift.org,gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com,get.pnpm.io,go.dev,golang.org,googleapis.deno.dev,googlechromelabs.github.io,goproxy.io,json-schema.org,json.schemastore.org,jsr.io,keyserver.ubuntu.com,nodejs.org,npm.pkg.github.com,npmjs.com,npmjs.org,objects.githubusercontent.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,pkg.go.dev,prow.ci.openshift.org,proxy.golang.org,registry.bower.io,registry.npmjs.com,registry.npmjs.org,registry.yarnpkg.com,release-assets.githubusercontent.com,repo.yarnpkg.com,s.symcb.com,s.symcd.com,security.ubuntu.com,skimdb.npmjs.com,storage.googleapis.com,sum.golang.org,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com,www.npmjs.com,www.npmjs.org,yarnpkg.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
-          GH_AW_SAFE_OUTPUT_JOBS: "{\"recover_owned_pr\":\"\"}"
+          GH_AW_SAFE_OUTPUT_JOBS: "{\"native_action\":\"\",\"native_replacement\":\"\",\"recover_owned_pr\":\"\"}"
           GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"noop\":{\"max\":2,\"report-as-issue\":\"false\"},\"report_incomplete\":{},\"report_missing_data\":{},\"report_missing_tool\":{}}"
           GH_AW_GITHUB_TOKEN_SOURCE: ${{ secrets.GH_AW_GITHUB_TOKEN != '' && 'pat' || 'github_actions' }}
         with:
