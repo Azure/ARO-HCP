@@ -462,7 +462,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
           description: 'More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
           info: 'More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-update'
           summary: 'Cluster updates failing fast (>72% over 1h)'
           title: 'Cluster updates failing fast (>72% over 1h)'
         }
@@ -493,7 +493,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
           description: 'More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
           info: 'More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-update'
           summary: 'Cluster update error rate elevated (>30% over 6h)'
           title: 'Cluster update error rate elevated (>30% over 6h)'
         }
@@ -523,7 +523,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
           description: 'More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
           info: 'More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-update'
           summary: 'Cluster update failures persistent (>5% over 3d)'
           title: 'Cluster update failures persistent (>5% over 3d)'
         }
@@ -565,7 +565,7 @@ resource arohcpClusterUpdateSloStuckAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyClusterUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
           description: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
           info: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-update'
           summary: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
           title: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
         }

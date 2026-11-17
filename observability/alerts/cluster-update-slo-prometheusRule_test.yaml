@@ -102,7 +102,7 @@ tests:
       exp_annotations:
         summary: "Cluster updates failing fast (>72% over 1h)"
         description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
   - eval_time: 10m
     alertname: userJourneyClusterUpdateErrors6h30m
@@ -258,7 +258,7 @@ tests:
       exp_annotations:
         summary: "Cluster update error rate elevated (>30% over 6h)"
         description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
   - eval_time: 35m
     alertname: userJourneyClusterUpdateErrors1h5m
@@ -390,7 +390,7 @@ tests:
       exp_annotations:
         summary: "Cluster update failures persistent (>5% over 3d)"
         description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
   - eval_time: 6h5m
     alertname: userJourneyClusterUpdateErrors1h5m
@@ -431,7 +431,7 @@ tests:
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
         description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # The alert clears as soon as the update completes, despite the 6h hold: /stuck
 # is updating until 119m and succeeded from 120m. By 130m the updating series is
@@ -468,7 +468,7 @@ tests:
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
         description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
   - eval_time: 130m
     alertname: userJourneyClusterUpdateStuckOperation
@@ -514,7 +514,7 @@ tests:
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
         description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # A former Backend leader's stale snapshot does not page. backend-0 (former
 # leader) still reports /stuck as updating; backend-1 (current leader) reports
