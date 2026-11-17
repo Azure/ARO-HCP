@@ -141,24 +141,43 @@ func (w *AzureMonitorWorkspace) DeleteRuleGroup(ctx context.Context, name string
 	return nil
 }
 
-// WaitForAlerts polls Azure alert instances scoped to this workspace every 30 seconds.
-// Alerts are matched by the context's HCP resource_id and alertname, ignoring case.
-// Each map value specifies whether any matching instance must be Fired; false
-// accepts Resolved or no instance. Azure does not expose Prometheus pending state here.
+// ExpectedAlert selects Azure alert instances by their Prometheus labels.
+// Labels must all match, ignoring case, and should include alertname.
+// Firing states whether any matching instance must be Fired; false accepts
+// Resolved or no instance. Azure does not expose Prometheus pending state here.
+type ExpectedAlert struct {
+	// Name identifies the expectation in logs, errors and the returned map.
+	Name   string
+	Labels map[string]string
+	Firing bool
+}
+
+// WaitForAlerts polls Azure alert instances scoped to this workspace every 30 seconds
+// until every expectation holds at once. It returns the labels of the Fired instances
+// matched by each expectation, keyed by ExpectedAlert.Name.
 // State changes, instance IDs, Azure timestamps and elapsed wait time are logged.
-func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, resourceID string, expected map[string]bool, timeout time.Duration, logger logr.Logger) error {
+func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, expected []ExpectedAlert, timeout time.Duration, logger logr.Logger) (map[string][]map[string]string, error) {
 	formatTime := func(value *time.Time) string {
 		if value == nil {
 			return "not reported"
 		}
 		return value.UTC().Format(time.RFC3339)
 	}
+	matches := func(labels, selector map[string]string) bool {
+		for key, value := range selector {
+			if !strings.EqualFold(labels[key], value) {
+				return false
+			}
+		}
+		return true
+	}
 	started := time.Now()
 	last := ""
-	logger.Info("Waiting for Azure alert states", "expected_firing", expected, "resource_id", resourceID)
+	var firingLabels map[string][]map[string]string
+	logger.Info("Waiting for Azure alert states", "expected", expected)
 	err := wait.PollUntilContextTimeout(ctx, 30*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		observed := map[string][]string{}
-		firing := map[string]bool{}
+		firingLabels = map[string][]map[string]string{}
 		queryErr := func() error {
 			pager := w.alerts.NewGetAllPager(&armalertsmanagement.AlertsClientGetAllOptions{IncludeContext: to.Ptr(true)})
 			for pager.More() {
@@ -180,11 +199,8 @@ func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, resourceID st
 					if err := json.Unmarshal(raw, &details); err != nil {
 						return fmt.Errorf("read alert labels: %w", err)
 					}
-					if !strings.EqualFold(details.Labels["resource_id"], resourceID) {
-						continue
-					}
-					for name := range expected {
-						if !strings.EqualFold(details.Labels["alertname"], name) {
+					for _, expectation := range expected {
+						if !matches(details.Labels, expectation.Labels) {
 							continue
 						}
 						instanceID := "not reported"
@@ -200,9 +216,9 @@ func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, resourceID st
 							return fmt.Errorf("alert %s has unexpected monitor condition %s", instanceID, condition)
 						}
 						if condition == armalertsmanagement.MonitorConditionFired {
-							firing[name] = true
+							firingLabels[expectation.Name] = append(firingLabels[expectation.Name], details.Labels)
 						}
-						observed[name] = append(observed[name], fmt.Sprintf("%s id=%s started=%s modified=%s resolved=%s", condition, instanceID,
+						observed[expectation.Name] = append(observed[expectation.Name], fmt.Sprintf("%s id=%s started=%s modified=%s resolved=%s", condition, instanceID,
 							formatTime(essentials.StartDateTime),
 							formatTime(essentials.LastModifiedDateTime),
 							formatTime(essentials.MonitorConditionResolvedDateTime)))
@@ -217,15 +233,15 @@ func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, resourceID st
 			state = "query failed: " + queryErr.Error()
 		} else {
 			observations := make([]string, 0, len(expected))
-			for name, wantFiring := range expected {
-				instances := observed[name]
+			for _, expectation := range expected {
+				instances := observed[expectation.Name]
 				slices.Sort(instances)
 				detail := "absent"
 				if len(instances) > 0 {
 					detail = strings.Join(instances, ", ")
 				}
-				observations = append(observations, name+": "+detail)
-				if firing[name] != wantFiring {
+				observations = append(observations, expectation.Name+": "+detail)
+				if (len(firingLabels[expectation.Name]) > 0) != expectation.Firing {
 					matched = false
 				}
 			}
@@ -239,8 +255,8 @@ func (w *AzureMonitorWorkspace) WaitForAlerts(ctx context.Context, resourceID st
 		return matched, nil
 	})
 	if err != nil {
-		return fmt.Errorf("waiting for Azure alert states %v: %w; last observation: %s", expected, err, last)
+		return nil, fmt.Errorf("waiting for Azure alert states %v: %w; last observation: %s", expected, err, last)
 	}
-	logger.Info("Expected Azure alert states observed", "duration", time.Since(started).String(), "expected_firing", expected)
-	return nil
+	logger.Info("Expected Azure alert states observed", "duration", time.Since(started).String(), "expected", expected)
+	return firingLabels, nil
 }

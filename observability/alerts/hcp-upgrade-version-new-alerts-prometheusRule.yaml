@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-upgrade-version-new-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-upgrade-version-new-alerts
+    interval: 1m
+    rules:
+    # Rollout signal for IcM: HCPs with a firing HCPUpgradeNewAlert, counted per
+    # region, exact version and management cluster. HCPUpgradeNewAlert itself only
+    # goes to Kusto; this alert is the one that opens an incident.
+    # The correlationId omits cluster, so IcM merges the management clusters of a
+    # region into one incident per version while that incident is still open.
+    # No "for": each source alert already waited its own "for", and
+    # HCPUpgradeNewAlert adds an evaluation cycle. The default 5 minute auto-resolve
+    # absorbs short gaps in the ALERTS series instead of reopening the incident.
+    - alert: HCPUpgradeVersionNewAlerts
+      expr: |
+        count by (region, version, cluster) (
+          count by (region, version, cluster, resource_id) (
+            ALERTS{alertname="HCPUpgradeNewAlert", alertstate="firing"}
+          )
+        ) >= 1
+      labels:
+        component: hcp
+        severity: "4"
+      annotations:
+        summary: "{{ $value }} HCP(s) with new alerts after upgrade to {{ $labels.version }} in {{ $labels.region }}"
+        description: |-
+          {{ $value }} HCP(s) on {{ $labels.cluster }} have alerts that started after upgrading to {{ $labels.version }} and did not fire in the 24h before the upgrade. Other management clusters in {{ $labels.region }} may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+          Affected HCPs and alerts (Kusto, database MonitoringEvents):
+          alertEvents
+          | where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+          | where tostring(alertContext.labels.region) == "{{ $labels.region }}" and tostring(alertContext.labels.version) == "{{ $labels.version }}"
+          | project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)
+        correlationId: "HCPUpgradeVersionNewAlerts/{{ $labels.region }}/{{ $labels.version }}"

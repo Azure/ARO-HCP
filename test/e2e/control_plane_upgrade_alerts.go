@@ -48,6 +48,7 @@ var _ = Describe("Engineering", func() {
 			const (
 				customerClusterName = "upgrade-alert"
 				upgradeAlertName    = "HCPUpgradeNewAlert"
+				regionAlertName     = "HCPUpgradeVersionNewAlerts"
 				channelGroup        = "candidate"
 				installVersion      = "4.21"
 				upgradeVersion      = "4.22"
@@ -105,9 +106,12 @@ var _ = Describe("Engineering", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create test HCP")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
-			By("verifying only the pre-upgrade alert is firing and the HCPUpgradeNewAlert is inactive")
-			err = workspace.WaitForAlerts(ctx, resourceID, map[string]bool{
-				preUpgradeAlert: true, duringUpgradeAlert: false, postUpgradeAlert: false, upgradeAlertName: false,
+			By("verifying only the pre-upgrade alert is firing and no HCPUpgradeNewAlert fires for this HCP")
+			_, err = workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
+				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: false},
+				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "resource_id": resourceID}, Firing: false},
+				{Name: upgradeAlertName, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID}, Firing: false},
 			}, observationTimeout, GinkgoLogr)
 			Expect(err).NotTo(HaveOccurred(), "expected only the pre-upgrade alert firing before upgrade")
 
@@ -137,8 +141,9 @@ var _ = Describe("Engineering", func() {
 			}()
 
 			By("waiting for the during-upgrade alert while the pre-upgrade alert remains firing")
-			err = workspace.WaitForAlerts(upgradeCtx, resourceID, map[string]bool{
-				preUpgradeAlert: true, duringUpgradeAlert: true,
+			_, err = workspace.WaitForAlerts(upgradeCtx, []framework.ExpectedAlert{
+				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: true},
 			}, observationTimeout, GinkgoLogr)
 			Expect(err).NotTo(HaveOccurred(), "expected the during-upgrade and pre-upgrade alerts firing after the upgrade starts")
 
@@ -146,11 +151,34 @@ var _ = Describe("Engineering", func() {
 			err = <-upgradeDone
 			Expect(err).NotTo(HaveOccurred(), "upgrade API operation failed")
 
-			By("waiting for upgrade completion to trigger the post-upgrade alert and for all actual alerts and the production HCPUpgradeNewAlert to fire")
-			err = workspace.WaitForAlerts(ctx, resourceID, map[string]bool{
-				preUpgradeAlert: true, duringUpgradeAlert: true, postUpgradeAlert: true, upgradeAlertName: true,
+			By("waiting for upgrade completion to trigger the post-upgrade alert and HCPUpgradeNewAlert for exactly the new alerts")
+			// The control plane can still be upgrading after the API operation finishes, so allow
+			// the remaining upgrade time plus the observation time.
+			postUpgradeTimeout := time.Until(upgradeStarted.Add(framework.HCPClusterVersionUpgradeTimeout + observationTimeout))
+			firing, err := workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
+				{Name: preUpgradeAlert, Labels: map[string]string{"alertname": preUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: duringUpgradeAlert, Labels: map[string]string{"alertname": duringUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: postUpgradeAlert, Labels: map[string]string{"alertname": postUpgradeAlert, "resource_id": resourceID}, Firing: true},
+				{Name: upgradeAlertName + " for " + duringUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": duringUpgradeAlert}, Firing: true},
+				{Name: upgradeAlertName + " for " + postUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": postUpgradeAlert}, Firing: true},
+				{Name: upgradeAlertName + " for " + preUpgradeAlert, Labels: map[string]string{"alertname": upgradeAlertName, "resource_id": resourceID, "new_alertname": preUpgradeAlert}, Firing: false},
+			}, postUpgradeTimeout, GinkgoLogr)
+			Expect(err).NotTo(HaveOccurred(), "expected HCPUpgradeNewAlert for the during-upgrade and post-upgrade alerts only")
+
+			// The RP selects the patch release; HCPUpgradeNewAlert carries the exact version from the HostedCluster history.
+			upgradedVersion := firing[upgradeAlertName+" for "+duringUpgradeAlert][0]["version"]
+			Expect(upgradedVersion).To(HavePrefix(upgradeVersion+"."), "HCPUpgradeNewAlert did not report an exact %s version", upgradeVersion)
+			// The region alert counts per management cluster, so the cluster must survive from the triggering alert.
+			managementCluster := firing[upgradeAlertName+" for "+duringUpgradeAlert][0]["cluster"]
+			Expect(managementCluster).NotTo(BeEmpty(), "HCPUpgradeNewAlert did not carry the management cluster of its triggering alert")
+
+			By(fmt.Sprintf("waiting for the region alert for %s in %s on %s", upgradedVersion, tc.Location(), managementCluster))
+			// The region alert is not tied to this HCP: another HCP upgraded to the same version
+			// on this management cluster could also make it fire.
+			_, err = workspace.WaitForAlerts(ctx, []framework.ExpectedAlert{
+				{Name: regionAlertName, Labels: map[string]string{"alertname": regionAlertName, "region": tc.Location(), "version": upgradedVersion, "cluster": managementCluster}, Firing: true},
 			}, observationTimeout, GinkgoLogr)
-			Expect(err).NotTo(HaveOccurred(), "expected all source alerts and the production HCPUpgradeNewAlert firing after upgrade")
+			Expect(err).NotTo(HaveOccurred(), "expected %s firing for %s in %s on %s", regionAlertName, upgradedVersion, tc.Location(), managementCluster)
 		})
 })
 
@@ -158,11 +186,11 @@ var _ = Describe("Engineering", func() {
 // Count distinct attempts, ignoring collector labels.
 // The during-upgrade alert remains active after completion; the post-upgrade alert requires both attempts completed.
 func upgradeAlertInputRules(workspaceID, resourceID, location, runID string) armresources.GenericResource {
-	started := fmt.Sprintf("count by (namespace) (group by (namespace, attempt_started_at) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q}))", resourceID)
-	completed := fmt.Sprintf("count by (namespace) (group by (namespace, attempt_started_at) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id=%q}))", resourceID)
+	started := fmt.Sprintf("count by (namespace, cluster) (group by (namespace, cluster, attempt_started_at) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q}))", resourceID)
+	completed := fmt.Sprintf("count by (namespace, cluster) (group by (namespace, cluster, attempt_started_at) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id=%q}))", resourceID)
 	inputs := []struct{ name, expression string }{
-		// History supplies the actual HostedCluster namespace as soon as it is collected.
-		{"TestAlertPreUpgrade", fmt.Sprintf("group by (namespace) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q})", resourceID)},
+		// History supplies the actual HostedCluster namespace and management cluster as soon as it is collected.
+		{"TestAlertPreUpgrade", fmt.Sprintf("group by (namespace, cluster) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id=%q})", resourceID)},
 		{"TestAlertPostUpgrade", completed + " >= 2"},
 		{"TestAlertDuringUpgrade", started + " >= 2 and (" + completed + " >= 1)"},
 	}

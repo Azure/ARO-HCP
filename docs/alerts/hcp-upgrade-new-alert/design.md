@@ -63,10 +63,49 @@ Candidate selectors use `@ end()` so historical steps see today's candidate
 attempts. Five branches select one attempt per HCP each with
 `topk(k) unless topk(k-1)`, avoiding many-to-many joins. Rank is not identity.
 
-Final labels retain `resource_id`, `version` and `attempt_started_at`; generated
-Azure rules also retain `region`. The summary and correlation ID identify the
-attempt. Same-version retries remain separate, and later upgrades do not hide
-earlier qualifying attempts.
+Each attempt keeps its own baseline inside the query. Final labels are
+`resource_id`, `version`, `new_alertname` (the triggering alert name, since
+Prometheus sets `alertname` to the rule name) and `cluster`; generated Azure rules
+also retain `region`. Retries of one version merge into one instance that fires
+until the last qualifying attempt expires. Later upgrades do not hide earlier
+qualifying attempts.
 
 No firing samples does not prove healthy collection. Fresh installs, collection
 gaps and missing history limit detection. Ingestion and evaluation add delay.
+
+`hcp:alerts` has no history before it is first deployed. For upgrades that start
+within 24 hours of that, the baseline is incomplete and an alert that fired before
+deployment looks new. Deploy the recording rules at least 24 hours before enabling
+the alerts.
+
+## Routing
+
+`HCPUpgradeNewAlert` is registered in the Kusto-only lane
+([`alerts-kusto-hcps.yaml`](../../../observability/alerts-kusto-hcps.yaml)). Its
+instances land in the `alertEvents` table of the `MonitoringEvents` Kusto database,
+with all labels under `alertContext.labels`. It never opens incidents: one incident
+per HCP and alert would flood IcM during a bad rollout.
+
+The Kusto-only lane only has a destination when `monitoring.eventHubAlerting.enabled`
+is true; it defaults to false. Without it, `HCPUpgradeNewAlert` still evaluates and
+feeds the region alert, but nothing reaches `alertEvents` and the incident's query
+returns nothing. Enable Event Hub alerting in every environment that runs these rules.
+
+[`HCPUpgradeVersionNewAlerts`](../../../observability/alerts/hcp-upgrade-version-new-alerts-prometheusRule.yaml)
+opens the incident. It counts distinct HCPs with a firing `HCPUpgradeNewAlert` from
+the `ALERTS` series in AMW, per region, exact version and management cluster, and
+fires at one HCP or more. It is SEV 4 in the RP queue: timing does not prove
+causation, and one customer's own problem can trigger it. Its description holds a
+KQL query listing the affected HCPs and alerts.
+
+Firing per management cluster keeps a real `cluster` label, which IcM titles use.
+The correlation ID `HCPUpgradeVersionNewAlerts/<region>/<version>` omits the
+cluster, so IcM can merge the clusters of a region into one incident. Each cluster's
+alert fires and resolves on its own, so a long rollout can open more than one
+incident per version.
+
+The region alert has no `for`: each source alert already waited its own `for`, and
+`HCPUpgradeNewAlert` adds an evaluation cycle. The default 5 minute auto-resolve
+absorbs short gaps in `ALERTS`, which can lag behind Azure alert state, instead of
+resolving and reopening the incident. The incident stays open up to 5 minutes after
+the last HCP clears.
