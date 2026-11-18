@@ -74,7 +74,7 @@ param mgmtKeyVaultSoftDelete bool
 param mgmtKeyVaultTagName string
 param mgmtKeyVaultTagValue string
 
-@description('KV certificate officer principal ID')
+@description('KV certificate officer principal ID; empty skips the role assignments')
 param kvCertOfficerPrincipalId string
 
 @description('MSI that will be used during pipeline runs')
@@ -142,7 +142,7 @@ module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
     'Key Vault Secrets Officer'
     'Key Vault Certificates Officer'
-  ]: {
+  ]: if (kvCertOfficerPrincipalId != '') {
     name: guid(cxKeyVaultName, kvCertOfficerPrincipalId, role)
     params: {
       keyVaultName: cxKeyVaultName
@@ -187,15 +187,18 @@ module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
     'Key Vault Secrets Officer'
     'Key Vault Certificates Officer'
-  ]: {
+  ]: if (kvCertOfficerPrincipalId != '' || role == 'Key Vault Certificates Officer') {
     name: guid(mgmtKeyVaultName, kvCertOfficerPrincipalId, role)
     params: {
       keyVaultName: mgmtKeyVaultName
       roleName: role
-      // Certificate cleanup runs as the pipeline managed identity.
-      managedIdentityPrincipalIds: role == 'Key Vault Certificates Officer'
-        ? union([kvCertOfficerPrincipalId], [reference(globalMSIId, '2023-01-31').principalId])
-        : [kvCertOfficerPrincipalId]
+      // Certificate cleanup runs as the pipeline managed identity; an empty officer ID is dropped.
+      managedIdentityPrincipalIds: filter(
+        role == 'Key Vault Certificates Officer'
+          ? union([kvCertOfficerPrincipalId], [reference(globalMSIId, '2023-01-31').principalId])
+          : [kvCertOfficerPrincipalId],
+        id => !empty(id)
+      )
     }
     dependsOn: [
       mgmtKeyVault
