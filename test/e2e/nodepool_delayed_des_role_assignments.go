@@ -100,7 +100,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 					"keyVaultSoftDeleteRetentionInDays": 7,
 				},
 				TestArtifactsFS,
-				framework.RBACScopeResource,
+				framework.RBACScopeResourceNodePoolDES,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
