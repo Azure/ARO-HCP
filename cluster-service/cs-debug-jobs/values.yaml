@@ -1,2 +1,3 @@
 imageDigest: "{{ .clustersService.image.digest }}"
 deployDebugJobs: {{ .clustersService.deployDebugJobs }}
+scriptExecutorImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
