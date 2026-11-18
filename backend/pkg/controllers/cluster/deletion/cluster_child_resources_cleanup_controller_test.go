@@ -711,6 +711,7 @@ func TestDeploymentStackDesireExplicitCleanup(t *testing.T) {
 			cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = cluster.ServiceProviderProperties.DeletionTimestamp
+				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			})
 			desire := &azureresourcesapi.DeploymentStackDesire{CosmosMetadata: coreapi.CosmosMetadata{
