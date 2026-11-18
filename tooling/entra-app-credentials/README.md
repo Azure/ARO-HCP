@@ -36,8 +36,14 @@ AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
 ```
 
 Authentication may fail between certificate replacement and successful Graph
-reconciliation. If pinning fails, rerun the normal privileged pipeline to pin
-the current Key Vault certificate; do not immediately request another rotation.
+reconciliation. If pinning fails for a shared bootstrap application, rerun its
+normal privileged pipeline to pin the current Key Vault certificate; do not
+immediately request another rotation. For a dedicated slot mock application,
+rerun the scoped `make -C test apply-pool-assets` command with
+`ASSET=mock_identities` and the original environment/pool selectors instead:
+the shared pipeline does not reconcile slot apps. Drain affected jobs and
+coordinate runtime certificate delivery before rotating. See
+[external subscription maintenance](../../docs/ci/external-subscription-onboarding.md#maintenance-and-repair).
 
 The command uses `DefaultAzureCredential` with token-based credentials only, so
 `AZURE_TOKEN_CREDENTIALS` must be set for the execution environment. The caller

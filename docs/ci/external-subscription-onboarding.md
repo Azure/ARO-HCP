@@ -1,143 +1,360 @@
-# External Subscription Onboarding
+# External Subscription Onboarding and Maintenance
 
-This is the runbook for a team that owns its own Azure subscription and wants to run ARO HCP E2E jobs in it. The HyperShift team's `Hypershift Managed Azure` subscription, which backs the `hypershift` pools in [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml), is the existing example. It covers DEV pools in the Red Hat tenant. For subscriptions the ARO-HCP team owns, use [E2E Subscription Onboarding](e2e-subscription-onboarding.md) instead; a subscription in another tenant, such as the Test Tenant PROD subscription, is only touched on at the end of that page.
+## Scope and Responsibility
 
-## How An External Subscription Differs
+This runbook prepares DEV E2E customer subscriptions owned by another team in
+the same Entra tenant, such as HyperShift. For subscriptions maintained by the
+ARO-HCP team, see [E2E subscription onboarding](e2e-subscription-onboarding.md).
 
-For a subscription we own, the privileged `dev-ci` rollout does the Azure-side work: it registers providers, grants the CI bot its roles, deploys the shared mock RBAC and creates the asset resources. That rollout needs Owner on every subscription it manages, which an external team has no reason to hand to our automation, so an external subscription is deliberately left out of `ci.dev.e2eSubscriptions`. The pipeline never touches it, and its pools mark `slot_assets.e2e_identities.provisioning: unmanaged` in the catalog so that broad `apply-pool-assets` runs skip it as well.
+The subscription owner prepares and maintains customer-subscription assets;
+ARO-HCP maintainers coordinate the catalog, CI credentials, shared certificate
+delivery and infrastructure subscription. Do not add an external subscription
+to a broad privileged rollout instead of agreeing that responsibility split.
+All apply/deployment commands below are **mutating operator commands**, not
+CI admission commands or offline validation.
 
-The owning team therefore performs those steps itself, using the same Bicep templates and Make targets. The catalog entry still follows the usual [contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog), and `unmanaged` only changes who provisions the identity containers. It does not exempt the pool from [admission](slot-assets.md#e2e-identities): every acquire still cleans and validates the leased identities, using the credentials of the cluster profile that owns the subscription, and a missing or broken asset fails the job.
+## Identity and Asset Model
 
-| Piece | Who does it |
-| :---- | :---------- |
-| Catalog pool, Boskos inventory and cluster profile entries | ARO-HCP maintainers, in a pull request the subscription owner proposes or reviews |
-| Quota requests, provider registration | Subscription owner |
-| CI bot grants and the shared subscription RBAC template | Subscription owner |
-| E2E identity containers and slot mock identities | Subscription owner, with the extra rights the mock identities need |
-| Cleanup job for expired test resources | Subscription owner, in `openshift/release` |
+| Identity / asset | Location and use | Lifecycle |
+| :--- | :--- | :--- |
+| CI bot | Selected cluster-profile identity; runs provisioning and tests with Step 1 grants | Not the subscription Owner used to prepare mock bundles |
+| `e2e_identities` | Dedicated UAMI container resource groups in the customer subscription; tests lease containers within the slot | Owner applies deployment stacks; admission cleans and validates reusable identities; release retains containers |
+| `mock_identities` | One MSI mock SP plus distinct Backend and Clusters Service ARM helper SPs per primary slot | Owner prepares applications, SPs, certificates and six subscription role assignments; admission only reads; no separate mock lease |
+| `infrastructure_identities` | Independently leased UAMI bundle in the environment's infrastructure subscription | Infrastructure owner prepares it; admission cleans federated credentials and role assignments there; release preserves UAMIs and groups |
+| Shared FPA / personal-dev mocks | Shared first-party mock still supplies FPA semantics; personal-dev retains shared MSI/ARM configuration | Maintained by shared bootstrap, not replaced by slot bundles |
 
-## Before You Start
+The mock handler grants **only the slot's customer subscription**, never its
+infrastructure subscription: MSI receives the subscription-local `dev-msi-mock`
+role plus Key Vault Crypto User; each helper receives Contributor plus Role
+Based Access Control Administrator. These are request-handler identities, not
+the test runner. `armHelperFPAPrincipalId` remains the shared FPA principal, not
+the authenticating helper SP. See the [mock handler](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/handler.go),
+[RBAC implementation](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/azure.go)
+and [asset lifecycles](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#asset-lifecycle).
 
-You need Owner on the subscription, the Azure CLI signed in as yourself, and a checkout of this repository at a recent revision, since the commands below use its templates and Make targets. Owner is needed because the templates create custom role definitions and role assignments. The CI bot itself deliberately never receives Owner.
+Current DEV configuration sets both legacy indexed mock pools to zero and their
+static YAML catalogs have been removed. This does **not** prove old Azure
+objects, certificates or assignments have been deleted. Do not regenerate or
+grant the old global catalogs to onboard slot-bound mocks. Shared FPA and
+personal-dev identities remain necessary; see [DEV mock identities](dev-mock-identities.md).
 
-The pool has to exist in the catalog before you provision anything, because `apply-pool-assets` derives what to create from it. Propose the entry in a pull request, modelled on the existing `hypershift` pools: the three DEV [slot assets](slot-assets.md), with `provisioning: unmanaged` on `e2e_identities`. That one setting is also what makes the slot mock identities count as externally prepared. See the [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog) and, for sizing, [E2E Capacity And Quotas](e2e-capacity.md).
+| Work | Responsible party |
+| :--- | :--- |
+| Catalog pool, naming, regions and capacity | Subscription owner and ARO-HCP reviewers |
+| Boskos generation / release PR and cluster-profile inventory | ARO-HCP / CI profile maintainers |
+| Provider registration, CI bot grants and subscription-local bootstrap roles | Subscription owner |
+| Dedicated E2E containers and mock bundles | Subscription owner with Entra and certificate administrators |
+| Leased infrastructure capacity and runtime certificate delivery | Infrastructure / vault maintainers |
+| Expired test-resource cleanup and explicit asset retirement | Subscription owner with CI maintainers |
 
-Quota is requested the same way as for any E2E subscription; see [Quota Requests](e2e-subscription-onboarding.md#quota-requests). If other workloads share the subscription, budget role assignments for the combined demand and not just for the pool, as described in [E2E Capacity And Quotas](e2e-capacity.md#role-assignment-quota).
+## Catalog and Preflight
 
-Two of the commands need principal object IDs for service principals that live in the Red Hat tenant. The repository does not store those IDs (it records application names and resolves IDs through Microsoft Graph when it needs them), so look them up rather than copying values from a document. This helper reads the names from the DEV configuration and resolves them the same way the pipeline does:
+Use the current [slot catalog](../../test/e2e-config/e2e-slots.yaml), not a copied
+inventory. HyperShift currently has `dev/hypershift` (2 slots, 20 containers per
+slot, `ci01`) and `dev-xs/hypershift` (30 slots, 6 containers per slot, `ci02`),
+both in `Hypershift Managed Azure`. Both use weighted `westus3`, `centralus`,
+`canadacentral`, provision E2E containers in `westus3`, and lease from
+`dev-infrastructure-identities`. These are separate pools, not interchangeable
+aliases. Verify the current catalog before any capacity change.
 
-```bash
-CFG=config/config-dev-ci.yaml
-cfg() { yq ".clouds.dev.defaults.ci.dev.$1" "$CFG"; }
+For an externally prepared DEV pool, the asset declaration is:
 
-# Entra applications are looked up by a normalized unique name: lowercase, spaces replaced with dashes.
-principal_id() {
-  local unique_name app_id
-  unique_name="$(tr '[:upper:] ' '[:lower:]-' <<< "$1")"
-  app_id="$(az ad app list --filter "uniqueName eq '${unique_name}'" --query '[0].appId' -o tsv)"
-  az ad sp show --id "${app_id}" --query id -o tsv
-}
+```yaml
+slot_assets:
+  mock_identities:
+    allocation: dedicated
+  e2e_identities:
+    allocation: dedicated
+    provisioning: unmanaged
+    provisioning_region: westus3
+    resource_group_prefix: <unique-prefix-for-this-pool>
+    resource_group_count: 6
+  infrastructure_identities:
+    allocation: leased
+    asset_pool: dev-infrastructure-identities
 ```
 
-It needs [Mike Farah's `yq`](https://github.com/mikefarah/yq) v4; the Python package of the same name uses different syntax. Use the object ID of the service principal, not the application (client) ID.
+This is an asset fragment, not a complete catalog. Keep the pool's unique
+`resource_type`, subscription display name, region policy and agreed `slot_count`
+in the surrounding declaration. **There is no `provisioning` field on
+`mock_identities`:** its handler uses the E2E asset's `provisioning: unmanaged`
+to skip broad pool apply/validate. The leased infrastructure asset has its own
+inventory and does not inherit that skip. Unmanaged means externally prepared,
+not optional or exempt from admission.
 
-## 1. Register The Resource Providers
+Coordinate Boskos sync and profile inventory before enabling the pool. After
+building with `make -C test build`, maintainers use
+`./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`
+and `validate-boskos-config` with the same argument, then the release repository's
+generation/review workflow. The profile must resolve `subscriptions.e2e` by its
+exact display name and contain the corresponding `customer-<shard>-subscription-name`
+and `customer-<shard>-subscription-id` pair. See the
+[profile resolution and credential implementation](../../test/cmd/aro-hcp-tests/slot-manager/slots/runtime_contract.go).
 
-A new subscription has few providers registered, and later steps fail in ways that do not obviously point at registration. The providers E2E needs are listed under `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`, which is also what the privileged rollout registers for subscriptions we own, so register that same list:
+Before applying, arrange these **separate** authorization domains:
 
-```bash
+- **Azure:** active, unconditional Owner on the customer subscription or an
+  ancestor, directly or through group membership. Activate eligible access.
+  Mock apply explicitly checks for Owner; Contributor plus RBAC Administrator
+  is not a substitute for this preflight. Do not grant Owner to runtime CI.
+- **Entra / Microsoft Graph:** application and SP discovery/creation, application
+  credential updates, owner enumeration/addition/removal on **both** objects,
+  and reads of the configured owner group's membership. Subscription Owner
+  grants none of these directory permissions. Coordinate the tenant-authorized
+  delegated or application permissions with the directory administrator; the
+  code does not define a universal least-privilege Graph role/scope recipe.
+- **Key Vault:** certificate read and create permissions on the shared
+  `https://aro-hcp-dev-svc-kv.vault.azure.net` used by the handler. Public
+  certificate admission reads are distinct from runtime private-key/secret
+  delivery. Coordinate the existing delivery path with vault and service
+  maintainers; customer-subscription Owner does not authorize the shared vault.
+
+See [Graph and ARM operations](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/azure.go),
+[owner reconciliation](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/owners.go)
+and [certificate permissions](../../tooling/entra-app-credentials/README.md).
+
+Install Azure CLI, Go and Bicep as required by the repository build, and
+[Mike Farah `yq`](https://github.com/mikefarah/yq) v4 for the Make owner settings.
+Use the intended operator's tenant/session. `AROHCP_ENV=development` selects
+Azure CLI credentials when a complete service-principal environment is not set;
+if all three `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` are set,
+the framework uses them instead. Do not inadvertently run as the CI bot or dump
+credential values while checking the execution context.
+
+## Step 1: Providers and CI Bot Grants
+
+Register the resource providers needed by E2E operations in the target subscription:
+
+```sh
 SUBSCRIPTION_ID="<target-subscription-id>"
-for ns in $(yq '.clouds.dev.defaults.ci.e2eSubscriptionProviders' "$CFG" | tr ',' ' '); do
-  az provider register --namespace "$ns" --subscription "$SUBSCRIPTION_ID"
+for ns in \
+  Microsoft.Compute Microsoft.Insights Microsoft.KeyVault \
+  Microsoft.ManagedIdentity Microsoft.Network Microsoft.Quota \
+  Microsoft.RedHatOpenShift Microsoft.Storage; do
+  az provider register --namespace "$ns" --subscription "${SUBSCRIPTION_ID}"
 done
 ```
 
-Registration is asynchronous. Poll each provider with `az provider show --namespace <ns> --subscription "$SUBSCRIPTION_ID" --query registrationState -o tsv` until every one reports `Registered`, and include `Microsoft.Authorization`, which is registered by default but also has to be in that state. The backend refuses to provision a cluster until `Microsoft.Authorization`, `Microsoft.Compute`, `Microsoft.Network` and `Microsoft.Storage` are registered on the customer subscription, and the cluster stays in its retry loop until they are.
+The backend's provider-registration validation checks `Microsoft.Authorization`,
+`Microsoft.Compute`, `Microsoft.Network` and `Microsoft.Storage`; missing
+registration prevents cluster provisioning. Authorization is normally registered
+by default. Registration is asynchronous: wait and repeat this read until all
+providers report `Registered` (not just `Registering`):
 
-## 2. Grant The CI Bot
+```sh
+for ns in \
+  Microsoft.Authorization Microsoft.Compute Microsoft.Insights \
+  Microsoft.KeyVault Microsoft.ManagedIdentity Microsoft.Network \
+  Microsoft.Quota Microsoft.RedHatOpenShift Microsoft.Storage; do
+  echo "$ns: $(az provider show --namespace "$ns" \
+    --subscription "${SUBSCRIPTION_ID}" --query registrationState -o tsv)"
+done
+```
 
-The DEV `OpenShift Release Bot` is the identity that runs the tests: it creates resource groups, deploys templates and assigns roles to the managed identities of each cluster. Give it its roles with the same template the pipeline uses for subscriptions it owns, which grants Contributor, Role Based Access Control Administrator with a condition that stops it from handing out Owner, User Access Administrator or RBAC Administrator, and, as the DEV configuration does for every E2E subscription, Azure Kubernetes Service RBAC Cluster Admin:
+The DEV OpenShift Release Bot (application `38335e22-716a-4a21-bf20-15ab141823f0`,
+object `c209f8df-52ae-48fb-98ea-380f58b04652`) executes tests. Verify that the
+selected profile uses the intended bot before granting access.
 
-```bash
+| Role | Condition / purpose |
+| :--- | :--- |
+| Contributor | Create/manage test resources and ARM deployments |
+| Role Based Access Control Administrator | ABAC condition excludes assigning Owner, User Access Administrator and RBAC Administrator |
+| Azure Kubernetes Service RBAC Cluster Admin | Only when this subscription also hosts AKS service/management infrastructure |
+
+Use the [CI bot RBAC template](../../dev-infrastructure/templates/ci-bot-rbac-subscription.bicep)
+to preserve those conditions. A customer-resource-only subscription does not
+need the AKS grant; change `grantAksRbac` to `true` only if it hosts that infrastructure.
+
+```sh
+BOT_PRINCIPAL_ID="c209f8df-52ae-48fb-98ea-380f58b04652"
 az deployment sub create \
-  --subscription "$SUBSCRIPTION_ID" \
-  --location westus3 \
+  --subscription "${SUBSCRIPTION_ID}" --location westus3 \
   --template-file dev-infrastructure/templates/ci-bot-rbac-subscription.bicep \
-  --parameters \
-    botPrincipalId="$(principal_id "$(cfg bot.applicationName)")" \
-    isGlobalSubscription=false \
-    grantAksRbac=true
+  --parameters botPrincipalId="${BOT_PRINCIPAL_ID}" \
+    isGlobalSubscription=false grantAksRbac=false
 ```
 
-The slot's cluster profile must hold this bot's credentials, which the ARO-HCP maintainers confirm when they add the profile entries in step 5.
+These ARM grants do not supply Graph reads or shared-vault certificate access
+for admission. Profile maintainers must arrange those separately. Do not relax
+the bot's ABAC condition to let it run Owner-only mock preparation.
 
-## 3. Deploy The Subscription RBAC Template
+## Step 2: Bootstrap Role Definitions and Shared Grants
 
-`e2e-subscription-rbac-assignment-subscription.bicep` defines custom roles inside the subscription and assigns them to the DEV mock identities. This matters for slot jobs because the slot mock identities in the next step reuse the subscription-local `dev-msi-mock-<subscription-id>` role from this template and do not create it, so apply fails until the template has been deployed. [DEV Mock Identities](dev-mock-identities.md#how-the-shared-identities-are-set-up) explains what each role is for.
+The [subscription bootstrap template](../../dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep)
+defines subscription-local custom roles, including
+`dev-msi-mock-<subscription-id>`, which the slot handler requires but does not
+create. It also assigns shared FPA, ARM helper and MSI roles. This is not the
+per-slot bundle provisioner. The FPA grant remains required for slot jobs.
 
-The template declares the object IDs of the three shared mock identities as required parameters, so all three are passed. E2E jobs use the slot-bound ARM helpers and MSI mock described in [DEV Mock Identities](dev-mock-identities.md#slot-mock-identities), not the shared ones, so only the shared first-party mock matters for them. The shared ARM helper and MSI mock are what personal development environments authenticate as. The template's other parameters cover retired pools and INT and stay at their defaults.
+Coordinate with the shared identity maintainers to obtain the current **SP object
+IDs**, not application/client IDs, for the applications named by
+`config/config-dev-ci.yaml` (`aro-dev-first-party2`, `aro-dev-arm-helper2`,
+`aro-dev-msi-mock2` today). Verify unique application/SP resolution in the tenant;
+do not choose an arbitrary display-name match. The privileged pipeline's
+[Graph lookup](../../dev-infrastructure/templates/entra-app-lookup.bicep) and
+[bootstrap caller](../../dev-infrastructure/templates/mock-identity-rbac.bicep)
+are the canonical resolution path. Retain shared personal-dev grants; this
+template has no role-definitions-only switch.
 
-```bash
+```sh
+FIRST_PARTY_PRINCIPAL_ID="<verified-first-party-sp-object-id>"
+ARM_HELPER_PRINCIPAL_ID="<verified-shared-arm-helper-sp-object-id>"
+MSI_MOCK_PRINCIPAL_ID="<verified-shared-msi-mock-sp-object-id>"
 az deployment sub create \
-  --subscription "$SUBSCRIPTION_ID" \
-  --location westus3 \
+  --subscription "${SUBSCRIPTION_ID}" --location westus3 \
   --template-file dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep \
-  --parameters \
-    firstPartyPrincipalId="$(principal_id "$(cfg mockIdentities.firstParty.applicationName)")" \
-    armHelperPrincipalId="$(principal_id "$(cfg mockIdentities.armHelper.applicationName)")" \
-    miMockPrincipalId="$(principal_id "$(cfg mockIdentities.msiMock.applicationName)")"
+  --parameters firstPartyPrincipalId="${FIRST_PARTY_PRINCIPAL_ID}" \
+    armHelperPrincipalId="${ARM_HELPER_PRINCIPAL_ID}" \
+    miMockPrincipalId="${MSI_MOCK_PRINCIPAL_ID}"
 ```
 
-Keep the role names at their defaults. The custom role names carry the subscription ID, which keeps them unique across the tenant, and the slot code finds the MSI mock role by that exact name.
+The template's legacy `msiMockPoolPrincipals` and `armHelperPoolPrincipals`
+parameters default to empty arrays. Do not feed removed catalogs into them.
+It defines custom-role display names with the subscription ID suffix to avoid
+tenant-wide name collisions. Do not override the MSI role's name: the slot
+handler looks up that exact subscription-local definition.
 
-## 4. Provision The Slot Assets
+## Step 3: Prepare and Validate the Selected Pool
 
-Each pool needs its E2E identity containers and its slot mock identities. Run both scoped to the pool and its subscription, with an explicit `ASSET` each time. Selecting by pool or subscription is what includes an unmanaged pool, and omitting `ASSET` would also run the infrastructure identity asset against the infrastructure subscription, which the ARO-HCP team maintains. See [Managing Slot Assets](slot-assets.md#managing-slot-assets) for the details and for why the Make target is mandatory.
+Run from the repository root, using the owner/operator credentials established
+above. For the smaller HyperShift pool, use **both** selectors and an explicit
+asset kind on every invocation:
 
-```bash
-make -C test apply-pool-assets    ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="<display name>" ASSET=e2e_identities
-make -C test validate-pool-assets ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="<display name>" ASSET=e2e_identities
+```sh
+AROHCP_ENV=development make -C test apply-pool-assets \
+  ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="Hypershift Managed Azure" ASSET=e2e_identities
+AROHCP_ENV=development make -C test validate-pool-assets \
+  ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="Hypershift Managed Azure" ASSET=e2e_identities
+AROHCP_ENV=development make -C test apply-pool-assets \
+  ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="Hypershift Managed Azure" ASSET=mock_identities
+AROHCP_ENV=development make -C test validate-pool-assets \
+  ENVIRONMENT=dev-xs POOL=hypershift SUBSCRIPTION="Hypershift Managed Azure" ASSET=mock_identities
 ```
 
-A subscription can back pools in more than one slot environment, as the HyperShift one does in both `dev` and `dev-xs`, and each pool has its own containers, so repeat the commands with the other `ENVIRONMENT` and `POOL` values.
+For the separate `dev/hypershift` pool, repeat with `ENVIRONMENT=dev`, after
+confirming its desired capacity. Do not run a bare environment-wide apply.
+The [Makefile](../../test/Makefile) regenerates Bicep-derived ARM artifacts before
+building the binary; bypassing it with `go run` or a stale binary risks applying
+stale embedded templates. `apply-identity-pool` is an E2E-container-only alias;
+it neither prepares mock bundles nor forwards `POOL`.
 
-The mock identities are a different kind of operation. They create Entra applications and Key Vault certificates, which Owner on the subscription does not authorize, so the person running them needs Microsoft Graph rights and access to the shared service Key Vault as well. Apply also makes the Entra owners of those applications match the configured owner list, which can remove the operator's own access. Read [Preparing A Slot's Identities](dev-mock-identities.md#preparing-a-slots-identities) for the preconditions and the command, and run it with `POOL` and `SUBSCRIPTION` both set. In practice the owning team and an ARO-HCP operator work through this step together. Owner is never granted to the CI bot to get around the permission requirements.
+The [command implementation](../../test/cmd/aro-hcp-tests/slot-manager/assets_cmd.go)
+maps `ENVIRONMENT` to `--environment`, `POOL` to `--pool`, `SUBSCRIPTION` to
+`--subscription` (the **display name**, not ID), and `ASSET` to `--asset`.
+Pool and subscription filters intersect; a nonmatching selection errors. Either
+explicit selector includes unmanaged E2E and mock assets. `ASSET` alone does
+not include unmanaged assets and, if omitted, all registered kinds may run,
+including infrastructure identities in another subscription. There is no
+`--include-unmanaged` switch. Keep the explicit asset selections above.
 
-Only the customer subscription receives role assignments from these commands. The infrastructure identity bundles slots lease live in the environment's infrastructure subscription and are maintained by the ARO-HCP team. Because each new slot raises the demand on that shared pool, an ARO-HCP operator must apply and validate `ASSET=infrastructure_identities` before the pool is published. Otherwise Boskos would offer bundles that have no resource groups behind them, and every DEV job sharing the pool could fail admission.
+For mock apply **and** validation, Make exports `ENTRA_APP_OWNER_IDS` and
+`ENTRA_APP_OWNERS_GROUP_ID` from `.clouds.dev.defaults.entraAppOwnerIds` and
+`entraAppOwnersGroupId` in `config/config-dev-ci.yaml`. `MOCK_IDENTITY_CONFIG`
+selects another file; explicit environment/Make values are supported. Do not
+substitute a local arbitrary owner list: it must match the configured live
+Entra group's members. Invalid settings or group drift fail before mock writes.
 
-## 5. Publish The Pool
+Apply authoritatively replaces owners on **both applications and SPs** with
+that list. Missing owners on both objects are added and verified before extras
+are removed. The creator is removed if absent from the list. An operator whose
+only application access is ownership can therefore **lock themselves out**;
+arrange continuing management authority or hand off to an authorized owner /
+tenant administrator. Repository OWNERS membership and subscription Owner are
+not Entra application ownership. Reconciliation is sequential, not a transaction
+across objects, slots or asset handlers. Serialize operations; after partial
+failure, correct permissions/drift and retry the same scoped command.
 
-Once the assets validate, the ARO-HCP side makes the pool leasable. A maintainer adds two entries to the cluster profile secret that holds the DEV bot's credentials: `customer-<shard>-subscription-name` with the subscription's exact display name, which is how slot-manager matches the pool to credentials, and `customer-<shard>-subscription-id`, which the cleanup sweepers use to discover subscriptions. Then they generate and validate the Boskos inventory (`sync-boskos-config`, the release checkout's `make boskos-config`, then `validate-boskos-config`, see [Managing Slot Assets](slot-assets.md#managing-slot-assets)) and merge the `openshift/release` change, which also adds the subscription's exact display name to the `ALLOWED_SUBSCRIPTIONS` of the jobs that should use it (without that, the new pool stays idle); [E2E Subscription Onboarding](e2e-subscription-onboarding.md#dev-e2e-subscription-onboarding) describes both steps. Only the inventory change makes slots leasable, so it goes last.
+## Step 4: Enable Cleanup and Verify Admission
 
-## 6. Add A Cleanup Job
-
-Resource groups left behind by failed or timed-out tests are deleted by periodic jobs, one per customer subscription. For an external subscription the owning team adds its own in `openshift/release`; HyperShift defines theirs in its own ci-operator configuration, in the `arohcp-cleanup` variant of `openshift/hypershift`. The job runs under the DEV profile, which is why the bot needs the grants from step 2:
+Arrange an expired-resource-group cleanup job in `openshift/release`, scoped to
+the customer subscription, for example:
 
 ```yaml
-- as: delete-expired-arohcp-e2e-resource-groups
+- as: delete-expired-dev-ci-hypershift-resource-groups
   cron: 35 * * * *
   steps:
     env:
       CLEANUP_MODE: no-rp
-      CUSTOMER_SUBSCRIPTION: <subscription display name>
+      CUSTOMER_SUBSCRIPTION: Hypershift Managed Azure
     test:
     - ref: aro-hcp-deprovision-expired-resource-groups
 ```
 
-`no-rp` is the right mode for DEV, where the job that created a resource group may already have torn down its RP. [CI Cleanup](cleanup.md#why-dev-cleanup-actively-deletes-managed-resource-groups-but-public-cloud-cleanup-does-not) explains the difference. Because the subscription is not in `ci.dev.e2eSubscriptions`, the `createdAt` tag policy that the policy-driven `rg-ordered` sweeper relies on is not assigned for you, so this per-subscription job is the primary cleanup.
+Coordinate a rehearsal only after provisioning, profile delivery and Boskos
+inventory are ready. Admission must resolve all three distinct principals,
+valid pinned certificates and six persistent assignments using the selected
+profile. Verify that the job exports `LEASED_MOCK_IDENTITY_BUNDLE` and uses the
+intended pool/subscription; malformed bundles fail rather than falling back to
+old catalogs. Runtime configuration overrides retain their normal precedence.
+Verify acquire, test-resource creation, release and subsequent reuse. Local
+schema checks alone do not establish live readiness.
 
-Finish with a rehearsal job that targets the pool. It should acquire a slot without admission errors, create resources in the subscription, and release the slot cleanly.
+## Maintenance and Repair
 
-## Maintenance
+- **Regular verification:** repeat the two scoped `validate-pool-assets`
+  commands after role, owner-group, certificate or catalog changes and before
+  reopening drained capacity. Mock validation checks owners as well as the
+  bundle; CI admission does not inspect owners. Reconcile shared bootstrap
+  definitions/grants in Step 2 when their source changes, then validate slot RBAC.
+- **Fail-closed admission:** mock admission reads Graph, public certificates
+  and subscription RBAC on every lease/readmission. It never repairs, rotates,
+  deletes assignments or resets credentials. A failure with an Owner-repair
+  instruction must be handled by the authorized operator, not a broader CI role
+  or a fallback identity. Fix the reported prerequisite, run the scoped mock
+  apply and validation from Step 3, then coordinate a new admission attempt.
+- **Certificate creation/pinning:** normal apply uses `--create-missing`
+  semantics from [entra-app-credentials](../../tooling/entra-app-credentials/README.md):
+  it preserves an existing certificate and policy and pins the current public
+  certificate. Pinning replaces the application's **entire** `keyCredentials`
+  collection. Use this only for the dedicated applications. Names are
+  `aro-hcp-slot-<UUIDv5>-{msi,backend,cs}`, derived from customer subscription ID
+  and primary slot name, not region; certificate name equals application name,
+  with DNS `<name>.hcp.osadev.cloud`.
+- **Rotation:** expired/disabled or incorrectly pinned certificates fail
+  admission. Expiry is not repaired by `create-missing`. Drain affected jobs and
+  coordinate explicit disruptive `entra-app-credentials pin --rotate` with
+  the vault/delivery maintainers as described in
+  [dedicated slot operations](dev-mock-identities.md#dedicated-slot-identity-operations).
+  For a verified dedicated application name, the explicit operation is:
 
-Redeploy the templates from steps 2 and 3 when they change, for instance when a new role or mock principal is added, and then rerun `validate-pool-assets` for the pool, because the slot mock identities' role assignments depend on the roles that template defines. Rerun it too after any catalog, owner-group or certificate change, and before putting drained capacity back into service. Certificate rotation for slot identities is disruptive and is described in [Slot Identity Certificates](dev-mock-identities.md#slot-identity-certificates).
+  ```sh
+  SLOT_APP_NAME="<verified-dedicated-slot-application-name>"
+  AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
+    --vault-url https://aro-hcp-dev-svc-kv.vault.azure.net \
+    --mapping "${SLOT_APP_NAME};${SLOT_APP_NAME};${SLOT_APP_NAME}.hcp.osadev.cloud" \
+    --rotate
+  ```
 
-Changing a pool's size touches resources in your subscription, and the identity containers are managed through deployment stacks that delete whatever they no longer declare. Raise capacity by provisioning first and publishing second. To lower it, follow [Changing Capacity](e2e-capacity.md#changing-capacity), which stages the reduction so that containers are not deleted while a job may still be using them.
-
-To retire a pool, stop new leases and let running jobs drain first. Then remove the slot's backing resources and grants deliberately: releasing a slot keeps its containers, mock identities and role assignments, and lowering a slot count or renaming a slot does not delete what it leaves behind. Renaming a slot changes the names of its mock identities, which orphans the old ones. Do not delete an identity or certificate while a lease still depends on it.
+  If rotation creates a certificate but pinning fails, retry scoped mock apply
+  to pin the current version, not another rotation. Shared-pipeline reconciliation
+  alone does not repair dedicated slot apps.
+- **Capacity and non-destructive reduction:** provision/validate new capacity
+  before making it available through Boskos. Budget all pools sharing the
+  subscription, including six persistent RBAC assignments per mock slot and
+  any remaining legacy grants. For a lower leased container count, keep the
+  old physical `identity_container_provisioning_count` until users of the old
+  count drain. See [capacity management](identity-leasing.md#managing-identity-container-capacity).
+  Reducing a deployment stack's physical count can **delete** removed containers;
+  do not describe all apply operations as non-destructive. Reducing slot counts
+  or mock pool declarations does not itself delete the old mock applications,
+  certificates or RBAC grants, or sweep old per-slot stacks.
+- **Retirement:** first stop new leases and drain all affected primary and
+  independent leases; then separately inventory and remove only the retired
+  slot's backing resources and grants with the responsible owners. Renaming
+  primary slots changes mock identity names and can leave old resources behind.
+  Never delete identities or certificates still used by leased slots, shared
+  FPA/personal-dev consumers, or old-baseline jobs.
+- **Cleanup ownership:** release retains persistent mock objects, baseline RBAC,
+  certificates and identity containers. E2E/infrastructure admission cleanup
+  has different semantics from read-only mock admission. Periodic cleanup is
+  for expired test resources, not bundle retirement. Test-scoped HSM grants
+  can remain until resource cleanup; soft deletion/purge protection and failed
+  purge mean immediate erasure is not guaranteed. Monitor cleanup failures;
+  see [CI cleanup](cleanup.md) and [HSM lifecycle](dev-mock-identities.md#test-scoped-managed-hsm-access).
 
 ## See Also
 
-- [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for the procedure for subscriptions the pipeline owns
-- [E2E Slot Assets](slot-assets.md) and [DEV Mock Identities](dev-mock-identities.md) for what the assets are and how to provision them
-- [Dev-CI Topology](dev-ci-topology.md#the-privileged-entrypoint) for the rollout that does this work for subscriptions we own
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
+- [DEV Mock Identities](dev-mock-identities.md)
+- [CI Identity Leasing](identity-leasing.md)
+- [Dev-CI Topology](dev-ci-topology.md)
