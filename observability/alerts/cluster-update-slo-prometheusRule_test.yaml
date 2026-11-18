@@ -433,6 +433,40 @@ tests:
         description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
+# The hold keeps the alert firing through a gap in the start time metric while
+# the update is still in flight. /stuck fires from 110m as above; its start time
+# series is missing from 120m to 139m (absent from 125m once the 5m lookback
+# expires), so the live age condition is false, but the update stays updating.
+# The held start time still matches, so at 130m the same alert is still firing
+# rather than resolving and opening a new incident when the metric returns.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "0x119 _x20 0x60"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "60x200"
+  alert_rule_test:
+  - eval_time: 130m
+    alertname: userJourneyClusterUpdateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+        operation_type: update
+        phase: updating
+        resource_id: /stuck
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        subscription_id: sub-1
+      exp_annotations:
+        summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
+        correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # The alert clears as soon as the update completes, despite the 6h hold: /stuck
 # is updating until 119m and succeeded from 120m. By 130m the updating series is
 # stale and the current state is succeeded, so nothing fires.
@@ -476,8 +510,9 @@ tests:
 # retry itself is stuck. /stuck is updating from 0s, failed from 120m, and
 # retried at 130m (start 7800s). The series carry no operation ID, so the retry
 # reuses the updating series and the 6h hold still holds the first update's
-# >5400s samples. The current operation's age gates the alert: the retry is
-# first over 5400s at 221m and, with 'for: 15m', fires from 236m.
+# stuck samples, but their start time (0s) is older than the retry's, so they
+# do not count. The retry's own stuck samples start at 225m (the first 5m
+# boundary past 220m), so the alert fires from 240m.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
