@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -200,20 +201,11 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 					"RequirementsValid message should name the cluster-api-azure identity, got: %s", message)
 			}, 3*time.Minute, 10*time.Second).Should(Succeed(), "RequirementsValid never reported the missing Reader role")
 
-			By("verifying nodepool does not enter a terminal Failed state while the Reader role is missing")
-			var lastConsistentlyErr string
+			By("verifying nodepool stays in Provisioning while the Reader role is missing")
 			var lastConsistentlyState hcpsdk20261001.ProvisioningState
 			Consistently(func(g Gomega) {
 				resp, err := nodePoolsClient.Get(ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, nil)
-				if err != nil {
-					lastConsistentlyState = ""
-					if msg := err.Error(); msg != lastConsistentlyErr {
-						GinkgoLogr.Info("GET nodepool returned error, skipping poll iteration", "error", err)
-						lastConsistentlyErr = msg
-					}
-					return
-				}
-				lastConsistentlyErr = ""
+				g.Expect(err).NotTo(HaveOccurred(), "GET nodepool failed while the Reader role was missing")
 				g.Expect(resp.Properties).NotTo(BeNil(), "nodepool response has nil Properties")
 				g.Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "nodepool response has nil ProvisioningState")
 				state := *resp.Properties.ProvisioningState
@@ -221,8 +213,8 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 					GinkgoLogr.Info("nodepool provisioning state", "state", state)
 					lastConsistentlyState = state
 				}
-				g.Expect(state).NotTo(Equal(hcpsdk20261001.ProvisioningStateFailed),
-					"nodepool entered terminal Failed state while the Reader role was missing — the DES permission validation gate should hold it in Provisioning, not fail terminally")
+				g.Expect(state).To(Equal(hcpsdk20261001.ProvisioningStateProvisioning),
+					"nodepool should stay in Provisioning while the Reader role is missing — the DES permission validation gate should hold it there, not let it fail or succeed prematurely; got %q", state)
 			}, consistentlyLoopDuration, 15*time.Second).Should(Succeed())
 
 			By("granting the Reader role on the disk encryption set to both cluster identities")
@@ -250,8 +242,9 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 					GinkgoLogr.Info("nodepool provisioning state", "state", state)
 					lastEventuallyState = state
 				}
-				g.Expect(state).NotTo(Equal(hcpsdk20261001.ProvisioningStateFailed),
-					"nodepool %s/%s/%s entered terminal state %q after granting the Reader role; expected %q", *resourceGroup.Name, customerClusterName, customerNodePoolName, state, hcpsdk20261001.ProvisioningStateSucceeded)
+				if state == hcpsdk20261001.ProvisioningStateFailed {
+					StopTrying(fmt.Sprintf("nodepool %s/%s/%s entered terminal state %q after granting the Reader role; expected %q", *resourceGroup.Name, customerClusterName, customerNodePoolName, state, hcpsdk20261001.ProvisioningStateSucceeded)).Now()
+				}
 				g.Expect(state).To(Equal(hcpsdk20261001.ProvisioningStateSucceeded),
 					"nodepool %s/%s/%s has state %q; waiting for %q", *resourceGroup.Name, customerClusterName, customerNodePoolName, state, hcpsdk20261001.ProvisioningStateSucceeded)
 			}, nodePoolCreationTimeout-consistentlyLoopDuration, 30*time.Second).Should(Succeed(),
