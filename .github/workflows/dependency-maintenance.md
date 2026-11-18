@@ -16,6 +16,7 @@ engine: copilot
 model: sonnet
 tools:
   github:
+    mode: gh-proxy
     read-only: true
     toolsets: [repos, pull_requests, actions]
 timeout-minutes: 120
@@ -364,6 +365,32 @@ The checksum-verified pinned compiler is available inside the original checkout 
 Inspect the **complete** candidate diff and exclude inventory, scratch files, binaries, logs and other groups. Run the trusted validation runner below instead of assembling validation shell commands. It runs the ecosystem consumers, commits the sandbox candidate before clean-tree checks, runs `make verify-yamlfmt` and `make -C config detect-change`, and constructs a publication request only after every gate passes. Full logs and exit statuses are retained outside the checkout. Nonzero exits, timeouts, unexpected changes and unsupported consumers block request creation. Do not pipe consumers through `head` or `tail`, substitute a green baseline for candidate validation, or emit publication after failed or incomplete checks.
 
 The runner clears inherited Make execution controls, including `MAKE`, before launching consumers and their recursive Make invocations. Dry-run, touch, question and ignore-error flags cannot stand in for executed, successful checks. Snapshot and commit staging preserve deletions already recorded in the target index, allowing validation reruns after generated files are removed.
+
+### Credential-free GitHub reads
+
+GitHub reads use the supported `tools.github.mode: gh-proxy` bridge, including `gh api` invoked by the trusted Python validator and its consumer subprocesses. The sandbox's `gh` executable forwards to an isolated CLI sidecar; the host DIFC proxy holds the GitHub credential and rejects REST writes and GraphQL mutations before forwarding. `read-only: true` remains explicit, but is not a substitute for that proxy enforcement. Do not export `GH_TOKEN`, `GITHUB_TOKEN`, `CI_TOKEN` or inference credentials into the sandbox, copy host CLI credentials, change API hosts, or replace authenticated release-pin checks with unchecked local data. Repository identities, official release resolution and immutable commit comparisons remain mandatory.
+
+Before executing candidate code, check the validator's real Python-to-`gh` read path **inside this sandbox**, from the original trusted checkout:
+
+```bash
+python3 - <<'PY'
+import os
+import sys
+sys.path.insert(0, ".github/scripts")
+import native_dependabot_maintenance as native
+native.require(not any(os.environ.get(name) for name in (
+    "GH_TOKEN", "GITHUB_TOKEN", "CI_TOKEN", "COPILOT_GITHUB_TOKEN",
+    "GITHUB_MCP_SERVER_TOKEN")), "GitHub credentials must not be visible in the sandbox")
+release = native.api("repos/actions/checkout/commits/v7.0.1")
+native.require(release.get("sha") == "3d3c42e5aac5ba805825da76410c181273ba90b1",
+               "sandbox cannot verify the official checkout release")
+print("Credential-free sandbox GitHub release read passed")
+PY
+```
+
+This fixed, read-only regression check exercises the same API adapter as release-pin validation without candidate code or repository writes. A host-shell check with a token is not sandbox evidence. Preserve the failure output and report a sandbox-access blocker if this check fails; do not add credentials or weaken the guard.
+
+The bridge and credential exclusions are supported by the [pinned compiler's GitHub tools reference](https://github.com/github/gh-aw/blob/v1.2.2/docs/src/content/docs/reference/github-tools.md) and [environment filtering](https://github.com/github/gh-aw/blob/v1.2.2/pkg/workflow/awf_env.go). Its pinned runtime provides the [subprocess-visible wrapper](https://github.com/github/gh-aw-firewall/blob/v0.29.11/containers/agent/gh-cli-proxy-wrapper.sh) and [API write rejection](https://github.com/github/gh-aw-mcpg/blob/v0.5.6/internal/proxy/handler.go).
 
 ### Emit one validated replacement request
 
