@@ -38,7 +38,7 @@ The current implementation separates runtime leasing from privileged preparation
     dedicated E2E containers, slot-bound mock bundles and leased infrastructure identities.
 - **DEV bootstrap access**
   - `config/config-dev-ci.yaml` records the explicit DEV E2E customer subscriptions that receive shared bootstrap grants.
-  - The **Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint reconciles the custom roles and shared-principal assignments for those subscriptions. Because those are subscription-scoped role definitions and role assignments, it is run by an OWNERS-group member (`make dev-ci-privileged-local-run`) — it is deliberately kept out of the unattended `dev-ci` postsubmit. The non-privileged CI bot identities + Key Vault secrets are reconciled automatically by the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint.
+  - The **Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint reconciles the custom roles and shared-principal assignments for those subscriptions. Because those are subscription-scoped role definitions and role assignments, it is run by an OWNERS-group member (`make dev-ci-privileged-local-run`) — it is deliberately kept out of the unattended `dev-ci` postsubmit. The same privileged entrypoint reconciles the CI bot Entra identities and their Key Vault secrets before applying subscription grants; the unattended entrypoint does not manage these directory objects or credentials.
 
   - After bootstrap creates the subscription-local custom roles, the authorized
     operator separately applies `mock_identities` for each pool. Each primary

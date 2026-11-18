@@ -15,7 +15,7 @@ This keeps persistent CI-support infrastructure separate from the per-job RP foo
 
 ## What The Topology Manages Today
 
-Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint contains one root service group plus four child service groups:
+Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint contains one root service group plus five child service groups:
 
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
   - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
@@ -27,6 +27,8 @@ Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entr
   - Deploys `cert-manager` and the shared Azure DNS DNS-01 `ClusterIssuer`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CIHealth`
   - Deploys the CIHealth runtime at `cihealth.tools.hcpsvc.osadev.cloud`.
+- `Microsoft.Azure.ARO.HCP.DevCI.BatchAnalysis`
+  - Provisions storage for Tide-batch analysis output and grants the bot read/write access.
 
 In other words, `dev-ci` owns the persistent CI support layer, not the full runtime behavior of every CI job.
 

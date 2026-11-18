@@ -11,7 +11,7 @@ ARO HCP slot-managed E2E uses a primary Boskos slot and its declared assets:
 The important operational distinction today is that the managed identity container pool is acquired in two different ways:
 
 - DEV `e2e-parallel` jobs use `slot-manager` through the `aro-hcp-local-e2e` workflow; INT, STG, and PROD parallel jobs use `aro-hcp-persistent-e2e`
-- jobs using the older `aro-hcp-e2e` workflow acquire identity containers through ci-operator `leases:` directly
+- jobs using the `aro-hcp-e2e` workflow acquire identity containers through ci-operator `leases:` directly
 
 The high-level execution flow is summarized in [CI Execution](execution.md).
 This document covers test-framework leasing, capacity planning, workflow wiring,
@@ -291,8 +291,6 @@ max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
 
 where `identity-container-count-per-slot` is the pool's `slot_assets.e2e_identities.resource_group_count` — an upper bound on the HCPs a single suite run provisions concurrently, not the actual figure; see `hcp-concurrency` above. Using the ceiling here is deliberate and safe, since it overstates rather than understates deny-assignment consumption. The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
 
-The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
-
 The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. Slot-manager lets CI consume that extra capacity through one job family rather than through separate workflows.
 
 ### Managing Identity-Container Capacity
@@ -310,8 +308,8 @@ For slot-managed jobs:
 
 The optional pool-level `identity_container_provisioning_count` sets the physical
 container count per slot and must be at least the leased
-`slot_assets.e2e_identities.resource_group_count`. Omitting it retains the
-existing behavior: the physical count per slot equals the leased count, and
+`slot_assets.e2e_identities.resource_group_count`. When omitted,
+the physical count per slot equals the leased count, and
 total physical inventory is that count multiplied by `slot_count`. Increasing
 physical inventory alone does not raise the scheduler's runtime MI budget.
 

@@ -57,9 +57,10 @@ cluster's Azure resources or assign roles. Those are the ARM helper's job.
 ## ARM Helper — `aro-dev-arm-helper2` (the "MockFPA")
 
 In production the FPA can act on behalf of the customer to create Azure resources and
-to **assign roles to the cluster's operator identities**. DEV has no FPA, so the ARM
-helper impersonates that capability — hence the config key
-`azureArmHelperMockFpaPrincipalId` ("Mock FPA principal id").
+to **assign roles to the cluster's operator identities**. In DEV the ARM helper
+authenticates those operations. Its client ID and certificate identify the caller;
+`azureArmHelperMockFpaPrincipalId` separately identifies the shared first-party
+mock principal, not that authenticating helper.
 
 It is granted two **built-in** roles at subscription scope:
 
