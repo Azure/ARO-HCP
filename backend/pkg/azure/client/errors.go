@@ -70,3 +70,11 @@ func IsAzureAuthorizationFailedError(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "AuthorizationFailed"
 }
+
+// IsPublicIPAddressNotFoundErr recognizes missing public IPs or their resource
+// group from a public-IP GET, not arbitrary 404 responses or other resource types.
+func IsPublicIPAddressNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound &&
+		(azErr.ErrorCode == "ResourceNotFound" || azErr.ErrorCode == "ResourceGroupNotFound")
+}

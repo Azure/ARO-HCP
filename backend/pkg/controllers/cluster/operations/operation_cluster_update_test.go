@@ -86,12 +86,33 @@ func spcListerForCluster(clusterID *azcorearm.ResourceID, spc *coreapi.ServicePr
 	if spc == nil {
 		return &corelistertesting.SliceServiceProviderClusterLister{}
 	}
+	spc = spc.DeepCopy()
 	spc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 		clusterID.String(),
 		coreapi.ServiceProviderClusterResourceTypeName,
 		coreapi.ServiceProviderClusterResourceName,
 	)))
 	return &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}}
+}
+
+func TestSPCListerForClusterOwnsFixture(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	shared := &coreapi.ServiceProviderCluster{}
+	shared.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.22.8"))
+	original := shared.DeepCopy()
+	first := spcListerForCluster(cluster.ID, shared).ServiceProviderClusters[0]
+	second := spcListerForCluster(cluster.ID, shared).ServiceProviderClusters[0]
+
+	assert.Equal(t, original, shared)
+	assert.NotSame(t, shared, first)
+	assert.NotSame(t, first, second)
+	assert.Equal(t, fmt.Sprintf("%s/%s/%s", cluster.ID.String(), coreapi.ServiceProviderClusterResourceTypeName, coreapi.ServiceProviderClusterResourceName), first.ResourceID.String())
+	assert.Equal(t, first.ResourceID.String(), second.ResourceID.String())
+	first.Spec.ControlPlaneVersion.DesiredVersion.Major++
+	assert.Equal(t, original.Spec.ControlPlaneVersion.DesiredVersion, second.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.Equal(t, original, shared)
 }
 
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {

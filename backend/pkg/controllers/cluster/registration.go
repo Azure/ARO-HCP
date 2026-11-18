@@ -1149,6 +1149,26 @@ func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegi
 	}
 }
 
+func registerEgressPublicIPsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateEgressPublicIPsController, false),
+	}
+}
+
+func instantiateEgressPublicIPsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	return clusterazureresources.NewEgressPublicIPsController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
@@ -1418,5 +1438,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(clusterazureresources.EgressPublicIPsControllerName)] = registerEgressPublicIPsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

@@ -42,6 +42,44 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+type clusterCreateEgressPublicIPsCheck struct {
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+}
+
+var _ operationbase.OperationStatusCalculator[struct{}] = (*clusterCreateEgressPublicIPsCheck)(nil)
+
+func (c *clusterCreateEgressPublicIPsCheck) GetSourceName() string {
+	return "egressPublicIPs"
+}
+
+func (c *clusterCreateEgressPublicIPsCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
+	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster state not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+	}
+	if !coreapihelpers.UsesLoadBalancerEgress(cluster) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	pending := operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "Expected public IP address resources (Microsoft.Network/publicIPAddresses) for node egress have not yet been confirmed.")
+	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+	if err != nil || len(expected) == 0 {
+		return pending, nil
+	}
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, fmt.Sprintf("Expected %d public IP address resources (Microsoft.Network/publicIPAddresses) for node egress have not yet been confirmed; confirmed count is unavailable.", len(expected))), nil
+	}
+	references := coreapihelpers.EgressPublicIPReferences(expected, serviceProviderCluster.Status.AzureResources.EgressPublicIPs.AzureResources)
+	if len(references.PendingAzureResources) != 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, fmt.Sprintf("Expected %d public IP address resources (Microsoft.Network/publicIPAddresses) for node egress; %d confirmed. Some expected resources have not yet been confirmed.", len(expected), len(references.AzureResources))), nil
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
 type clusterCreateValidationCheck struct {
 	clock                        utilsclock.PassiveClock
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
