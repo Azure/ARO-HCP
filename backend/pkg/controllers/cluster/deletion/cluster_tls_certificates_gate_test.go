@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -66,6 +67,7 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 			key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
 			deleter := &clusterDeletionController{
 				resourcesDBClient:            database,
+				azureResourcesDBClient:       azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
 				billingDBClient:              billingcosmosstoragetesting.NewMockBillingDBClient(),

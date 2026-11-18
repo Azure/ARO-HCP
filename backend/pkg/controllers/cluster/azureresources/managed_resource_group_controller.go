@@ -358,9 +358,11 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 //   - exists but not owned by this cluster (owned by another cluster, or unclaimed/unstamped):
 //     a foreign / pre-existing resource group we must not delete on our behalf, so clear both
 //     references to open the deletion gate rather than blocking cluster deletion forever.
-//   - exists and owned by this cluster: do nothing and leave the reference in place so the
-//     gate stays closed. Cluster Service owns the resource group's deletion. TODO: begin
-//     deletion.
+//   - exists and owned by this cluster: promote a pending-only reference to the confirmed
+//     AzureResource (ownership is already established on this path), then leave the reference
+//     in place so the gate stays closed. If Cluster Service deletion has completed and left the
+//     group orphaned, begin deleting it; otherwise Cluster Service owns the resource group's
+//     deletion. TODO: begin deletion.
 func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -394,7 +396,25 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		// cluster deletion forever.
 		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	default:
-		// The managed resource group still exists and is owned by this cluster.
+		// The managed resource group exists and is owned by this cluster (the
+		// !ownedByThisCluster case above already handled every other outcome, so
+		// ownership is positively established here).
+		//
+		// If only PendingAzureResource is set: its creation was confirmed in Azure but AzureResource was
+		// never persisted (a failed confirm-persist, or a crash) and deletion began before
+		// reconcile could promote it - promote it to the confirmed AzureResource now as a first step. The
+		// confirmed reference is what ownership-gated consumers (for example the mock FPA role assignment
+		// controllers) act on, so without this a genuinely-owned managed resource group would
+		// go unrecognized as ours during teardown and its Owner grant would never be kept
+		// alive. Promotion is safe on the deletion path: consumers that gate creation work on
+		// AzureResource no-op while the cluster is deleting, and the deletion gate treats
+		// pending and confirmed references identically.
+		if currentReference.AzureResource == nil {
+			if err := c.promoteManagedResourceGroupReferenceToConfirmed(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID); err != nil {
+				return utils.TrackError(err)
+			}
+		}
+
 		if getResponse.Properties == nil || getResponse.Properties.ProvisioningState == nil {
 			return utils.TrackError(fmt.Errorf("managed resource group %q has no provisioning state", managedResourceGroupID.Name))
 		}
@@ -429,6 +449,22 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		// managed resource group to the RP.
 		return nil
 	}
+}
+
+// promoteManagedResourceGroupReferenceToConfirmed moves a pending managed resource group
+// reference to the confirmed AzureResource (clearing the pending marker) and persists the
+// change. Unlike persistManagedResourceGroup it makes no claim about the Azure provisioning
+// state; callers must have validated ownership (ManagedBy == this cluster) first. It is used
+// on the deletion path to record ownership for a resource group whose creation was confirmed
+// in Azure but never persisted as confirmed. persistIfChanged makes this a no-op write when
+// the reference is already confirmed.
+func (c *managedResourceGroupSyncer) promoteManagedResourceGroupReferenceToConfirmed(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) error {
+	replacement := existingServiceProviderCluster.DeepCopy()
+	reference := &replacement.Status.AzureResources.ManagedResourceGroup
+	reference.PendingAzureResource = nil
+	reference.AzureResource = managedResourceGroupID
+	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	return utils.TrackError(err)
 }
 
 // clearManagedResourceGroupReferences clears both the pending and confirmed managed

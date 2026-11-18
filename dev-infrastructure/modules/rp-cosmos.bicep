@@ -13,6 +13,7 @@ param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
 param fleetContainerMaxScale int
+param azureResourcesContainerMaxScale int
 
 var containers = [
   {
@@ -38,6 +39,12 @@ var containers = [
     defaultTtl: -1 // On, no default expiration
     partitionKeyPaths: ['/partitionKey']
     maxThroughput: fleetContainerMaxScale
+  }
+  {
+    name: 'AzureResources'
+    defaultTtl: -1 // On, no default expiration
+    partitionKeyPaths: ['/partitionKey']
+    maxThroughput: azureResourcesContainerMaxScale
   }
 ]
 

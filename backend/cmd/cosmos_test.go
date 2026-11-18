@@ -44,24 +44,26 @@ func TestDiscoverStorageFactoryOptions(t *testing.T) {
 		resourcesRU          float64
 		billingRU            float64
 		fleetRU              float64
+		azureResourcesRU     float64
 	}{
-		{name: "mock FPA", resourcesRU: 100, billingRU: 200, fleetRU: 300},
-		{name: "real FPA", controllerContext: app.ControllerContext{HasRealFPA: true}, resourcesRU: 1100, billingRU: 2200, fleetRU: 3300},
-		{name: "empty cleanup config", controllerContext: app.ControllerContext{OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{}}, resourcesRU: 100, billingRU: 200, fleetRU: 300},
-		{name: "mock FPA target cleanup", controllerContext: app.ControllerContext{OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{TargetSubscriptionAFECFlags: "target"}}, orphanCleanupEnabled: true, resourcesRU: 100, billingRU: 200, fleetRU: 300},
-		{name: "real FPA excluded cleanup", controllerContext: app.ControllerContext{HasRealFPA: true, OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{ExcludedSubscriptionAFECFlags: []string{"excluded"}}}, orphanCleanupEnabled: true, resourcesRU: 1100, billingRU: 2200, fleetRU: 3300},
+		{name: "mock FPA", resourcesRU: 100, billingRU: 200, fleetRU: 300, azureResourcesRU: 400},
+		{name: "real FPA", controllerContext: app.ControllerContext{HasRealFPA: true}, resourcesRU: 1100, billingRU: 2200, fleetRU: 3300, azureResourcesRU: 4400},
+		{name: "empty cleanup config", controllerContext: app.ControllerContext{OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{}}, resourcesRU: 100, billingRU: 200, fleetRU: 300, azureResourcesRU: 400},
+		{name: "mock FPA target cleanup", controllerContext: app.ControllerContext{OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{TargetSubscriptionAFECFlags: "target"}}, orphanCleanupEnabled: true, resourcesRU: 100, billingRU: 200, fleetRU: 300, azureResourcesRU: 400},
+		{name: "real FPA excluded cleanup", controllerContext: app.ControllerContext{HasRealFPA: true, OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{ExcludedSubscriptionAFECFlags: []string{"excluded"}}}, orphanCleanupEnabled: true, resourcesRU: 1100, billingRU: 2200, fleetRU: 3300, azureResourcesRU: 4400},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			var calls []string
 			options, err := discoverStorageFactoryOptions(t.Context(), throughputReaderFunc(func(ctx context.Context, name string) (float64, error) {
 				calls = append(calls, name)
-				return map[string]float64{"Resources": testCase.resourcesRU, "Billing": testCase.billingRU, "Fleet": testCase.fleetRU}[name], nil
+				return map[string]float64{"Resources": testCase.resourcesRU, "Billing": testCase.billingRU, "Fleet": testCase.fleetRU, "AzureResources": testCase.azureResourcesRU}[name], nil
 			}), testCase.controllerContext)
 			require.NoError(t, err)
 			require.Equal(t, testCase.resourcesRU, options.ResourcesRUsPerSecond)
 			require.Equal(t, testCase.billingRU, options.BillingRUsPerSecond)
 			require.Equal(t, testCase.fleetRU, options.FleetRUsPerSecond)
-			require.Equal(t, app.BackendStorageFactoryOptions(testCase.controllerContext, testCase.resourcesRU, testCase.billingRU, testCase.fleetRU), options)
+			require.Equal(t, testCase.azureResourcesRU, options.AzureResourcesRUsPerSecond)
+			require.Equal(t, app.BackendStorageFactoryOptions(testCase.controllerContext, testCase.resourcesRU, testCase.billingRU, testCase.fleetRU, testCase.azureResourcesRU), options)
 			require.Equal(t, testCase.controllerContext.HasRealFPA, slices.Contains(options.ControllerNames, strings.ToLower(denyassignments.ClusterDenyAssignmentControllerName)))
 			orphanCleanupName := strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)
 			require.Equal(t, testCase.orphanCleanupEnabled, slices.Contains(options.ControllerNames, orphanCleanupName))
@@ -76,13 +78,13 @@ func TestDiscoverStorageFactoryOptions(t *testing.T) {
 			for name := range options.ControllerFractions {
 				require.Contains(t, options.ControllerNames, name)
 			}
-			require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+			require.Equal(t, []string{"Resources", "Billing", "Fleet", "AzureResources"}, calls)
 		})
 	}
 }
 
 func TestDiscoverStorageFactoryOptionsFailsWithoutFallback(t *testing.T) {
-	containers := []string{"Resources", "Billing", "Fleet"}
+	containers := []string{"Resources", "Billing", "Fleet", "AzureResources"}
 	for index, name := range containers {
 		for _, testCase := range []struct {
 			name        string

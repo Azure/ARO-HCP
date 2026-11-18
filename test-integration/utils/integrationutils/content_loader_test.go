@@ -26,6 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -40,6 +41,7 @@ func TestMockCosmosLoadContent(t *testing.T) {
 		{name: "management cluster", content: `{"id":"fixture","partitionKey":"1","resourceType":"Microsoft.RedHatOpenShift/stamps/managementClusters"}`, expectedContainer: "Fleet"},
 		{name: "stamp case insensitive", content: `{"id":"fixture","partitionKey":"1","resourceType":"microsoft.redhatopenshift/STAMPS"}`, expectedContainer: "Fleet"},
 		{name: "service provider cluster", content: `{"id":"fixture","partitionKey":"subscription","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/serviceProviderClusters"}`, expectedContainer: "Resources"},
+		{name: "deployment stack desire", content: `{"id":"fixture","partitionKey":"subscription","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/azureDeploymentStackDesires"}`, expectedContainer: "AzureResources"},
 		{name: "invalid JSON", content: `{`},
 		{name: "missing ID", content: `{"partitionKey":"1","resourceType":"Microsoft.RedHatOpenShift/stamps/managementClusters"}`},
 		{name: "missing partition", content: `{"id":"fixture","resourceType":"Microsoft.RedHatOpenShift/stamps/managementClusters"}`},
@@ -55,8 +57,9 @@ func TestMockCosmosLoadContent(t *testing.T) {
 				require.NoError(t, err)
 			}
 			containers := map[string]map[string]json.RawMessage{
-				"Resources": mock.mockResourcesDBClient.GetAllDocuments(),
-				"Fleet":     mock.mockFleetDBClient.GetAllDocuments(),
+				"Resources":      mock.mockResourcesDBClient.GetAllDocuments(),
+				"Fleet":          mock.mockFleetDBClient.GetAllDocuments(),
+				"AzureResources": mock.mockAzureResourcesDBClient.GetAllDocuments(),
 			}
 			for container, documents := range containers {
 				if container != testCase.expectedContainer {
@@ -92,6 +95,7 @@ func TestPrepareCosmosDocument(t *testing.T) {
 		{coreapi.SystemAdminCredentialRevocationControllerResourceType, "Resources"},
 		{coreapi.ClusterScopedManagementClusterContentResourceType, "Resources"},
 		{coreapi.NodePoolScopedManagementClusterContentResourceType, "Resources"},
+		{azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, "AzureResources"},
 		{fleetapi.StampResourceType, "Fleet"},
 		{fleetapi.ManagementClusterResourceType, "Fleet"},
 		{fleetapi.ManagementClusterControllerResourceType, "Fleet"},
@@ -124,22 +128,25 @@ func TestPrepareCosmosDocument(t *testing.T) {
 }
 
 func TestLoadCosmosContentMissingClient(t *testing.T) {
-	for _, resourceType := range []azcorearm.ResourceType{coreapi.ClusterResourceType, fleetapi.ManagementClusterResourceType} {
+	for _, resourceType := range []azcorearm.ResourceType{coreapi.ClusterResourceType, fleetapi.ManagementClusterResourceType, azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType} {
 		content := []byte(fmt.Sprintf(`{"id":"fixture","partitionKey":"partition","resourceType":%q}`, resourceType.String()))
-		require.ErrorContains(t, LoadCosmosContent(t.Context(), nil, nil, content), "container client is missing")
+		require.ErrorContains(t, LoadCosmosContent(t.Context(), nil, nil, nil, content), "container client is missing")
 	}
 }
 
 func TestContainerListingAndSaveErrors(t *testing.T) {
-	for _, container := range []string{"Resources", "Fleet"} {
+	for _, container := range []string{"Resources", "Fleet", "AzureResources"} {
 		t.Run(container, func(t *testing.T) {
 			storage, err := NewMockCosmosFromTestingEnv(t.Context(), t)
 			require.NoError(t, err)
 			mock := storage.(*MockCosmosIntegrationTestInfo)
-			if container == "Resources" {
+			switch container {
+			case "Resources":
 				mock.mockResourcesDBClient.StoreDocument("invalid", json.RawMessage(`{`))
-			} else {
+			case "Fleet":
 				mock.mockFleetDBClient.StoreDocument("invalid", json.RawMessage(`{`))
+			case "AzureResources":
+				mock.mockAzureResourcesDBClient.StoreDocument("invalid", json.RawMessage(`{`))
 			}
 			documents, err := mock.ListAllDocuments(t.Context())
 			require.ErrorContains(t, err, container)

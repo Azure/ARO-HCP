@@ -1816,6 +1816,9 @@
             "fleetContainerMaxScale": {
               "type": "integer"
             },
+            "azureResourcesContainerMaxScale": {
+              "type": "integer"
+            },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
             }
