@@ -2,7 +2,7 @@
 
 The `dev-ci` topology is the standalone, persistent CI-support environment for ARO HCP. It is separate from both the main `Global` / `Region` rollout graph and the on-demand DEV RP footprint that `e2e-parallel` creates inside a job run.
 
-Use this document to understand what the `dev-ci` rollout owns today, what it deliberately does not own, and where the remaining mixed-management boundary still exists.
+Use this document to understand the responsibilities of the `dev-ci` rollout, slot asset operators, and release-side CI configuration.
 
 ## Why Dev-CI Is Separate
 
@@ -10,7 +10,6 @@ Use this document to understand what the `dev-ci` rollout owns today, what it de
 
 - `config/config-dev-ci.yaml` carries standalone configuration for these CI-supporting resources.
 - `topology-dev-ci.yaml` defines a separate rollout graph with two entrypoints: `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` (the unattended postsubmit surface) and `Microsoft.Azure.ARO.HCP.DevCI.Privileged` (the on-demand, Owner-only grants surface).
-- The long-term goal is for `openshift/release` jobs to consume this shared foundation without defining or deploying the `dev-ci` topology themselves, but that handoff is not complete yet.
 
 This keeps persistent CI-support infrastructure separate from the per-job RP footprint that DEV local E2E provisions on demand.
 
@@ -21,7 +20,7 @@ Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entr
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
   - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
 - `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
-  - Deploys the historically named `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
+  - Deploys the `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
 - `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
   - Deploys the shared Istio gateway and DNS wiring for `opstool`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
@@ -33,7 +32,7 @@ In other words, `dev-ci` owns the persistent CI support layer, not the full runt
 
 ## The Privileged Entrypoint
 
-`topology-dev-ci.yaml` also declares a **standalone, on-demand** privileged tree rooted at the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint, deliberately kept **separate** from the unattended `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint. It owns five concerns:
+`topology-dev-ci.yaml` also declares a **standalone, on-demand** privileged tree rooted at the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint, deliberately kept **separate** from the unattended `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint. It owns six concerns:
 
 1. **Resource provider registration** (`E2ESubscriptionProviders` service group): registering the Azure resource providers that E2E tests depend on across every ARO-HCP-managed E2E subscription. Unlike the RBAC grants, this needs only the `*/register/action` permission, which Contributor already grants — it is **not** an Owner-level operation. It lives here because it is on-demand reconciliation of the same E2E subscription inventory the grants below operate on, and because the unattended postsubmit has no reason to sweep those subscriptions. Both the provider list (`ci.e2eSubscriptionProviders`) and the targets (`ci.<env>.e2eSubscriptions`) come from `config/config-dev-ci.yaml`, so onboarding a subscription there is picked up with no pipeline edit.
 2. **The CI bot Entra identity lifecycle** (`E2ESubscriptionRBAC` service group): creating/reconciling the DEV, INT, STG and PROD bot Entra applications + service principals, granting their admin consent, and ensuring their `ci-bot-<env>-{client-secret,client-id,tenant-id}` Key Vault secrets exist (`entra-app-credentials ensure-secret`, which mints a client secret with `addPassword` only when missing; it adds a credential and never removes existing ones, so a previously issued DEV password keeps working until it is deleted by hand). These are Entra **directory-object writes** (create app/SP, `addPassword`) — an unattended CI identity is deliberately not given app/SP-management or credential-minting rights over directory objects, so this runs on demand instead. Nothing in this repository reads the Key Vault copy; the CI jobs consume a mirror in the CI secret store.
@@ -64,53 +63,30 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
 - Dedicated slot mock bundles are prepared by scoped `slot-manager` asset
-  commands, not this shared bootstrap topology. The legacy MSI/ARM static
-  catalogs are removed and their configured sizes are zero; do not regenerate
-  them for new subscriptions. See [external preparation and maintenance](external-subscription-onboarding.md).
+  commands, not this shared bootstrap topology. See [external preparation and maintenance](external-subscription-onboarding.md).
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
-## The Current Mixed-Management Boundary
+## Identity Management Responsibilities
 
-The DEV MSI mock and ARM helper service-principal pools used by local E2E jobs
-are managed declaratively on the Azure side, with only the release-side consumer
-artifacts left outside the rollout.
+The privileged topology prepares the named shared FPA and personal-development
+MSI/ARM applications configured in `config/config-dev-ci.yaml`. Its
+`pin-mock-certs` and `pin-mock-certs-int` steps create missing certificates and
+pin their public keys; its RBAC templates define subscription-local custom
+roles and assign the shared principals their roles. Existing certificates and
+policies are preserved during routine reconciliation.
 
-- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the pool end to end on the Azure side:
-  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates both
-    pooled Entra app families from `.ci.dev.mockIdentities.pool` and
-    `.ci.dev.mockIdentities.armHelperPool`. It configures no auth on the apps.
-  - The DEV `pin-mock-certs` and INT `pin-mock-certs-int` Shell steps run
-    `tooling/entra-app-credentials` immediately after the corresponding app
-    deployment. They create missing certificates and register each current
-    Key Vault certificate as a pinned `keyCredential`; existing certificates and
-    policies remain untouched. The DEV step uses separate CLI invocations for
-    the named identities, MSI mock pool, and ARM helper pool.
-    Templatize runs these steps with the invoking OWNERS member's Azure CLI
-    credentials.
-  - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each
-    principal's object ID via Microsoft Graph and applies the home- and
-    E2E-subscription grants. Both pools receive DEV home-subscription grants so
-    their members can be tested in personal development environments. Principal
-    IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants
-    require subscription Owner, they are applied on demand rather than by the
-    postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
-- What remains outside the rollout:
-  - `make populate-msi-mock-pool` and `make populate-arm-helper-pool` perform live
-    Entra lookups and write the static catalogs consumed by release-side jobs.
-  - `openshift/release` still owns the Boskos inventories and lease contracts.
+Dedicated slot bundles have a separate operator entrypoint:
+`make -C test apply-pool-assets` with `ASSET=mock_identities` and explicit pool
+selectors. Each primary slot has one MSI mock and two distinct ARM helpers,
+with six persistent assignments only on its customer subscription. The shared
+bootstrap supplies the custom role definition and FPA grants those slots need.
+See [dedicated slot operations](dev-mock-identities.md#dedicated-slot-identity-operations)
+and [external subscription preparation](external-subscription-onboarding.md).
 
-So the Entra objects, certificates, certificate pinning, and RBAC are
-single-sourced in the topology; the remaining spread is limited to
-release-side Boskos/catalog wiring.
-
-## Long-Term Direction
-
-The Azure-side intended state is now in place: a single privileged rollout owns
-the app/SP, certificate, pinning, and RBAC lifecycle, driven by one source of
-truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
-
-- generate downstream consumer artifacts (the static pool catalog and the release-side Boskos inventory) from that same source instead of updating them separately
+`openshift/release` owns the CI workflows, cluster profiles and Boskos inventory.
+CI admission validates the prepared mock bundle read-only; it does not perform
+Owner reconciliation or certificate rotation.
 
 ## Operator Entry Points
 
@@ -121,7 +97,7 @@ make dev-ci-local-run
 make dev-ci-privileged-local-run
 ```
 
-Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an on-demand run performed by an OWNERS-group member, whose RBAC steps require Owner** — when mock Entra applications, certificates, pinned credentials, subscription-scoped RBAC, or E2E subscription resource-provider registrations need to be created or reconciled. Certificate rotation is a separate, explicitly disruptive CLI procedure.
+Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota). Use the second — **an on-demand run performed by an OWNERS-group member, whose RBAC steps require Owner** — when shared bootstrap Entra applications, certificates, pinned credentials, subscription-scoped RBAC, or E2E subscription resource-provider registrations need to be created or reconciled. Certificate rotation is a separate, explicitly disruptive CLI procedure.
 
 ## Where To Look
 
@@ -137,7 +113,6 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
 - `dev-infrastructure/Makefile`
-- `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 - [CI Identity Leasing](identity-leasing.md)
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 - [Opstool CI Platform](opstool.md)

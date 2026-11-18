@@ -13,10 +13,6 @@ command. Use `--dry-run` to compare credentials without changing the application
 AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
   --vault-url https://example.vault.azure.net \
   --mapping 'application-name;certificate-name;certificate.example.com' \
-  --indexed-application-base application-pool \
-  --indexed-certificate-base certificate-pool \
-  --indexed-certificate-dns-suffix pool.example.com \
-  --indexed-count 20 \
   --create-missing
 ```
 

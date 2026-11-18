@@ -172,13 +172,11 @@ Each HCP cluster created during E2E consumes role assignments in its identity co
 - **`resourceGroupScope`**: 26 role assignments per HCP (13 from E2E test bicep + 13 from the RP-managed resource group)
 - **`resourceScope`**: 41 role assignments per HCP (28 from E2E test bicep + 13 from the RP-managed resource group)
 
-Most specs run in `resourceGroupScope` mode; the exceptions are the specs that pass `framework.RBACScopeResource`. Derive that count from the test source rather than trusting a number written here — this sentence has been stale before:
+Most specs run in `resourceGroupScope` mode; the exceptions are the specs that pass `framework.RBACScopeResource`. Derive that count from the test source:
 
 ```bash
 git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l   # 1 at the time of writing
 ```
-
-A test path that deploys a pinned back-level copy of the setup bicep is also resource-scoped regardless of what it passes, because those copies have no `rbacScope` parameter and only ever grant resource-scoped RBAC. No such path exists today, but one has existed before and may again.
 
 The test-side role-assignment count comes from the managed-identity deployment bicep at `test/e2e-setup/bicep/modules/managed-identities.bicep`, which delegates to:
 
@@ -259,7 +257,7 @@ az role assignment list --subscription "<name-or-id>" --all -o json | jq length
 
 This is a *configured worst case*: it assumes every slot runs a suite at peak concurrency simultaneously. Real usage is normally well below it, so a breach means the catalog permits one, not that one has occurred.
 
-Every input above has a stated derivation, so the whole calculation can be re-run from this repository without trusting a figure written here. Do that rather than reusing quoted numbers, which require manual maintenance and have been stale in the past.
+Every input above has a stated derivation. Recalculate the budget from the current source and measured subscription baseline before changing capacity.
 
 For the current live capacity model:
 
@@ -460,41 +458,6 @@ Common failure modes:
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
   - investigate the container resource group directly in Azure; repeated leftovers usually mean permission issues or unexpected extra resources
 
-## MSI Mock Service Principal Pool
-
-### Historical global pool
-
-Earlier DEV jobs leased `aro-hcp-msi-mock-cs-sp-dev-<i>` from Boskos and
-resolved it through `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` to
-an `aro-dev-msi-mock-pool-<i>` application. Current slot consumers instead
-resolve their dedicated MSI identity through Graph at admission and export it
-in `LEASED_MOCK_IDENTITY_BUNDLE`. The static catalog has been removed and
-`.ci.dev.mockIdentities.pool.size` is zero. Do not regenerate it for onboarding.
-
-Personal-dev still uses shared `miMockClientId` / `miMockPrincipalId` /
-`miMockCertName` configuration. A zero legacy pool size is not evidence of Azure
-object or assignment deletion; retirement needs an explicit owner-coordinated
-inventory and confirmation that no old consumers still use the identities.
-
-## ARM Helper Service Principal Pool
-
-### Historical global pool
-
-Earlier DEV jobs leased independent Backend and Clusters Service helpers from
-`aro-dev-arm-helper-pool-<i>` via `arm-helper-pool.yaml`. Current slot jobs use
-two distinct dedicated helper SPs in their primary slot bundle; there are no
-additional mock identity leases in the slot-manager contract. The legacy
-catalog is removed and `.ci.dev.mockIdentities.armHelperPool.size` is zero.
-
-The authenticating helper client/certificate pairs remain distinct from
-`armHelperFPAPrincipalId`, which still names the shared FPA principal. Existing
-shared personal-dev configuration remains supported. Do not delete shared FPA
-roles or restore global pools when preparing a new subscription. See
-[external maintenance](external-subscription-onboarding.md#maintenance-and-repair)
-for preparation, capacity and explicit retirement responsibilities. Release-side
-lease wiring belongs to its own repository; old jobs must be drained before
-removing any remaining historical gates or backing resources.
-
 ## Where To Look
 
 When you need to change or debug identity leasing, start here:
@@ -530,18 +493,22 @@ When you need to change or debug identity leasing, start here:
 
 ## Slot-bound mock identities
 
-DEV/dev-xs slot-manager jobs now require a dedicated three-principal mock asset.
+DEV/dev-xs slot-manager jobs require a dedicated three-principal mock asset.
 See [dedicated slot identity operations](dev-mock-identities.md#dedicated-slot-identity-operations)
 for Owner commands and certificate management, and the
 [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities)
-for admission and the runtime contract. The legacy configuration described above
-has zero pool sizes and no static catalogs; new consumers do not resolve old
-mock leases. This says nothing about deletion of live Azure resources or the
-release-side state of old jobs. Personal-development configuration remains
-supported. Retire any leftover resources only after verifying all consumers
-are drained; do not use the historical setup for new pools.
+for admission and the runtime contract. Each primary slot supplies one MSI mock
+and two distinct authenticating ARM helpers in `LEASED_MOCK_IDENTITY_BUNDLE`.
+Admission resolves the applications and SPs through Graph and verifies public
+certificates and customer-subscription RBAC read-only. The primary slot lease
+provides exclusivity for the bundle.
 
-`provision-from-main.sh` uses the checked-out baseline's binary and configuration
-adapter; it does not preserve PR code across checkout. Bundle support depends
-on that baseline's consumers. `SHARED_DIR` is Secret-backed; binary/adapter
-subdirectories must not be created there.
+Personal development uses shared `miMockClientId`, `miMockPrincipalId` and
+`miMockCertName` configuration and shared helper client/certificate pairs.
+`armHelperFPAPrincipalId` identifies the shared FPA principal, not an
+authenticating helper. See [external maintenance](external-subscription-onboarding.md#maintenance-and-repair)
+for scoped preparation, capacity management and safe retirement of slot assets.
+
+Upgrade provisioning uses the checked-out baseline's binary and configuration
+adapter in `provision-from-main.sh`. Verify that the selected baseline supports
+the slot bundle before using it for an upgrade test.

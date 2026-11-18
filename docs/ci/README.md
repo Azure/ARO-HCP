@@ -42,8 +42,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Why Dev-CI Is Separate](dev-ci-topology.md#why-dev-ci-is-separate)
 - [What The Topology Manages Today](dev-ci-topology.md#what-the-topology-manages-today)
 - [What It Does Not Manage](dev-ci-topology.md#what-it-does-not-manage)
-- [The Current Mixed-Management Boundary](dev-ci-topology.md#the-current-mixed-management-boundary)
-- [Long-Term Direction](dev-ci-topology.md#long-term-direction)
+- [Identity Management Responsibilities](dev-ci-topology.md#identity-management-responsibilities)
 - [Operator Entry Points](dev-ci-topology.md#operator-entry-points)
 - [Where To Look](dev-ci-topology.md#where-to-look)
 
@@ -57,7 +56,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [The Identities At A Glance](dev-mock-identities.md#the-identities-at-a-glance)
 - [First Party Mock](dev-mock-identities.md#first-party-mock--aro-dev-first-party2)
 - [ARM Helper](dev-mock-identities.md#arm-helper--aro-dev-arm-helper2-the-mockfpa)
-- [MSI Mock](dev-mock-identities.md#msi-mock--aro-dev-msi-mock2-and-the-pool)
+- [MSI Mock](dev-mock-identities.md#msi-mock--shared-and-slot-bound)
 - [Why Some Roles Are Custom And Others Built-In](dev-mock-identities.md#why-some-roles-are-custom-and-others-built-in)
 - [How The Roles Are Assigned](dev-mock-identities.md#how-the-roles-are-assigned)
 - [Where To Look](dev-mock-identities.md#where-to-look)
@@ -89,8 +88,6 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Scaling Constraints](identity-leasing.md#scaling-constraints)
 - [Managing Identity-Container Capacity](identity-leasing.md#managing-identity-container-capacity)
 - [Operational Notes And Troubleshooting](identity-leasing.md#operational-notes-and-troubleshooting)
-- [MSI Mock Service Principal Pool](identity-leasing.md#msi-mock-service-principal-pool)
-- [ARM Helper Service Principal Pool (Historical)](identity-leasing.md#arm-helper-service-principal-pool)
 - [Slot-Bound Mock Identities](identity-leasing.md#slot-bound-mock-identities)
 - [External Subscription Preparation and Maintenance](external-subscription-onboarding.md)
 - [Where To Look](identity-leasing.md#where-to-look)
@@ -215,11 +212,11 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Read This Next
 
 - [CI Execution](execution.md) explains how CI works, what each execution mode validates, and how requests flow across tenants and subscriptions.
-- [Dev-CI Topology](dev-ci-topology.md) explains what the standalone `dev-ci` rollout owns today, how it relates to on-demand DEV CI, and where the remaining mixed-management boundary still sits.
+- [Dev-CI Topology](dev-ci-topology.md) explains the responsibilities of the standalone `dev-ci` rollout, dedicated slot asset operators, and release-side CI configuration.
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md) documents the end-to-end procedure for adding customer subscriptions across all environments (DEV, INT, STG, PROD), including slot catalog, Boskos, AFEC flags, and RBAC updates.
-- [DEV Mock Identities](dev-mock-identities.md) explains what each DEV mock identity (first-party, ARM helper, MSI mock and its pool) stands in for and why it needs each role it is granted, given the absence of a real FPA and Managed Identities Data Plane.
+- [DEV Mock Identities](dev-mock-identities.md) explains shared FPA/personal-development identities and dedicated slot MSI/ARM bundles, and why each needs its roles given the absence of a real FPA and Managed Identities Data Plane.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
-- [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and catalog-driven slot-manager leasing across DEV, INT, STG, and PROD.
+- [CI Identity Leasing](identity-leasing.md) explains reusable managed identity containers, dedicated mock bundles, and catalog-driven slot-manager leasing across DEV, INT, STG, and PROD.
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
 - [DEV CI Regional Load Management](dev-region-failover.md) defines when and how operators drain, rebalance, and restore DEV presubmit traffic across `westus3`, `centralus`, and `canadacentral`.
 - [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.

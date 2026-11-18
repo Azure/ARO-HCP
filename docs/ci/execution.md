@@ -353,9 +353,8 @@ DEV/dev-xs slot jobs spread ARM traffic through a persistent mock bundle:
 - each primary slot owns one MSI mock and two distinct ARM helper SPs
 - admission resolves them through Graph and validates certificates and baseline
   RBAC read-only before publishing `LEASED_MOCK_IDENTITY_BUNDLE`
-- provisioning consumes the bundle's client/principal IDs and certificate names,
-  not the retired global static mock catalogs
-- personal development environments continue to use the shared non-pooled mock SP values
+- provisioning consumes the bundle's client/principal IDs and certificate names
+- personal development environments use the named shared mock SP values
 
 The primary slot provides exclusivity without an extra mock identity lease.
 Owner preparation and repair happen outside CI; failed admission does not create
@@ -364,7 +363,7 @@ identities or rotate credentials.
 See [CI Identity Leasing](identity-leasing.md#slot-bound-mock-identities) and
 [external onboarding](external-subscription-onboarding.md) for preparation and
 maintenance. Shared FPA semantics and normal configuration override precedence
-are unchanged.
+apply to both shared and slot-bound identities.
 
 ## EV2 Commit Pinning
 

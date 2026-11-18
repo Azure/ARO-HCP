@@ -48,7 +48,7 @@ The current implementation separates runtime leasing from privileged preparation
 
 Shared bootstrap, dedicated mock bundles, reusable E2E UAMI containers and leased
 infrastructure UAMIs are different assets. The FPA stays shared; personal-dev
-configuration is unchanged. See [DEV mock identities](dev-mock-identities.md).
+uses named shared MSI/ARM identities. See [DEV mock identities](dev-mock-identities.md).
 
 ## Shared Bootstrap Identities
 
@@ -58,16 +58,11 @@ The DEV bootstrap layer currently grants access for these shared identities:
 - `aro-dev-arm-helper2`
 - `aro-dev-msi-mock2`
 
-The legacy indexed MSI and ARM pools are configured with size zero and their
-static catalogs are removed. This does not remove previously created Azure
-objects or grants. New DEV/dev-xs slot jobs use their dedicated bundles instead;
-do not grow legacy pools or regenerate their catalogs during onboarding.
-
 ## Prerequisites
 
 A brand-new subscription typically has no Azure resource providers registered beyond `Microsoft.Authorization`. The Azure portal quota blade reports *"The selected provider is not registered for some of the selected subscriptions"*, and later provisioning and RBAC steps fail until the providers used by ARO-HCP are registered.
 
-**Provider registration is now automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 5 of the procedure below). You no longer need to register providers manually for internally-managed subscriptions — the privileged pipeline handles it idempotently. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
+**Provider registration is automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 5 of the procedure below). The privileged pipeline handles registration idempotently for internally-managed subscriptions. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
 
 Mock preparation additionally requires Entra application/SP and owner-management
 authorization, owner-group reads and shared Key Vault certificate permissions;
@@ -113,7 +108,7 @@ before running apply. Do not use runtime CI credentials for Owner reconciliation
    - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
    - No separate tenant-quota entry is needed: the `tenant-quota-collector` chart derives the `redHat0` tenant's subscriptions from `ci.<env>.e2eSubscriptions` (and `ci.dev.infrastructureSubscriptions`), monitoring them in the regions listed in `ci.<env>.regions`. Make sure that CSV covers the regions the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
    - Include the subscription's exact display name in the Red Hat tenant inventory in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual quota-reader bootstrap grants cover it.
-   - Existing shared `ci.dev.mockIdentities` application names and zero legacy pool sizes do not need to change. The mock RBAC template resolves the configured shared principals through Graph, creates subscription-local custom roles and grants shared access on the listed subscriptions. It does not create slot-bound bundles.
+   - Keep the shared `ci.dev.mockIdentities` application names. The mock RBAC template resolves the configured shared principals through Graph, creates subscription-local custom roles and grants shared access on the listed subscriptions. It does not create slot-bound bundles.
    - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
    - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
@@ -138,9 +133,8 @@ Adding a new DEV customer subscription normally does not require:
 
 - rotating the shared dev bootstrap principals
 - changing shared FPA/personal-dev principal IDs
-- restoring retired global mock catalogs
 
-Reconcile and validate the new pool's dedicated assets instead. For owner repair,
+Reconcile and validate the new pool's dedicated assets. For owner repair,
 explicit rotation, safe downsizing and retirement, follow the
 [maintenance procedure](external-subscription-onboarding.md#maintenance-and-repair).
 Those lifecycle rules also apply to managed pools; the operator responsibility

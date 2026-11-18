@@ -32,12 +32,6 @@ the authenticating helper SP. See the [mock handler](../../test/cmd/aro-hcp-test
 [RBAC implementation](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/azure.go)
 and [asset lifecycles](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#asset-lifecycle).
 
-Current DEV configuration sets both legacy indexed mock pools to zero and their
-static YAML catalogs have been removed. This does **not** prove old Azure
-objects, certificates or assignments have been deleted. Do not regenerate or
-grant the old global catalogs to onboard slot-bound mocks. Shared FPA and
-personal-dev identities remain necessary; see [DEV mock identities](dev-mock-identities.md).
-
 | Work | Responsible party |
 | :--- | :--- |
 | Catalog pool, naming, regions and capacity | Subscription owner and ARO-HCP reviewers |
@@ -222,9 +216,7 @@ az deployment sub create \
     miMockPrincipalId="${MSI_MOCK_PRINCIPAL_ID}"
 ```
 
-The template's legacy `msiMockPoolPrincipals` and `armHelperPoolPrincipals`
-parameters default to empty arrays. Do not feed removed catalogs into them.
-It defines custom-role display names with the subscription ID suffix to avoid
+The template defines custom-role display names with the subscription ID suffix to avoid
 tenant-wide name collisions. Do not override the MSI role's name: the slot
 handler looks up that exact subscription-local definition.
 
@@ -298,8 +290,8 @@ Coordinate a rehearsal only after provisioning, profile delivery and Boskos
 inventory are ready. Admission must resolve all three distinct principals,
 valid pinned certificates and six persistent assignments using the selected
 profile. Verify that the job exports `LEASED_MOCK_IDENTITY_BUNDLE` and uses the
-intended pool/subscription; malformed bundles fail rather than falling back to
-old catalogs. Runtime configuration overrides retain their normal precedence.
+intended pool/subscription; malformed bundles fail validation. Runtime
+configuration overrides retain their normal precedence.
 Verify acquire, test-resource creation, release and subsequent reuse. Local
 schema checks alone do not establish live readiness.
 
@@ -357,21 +349,21 @@ schema checks alone do not establish live readiness.
 - **Capacity and non-destructive reduction:** provision/validate new capacity
   before making it available through Boskos. Budget all pools sharing the
   subscription, including six persistent RBAC assignments per mock slot and
-  any remaining legacy grants. For a lower leased container count, keep the
+  the shared bootstrap grants. For a lower leased container count, keep the
   old physical `identity_container_provisioning_count` until users of the old
   count drain. Stop new leases while removing physical resources and verify no
   affected resources are still in use before applying the smaller physical count.
   See [capacity management](identity-leasing.md#managing-identity-container-capacity).
   Reducing a deployment stack's physical count can **delete** removed containers;
   do not describe all apply operations as non-destructive. Reducing slot counts
-  or mock pool declarations does not itself delete the old mock applications,
+  does not itself delete the affected mock applications,
   certificates or RBAC grants, or sweep old per-slot stacks.
 - **Retirement:** first stop new leases and drain all affected primary and
   independent leases; then separately inventory and remove only the retired
   slot's backing resources and grants with the responsible owners. Renaming
   primary slots changes mock identity names and can leave old resources behind.
   Never delete identities or certificates still used by leased slots, shared
-  FPA/personal-dev consumers, or old-baseline jobs.
+  FPA/personal-dev consumers, or running upgrade jobs.
 - **Cleanup ownership:** release retains persistent mock objects, baseline RBAC,
   certificates and identity containers. E2E/infrastructure admission cleanup
   has different semantics from read-only mock admission. Periodic cleanup is
