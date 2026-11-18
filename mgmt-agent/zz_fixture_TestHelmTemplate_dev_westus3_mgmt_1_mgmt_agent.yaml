@@ -708,8 +708,6 @@ rules:
   - manifestworks
   verbs:
   - get
-  - list
-  - watch
   - update
   - patch
 - apiGroups:
