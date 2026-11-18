@@ -128,8 +128,8 @@ unknown), and the group members to add.
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials check-owners \
-  --group-id <group-object-id> \
-  --owner-ids <id>,<id>
+  --group-id "<group-object-id>" \
+  --owner-ids "<id>,<id>"
 ```
 
 The caller needs permission to read the group's members and to look up directory

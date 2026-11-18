@@ -228,8 +228,9 @@ bases all come from the environment's `mockIdentities` configuration.
    `keyCredential` and verify the resulting thumbprint through Microsoft Graph.
 4. Apply RBAC only after every requested certificate has been reconciled.
 
-This makes `make dev-ci-privileged-local-run` the only routine write entrypoint
-for mock applications, certificates, pinning, and RBAC. Increasing a configured
+This makes `make dev-ci-privileged-local-run` the routine write entrypoint
+for **shared bootstrap** mock applications, certificates, pinning, and RBAC;
+dedicated slot bundles use the scoped asset commands below. Increasing a configured
 pool size creates and wires the missing indexed resources automatically.
 Decreasing a size does not delete higher-index resources.
 
@@ -249,7 +250,7 @@ From the repository root, rotate only the intended application:
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
-  --vault-url https://<vault-name>.vault.azure.net \
+  --vault-url "https://<vault-name>.vault.azure.net" \
   --mapping '<application-name>;<certificate-name>;<certificate-dns-name>' \
   --rotate
 ```
@@ -385,8 +386,11 @@ Admission checks certificate validity and exact pinned thumbprints using reads;
 expired certificates fail closed. Keep the existing vault and delivery pipelines.
 Rotation is an explicit disruptive `entra-app-credentials pin --rotate` operation
 with affected jobs drained, not a deployment/admission/release operation. Use the
-deterministic application name for the certificate name and `<name>.hcp.osadev.cloud`
-for its DNS name.
+deterministic application name for the certificate name. The handler derives DNS
+as `<name>.hcp.osadev.cloud`, but that exceeds the current rotation CLI's
+64-character common-name limit. Do not copy it into `--mapping`: coordinate an
+approved shorter certificate subject/SAN or a separate tooling correction first.
+See the [rotation prerequisite and scoped command](external-subscription-onboarding.md#maintenance-and-repair).
 
 After a partially successful slot certificate rotation, rerun the same scoped
 mock apply to pin the current certificate, then validate. The shared dev-ci

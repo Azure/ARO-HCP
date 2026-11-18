@@ -95,12 +95,12 @@ before running apply. Do not use runtime CI credentials for Owner reconciliation
 
 3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
    - Run:
-     - `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`
+     - `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo "<release-checkout>"`
    - In the release checkout, regenerate config:
      - `make update`
    - Validate that the generated Boskos inventory matches the slot catalog:
-     - `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`
-   - Open and merge the `openshift/release` PR, then wait for the Boskos config rollout.
+     - `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo "<release-checkout>"`
+   - Prepare the `openshift/release` PR now, but merge and roll out the added Boskos capacity only after the profiles and backing assets in steps 4–6 are ready and validated.
 
 4. Update the cluster profile secret inventory outside this repository.
    - Add:
@@ -119,8 +119,8 @@ before running apply. Do not use runtime CI credentials for Owner reconciliation
    - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
 
 6. Prepare each declared asset with the responsible owner, scoped to the new pool.
-   - Use `AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL=<pool> ASSET=e2e_identities` and the matching `validate-pool-assets` command.
-   - Then use `AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL=<pool> ASSET=mock_identities` and the matching `validate-pool-assets` command. Use `ENVIRONMENT=dev-xs` for ci02 pools.
+   - Use `AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL="<pool>" ASSET=e2e_identities` and the matching `validate-pool-assets` command.
+   - Then use `AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL="<pool>" ASSET=mock_identities` and the matching `validate-pool-assets` command. Use `ENVIRONMENT=dev-xs` for ci02 pools.
    - Make rebuilds the binary with current Bicep-derived ARM artifacts and loads authoritative Entra owner settings for mock operations. Confirm the owner list/group and continuing application-management authority: apply can remove the creator's ownership.
    - Coordinate leased infrastructure capacity with its infrastructure-subscription owner separately. Omitting `ASSET` selects all registered kinds and may modify that other subscription; it is not a customer-subscription-only operation.
    - Confirm profile Graph/certificate read access and runtime certificate delivery before jobs consume the new bundles. Do not rotate healthy credentials as part of onboarding.
@@ -169,7 +169,7 @@ For subscriptions owned by a different team where our pipeline identity does **n
 
 The external team runs the RBAC setup and identity-pool provisioning themselves using our Bicep modules. See [External Subscription Onboarding](external-subscription-onboarding.md) for the full procedure and grant contract.
 
-This is also why **Test Tenant subscriptions are excluded from automated provider registration**. The privileged pipeline registers providers only on the subscriptions listed in `ci.<env>.e2eSubscriptions`, which is by definition the Red Hat tenant inventory our pipeline identity holds **Owner** on. Test Tenant subscriptions live in a tenant we cannot authenticate into, so adding them to that inventory would not work and must not be attempted — they follow the external onboarding procedure, where their owning team registers providers manually.
+This is also why **Test Tenant subscriptions are excluded from automated provider registration**. The privileged pipeline registers providers only on the subscriptions listed in `ci.<env>.e2eSubscriptions`, which is by definition the Red Hat tenant inventory our pipeline identity holds **Owner** on. Test Tenant subscriptions live in a tenant we cannot authenticate into, so adding them to that inventory would not work and must not be attempted. Their owning team registers providers manually. The external DEV runbook's shared-tenant mock identity preparation is not a cross-tenant onboarding recipe.
 
 ---
 
@@ -208,15 +208,15 @@ AFEC registration is a two-step process: first initiate the registration from th
 
 1. **Initiate registration** from the subscription's tenant. Run `az feature register` for each required flag:
    ```bash
-   az feature register --namespace Microsoft.RedHatOpenShift --name <flag-name> \
-     --subscription <subscription-id>
+   az feature register --namespace Microsoft.RedHatOpenShift --name "<flag-name>" \
+     --subscription "<subscription-id>"
    ```
    For example, for STG:
    ```bash
    az feature register --namespace Microsoft.RedHatOpenShift --name STAGING-APPROVED \
-     --subscription <subscription-id>
+     --subscription "<subscription-id>"
    az feature register --namespace Microsoft.RedHatOpenShift --name ExperimentalReleaseFeatures \
-     --subscription <subscription-id>
+     --subscription "<subscription-id>"
    ```
    This puts the features into `Registering` state.
 
@@ -233,7 +233,7 @@ AFEC registration is a two-step process: first initiate the registration from th
 4. **Verify** (from the subscription's tenant):
    ```bash
    az feature list --namespace Microsoft.RedHatOpenShift -o table \
-     --subscription <subscription-id>
+     --subscription "<subscription-id>"
    ```
    All flags should show `Registered`.
 
@@ -250,7 +250,7 @@ This flag is **ManualApprove**: `az feature register` only moves it to `Pending`
 
 ```bash
 az feature register --namespace Microsoft.Resources --name EUAPParticipation \
-  --subscription <subscription-id>
+  --subscription "<subscription-id>"
 ```
 
 This leaves the flag in `Pending`. That is expected.
@@ -297,8 +297,8 @@ The Geneva Action registers the flag regardless of the LionRock request's state,
 
 ```bash
 az feature show --namespace Microsoft.Resources --name EUAPParticipation \
-  --subscription <subscription-id> --query properties.state -o tsv   # expect: Registered
-az provider register --namespace Microsoft.Resources --subscription <subscription-id>
+  --subscription "<subscription-id>" --query properties.state -o tsv   # expect: Registered
+az provider register --namespace Microsoft.Resources --subscription "<subscription-id>"
 ```
 
 #### Quota
@@ -313,11 +313,11 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list. Follow the v2 catalog contract with a unique pool name, `resource_type`, and dedicated `slot_assets.e2e_identities.resource_group_prefix`. For a `runtime-selected` pool, `region` is the default and the job's location override selects the runtime region; the `regions` list is only valid for weighted pools.
 
-4. Sync the Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`, update cleanup job subscription inventories in `openshift/release`, and run `make update` there. Validate the generated inventory with `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`.
+4. Sync the Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo "<release-checkout>"`, update cleanup job subscription inventories in `openshift/release`, and run `make update` there. Validate the generated inventory with `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo "<release-checkout>"`.
 
 5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shardN-subscription-name` and `customer-shardN-subscription-id`, where `N` matches the new pool's shard number.
 
-6. Provision managed slot-backed identity containers with `make -C test apply-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities` and validate with `make -C test validate-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities`. These targets regenerate the Bicep-derived artifacts before rebuilding the test binary. Confirm the deployment stacks and dedicated identity-container resource groups exist in the new subscription.
+6. Provision managed slot-backed identity containers with `make -C test apply-pool-assets ENVIRONMENT="<env>" POOL="<pool>" ASSET=e2e_identities` and validate with `make -C test validate-pool-assets ENVIRONMENT="<env>" POOL="<pool>" ASSET=e2e_identities`. These targets regenerate the Bicep-derived artifacts before rebuilding the test binary. Confirm the deployment stacks and dedicated identity-container resource groups exist in the new subscription.
 
 7. Validate by running a rehearsal E2E job against the new subscription.
 

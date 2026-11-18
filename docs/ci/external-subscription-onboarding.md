@@ -84,7 +84,7 @@ not optional or exempt from admission.
 
 Coordinate Boskos sync and profile inventory before enabling the pool. After
 building with `make -C test build`, maintainers use
-`./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`
+`./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo "<release-checkout>"`
 and `validate-boskos-config` with the same argument, then the release repository's
 generation/review workflow. The profile must resolve `subscriptions.e2e` by its
 exact display name and contain the corresponding `customer-<shard>-subscription-name`
@@ -108,6 +108,20 @@ Before applying, arrange these **separate** authorization domains:
   certificate admission reads are distinct from runtime private-key/secret
   delivery. Coordinate the existing delivery path with vault and service
   maintainers; customer-subscription Owner does not authorize the shared vault.
+  The certificate policy uses issuer `Self`, not an external CA; this does not
+  remove the need for Key Vault data-plane authorization to create certificates.
+
+In DEV, `serviceKeyVault.name` in [the configuration](../../config/config.yaml)
+selects that shared vault. The bundle supplies certificate names, not private
+keys. [Backend values](../../backend/values.yaml) map the MSI and Backend helper
+names into the [Secrets Store CSI objects](../../backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml),
+which read the certificate's **secret** representation using the Backend
+workload identity. [Clusters Service values](../../cluster-service/values.yaml)
+likewise select the MSI and its distinct helper certificate. Before enabling
+jobs, have service/vault maintainers verify that the deployed service identities
+can retrieve those named certificate bundles through the existing delivery
+path. Successful operator apply or CI public-certificate reads do not prove
+runtime secret access; do not export private keys into the catalog or slot env.
 
 See [Graph and ARM operations](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/azure.go),
 [owner reconciliation](../../test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/owners.go)
@@ -217,7 +231,7 @@ handler looks up that exact subscription-local definition.
 ## Step 3: Prepare and Validate the Selected Pool
 
 Run from the repository root, using the owner/operator credentials established
-above. For the smaller HyperShift pool, use **both** selectors and an explicit
+above. For HyperShift's smaller-per-job `dev-xs` pool, use **both** selectors and an explicit
 asset kind on every invocation:
 
 ```sh
@@ -315,13 +329,25 @@ schema checks alone do not establish live readiness.
   coordinate explicit disruptive `entra-app-credentials pin --rotate` with
   the vault/delivery maintainers as described in
   [dedicated slot operations](dev-mock-identities.md#dedicated-slot-identity-operations).
-  For a verified dedicated application name, the explicit operation is:
+  **Current CLI limitation:** the handler derives certificate DNS names as
+  `<slot-application-name>.hcp.osadev.cloud`, but these exceed the `pin` CLI's
+  64-character common-name limit. Copying that generated DNS name into
+  `--mapping` fails locally, before credential acquisition. Do not present it as
+  a working rotation command or silently truncate it. Before rotating, obtain
+  a vault-owner-approved certificate DNS name of at most 64 characters (which
+  changes the certificate subject/SAN), or arrange a separately reviewed
+  tooling correction. The CLI restriction is in
+  [mapping validation](../../tooling/entra-app-credentials/cmd/pin/options.go);
+  the self-signed subject/SAN policy is in
+  [certificate creation](../../tooling/entra-app-credentials/pkg/pinning/keyvault.go).
+  For a verified dedicated application and an approved DNS name, the operation is:
 
   ```sh
   SLOT_APP_NAME="<verified-dedicated-slot-application-name>"
+  SLOT_CERT_DNS="<approved-certificate-dns-name-at-most-64-characters>"
   AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
     --vault-url https://aro-hcp-dev-svc-kv.vault.azure.net \
-    --mapping "${SLOT_APP_NAME};${SLOT_APP_NAME};${SLOT_APP_NAME}.hcp.osadev.cloud" \
+    --mapping "${SLOT_APP_NAME};${SLOT_APP_NAME};${SLOT_CERT_DNS}" \
     --rotate
   ```
 
@@ -333,7 +359,9 @@ schema checks alone do not establish live readiness.
   subscription, including six persistent RBAC assignments per mock slot and
   any remaining legacy grants. For a lower leased container count, keep the
   old physical `identity_container_provisioning_count` until users of the old
-  count drain. See [capacity management](identity-leasing.md#managing-identity-container-capacity).
+  count drain. Stop new leases while removing physical resources and verify no
+  affected resources are still in use before applying the smaller physical count.
+  See [capacity management](identity-leasing.md#managing-identity-container-capacity).
   Reducing a deployment stack's physical count can **delete** removed containers;
   do not describe all apply operations as non-destructive. Reducing slot counts
   or mock pool declarations does not itself delete the old mock applications,

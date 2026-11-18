@@ -254,7 +254,7 @@ assert subscription-cost + persistent-baseline <= role-assignment-quota
 `persistent-baseline` is the role assignments a subscription holds independently of any running suite — subscription-scoped grants for humans and automation, plus long-lived infrastructure, including provisioned identity containers not exposed for leasing. Persistent role assignments associated with physical inventory belong in this baseline; the leased count controls the per-run HCP costs above. Measure it on an idle subscription rather than assuming; assignments belonging to running clusters cannot be told apart by scope:
 
 ```bash
-az role assignment list --subscription <name-or-id> --all -o json | jq length
+az role assignment list --subscription "<name-or-id>" --all -o json | jq length
 ```
 
 This is a *configured worst case*: it assumes every slot runs a suite at peak concurrency simultaneously. Real usage is normally well below it, so a breach means the catalog permits one, not that one has occurred.
@@ -302,12 +302,13 @@ The path to higher throughput is still adding subscription capacity, because eac
 For slot-managed jobs:
 
 - update `test/e2e-config/e2e-slots.yaml`
-- sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for ci02)
-  (the `apply-identity-pool` target remains a compatibility alias)
+- prepare the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`, but do not expose added capacity before its backing assets are ready
+- apply and validate only the intended identity-container pool, for example `make -C test apply-pool-assets ENVIRONMENT=dev POOL="<pool>" ASSET=e2e_identities` and the matching `validate-pool-assets` command (use `ENVIRONMENT=dev-xs` for ci02); external owners should also select the exact `SUBSCRIPTION` as shown in their runbook
+  (the `apply-identity-pool` target remains an E2E-only compatibility alias and does not forward `POOL`)
 
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for the operator runbook when adding another customer subscription
+- when adding primary slots, separately prepare their mock bundles and coordinate leased infrastructure capacity with its owner; publish the added Boskos inventory only after all required assets and profiles are ready
 
 The optional pool-level `identity_container_provisioning_count` sets the physical
 container count per slot and must be at least the leased
@@ -316,11 +317,15 @@ existing behavior: the physical count per slot equals the leased count, and
 total physical inventory is that count multiplied by `slot_count`. Increasing
 physical inventory alone does not raise the scheduler's runtime MI budget.
 
-For a pool reduction, merge the leased-count change first, wait for jobs using
-the old count to drain, and verify the removed indices are unused. Reduce the
-physical provisioning count only when those resources should actually be
-removed. Only then apply and validate the reduced physical pool; the deployment
-stack deletes unmanaged resources.
+For a pool reduction, explicitly retain the old physical count in
+`identity_container_provisioning_count` when merging the lower leased count;
+otherwise an apply also lowers physical inventory. Wait for jobs using the old
+count to drain. Before physical removal, stop new leases for the affected pool
+and verify the removed indices are unused. Reduce the physical provisioning
+count only when those resources should actually be removed. Only then apply
+and validate the reduced physical pool before reopening leases; the deployment
+stack deletes resources removed from its template. Reducing `slot_count` alone
+does not sweep the old slots' deployment stacks.
 
 #### Reconcile And Validate An Identity Pool
 
@@ -329,7 +334,7 @@ incomplete, reconcile only the affected subscription:
 
 ```bash
 make -C test apply-pool-assets \
-  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
+  ENVIRONMENT="<dev|dev-xs|int|stg|prod>" \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
@@ -343,7 +348,7 @@ Then validate the complete expected inventory against Azure:
 
 ```bash
 make -C test validate-pool-assets \
-  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
+  ENVIRONMENT="<dev|dev-xs|int|stg|prod>" \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
