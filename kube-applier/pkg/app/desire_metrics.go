@@ -101,6 +101,7 @@ func initCounts() map[string]map[string]float64 {
 			kubeapplierapi.ConditionTypeSuccessful,
 			kubeapplierapi.ConditionTypeSuccessfullyApplied,
 			kubeapplierapi.ConditionTypeSuccessfullyDeleted,
+			kubeapplierapi.ConditionTypeHostedClusterUnblocked,
 			kubeapplierapi.ConditionTypeDegraded,
 		},
 		"read": {

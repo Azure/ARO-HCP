@@ -61,6 +61,7 @@ type ManagementClustersCRUD interface {
 	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ManagementCluster, *fleetapi.ManagementCluster]
 	Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller]
 	Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling]
+	NamespaceDeletions() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion]
 }
 
 // FleetGlobalListers provides cross-partition listers for fleet resource types.
@@ -71,6 +72,7 @@ type FleetGlobalListers interface {
 	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
 	ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout]
 	HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements]
+	NamespaceDeletions() cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion]
 }
 
 type cosmosFleetDBClient struct {
@@ -192,6 +194,20 @@ func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceC
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
+func (m *cosmosManagementClustersCRUD) NamespaceDeletions() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion] {
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterNamespaceDeletionResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateNamespaceDeletionCreate,
+		validation.ValidateNamespaceDeletionUpdate,
+	)
+}
+
 type cosmosFleetGlobalListers struct {
 	container *azcosmos.ContainerClient
 }
@@ -238,5 +254,12 @@ func (g *cosmosFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) NamespaceDeletions() cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterNamespaceDeletionResourceType},
 	}
 }
