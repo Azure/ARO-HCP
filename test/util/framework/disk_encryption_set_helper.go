@@ -145,6 +145,42 @@ func (tc *perItOrDescribeTestContext) CreateDiskEncryptionSet(ctx context.Contex
 	tc.trackRoleAssignment(*kvRoleResult.ID)
 	ginkgo.GinkgoLogr.Info("Assigned KV Crypto Service Encryption User to DES identity", "scope", keyVaultResourceID, "principalID", *desResult.Identity.PrincipalID)
 
+	if err := tc.assignDiskEncryptionSetReaderRoles(ctx, roleAssignmentsClient, subscriptionID, desResourceID, readerPrincipalIDs...); err != nil {
+		return "", err
+	}
+
+	return desResourceID, nil
+}
+
+// GrantDiskEncryptionSetReaderRole assigns the Reader role on the given disk encryption set
+// to each of the given principal IDs. Used by tests that create a disk encryption set without
+// the Reader role already granted (e.g. CreateDiskEncryptionSet with no readerPrincipalIDs) and
+// grant it later, to exercise role-assignment-delay scenarios.
+func (tc *perItOrDescribeTestContext) GrantDiskEncryptionSetReaderRole(ctx context.Context, desResourceID string, readerPrincipalIDs ...string) error {
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestStep("Grant disk encryption set reader role", startTime, time.Now())
+	}()
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	creds, err := tc.AzureCredential()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role assignments client: %w", err)
+	}
+
+	return tc.assignDiskEncryptionSetReaderRoles(ctx, roleAssignmentsClient, subscriptionID, desResourceID, readerPrincipalIDs...)
+}
+
+func (tc *perItOrDescribeTestContext) assignDiskEncryptionSetReaderRoles(ctx context.Context, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, subscriptionID, desResourceID string, readerPrincipalIDs ...string) error {
 	readerRoleDefID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s", subscriptionID, readerRoleID)
 	for _, principalID := range readerPrincipalIDs {
 		if principalID == "" {
@@ -160,11 +196,11 @@ func (tc *perItOrDescribeTestContext) CreateDiskEncryptionSet(ctx context.Contex
 			},
 		}, nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to assign Reader to principal %s on DES: %w", pid, err)
+			return fmt.Errorf("failed to assign Reader to principal %s on DES: %w", pid, err)
 		}
 		tc.trackRoleAssignment(*desReaderResult.ID)
 		ginkgo.GinkgoLogr.Info("Assigned Reader to principal on DES", "scope", desResourceID, "principalID", pid)
 	}
 
-	return desResourceID, nil
+	return nil
 }
