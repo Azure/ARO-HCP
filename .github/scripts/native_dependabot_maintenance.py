@@ -1364,48 +1364,6 @@ def native_inventory_selection(repo, inventory_file, group_id, target):
     return json.loads(result.stdout)
 
 
-def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
-    """Build the offline request artifact after the candidate validator succeeds."""
-    selected = native_inventory_selection(repo, inventory_file, group_id, target)
-    base, group = selected["base_sha"], selected["group"]
-    sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
-    root = git(cwd, "rev-parse", "--show-toplevel")
-    require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
-    # Diff must not execute worktree-supplied diff/textconv or clean/process
-    # drivers. Empty driver commands disable configured filters without writes.
-    settings = git(root, "config", "--null", "--list", "--name-only", strip=False).split("\x00")
-    disabled = [argument for key in sorted(set(settings)) if re.fullmatch(r"filter\..+\.(clean|process)", key)
-                for argument in ("-c", key + "=")]
-    candidate_patch = git(root, *disabled, "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
-                          "--no-color", "--no-relative", "--full-index", "--binary",
-                          "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3",
-                          "--inter-hunk-context=0", "--src-prefix=a/", "--dst-prefix=b/",
-                          "--output-indicator-new=+", "--output-indicator-old=-", "--output-indicator-context= ",
-                          base, "--", ".", strip=False)
-    request = {"source_prs": sources, "expected_base_sha": base, "patch": candidate_patch,
-               "title": Path(title_file).read_bytes().decode("utf-8").rstrip("\r\n"),
-               "body": Path(body_file).read_bytes().decode("utf-8")}
-    paths = validate_replacement_request(request)
-    validate_replacement_paths(paths, group)
-    payload = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    require(len(payload) <= MAX_REQUEST, "replacement request artifact exceeds size limit")
-    destination = Path(artifact_dir)
-    destination.mkdir(parents=True, exist_ok=True)
-    directory = os.open(destination, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        descriptor = os.open(REQUEST_FILE, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             0o600, dir_fd=directory)
-        with os.fdopen(descriptor, "wb") as payload_file:
-            info = os.fstat(payload_file.fileno())
-            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
-                    "replacement request destination must be a singly linked regular file")
-            payload_file.truncate(0)
-            payload_file.write(payload)
-    finally:
-        os.close(directory)
-    return {"request_sha256": hashlib.sha256(payload).hexdigest()}
-
-
 def sources_group(repo, sources):
     validate_sources(sources)
     intents = []

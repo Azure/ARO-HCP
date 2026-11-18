@@ -286,6 +286,22 @@ Candidate validation and request preparation use this shared Go selection
 policy. Family markers, publication request shape and branch identity do not
 change when multiple target versions coexist.
 
+### dependabot native prepare-request
+
+```bash
+depctl dependabot native prepare-request --repository OWNER/REPO --repo PATH \
+  --inventory FILE --group ID --target TARGET --title-file FILE --body-file FILE \
+  --artifact-dir DIR
+```
+
+Packages the complete tracked candidate diff and notification-safe metadata into
+`native-replacement-request.json`, returning its SHA-256 digest as JSON. This
+offline packaging step follows candidate validation; it neither validates
+dependency consumers nor authorizes publication.
+
+Run `make verify-agentic-maintenance` from the repository root for Go and Python
+regressions, publication-metadata parity checks and Darwin/arm64 compile coverage.
+
 ### maintenance inventory
 
 ```bash

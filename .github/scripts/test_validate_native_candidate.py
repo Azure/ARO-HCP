@@ -509,28 +509,28 @@ class CandidateFixture(unittest.TestCase):
         self.assertFalse(any(name == "common-2" for name, _, _, _ in self.commands))
 
     def test_late_worktree_change_invalidates_newly_constructed_request(self):
-        original = native.prepare_request
+        original = runner.prepare_request
 
         def mutate(*args, **kwargs):
             result = original(*args, **kwargs)
             self.write("late-output.txt", "late write\n")
             return result
 
-        with patch.object(native, "prepare_request", side_effect=mutate):
+        with patch.object(runner, "prepare_request", side_effect=mutate):
             with self.assertRaisesRegex(ValueError, "left candidate dirty"):
                 self.validate()
         self.assert_no_request()
         self.assertEqual(self.results()["status"], "failed")
 
     def test_late_clean_commit_invalidates_newly_constructed_request(self):
-        original = native.prepare_request
+        original = runner.prepare_request
 
         def mutate(*args, **kwargs):
             result = original(*args, **kwargs)
             git(self.repo, "commit", "--allow-empty", "-m", "late commit")
             return result
 
-        with patch.object(native, "prepare_request", side_effect=mutate):
+        with patch.object(runner, "prepare_request", side_effect=mutate):
             with self.assertRaisesRegex(ValueError, "changed during request construction"):
                 self.validate()
         self.assert_no_request()
@@ -819,7 +819,7 @@ class CandidateFixture(unittest.TestCase):
     def test_ignored_vendor_output_after_passing_checks_invalidates_request(self):
         self.prepare_go()
         self.ignore_vendor_and_scratch()
-        original = native.prepare_request
+        original = runner.prepare_request
 
         def late_output(*args, **kwargs):
             result = original(*args, **kwargs)
@@ -827,7 +827,7 @@ class CandidateFixture(unittest.TestCase):
                 self.write(directory + "example.com/library/late.go", "package library\n")
             return result
 
-        with patch.object(native, "prepare_request", side_effect=late_output):
+        with patch.object(runner, "prepare_request", side_effect=late_output):
             with self.assertRaisesRegex(ValueError, "left candidate dirty"):
                 self.validate()
         self.assert_no_request()

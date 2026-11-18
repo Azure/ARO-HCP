@@ -438,8 +438,8 @@ class Validator:
         clean(self.root)
         validated_body = self.validated_body(body_file, base, head)
         validated_body_bytes = validated_body.read_bytes()
-        result = native.prepare_request(repo, inventory_file, group_id, title_file, validated_body,
-                                        self.artifacts, target=target, cwd=self.root)
+        result = prepare_request(repo, inventory_file, group_id, title_file, validated_body,
+                                 self.artifacts, target=target, cwd=self.root)
         # A late consumer/background write or input change must not leave a
         # publication artifact even if request construction itself succeeded.
         clean(self.root)
@@ -450,6 +450,22 @@ class Validator:
         self.results.update(status="passed", candidate_head_sha=head, candidate_tree=tree)
         self.save()
         return result
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
+    """Package validated candidate inputs with the offline Go command."""
+    try:
+        result = subprocess.run(
+            [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", "prepare-request",
+             "--repository", repo, "--repo", str(cwd or Path.cwd()),
+             "--inventory", str(inventory_file), "--group", group_id, "--target", target,
+             "--title-file", str(title_file), "--body-file", str(body_file),
+             "--artifact-dir", str(artifact_dir)],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError(error.stderr.strip() or "native request preparation failed") from error
+    return json.loads(result.stdout)
 
 
 def validate_candidate(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, compiler=None, cwd=None):
