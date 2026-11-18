@@ -9,5 +9,6 @@ prometheusRules:
   - recording-rules/frontend-slo-recordingRule.yaml
   - recording-rules/hypershiftUserJourney-recordingRule.yaml
   - recording-rules/certificate-rotation-slo-recordingRule.yaml
+  - recording-rules/workload-identity-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

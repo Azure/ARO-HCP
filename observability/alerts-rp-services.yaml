@@ -9,6 +9,7 @@ prometheusRules:
   - alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
   - alerts/backup-slo-prometheusRule.yaml
   - alerts/certificate-rotation-prometheusRule.yaml
+  - alerts/workload-identity-slo-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
