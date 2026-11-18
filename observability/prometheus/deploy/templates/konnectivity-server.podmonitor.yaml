@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: konnectivity-server
+  name: konnectivity-server
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  podMetricsEndpoints:
+  - port: konnect-health
+    path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      app: kube-apiserver
