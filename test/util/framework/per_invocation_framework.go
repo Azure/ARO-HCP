@@ -529,6 +529,22 @@ func IsDevelopmentEnvironment() bool {
 	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
 
+// IsProdDeployEnvironment reports whether this run targets the production
+// deployment environment, as published by slot acquisition in
+// leaseenv.RuntimeDeployEnvironment (ARO_HCP_DEPLOY_ENV).
+//
+// It is for specs that must not execute outside production even when the suite
+// selects them, and is deliberately conservative: an unset, blank or unexpected
+// value reports false, so a run that cannot prove it is production is treated
+// as not production. Whitespace is trimmed and case folded, matching how
+// IsDevelopmentEnvironment and slot acquisition read their environment values.
+//
+// This trusts the configured value; it does not independently verify which RP
+// endpoint the run actually targets.
+func IsProdDeployEnvironment() bool {
+	return strings.ToLower(strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment))) == "prod"
+}
+
 // Must is a generic function that takes a value of type T and an error.
 // If the error is not nil, it panics with the error.
 // Otherwise, it returns the value of type T.

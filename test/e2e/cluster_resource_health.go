@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,19 +25,24 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcehealth/armresourcehealth"
 
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
-	// Prod only: availability status for HCP clusters is reported in production
-	// only. Against the int or stage RP there is no availability data to read,
-	// so the spec would fail for reasons unrelated to cluster health.
+	// Availability status for HCP clusters is reported in production only.
+	// Against the int or stage RP there is no availability data to read, so this
+	// validation would fail for reasons unrelated to cluster health.
 	//
-	// labels.Slow is a speed bucket, not an environment gate -- it selects the
-	// prod/parallel/slow suite over prod/parallel, and does nothing to keep the
-	// spec away from int or stage. labels.ProdOnly is what does that.
+	// Gating is therefore in two parts. StageAndProdOnly keeps the spec out of
+	// the integration suites, and the runtime guard at the top of the body stops
+	// it executing anywhere that is not production -- stage still selects it and
+	// reports it as skipped. A dedicated prod-only label was considered and
+	// rejected: a reusable label has to be honoured by every suite selector, and
+	// that is a lot of shared machinery to maintain for one spec. See
+	// test/AGENTS.md.
 	//
 	// In a development environment the suite also overrides
 	// cloud.ResourceManager to point at the RP frontend directly
@@ -46,16 +52,27 @@ var _ = Describe("Customer", func() {
 	// labels.AroRpApiCompatible here.
 	//
 	// The cost of this gating is that a regression surfaces only once it has
-	// reached production; see labels.ProdOnly.
+	// reached production.
 	It("should see Available resource health for an HCP cluster with a node pool",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
-		labels.ProdOnly,
+		labels.StageAndProdOnly,
 		labels.Slow,
 		labels.MIContainers(1),
 		labels.StartPriority(90),
 		func(ctx context.Context) {
+			// Guard before anything with a side effect -- no test context, no
+			// identity assignment, no resource group -- so a non-production run
+			// costs nothing. Log before Skip: Ginkgo stores the skip message
+			// internally and the reporter only emits file:line, never the text.
+			if !framework.IsProdDeployEnvironment() {
+				skipMsg := fmt.Sprintf("resource health validation runs only in prod; %s is %q",
+					leaseenv.RuntimeDeployEnvironment, os.Getenv(leaseenv.RuntimeDeployEnvironment))
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
+			}
+
 			const (
 				customerClusterName  = "resource-health"
 				customerNodePoolName = "rh-workers"
