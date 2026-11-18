@@ -29,17 +29,19 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge/ghapi"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/model"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/orchestration"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/policy"
 )
 
 // inventoryReaderFactory builds the read-only proposal reader.
 var inventoryReaderFactory = func(repository string) (forge.Reader, error) {
-	return ghapi.New(repository)
+	return ghapi.NewMaintenance(repository)
 }
 
 // InventoryOptions are the unvalidated inventory flags.
 type InventoryOptions struct {
 	Repository string
 	Output     string
+	Kind       string
 
 	out io.Writer
 	err io.Writer
@@ -53,6 +55,7 @@ func DefaultInventoryOptions() *InventoryOptions {
 // BindInventoryOptions registers the inventory flags.
 func BindInventoryOptions(options *InventoryOptions, command *cobra.Command) error {
 	command.Flags().StringVar(&options.Repository, "repository", options.Repository, "OWNER/REPO")
+	command.Flags().StringVar(&options.Kind, "kind", options.Kind, "upgrade, dependency, tool, or non-compiler")
 	command.Flags().StringVar(&options.Output, "output", options.Output,
 		"write the inventory array here instead of stdout")
 	return nil
@@ -65,6 +68,9 @@ type ValidatedInventory struct {
 
 // Validate checks the inventory inputs.
 func (o *InventoryOptions) Validate(_ context.Context) (*ValidatedInventory, error) {
+	if _, err := policy.MaintenanceKinds(o.Kind); err != nil {
+		return nil, cli.Invalid(err)
+	}
 	if o.Repository == "" {
 		return nil, cli.Invalid(errors.New("--repository OWNER/REPO is required"))
 	}
@@ -94,7 +100,7 @@ func (v *ValidatedInventory) Complete(_ context.Context) (*CompletedInventory, e
 
 // Run assesses every owned proposal and emits the inventory array.
 func (c *CompletedInventory) Run(ctx context.Context) error {
-	decisions, err := c.engine.MaintenanceInventory(ctx, c.Repository)
+	decisions, err := c.engine.MaintenanceInventory(ctx, c.Repository, c.Kind)
 	if err != nil {
 		return cli.MapEngineError(err)
 	}
@@ -116,22 +122,23 @@ func (c *CompletedInventory) Run(ctx context.Context) error {
 
 // inventoryRecord is the snake_case shape the maintenance agent reads.
 type inventoryRecord struct {
-	Repository        string          `json:"repository"`
-	PullRequest       int             `json:"pull_request"`
-	ExpectedHead      string          `json:"expected_head"`
-	Head              string          `json:"head"`
-	Kind              string          `json:"kind"`
-	Held              bool            `json:"held"`
-	ActiveHolds       []inventoryHold `json:"active_holds"`
-	CI                inventoryCI     `json:"ci"`
-	ReleaseStatus     string          `json:"release_status"`
-	CanReleaseHold    bool            `json:"can_release_hold"`
-	CanRecoverRetry   bool            `json:"can_recover_retry"`
-	RetryBlockers     []string        `json:"retry_blockers"`
-	RecoveryMarker    string          `json:"recovery_marker"`
-	CanRefreshUpgrade bool            `json:"can_refresh_upgrade"`
-	ReleaseBlockers   []string        `json:"release_blockers"`
-	RefreshBlockers   []string        `json:"refresh_blockers"`
+	Repository            string          `json:"repository"`
+	PullRequest           int             `json:"pull_request"`
+	ExpectedHead          string          `json:"expected_head"`
+	Head                  string          `json:"head"`
+	Kind                  string          `json:"kind"`
+	Held                  bool            `json:"held"`
+	ActiveHolds           []inventoryHold `json:"active_holds"`
+	CI                    inventoryCI     `json:"ci"`
+	ReleaseStatus         string          `json:"release_status"`
+	CanReleaseHold        bool            `json:"can_release_hold"`
+	CanRecoverRetry       bool            `json:"can_recover_retry"`
+	RetryBlockers         []string        `json:"retry_blockers"`
+	RecoveryMarker        string          `json:"recovery_marker"`
+	CanRefreshUpgrade     bool            `json:"can_refresh_upgrade"`
+	ReleaseBlockers       []string        `json:"release_blockers"`
+	RefreshBlockers       []string        `json:"refresh_blockers"`
+	CancellationCommentID int             `json:"cancellation_comment_id,omitempty"`
 }
 
 // inventoryHold is one hold command still in force.

@@ -5,6 +5,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -47,7 +48,7 @@ def replacement_output(directory, request=None, *, payload=None, nested=False):
 
 
 class RepositoryFixture(unittest.TestCase):
-    """Fake only the network boundary; Git application and guard logic stay real."""
+    """Fake network and depctl policy boundaries; Git application stays real."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -81,6 +82,21 @@ class RepositoryFixture(unittest.TestCase):
         self.events = {}
         self.statuses = {}
         self.checks = {}
+        self.policy = {}
+        real_run = subprocess.run
+
+        def run(command, **kwargs):
+            if command[1:] == ["maintenance", "snapshot-evidence"]:
+                evidence = json.loads(kwargs["input"])
+                result = self.policy.get(evidence["head"], {
+                    "active_holds": [], "cancellation_pending": False,
+                    "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}})
+                return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
+            return real_run(command, **kwargs)
+
+        process_patch = patch.object(native.subprocess, "run", side_effect=run)
+        process_patch.start()
+        self.addCleanup(process_patch.stop)
         self.repository_labels = {native.LABEL: {"id": 1, "name": native.LABEL}}
         self.calls = []
         self.next_number = 100
@@ -532,12 +548,18 @@ class RepositoryFixture(unittest.TestCase):
     def action(self, action, number=1, **kwargs):
         return {"number": number, "expected_head_sha": self.detail(number)["head"]["sha"], "action": action, **kwargs}
 
-    def hold(self, number=1, author=native.maintenance.MERGE_BOT, body=None):
+    def hold(self, number=1, author="openshift-merge-bot[bot]", body=None):
         sha = self.detail(number)["head"]["sha"]
+        kind = "retry-exhaustion" if body is None and author == "openshift-merge-bot[bot]" else "unexplained"
+        result = self.policy.setdefault(sha, {
+            "active_holds": [], "cancellation_pending": False,
+            "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}})
+        result["active_holds"] = [{"kind": kind, "author": author}]
+        result["trusted_hold_label"] = author == "openshift-merge-bot[bot]"
         body = body or f"/hold\n\nRevision {sha} was retested 3 times: holding"
         self.comments[number].append({"id": 1, "body": body, "user": {"login": author}, "created_at": STAMP, "updated_at": STAMP})
-        self.pulls[number]["labels"].append({"name": native.maintenance.HOLD_LABEL})
-        self.events[number].append({"id": 1, "event": "labeled", "label": {"name": native.maintenance.HOLD_LABEL},
+        self.pulls[number]["labels"].append({"name": native.HOLD_LABEL})
+        self.events[number].append({"id": 1, "event": "labeled", "label": {"name": native.HOLD_LABEL},
                                     "actor": {"login": author}, "created_at": STAMP})
 
     def ci(self, number=1, *, green=False, pending=False):
@@ -545,6 +567,15 @@ class RepositoryFixture(unittest.TestCase):
         self.statuses[sha] = [{"id": index + 1, "context": name, "state": "success" if green else "pending" if pending else "failure",
                                "created_at": STAMP, "target_url": "https://prow.ci.openshift.org/view/failed"}
                               for index, name in enumerate(("ci/pipeline-gate", "ci/prow/e2e-parallel"))]
+        result = self.policy.setdefault(sha, {
+            "active_holds": [], "cancellation_pending": False,
+            "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}})
+        result["ci"] = {
+            "positive": ["ci/pipeline-gate", "ci/prow/e2e-parallel"] if green else [],
+            "blocked": [] if green else [
+                {"name": row["context"], "state": row["state"],
+                 "url": row["target_url"], "pending": pending} for row in self.statuses[sha]],
+        }
 
     def merge_replacement(self, number):
         branch = self.pulls[number]["head"]["ref"]
@@ -1066,6 +1097,7 @@ class RepositoryFixture(unittest.TestCase):
             native.reconcile(REPO, self.action("recover-retry", evidence=evidence))
         self.assertEqual(len(self.comments[1]), 1)
         self.comments[1][0]["body"] = "/hold unexplained"
+        self.policy[self.detail(1)["head"]["sha"]]["active_holds"][0]["kind"] = "unexplained"
         self.ci(green=True)
         with self.assertRaisesRegex(ValueError, "human/unknown"):
             native.reconcile(REPO, self.action("release-hold"))
@@ -1076,7 +1108,7 @@ class RepositoryFixture(unittest.TestCase):
         self.ci(number=result["number"], green=True)
         native.reconcile(REPO, self.action("release-hold", number=result["number"]))
         self.assertEqual(self.comments[result["number"]][-1]["body"], "/hold cancel")
-        self.assertIsNone(native.maintenance.owned_kind(self.detail(result["number"]), REPO))
+        self.assertEqual(native.replacement(self.detail(result["number"]), REPO)["group"], result["group"])
         with self.assertRaises(ValueError):
             native.reconcile(REPO, self.action("admit", number=result["number"]))
 
@@ -1196,6 +1228,41 @@ class RepositoryFixture(unittest.TestCase):
         with patch.object(native, "api", side_effect=changed_author), self.assertRaisesRegex(ValueError, "non-Dependabot"):
             native.publish(REPO, self.request())
         self.assertEqual(self.next_number, 100)
+
+
+class SnapshotEvidenceTests(unittest.TestCase):
+    def test_depctl_receives_complete_snapshot_and_returns_shared_policy(self):
+        sha = "a" * 40
+        comments = [{"id": 1, "body": "/hold"}]
+        events = [{"id": 2, "event": "labeled"}]
+        statuses = [{"id": 3, "context": "ci/pipeline-gate"}]
+        checks = [{"id": 4, "name": "check", "head_sha": sha}]
+        expected = {"active_holds": [{"kind": "unexplained"}], "cancellation_pending": False,
+                    "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}}
+        for binary in (None, "/trusted/bin/depctl"):
+            with self.subTest(binary=binary), patch.dict(os.environ, {}, clear=True):
+                if binary:
+                    os.environ["DEPCTL_BINARY"] = binary
+                with patch.object(native.subprocess, "run", return_value=subprocess.CompletedProcess(
+                        [], 0, json.dumps(expected), "")) as run:
+                    result = native.snapshot_evidence(comments, [sha], events, statuses, checks, sha)
+                self.assertEqual(result, expected)
+                args, kwargs = run.call_args
+                self.assertEqual(args[0], [binary or "depctl", "maintenance", "snapshot-evidence"])
+                self.assertEqual(json.loads(kwargs["input"]), {
+                    "comments": comments, "commits": [sha], "hold_events": events,
+                    "statuses": statuses, "checks": checks, "head": sha})
+                self.assertTrue(kwargs["check"])
+                self.assertTrue(kwargs["capture_output"])
+                self.assertTrue(kwargs["text"])
+
+    def test_shared_policy_errors_fail_closed(self):
+        error = subprocess.CalledProcessError(1, ["depctl", "maintenance", "snapshot-evidence"])
+        with patch.object(native.subprocess, "run", side_effect=error), self.assertRaises(subprocess.CalledProcessError):
+            native.snapshot_evidence([], ["a" * 40], [], [], [], "a" * 40)
+        with patch.object(native.subprocess, "run", return_value=subprocess.CompletedProcess(
+                [], 0, "not-json", "")), self.assertRaises(ValueError):
+            native.snapshot_evidence([], ["a" * 40], [], [], [], "a" * 40)
 
 
 class RequestTransportTests(unittest.TestCase):
