@@ -244,7 +244,15 @@ Every test MUST include appropriate labels from these categories:
 - `labels.DevelopmentOnly`
 - `labels.IntegrationOnly`
 - `labels.StageAndProdOnly`
-- `labels.ProdOnly`: restricts a spec to the `prod/*` suites, excluding it from both `integration/*` and `stage/*`. Reserve it for behavior that only exists in production — e.g. a third-party integration whose mapping is configured against the production environment — where a run against the int or stage RP would fail for reasons unrelated to the behavior under test. Prefer `StageAndProdOnly` whenever stage can exercise the behavior: `ProdOnly` means a regression is caught only after it has already reached production.
+
+There is no prod-only label. A spec that must not *execute* outside production
+should carry `labels.StageAndProdOnly` and guard its own body at the top, before
+any provisioning, by checking `leaseenv.RuntimeDeployEnvironment` and calling
+`Skip` when it is not `prod` (see `test/e2e/cluster_resource_health.go`). Log the
+reason via `GinkgoLogr` before `Skip`, since the reporter does not print skip
+messages. The spec is still *selected* in stage and reported as skipped there.
+Introduce a dedicated label only if several specs need production-only
+selection, since a reusable label has to be honoured by every suite selector.
 
 ### Resource Demand Labels (required on every spec):
 - `labels.MIContainers(N)`: Declares how many managed identity containers the test needs (0 for tests that don't use MI containers). Enforced by `verify-mi-containers` CI check and runtime scheduler.
