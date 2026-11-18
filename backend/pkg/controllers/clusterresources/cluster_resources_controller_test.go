@@ -264,17 +264,6 @@ func TestAcceptedReleaseInHostedClusterDesire(t *testing.T) {
 			desiredVersion:       ptr.To(semver.MustParse("4.20.3")),
 			wantImage:            "registry.example/new@sha256:def",
 		},
-		{
-			name:                 "accepted minor does not cover another minor",
-			acceptedMinorVersion: ptr.To("4.20"),
-			desiredVersion:       ptr.To(semver.MustParse("4.21.0")),
-			wantImage:            "registry.example/old@sha256:abc",
-		},
-		{
-			name:                 "accepted minor without selected version preserves Cluster Service release",
-			acceptedMinorVersion: ptr.To("4.20"),
-			wantImage:            "registry.example/old@sha256:abc",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -314,6 +303,99 @@ func TestAcceptedReleaseInHostedClusterDesire(t *testing.T) {
 			assert.Equal(t, tt.wantImage, image)
 		})
 	}
+}
+
+func TestAcceptedReleasePreservesHostedClusterDesireWhileValidationIsPending(t *testing.T) {
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	clients.Register(testManagementClusterResourceID, client)
+	managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
+	spc := newSPC(testManagementClusterResourceID)
+	spc.Spec.ControlPlaneVersion.AcceptedMinorVersion = ptr.To("4.20")
+	spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.2"))
+	spc.Spec.DesiredHostedCluster = &v1beta1.HostedCluster{Spec: v1beta1.HostedClusterSpec{
+		Release: v1beta1.Release{Image: "registry.example/4.20.2@sha256:abc"},
+	}}
+	csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+	csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(buildClusterResources(map[string]string{
+		"hosted": `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"},"spec":{"release":{"image":"registry.example/4.19.0@sha256:old"}}}`,
+	}), nil).AnyTimes()
+	syncer := &clusterResourcesController{
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newCluster()}},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+		clustersServiceClient:        csClient,
+		kubeApplierDBClients:         clients,
+		applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
+		readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
+		resourcesCache:               lru.New(resourcesCacheCapacity),
+		clock:                        utilsclock.RealClock{},
+	}
+	getDesire := func() *kubeapplierapi.ApplyDesire {
+		t.Helper()
+		desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		require.Len(t, desires, 1)
+		return desires[0]
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	before := getDesire().DeepCopy()
+	require.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, before.Spec.Type)
+	require.NotNil(t, before.Spec.ServerSideApply)
+	require.Contains(t, string(before.Spec.ServerSideApply.KubeContent.Raw), "registry.example/4.20.2@sha256:abc")
+
+	for _, step := range []struct {
+		name    string
+		prepare func()
+		wantErr string
+	}{
+		{
+			name: "new minor is not yet accepted",
+			prepare: func() {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.21.0"))
+			},
+			wantErr: "does not match accepted minor version",
+		},
+		{
+			name: "selected version is missing",
+			prepare: func() {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = nil
+			},
+			wantErr: "desired control plane version is missing",
+		},
+		{
+			name: "release image is missing",
+			prepare: func() {
+				spc.Spec.ControlPlaneVersion.AcceptedMinorVersion = ptr.To("4.21")
+				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.21.0"))
+				spc.Spec.DesiredHostedCluster.Spec.Release.Image = ""
+			},
+			wantErr: "release image is missing",
+		},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			step.prepare()
+			require.ErrorContains(t, syncer.SyncOnce(ctx, testKey()), step.wantErr)
+			after := getDesire()
+			require.Equal(t, before.Spec.Type, after.Spec.Type, "failed reconciliation must preserve the ApplyDesire type")
+			require.NotNil(t, after.Spec.ServerSideApply)
+			require.Equal(t, before.Spec.ServerSideApply.KubeContent.Raw, after.Spec.ServerSideApply.KubeContent.Raw,
+				"failed reconciliation must preserve the HostedCluster payload")
+		})
+	}
+
+	spc.Spec.DesiredHostedCluster.Spec.Release.Image = "registry.example/4.21.0@sha256:new"
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "reconciliation should recover once the accepted release is complete")
+	after := getDesire()
+	require.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, after.Spec.Type)
+	require.NotNil(t, after.Spec.ServerSideApply)
+	var hostedCluster unstructured.Unstructured
+	require.NoError(t, json.Unmarshal(after.Spec.ServerSideApply.KubeContent.Raw, &hostedCluster))
+	image, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "release", "image")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "registry.example/4.21.0@sha256:new", image)
 }
 
 func TestSyncOnce(t *testing.T) {

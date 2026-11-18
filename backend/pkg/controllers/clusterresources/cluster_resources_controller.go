@@ -467,19 +467,24 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 }
 
 // ensureHostedClusterAcceptedRelease applies the image for a selected exact
-// version only when its minor version has been accepted. An unset or mismatched
-// acceptance leaves the Cluster Service manifest unchanged. The future validator
-// must write AcceptedMinorVersion and the matching DesiredHostedCluster release
-// image together in one SPC replacement, and refresh the image for each new
-// selected z-stream.
+// version only when its minor version has been accepted. An unset acceptance
+// leaves the Cluster Service manifest unchanged. Once acceptance is set, an
+// incomplete or mismatched target must stop reconciliation rather than replace
+// the existing ApplyDesire with the Cluster Service fallback release. The future
+// validator must write AcceptedMinorVersion and the matching DesiredHostedCluster
+// release image together in one SPC replacement, and refresh the image for each
+// new selected z-stream.
 func ensureHostedClusterAcceptedRelease(hostedCluster *unstructured.Unstructured, spc *coreapi.ServiceProviderCluster) error {
-	if spc == nil || spc.Spec.ControlPlaneVersion.AcceptedMinorVersion == nil || spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
+	if spc == nil || spc.Spec.ControlPlaneVersion.AcceptedMinorVersion == nil {
 		return nil
 	}
-	desiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
 	acceptedMinorVersion := *spc.Spec.ControlPlaneVersion.AcceptedMinorVersion
+	desiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
+	if desiredVersion == nil {
+		return fmt.Errorf("desired control plane version is missing for accepted minor version %s", acceptedMinorVersion)
+	}
 	if acceptedMinorVersion != fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor) {
-		return nil
+		return fmt.Errorf("desired control plane version %s does not match accepted minor version %s", desiredVersion, acceptedMinorVersion)
 	}
 	if spc.Spec.DesiredHostedCluster == nil || spc.Spec.DesiredHostedCluster.Spec.Release.Image == "" {
 		return fmt.Errorf("release image is missing for accepted control plane minor version %s and desired version %s", acceptedMinorVersion, desiredVersion)
