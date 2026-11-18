@@ -299,9 +299,9 @@ class RepositoryFixture(unittest.TestCase):
         self.calls.clear()
         artifact_root = self.root / "artifacts"
         before_index = (self.seed / ".git/index").read_bytes()
-        first = native.prepare_request(REPO, *inputs, artifact_root / "agent", cwd=self.seed)
+        first = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         first_bytes = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
-        second_args = native.prepare_request(REPO, *inputs, artifact_root / "agent", cwd=self.seed)
+        second_args = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(first, second_args)
         self.assertEqual((artifact_root / "agent" / native.REQUEST_FILE).read_bytes(), first_bytes)
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
@@ -329,7 +329,7 @@ class RepositoryFixture(unittest.TestCase):
         inputs[2].write_text("chore(deps): upgrade example library\n")
         self.upgrade_consumers()
         artifact_root = self.root / "artifacts"
-        arguments = native.prepare_request(REPO, *inputs, artifact_root / "agent", cwd=self.seed)
+        arguments = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(set(arguments), {"request_sha256"})
         payload = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
         self.assertEqual(arguments["request_sha256"], hashlib.sha256(payload).hexdigest())
@@ -420,7 +420,7 @@ class RepositoryFixture(unittest.TestCase):
         git(self.seed, "config", "filter.fixture.process", command)
         (self.seed / ".git/info/attributes").write_text("*.mod diff=fixture filter=fixture\n")
         self.calls.clear()
-        arguments = native.prepare_request(REPO, *inputs, self.root / "artifacts", cwd=self.seed)
+        arguments = native.prepare_request(REPO, *inputs, self.root / "artifacts", target=NEW, cwd=self.seed)
         self.assertRegex(arguments["request_sha256"], r"^[0-9a-f]{64}$")
         self.assertFalse(sentinel.exists())
         self.assertEqual(self.calls, [])
@@ -446,7 +446,7 @@ class RepositoryFixture(unittest.TestCase):
             inputs = self.prepare_inputs(value)
             artifact_root = self.root / f"rejected-{index}"
             with self.subTest(index=index), self.assertRaises(ValueError):
-                native.prepare_request(REPO, *inputs, artifact_root, cwd=self.seed)
+                native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
             self.assertFalse(artifact_root.exists())
 
     def test_prepare_request_maintains_existing_group_and_rejects_empty_or_protected_diff(self):
@@ -455,13 +455,13 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(json.loads(inputs[0].read_text())["groups"][0]["next_action"]["action"],
                          "maintain_replacement")
         with self.assertRaises(ValueError):
-            native.prepare_request(REPO, *inputs, self.root / "empty", cwd=self.seed)
+            native.prepare_request(REPO, *inputs, self.root / "empty", target=NEW, cwd=self.seed)
         self.upgrade_consumers()
         self.write("backend/Dockerfile", "FROM attacker.invalid/image:1\n")
         with self.assertRaisesRegex(ValueError, "protected"):
-            native.prepare_request(REPO, *inputs, self.root / "protected", cwd=self.seed)
+            native.prepare_request(REPO, *inputs, self.root / "protected", target=NEW, cwd=self.seed)
         git(self.seed, "restore", "backend/Dockerfile")
-        result = native.prepare_request(REPO, *inputs, self.root / "valid", cwd=self.seed)
+        result = native.prepare_request(REPO, *inputs, self.root / "valid", target=NEW, cwd=self.seed)
         self.assertRegex(result["request_sha256"], r"^[0-9a-f]{64}$")
 
     def test_prepare_request_rejects_invalid_metadata_before_writing_artifact(self):
@@ -474,7 +474,7 @@ class RepositoryFixture(unittest.TestCase):
             path.write_bytes(content)
             artifact_root = self.root / "rejected"
             with self.subTest(content=content), self.assertRaises(ValueError):
-                native.prepare_request(REPO, *inputs, artifact_root, cwd=self.seed)
+                native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
             self.assertFalse(artifact_root.exists())
             inputs[2].write_bytes(originals[0])
             inputs[3].write_bytes(originals[1])
@@ -934,6 +934,56 @@ class RepositoryFixture(unittest.TestCase):
                    "title": "chore(deps): next library release", "body": "Regenerated next native dependency upgrade."}
         git(self.seed, "restore", ".")
         return first, request
+
+    def test_target_selection_distinguishes_merged_cleanup_from_new_candidate(self):
+        first, request = self.next_family_upgrade()
+        observed = native.inventory(REPO)
+        groups = {group["target"]: group for group in observed["groups"]}
+        self.assertEqual(set(groups), {NEW, "v1.2.0"})
+        old, candidate = groups[NEW], groups["v1.2.0"]
+        self.assertEqual(old["group"], candidate["group"])
+        self.assertEqual(old["next_action"]["action"], "close_superseded")
+        self.assertEqual(old["next_action"]["source_prs"], native.metadata(self.pulls[first["number"]]["body"])["sources"])
+        self.assertEqual(candidate["next_action"]["action"], "prepare_replacement")
+        inputs = self.prepare_inputs(observed)
+        native.git(self.seed, "apply", "-", input=request["patch"])
+        native.prepare_request(REPO, *inputs, self.root / "candidate", target=candidate["target"], cwd=self.seed)
+        prepared = json.loads((self.root / "candidate" / native.REQUEST_FILE).read_text())
+        self.assertEqual(prepared["source_prs"], request["source_prs"])
+        for target in (NEW, "v9.0.0"):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                native.prepare_request(REPO, *inputs, self.root / "rejected", target=target, cwd=self.seed)
+        self.assertFalse((self.root / "rejected").exists())
+        git(self.seed, "restore", ".")
+        mixed = copy.deepcopy(request)
+        mixed["source_prs"] = old["next_action"]["source_prs"] + request["source_prs"]
+        with self.assertRaisesRegex(ValueError, "one actual upgrade family/target"):
+            native.publish(REPO, mixed)
+        mismatched = copy.deepcopy(request)
+        mismatched["patch"] = request["patch"].replace("v1.2.0", "v1.1.1")
+        with self.assertRaises(ValueError):
+            native.publish(REPO, mismatched)
+        self.assertEqual(self.next_number, first["number"] + 1)
+        with self.assertRaisesRegex(ValueError, "exact native source"):
+            native.reconcile(REPO, self.action("close-superseded", number=2, replacement_pr=first["number"]))
+        self.assertEqual(self.comments[2], [])
+        result = native.publish(REPO, prepared)
+        self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
+        self.assertEqual(self.pulls[result["number"]]["head"]["ref"], self.pulls[first["number"]]["head"]["ref"])
+
+    def test_inventory_selector_rejects_duplicate_pairs_and_mismatched_source_targets(self):
+        observed = native.inventory(REPO)
+        group = observed["groups"][0]
+        for mutate in ("duplicate", "source-target", "source-family"):
+            value = copy.deepcopy(observed)
+            if mutate == "duplicate":
+                value["groups"].append(copy.deepcopy(group))
+            else:
+                field = "target" if mutate == "source-target" else "family"
+                value["groups"][0]["sources"][0][field] = "unrelated"
+            inputs = self.prepare_inputs(value)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                native.select_inventory_group(REPO, inputs[0], group["group"], group["target"])
 
     def test_new_family_target_reuses_retained_merged_branch_with_safe_ancestry(self):
         first, request = self.next_family_upgrade()

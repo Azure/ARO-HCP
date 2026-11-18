@@ -117,25 +117,8 @@ def generated_api_path(path):
             or path.startswith("api/redhatopenshift/") and path.endswith((".tsp", "/openapi.json")))
 
 
-def load_group(repo, inventory_file, group_id):
-    native.validate_repo(repo)
-    observed = native.replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
-    require(isinstance(observed, dict) and observed.get("repository") == repo
-            and isinstance(observed.get("groups"), list), "inventory repository or groups are invalid")
-    native.validate_target(repo, 1, observed.get("base_sha"))
-    require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
-    require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
-    matches = [group for group in observed["groups"] if group.get("group") == group_id]
-    require(len(matches) == 1, "inventory must contain exactly one matching group")
-    group = matches[0]
-    require(group.get("next_action", {}).get("action") in ("prepare_replacement", "maintain_replacement")
-            and group.get("blockers") == [], "inventory group is not eligible for replacement")
-    require(group.get("ecosystem") in ("go", "npm", "actions") and isinstance(group.get("family"), str)
-            and bool(group["family"]), "unsupported inventory ecosystem or family")
-    require(isinstance(group.get("sources"), list) and all(isinstance(source, dict) for source in group["sources"]),
-            "invalid inventory source group")
-    native.validate_sources([{"number": source.get("number"), "head_sha": source.get("head_sha")}
-                             for source in group["sources"]])
+def load_group(repo, inventory_file, group_id, target):
+    base, group = native.select_inventory_group(repo, inventory_file, group_id, target)
     manifests = set()
     for source in group["sources"]:
         require(source.get("group") == group_id and source.get("ecosystem") == group["ecosystem"]
@@ -151,7 +134,7 @@ def load_group(repo, inventory_file, group_id):
             manifests.update(native.safe_path(path) for path in locks)
         require(any(native.upgrade_family(group["ecosystem"], intent["package"]) == group["family"]
                     for intent in source["intents"]), "source lacks selected upgrade family")
-    return observed["base_sha"], group, manifests
+    return base, group, manifests
 
 
 def make_targets(text):
@@ -410,10 +393,10 @@ class Validator:
         self.results["excluded_baseline_identical_generation"] = excluded
         self.save()
 
-    def validate(self, repo, inventory_file, group_id, title_file, body_file, compiler):
+    def validate(self, repo, inventory_file, group_id, target, title_file, body_file, compiler):
         inputs = {Path(path).resolve(): Path(path).read_bytes() for path in (inventory_file, title_file, body_file)}
-        base, group, manifests = load_group(repo, inventory_file, group_id)
-        self.results.update(base_sha=base, group=group_id, ecosystem=group["ecosystem"],
+        base, group, manifests = load_group(repo, inventory_file, group_id, target)
+        self.results.update(base_sha=base, group=group_id, target=target, ecosystem=group["ecosystem"],
                             family=group["family"], manifests=sorted(manifests))
         self.save()
         require(git(self.root, "rev-parse", "--verify", base + "^{commit}") == base,
@@ -475,7 +458,7 @@ class Validator:
         validated_body = self.validated_body(body_file, base, head)
         validated_body_bytes = validated_body.read_bytes()
         result = native.prepare_request(repo, inventory_file, group_id, title_file, validated_body,
-                                        self.artifacts, cwd=self.root)
+                                        self.artifacts, target=target, cwd=self.root)
         # A late consumer/background write or input change must not leave a
         # publication artifact even if request construction itself succeeded.
         clean(self.root)
@@ -488,11 +471,11 @@ class Validator:
         return result
 
 
-def validate_candidate(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, compiler=None, cwd=None):
+def validate_candidate(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, compiler=None, cwd=None):
     root = git(cwd, "rev-parse", "--show-toplevel")
     validator = Validator(root, artifact_dir)
     try:
-        return validator.validate(repo, inventory_file, group_id, title_file, body_file, compiler)
+        return validator.validate(repo, inventory_file, group_id, target, title_file, body_file, compiler)
     except Exception as error:
         (validator.artifacts / native.REQUEST_FILE).unlink(missing_ok=True)
         validator.results.update(status="failed", error=str(error))
@@ -508,11 +491,12 @@ def main(argv=None):
     parser.add_argument("title_file")
     parser.add_argument("body_file")
     parser.add_argument("artifact_dir")
+    parser.add_argument("--target", required=True, help="Exact target string from the selected inventory group")
     parser.add_argument("--compiler")
     args = parser.parse_args(argv)
     try:
         result = validate_candidate(args.repo, args.inventory_file, args.group, args.title_file,
-                                    args.body_file, args.artifact_dir, compiler=args.compiler)
+                                    args.body_file, args.artifact_dir, target=args.target, compiler=args.compiler)
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         print("native candidate validation failed: " + str(error), file=sys.stderr)
         return 1

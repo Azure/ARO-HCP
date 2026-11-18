@@ -1350,8 +1350,8 @@ def validate_replacement_request(request):
     return patch_paths(request["patch"])
 
 
-def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, cwd=None):
-    """Build the offline request artifact after the candidate validator succeeds."""
+def select_inventory_group(repo, inventory_file, group_id, target):
+    """Select one exact family/target without changing published family identity."""
     validate_repo(repo)
     observed = replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
     require(isinstance(observed, dict) and observed.get("repository") == repo
@@ -1359,9 +1359,11 @@ def prepare_request(repo, inventory_file, group_id, title_file, body_file, artif
     base = observed.get("base_sha")
     validate_target(repo, 1, base)
     require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
+    require(isinstance(target, str) and bool(target), "invalid inventory target")
     require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
-    matching = [group for group in observed["groups"] if group.get("group") == group_id]
-    require(len(matching) == 1, "inventory must contain exactly one matching group")
+    matching = [group for group in observed["groups"]
+                if group.get("group") == group_id and group.get("target") == target]
+    require(len(matching) == 1, "inventory must contain exactly one matching group/target")
     group = matching[0]
     require(isinstance(group.get("next_action"), dict)
             and group["next_action"].get("action") in ("prepare_replacement", "maintain_replacement")
@@ -1372,6 +1374,16 @@ def prepare_request(repo, inventory_file, group_id, title_file, body_file, artif
                 for source in group["sources"]), "invalid inventory source identities")
     sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
     validate_sources(sources)
+    require(all(source.get("group") == group_id and source.get("target") == target
+                and source.get("ecosystem") == group["ecosystem"] and source.get("family") == group["family"]
+                for source in group["sources"]), "inconsistent inventory source group/target")
+    return base, group
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
+    """Build the offline request artifact after the candidate validator succeeds."""
+    base, group = select_inventory_group(repo, inventory_file, group_id, target)
+    sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
     root = git(cwd, "rev-parse", "--show-toplevel")
     require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
     # Diff must not execute worktree-supplied diff/textconv or clean/process
