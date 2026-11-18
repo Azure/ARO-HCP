@@ -225,14 +225,27 @@ func (f *fileContext) offset(pos token.Pos) int {
 	return f.fset.Position(pos).Offset
 }
 
-// leafDecl is one leaf declaration indexed for lookups.
-type leafDecl struct {
-	call        *ast.CallExpr
-	line        int
-	description string
+// expressionText returns the source text of one expression for error messages.
+func (f *fileContext) expressionText(expression ast.Expr) string {
+	start, end := f.offset(expression.Pos()), f.offset(expression.End())
+	if start < 0 || end > len(f.source) || start >= end {
+		return ""
+	}
+	return string(f.source[start:end])
 }
 
-// indexLeaves records every leaf declaration in the file once.
+// leafDecl is one leaf declaration indexed for lookups.
+type leafDecl struct {
+	call    *ast.CallExpr
+	line    int
+	pattern string
+}
+
+// indexLeaves records every leaf declaration in the file once. A description
+// built by concatenation is indexed by its literal fragments so a computed
+// suffix does not hide an otherwise identifiable declaration. A description with
+// no literal fragment carries no anchoring information and is not indexed, since
+// a bare wildcard would match unrelated specs.
 func (f *fileContext) indexLeaves() {
 	f.leaves = nil
 	ast.Inspect(f.file, func(node ast.Node) bool {
@@ -240,11 +253,11 @@ func (f *fileContext) indexLeaves() {
 		if !ok || !leafCallNames[callName(call)] || len(call.Args) == 0 {
 			return true
 		}
-		description, ok := stringLiteral(call.Args[0])
+		pattern, ok := nodePattern(call.Args[0])
 		if !ok {
 			return true
 		}
-		f.leaves = append(f.leaves, leafDecl{call: call, line: f.fset.Position(call.Pos()).Line, description: description})
+		f.leaves = append(f.leaves, leafDecl{call: call, line: f.fset.Position(call.Pos()).Line, pattern: pattern})
 		return true
 	})
 }
@@ -254,7 +267,7 @@ func (f *fileContext) indexLeaves() {
 // wildcards, and the leaf description anchored at the end. Anchoring the known
 // fragments rejects a renamed container even when a sibling is computed, which a
 // suffix comparison cannot.
-func (f *fileContext) identityPattern(leaf *ast.CallExpr, description string) *regexp.Regexp {
+func (f *fileContext) identityPattern(leaf *ast.CallExpr, descriptionPattern string) *regexp.Regexp {
 	var containers []ast.Expr
 	for current := f.parents[leaf]; current != nil; current = f.parents[current] {
 		call, ok := current.(*ast.CallExpr)
@@ -268,38 +281,42 @@ func (f *fileContext) identityPattern(leaf *ast.CallExpr, description string) *r
 	}
 	parts := make([]string, 0, len(containers)+1)
 	for _, container := range containers {
-		parts = append(parts, nodePattern(container))
+		pattern, _ := nodePattern(container)
+		parts = append(parts, pattern)
 	}
-	parts = append(parts, regexp.QuoteMeta(description))
+	parts = append(parts, descriptionPattern)
 	return regexp.MustCompile("^" + strings.Join(parts, " ") + "$")
 }
 
 // nodePattern renders one description expression, quoting its literal text and
-// replacing every computed fragment with a wildcard.
-func nodePattern(expression ast.Expr) string {
+// replacing every computed fragment with a wildcard. The boolean reports whether
+// the expression carried at least one literal fragment to anchor the match.
+func nodePattern(expression ast.Expr) (string, bool) {
 	if paren, ok := expression.(*ast.ParenExpr); ok {
 		return nodePattern(paren.X)
 	}
 	if text, ok := stringLiteral(expression); ok {
-		return regexp.QuoteMeta(text)
+		return regexp.QuoteMeta(text), true
 	}
 	if binary, ok := expression.(*ast.BinaryExpr); ok && binary.Op == token.ADD {
-		return nodePattern(binary.X) + nodePattern(binary.Y)
+		left, leftLiteral := nodePattern(binary.X)
+		right, rightLiteral := nodePattern(binary.Y)
+		return left + right, leftLiteral || rightLiteral
 	}
-	return ".*"
+	return ".*", false
 }
 
 // matchesName reports whether the resolved declaration hierarchy names the
 // catalog spec.
-func (f *fileContext) matchesName(leaf *ast.CallExpr, catalogName, description string) bool {
-	return f.identityPattern(leaf, description).MatchString(catalogName)
+func (f *fileContext) matchesName(leaf *ast.CallExpr, catalogName, descriptionPattern string) bool {
+	return f.identityPattern(leaf, descriptionPattern).MatchString(catalogName)
 }
 
 // locateAt finds the unique leaf declaration at the annotated line.
 func (f *fileContext) locateAt(line int, catalogName string) (*ast.CallExpr, bool) {
 	var found *ast.CallExpr
 	for _, leaf := range f.leaves {
-		if leaf.line != line || !f.matchesName(leaf.call, catalogName, leaf.description) {
+		if leaf.line != line || !f.matchesName(leaf.call, catalogName, leaf.pattern) {
 			continue
 		}
 		if found != nil && found != leaf.call {
@@ -315,7 +332,7 @@ func (f *fileContext) locateAt(line int, catalogName string) (*ast.CallExpr, boo
 func (f *fileContext) locateByName(catalogName string) (*ast.CallExpr, bool) {
 	var found *ast.CallExpr
 	for _, leaf := range f.leaves {
-		if !f.matchesName(leaf.call, catalogName, leaf.description) {
+		if !f.matchesName(leaf.call, catalogName, leaf.pattern) {
 			continue
 		}
 		if found != nil && found != leaf.call {
@@ -441,9 +458,8 @@ func priorityLiteral(expression ast.Expr) (int, error) {
 // than edited into a conflicting pair.
 func (f *fileContext) resolve(leaf *ast.CallExpr) (*sourceCall, error) {
 	result := &sourceCall{file: f, leaf: leaf}
-	description, ok := stringLiteral(leaf.Args[0])
-	if !ok {
-		return nil, fmt.Errorf("%s:%d leaf description is not a plain string literal", f.relPath, f.fset.Position(leaf.Pos()).Line)
+	if _, ok := nodePattern(leaf.Args[0]); !ok {
+		return nil, fmt.Errorf("%s:%d leaf description has no literal text to identify it", f.relPath, f.fset.Position(leaf.Pos()).Line)
 	}
 	result.insertAt = f.offset(leaf.Args[0].End())
 	leafNode, leafValue, err := f.startPriorityIn(leaf)
@@ -482,7 +498,8 @@ func (f *fileContext) resolve(leaf *ast.CallExpr) (*sourceCall, error) {
 		result.table, result.onTable = container, true
 	default:
 		if f.labelsName == "" && !f.dotImport {
-			return nil, fmt.Errorf("%s does not import %s, so a StartPriority cannot be added for %q", f.relPath, labelsImportPath, description)
+			return nil, fmt.Errorf("%s does not import %s, so a StartPriority cannot be added for %q",
+				f.relPath, labelsImportPath, f.expressionText(leaf.Args[0]))
 		}
 	}
 	return result, nil

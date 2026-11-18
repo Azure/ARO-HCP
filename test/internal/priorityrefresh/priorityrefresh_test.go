@@ -73,6 +73,38 @@ var _ = Describe("suite", func() {
 })
 `
 
+const concatenatedSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("suite", func() {
+	versions := []string{"4.20"}
+	for _, version := range versions {
+		version := version
+		It("should create version "+version,
+			labels.MIContainers(1),
+			labels.StartPriority(50),
+			func(ctx context.Context) {
+				_ = ctx
+				_ = version
+			})
+	}
+
+	dynamicName := "should be invisible"
+	It(dynamicName,
+		labels.MIContainers(1),
+		func(ctx context.Context) {
+			_ = ctx
+		})
+})
+`
+
 const tableSource = `package e2e
 
 import (
@@ -266,6 +298,43 @@ func TestPlanEditsStandaloneIt(t *testing.T) {
 	if count := strings.Count(mustRead(t, repo, "test/e2e/standalone.go"), "StartPriority("); count != 3 {
 		t.Fatalf("file has %d StartPriority calls, want 3", count)
 	}
+}
+
+func TestPlanEditsConcatenatedLeafDescription(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/concatenated.go": concatenatedSource})
+	path := "test/e2e/concatenated.go"
+	before := et.ExtensionTestSpecs{
+		catalogSpec("suite should create version 4.20", 50, path+":"+itoa(lineOf(t, repo, path, `"should create version "+version`))),
+	}
+	report := testReport(scoredRow("suite should create version 4.20", "id-420", 20, 18))
+	changes, err := Plan(repo, before, report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(changes); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]int{
+		"suite should create version 4.20": 20,
+	} {
+		if got := effectivePriority(t, repo, path, name); got != want {
+			t.Errorf("%q priority = %d, want %d", name, got, want)
+		}
+	}
+	mustContain(t, repo, path, `"should create version "+version`, "labels.MIContainers(1)")
+}
+
+func TestPlanRejectsFullyComputedLeafDescription(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/concatenated.go": concatenatedSource})
+	path := "test/e2e/concatenated.go"
+	before := et.ExtensionTestSpecs{
+		catalogSpec("suite should be invisible", 0, path+":"+itoa(lineOf(t, repo, path, "It(dynamicName"))),
+	}
+	report := testReport(scoredRow("suite should be invisible", "id-dynamic", 30, 25))
+	if _, err := Plan(repo, before, report); err == nil || !strings.Contains(err.Error(), "no It or Entry declaration matches") {
+		t.Fatalf("err = %v, want no-match", err)
+	}
+	mustContain(t, repo, path, "It(dynamicName,")
 }
 
 func TestPlanEditsDescribeTableEntries(t *testing.T) {
