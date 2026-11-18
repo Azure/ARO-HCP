@@ -381,3 +381,33 @@ resource arohcpSwiftKonnectivityRecordingRules 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_backup_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:velero_hcp_backup:failed_outcomes:rate5m'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))'
+      }
+      {
+        record: 'sli:velero_hcp_backup:completed_outcomes:rate5m'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])))) + errors:velero_hcp_backup:failed_outcomes:rate5m'
+      }
+      {
+        record: 'errors:velero_hcp_backup:failed_outcomes:sum30d'
+        expression: 'sum_over_time(errors:velero_hcp_backup:failed_outcomes:rate5m[30d:1m])'
+      }
+      {
+        record: 'sli:velero_hcp_backup:completed_outcomes:sum30d'
+        expression: 'sum_over_time(sli:velero_hcp_backup:completed_outcomes:rate5m[30d:1m])'
+      }
+    ]
+  }
+}
