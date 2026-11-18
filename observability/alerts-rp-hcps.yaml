@@ -3,6 +3,7 @@ prometheusRules:
   - alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   - alerts/hypershiftUserJourney-prometheusRule.yaml
   - alerts/backup-slo-hcp-prometheusRule.yaml
+  - alerts/backup-slo-overload-hcp-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-hcps.yaml

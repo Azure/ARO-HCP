@@ -5618,6 +5618,72 @@
             value: 5
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionQueueBacklog
+  occurrence: 1
+  input: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300
+  plan:
+    expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300
+    conditions:
+      - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300
+        path: root
+        queries:
+          - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 300
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionStuckInProgress
+  occurrence: 1
+  input: max by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+  plan:
+    expression: max by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+    conditions:
+      - expression: max by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+        path: root
+        queries:
+          - expression: max by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupNonTerminalBacklog
+  occurrence: 1
+  input: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
+  plan:
+    expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
+    conditions:
+      - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
+        path: root
+        queries:
+          - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 100
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupQueueBacklog
+  occurrence: 1
+  input: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300
+  plan:
+    expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300
+    conditions:
+      - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300
+        path: root
+        queries:
+          - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 300
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_traffic_alerts
   alert: userJourneyBackupTraffic
   occurrence: 1
@@ -8376,6 +8442,88 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-overload-hcp-prometheusRule.yaml
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionQueueBacklog
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      group by (cluster, name, namespace) (veleroDeleteBackupRequest_info)
+      unless on (cluster, name, namespace)
+      group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)
+    ) > 300
+  plan:
+    expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300
+    conditions:
+      - expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300
+        path: root
+        queries:
+          - expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase!="New"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 300
+        unsupported: ""
+- source: observability/alerts/backup-slo-overload-hcp-prometheusRule.yaml
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionStuckInProgress
+  occurrence: 1
+  input: |
+    max by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+  plan:
+    expression: max by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+    conditions:
+      - expression: max by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+        path: root
+        queries:
+          - expression: max by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/backup-slo-overload-hcp-prometheusRule.yaml
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupNonTerminalBacklog
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      group by (cluster, name, namespace) (veleroBackup_phase)
+      unless on (cluster, name, namespace)
+      group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)
+    ) > 100
+  plan:
+    expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
+    conditions:
+      - expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
+        path: root
+        queries:
+          - expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 100
+        unsupported: ""
+- source: observability/alerts/backup-slo-overload-hcp-prometheusRule.yaml
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupQueueBacklog
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      group by (cluster, name, namespace) (veleroBackup_info)
+      unless on (cluster, name, namespace)
+      group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)
+    ) > 300
+  plan:
+    expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300
+    conditions:
+      - expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300
+        path: root
+        queries:
+          - expression: count by (cluster) (group by (cluster, name, namespace) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 300
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_metrics_absent_alerts
