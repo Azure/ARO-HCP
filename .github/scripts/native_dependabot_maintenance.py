@@ -1350,28 +1350,25 @@ def validate_replacement_request(request):
     return patch_paths(request["patch"])
 
 
-def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, cwd=None):
+def native_inventory_selection(repo, inventory_file, group_id, target):
+    """Read the offline selection from the trusted Go binary without Python policy."""
+    try:
+        result = subprocess.run(
+            [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", "select-group",
+             "--repository", repo, "--inventory", str(inventory_file),
+             "--group", group_id, "--target", target],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError(error.stderr.strip() or "native inventory selection failed") from error
+    return json.loads(result.stdout)
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
     """Build the offline request artifact after the candidate validator succeeds."""
-    validate_repo(repo)
-    observed = replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
-    require(isinstance(observed, dict) and observed.get("repository") == repo
-            and isinstance(observed.get("groups"), list), "inventory repository or groups are invalid")
-    base = observed.get("base_sha")
-    validate_target(repo, 1, base)
-    require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
-    require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
-    matching = [group for group in observed["groups"] if group.get("group") == group_id]
-    require(len(matching) == 1, "inventory must contain exactly one matching group")
-    group = matching[0]
-    require(isinstance(group.get("next_action"), dict)
-            and group["next_action"].get("action") in ("prepare_replacement", "maintain_replacement")
-            and group.get("blockers") == [], "inventory group is not eligible for replacement")
-    require(group.get("ecosystem") in ("go", "npm", "actions") and isinstance(group.get("family"), str)
-            and group["family"] and isinstance(group.get("sources"), list), "invalid inventory group shape")
-    require(all(isinstance(source, dict) and "number" in source and "head_sha" in source
-                for source in group["sources"]), "invalid inventory source identities")
+    selected = native_inventory_selection(repo, inventory_file, group_id, target)
+    base, group = selected["base_sha"], selected["group"]
     sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
-    validate_sources(sources)
     root = git(cwd, "rev-parse", "--show-toplevel")
     require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
     # Diff must not execute worktree-supplied diff/textconv or clean/process

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package dependabot implements the security remediation policy shared by the
-// dependabot commands.
+// Package dependabot implements security remediation and native dependency policy
+// shared by the dependabot commands.
 package dependabot
 
 import (

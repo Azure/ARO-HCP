@@ -124,9 +124,12 @@ verify-tool-automation: $(JQ)
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
-	go test -C tooling/depctl -timeout 600s ./cmd/maintenance ./internal/policy ./internal/orchestration ./internal/forge/ghapi
-	python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'
-	python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
+	go test -C tooling/depctl -timeout 600s ./cmd/maintenance ./cmd/dependabot/... ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi
+	@set -e; directory=$$(mktemp -d); trap 'rm -rf "$$directory"' EXIT; \
+		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"; \
+		export DEPCTL_BINARY="$$directory/depctl"; \
+		python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'; \
+		python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format

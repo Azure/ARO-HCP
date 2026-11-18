@@ -43,6 +43,7 @@ func NewCommand(group string) (*cobra.Command, error) {
 	command.AddCommand(newGuardCommand())
 	command.AddCommand(newValidateCommand())
 	command.AddCommand(newRetestCommand())
+	command.AddCommand(newNativeCommand())
 	return command, nil
 }
 
