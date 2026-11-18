@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cijoboutcomes"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cipatterns"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 	prowmetrics "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prow"
@@ -128,19 +129,24 @@ func run(logger *slog.Logger) error {
 		go runCollector(ctx, prowCollector.Start)
 	}
 
-	var startController func(context.Context)
+	var controllers []func(context.Context)
 	if cfg.CIJobOutcomes.Enabled {
 		writer := cijoboutcomes.NewWriter(cfg, logger)
 		writer.RegisterMetrics(registry)
-		startController = writer.Start
+		controllers = append(controllers, writer.Start)
 	}
+	controller := cipatterns.NewController(cfg, logger)
+	if err := controller.RegisterMetrics(registry); err != nil {
+		return fmt.Errorf("register CI failure-pattern metrics: %w", err)
+	}
+	controllers = append(controllers, controller.Start)
 
 	server := &http.Server{
 		Addr:              ":" + port,
 		Handler:           newHTTPHandler(registry),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	return serve(ctx, cancel, logger, server, startController)
+	return serve(ctx, cancel, logger, server, controllers...)
 }
 
 // Start normally blocks until cancellation, but returns after recovering a
@@ -170,17 +176,25 @@ func newHTTPHandler(registry *prometheus.Registry) http.Handler {
 
 // cancel also stops the collectors when the HTTP server fails. Controller and
 // HTTP shutdown share one grace period; pending CI work is not drained.
-func serve(ctx context.Context, cancel context.CancelFunc, logger *slog.Logger, server *http.Server, startController func(context.Context)) error {
+func serve(ctx context.Context, cancel context.CancelFunc, logger *slog.Logger, server *http.Server, controllers ...func(context.Context)) error {
 	controllerDone := make(chan struct{})
-	if startController == nil {
-		close(controllerDone)
-	} else {
+	var workers sync.WaitGroup
+	for _, start := range controllers {
+		if start == nil {
+			continue
+		}
+		workers.Add(1)
 		go func() {
 			defer utilruntime.HandleCrashWithContext(ctx)
-			defer close(controllerDone)
-			startController(ctx)
+			defer workers.Done()
+			start(ctx)
 		}()
 	}
+	go func() {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		workers.Wait()
+		close(controllerDone)
+	}()
 
 	errChan := make(chan error, 1)
 	go func() {

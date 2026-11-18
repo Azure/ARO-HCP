@@ -21,6 +21,8 @@ data:
       excludeJobs: {{ if .Values.prow.excludeJobs }}{{ splitList "," .Values.prow.excludeJobs | toJson }}{{ else }}[]{{ end }}
     ciJobOutcomes:
       {{- toYaml .Values.ciJobOutcomes | nindent 6 }}
+    ciFailurePatterns:
+      {{- toYaml .Values.ciFailurePatterns | nindent 6 }}
     tenants:
       {{- with .Values.tenants.redHat0 }}
       - tenantId: "{{ .tenantId }}"

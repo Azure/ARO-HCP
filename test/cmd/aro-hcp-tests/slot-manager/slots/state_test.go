@@ -201,7 +201,7 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 		state.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 			Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 		}
-		if err := state.Validate(); err != nil {
+		if err := state.ValidateForPublication(); err != nil {
 			t.Fatalf("E2E-only state required infrastructure: %v", err)
 		}
 		contract := NewRuntimeContractBuilder()
@@ -278,7 +278,7 @@ func TestAcquiredSlotStateRejectsInvalidJournals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			state := resolvedTestState()
 			tc.mutate(state)
-			for _, validate := range []func() error{state.Validate, state.ValidateForRelease} {
+			for _, validate := range []func() error{state.ValidateForAdmission, state.ValidateForPublication, state.ValidateForRelease} {
 				if err := validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("expected error %q, got %v", tc.want, err)
 				}
@@ -369,6 +369,10 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			tc.mutate(state)
 			if err := state.ValidateForRelease(); err != nil {
 				t.Fatalf("resolved asset mismatch must not prevent release: %v", err)
+			}
+			admissionErr := state.ValidateForAdmission()
+			if tc.want == "" && admissionErr != nil || tc.want != "" && (admissionErr == nil || !strings.Contains(admissionErr.Error(), tc.want)) {
+				t.Fatalf("expected pre-admission validation %q, got %v", tc.want, admissionErr)
 			}
 			err := AddCoreRuntimeExports(NewRuntimeContractBuilder(), state, "dev-e2e", "profile")
 			if tc.want == "" {
@@ -469,8 +473,11 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 			if err := state.ValidateForRelease(); err != nil {
 				t.Fatalf("runtime failure must not prevent release: %v", err)
 			}
-			if err := state.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
+			if err := state.ValidateForPublication(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected runtime validation error %q, got %v", tc.want, err)
+			}
+			if err := state.ValidateForAdmission(); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected pre-admission validation error %q, got %v", tc.want, err)
 			}
 			dir := t.TempDir()
 			if err := WriteAcquiredSlotState(dir, state); err != nil {
@@ -498,20 +505,87 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 	}
 }
 
+func TestAdmissionDefersOnlyMockResolution(t *testing.T) {
+	state := resolvedTestState()
+	state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, AssetRequirement{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
+	if err := state.ValidateForAdmission(); err != nil {
+		t.Fatalf("unresolved mock prevented admission: %v", err)
+	}
+	if err := state.ValidateForPublication(); err == nil {
+		t.Fatal("unresolved mock permitted runtime publication")
+	}
+	state.Slot.AssetRequirements[len(state.Slot.AssetRequirements)-1].Allocation = AllocationLeased
+	if err := state.ValidateForAdmission(); err == nil {
+		t.Fatal("invalid mock allocation permitted admission")
+	}
+}
+
+func TestPublicationRechecksAdmissionMutations(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		mutate func(*AcquiredSlotState)
+		want   string
+	}{
+		{"missing bundle", func(state *AcquiredSlotState) { state.Slot.Assets.MockIdentities = nil }, "requires one resolved dedicated bundle"},
+		{"foreign slot", func(state *AcquiredSlotState) { state.Slot.Assets.MockIdentities.SlotName = "slot-01" }, "does not match slot customer subscription"},
+		{"foreign subscription", func(state *AcquiredSlotState) {
+			state.Slot.Assets.MockIdentities.SubscriptionID = "00000000-0000-0000-0000-000000000008"
+		}, "does not match slot customer subscription"},
+		{"duplicate principal", func(state *AcquiredSlotState) {
+			state.Slot.Assets.MockIdentities.Backend = state.Slot.Assets.MockIdentities.MSI
+		}, "distinct nonzero"},
+		{"returning lease", func(state *AcquiredSlotState) { state.Leases.Primary.ReturnState = "returning" }, "no longer held"},
+		{"unresolved subscription", func(state *AcquiredSlotState) { state.Slot.Subscriptions.E2E.ID = "" }, "unresolved E2E subscription"},
+		{"unresolved nonmock", func(state *AcquiredSlotState) {
+			state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated})
+		}, "unresolved demanded asset"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := resolvedTestState()
+			state.Slot.Subscriptions.E2E.ID = "00000000-0000-0000-0000-000000000007"
+			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1}}
+			if err := state.ValidateForAdmission(); err != nil {
+				t.Fatalf("valid pre-admission state rejected: %v", err)
+			}
+			state.Slot.Assets.MockIdentities = &leaseenv.MockIdentityBundlePayload{
+				SlotName: state.Slot.ResourceName, SubscriptionID: state.Slot.Subscriptions.E2E.ID,
+				MSI:             leaseenv.MockPrincipal{ClientID: "00000000-0000-0000-0000-000000000001", PrincipalID: "00000000-0000-0000-0000-000000000002", CertificateName: "msi"},
+				Backend:         leaseenv.MockPrincipal{ClientID: "00000000-0000-0000-0000-000000000003", PrincipalID: "00000000-0000-0000-0000-000000000004", CertificateName: "backend"},
+				ClustersService: leaseenv.MockPrincipal{ClientID: "00000000-0000-0000-0000-000000000005", PrincipalID: "00000000-0000-0000-0000-000000000006", CertificateName: "cs"},
+			}
+			if err := state.ValidateForPublication(); err != nil {
+				t.Fatalf("complete state rejected: %v", err)
+			}
+			test.mutate(state)
+			if err := state.ValidateForPublication(); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("post-admission mutation should fail with %q: %v", test.want, err)
+			}
+			contract := NewRuntimeContractBuilder()
+			if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err == nil || len(contract.MarshalShell()) != 0 {
+				t.Fatalf("invalid post-admission state exposed exports: %v", err)
+			}
+			if err := WriteAcquiredSlotState(t.TempDir(), state); err != nil {
+				t.Fatalf("post-admission mutation prevented journal persistence: %v", err)
+			}
+		})
+	}
+}
+
 func TestAcquiredSlotStateValidationVersions(t *testing.T) {
 	t.Parallel()
 	for _, version := range []int{-1, 0, 1, 3} {
 		state := resolvedTestState()
 		state.Version = version
-		for _, validate := range []func() error{state.Validate, state.ValidateForRelease} {
+		for _, validate := range []func() error{state.ValidateForAdmission, state.ValidateForPublication, state.ValidateForRelease} {
 			if err := validate(); err == nil || !strings.Contains(err.Error(), "unsupported slot state version") {
 				t.Fatalf("version %d was not rejected: %v", version, err)
 			}
 		}
 	}
 	var state *AcquiredSlotState
-	if state.Validate() == nil || state.ValidateForRelease() == nil {
-		t.Fatal("nil state must fail both validators")
+	if state.ValidateForAdmission() == nil || state.ValidateForPublication() == nil || state.ValidateForRelease() == nil {
+		t.Fatal("nil state must fail all phase validators")
 	}
 }
 

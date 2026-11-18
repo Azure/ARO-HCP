@@ -7,6 +7,7 @@ use (
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/aks-cluster-create
 	./dev-infrastructure/scripts/grafana-group-roles
+	./dev-infrastructure/scripts/maestro-cert-cleanup
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
@@ -24,7 +25,10 @@ use (
 	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
+	./tooling/cifailurepatterns
 	./tooling/cleanup-sweeper
+	./tooling/component-updater
+	./tooling/depctl
 	./tooling/e2e-cost
 	./tooling/entra-app-credentials
 	./tooling/grafanactl

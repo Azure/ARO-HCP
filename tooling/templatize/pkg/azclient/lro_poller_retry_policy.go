@@ -34,19 +34,23 @@ import (
 // DeploymentNotFound while a new deployment becomes visible, and one
 // Unauthorized response after azcore expires the rejected cached token.
 type lroPollerRetryPolicy struct {
-	backoff wait.Backoff
+	backoff             wait.Backoff
+	retryDeploymentGETs bool
 }
 
 // LROPollerRetryPolicyOptions configures the LRO poller retry policy.
 type LROPollerRetryPolicyOptions struct {
-	Backoff *wait.Backoff
+	Backoff             *wait.Backoff
+	RetryDeploymentGETs bool
 }
 
 // NewLROPollerRetryPolicy returns a policy scoped to GET requests for ARM
 // deployment operationStatuses endpoints. DeploymentNotFound and Unauthorized
 // responses share one retry budget, but only the first Unauthorized response is
 // retried so persistent authentication and authorization failures surface
-// quickly.
+// quickly. RetryDeploymentGETs also enables DeploymentNotFound retries for
+// deployment resource GETs and operations listing, matching paths without regard
+// to case. Unauthorized retries remain limited to operationStatuses polling.
 func NewLROPollerRetryPolicy(options *LROPollerRetryPolicyOptions) policy.Policy {
 	backoff := wait.Backoff{
 		Duration: 2 * time.Second,
@@ -58,7 +62,8 @@ func NewLROPollerRetryPolicy(options *LROPollerRetryPolicyOptions) policy.Policy
 		backoff = *options.Backoff
 	}
 	return &lroPollerRetryPolicy{
-		backoff: backoff,
+		backoff:             backoff,
+		retryDeploymentGETs: options != nil && options.RetryDeploymentGETs,
 	}
 }
 
@@ -75,7 +80,18 @@ func (p *lroPollerRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 		return req.Next()
 	}
 	path := req.Raw().URL.Path
-	if !strings.Contains(path, "/providers/Microsoft.Resources/deployments/") || !strings.Contains(path, "/operationStatuses/") {
+	isPolling := strings.Contains(path, "/providers/Microsoft.Resources/deployments/") && strings.Contains(path, "/operationStatuses/")
+	if p.retryDeploymentGETs {
+		path = strings.ToLower(path)
+		segments := strings.Split(strings.Trim(path, "/"), "/")
+		isLegacyOperations := (len(segments) == 7 || len(segments) == 8) &&
+			segments[0] == "subscriptions" && segments[2] == "resourcegroups" &&
+			segments[4] == "deployments" && segments[6] == "operations"
+		if !strings.Contains(path, "/providers/microsoft.resources/deployments/") && !isLegacyOperations {
+			return req.Next()
+		}
+		isPolling = !isLegacyOperations && strings.Contains(path, "/operationstatuses/")
+	} else if !isPolling {
 		return req.Next()
 	}
 
@@ -102,11 +118,11 @@ func (p *lroPollerRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 		switch retryReasonForResponse(resp, requestErr) {
 		case retryDeploymentNotFound:
 			lastRetryableErr = requestErr
-			logger.Info("transient 404 DeploymentNotFound on operationStatuses",
+			logger.Info("transient 404 DeploymentNotFound on deployment GET",
 				"url", req.Raw().URL.String())
 			return false, nil
 		case retryUnauthorized:
-			if authRetried {
+			if !isPolling || authRetried {
 				if requestErr != nil {
 					return false, requestErr
 				}

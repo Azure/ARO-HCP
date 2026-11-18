@@ -139,8 +139,8 @@ func TestEnsureReadDesire_PreconditionFailedOnReplaceIsSwallowed(t *testing.T) {
 
 type conflictOnCreateDBClients struct{}
 
-func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
-	return &conflictOnCreateDBClient{}
+func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return &conflictOnCreateDBClient{}, nil
 }
 
 type conflictOnCreateDBClient struct {
@@ -163,8 +163,8 @@ func (c *conflictOnCreateCRUD) Create(_ context.Context, _ *kubeapplierapi.ReadD
 
 type preconditionOnReplaceDBClients struct{}
 
-func (c *preconditionOnReplaceDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
-	return &preconditionOnReplaceDBClient{}
+func (c *preconditionOnReplaceDBClients) For(_ context.Context, _ *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return &preconditionOnReplaceDBClient{}, nil
 }
 
 type preconditionOnReplaceDBClient struct {

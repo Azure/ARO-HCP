@@ -160,6 +160,7 @@ func getArtifactDir() string {
 	return artifactDir
 }
 
+// NewIntegrationTestInfoFromEnv initializes frontend dependencies using mock or real Cosmos storage.
 func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock bool) (*IntegrationTestInfo, error) {
 	logger := utils.DefaultLogger()
 
@@ -201,7 +202,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	nodePoolInformer, _ := frontendInformers.NodePools()
 	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
 	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -209,9 +210,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		return nil, err
 	}
 
-	hcReadDesireName := strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	hcRDResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
-		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster", hcReadDesireName,
+		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster",
+		kubeapplierapi.ReadDesireNameReadonlyHostedCluster,
 	)
 	hcRDResourceID, err := azcorearm.ParseResourceID(hcRDResourceIDStr)
 	if err != nil {

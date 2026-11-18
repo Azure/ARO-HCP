@@ -104,6 +104,9 @@
                 "diskCsiDriverMiName": {
                   "type": "string"
                 },
+                "dpAutoNodeMiName": {
+                  "type": "string"
+                },
                 "dpDiskCsiDriverMiName": {
                   "type": "string"
                 },
@@ -150,6 +153,7 @@
                 "clusterApiAzureMiName": "[parameters('identities').clusterApiAzureMiName]",
                 "controlPlaneMiName": "[parameters('identities').controlPlaneMiName]",
                 "diskCsiDriverMiName": "[parameters('identities').diskCsiDriverMiName]",
+                "dpAutoNodeMiName": "[parameters('identities').dpAutoNodeMiName]",
                 "dpDiskCsiDriverMiName": "[parameters('identities').dpDiskCsiDriverMiName]",
                 "dpFileCsiDriverMiName": "[parameters('identities').dpFileCsiDriverMiName]",
                 "dpImageRegistryMiName": "[parameters('identities').dpImageRegistryMiName]",
@@ -198,6 +202,12 @@
               "apiVersion": "2023-01-31",
               "location": "[resourceGroup().location]",
               "name": "[parameters('identities').diskCsiDriverMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "dpAutoNodeMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').dpAutoNodeMiName]",
               "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
             },
             "dpDiskCsiDriverMi": {
@@ -262,6 +272,7 @@
       "clusterApiAzureMiName": "cluster-api-azure",
       "controlPlaneMiName": "control-plane",
       "diskCsiDriverMiName": "disk-csi-driver",
+      "dpAutoNodeMiName": "dp-autonode",
       "dpDiskCsiDriverMiName": "dp-disk-csi-driver",
       "dpFileCsiDriverMiName": "dp-file-csi-driver",
       "dpImageRegistryMiName": "dp-image-registry",

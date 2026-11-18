@@ -20,6 +20,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Key differences and capabilities of each environment
   - Access requirements and limitations
   - Feature/Capability Matrix
+  - [Which environment does my subscription use?](environments.md#which-environment-does-my-subscription-use)
 - Red Hat development tenant deployment environments
   - [Personal ARO HCP environment](personal-dev.md)
 - MSFT deployment environments

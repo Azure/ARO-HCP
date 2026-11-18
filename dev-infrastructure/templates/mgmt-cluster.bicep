@@ -16,15 +16,6 @@ param ocpAcrResourceId string
 @description('The resource ID of the SVC ACR')
 param svcAcrResourceId string
 
-@description('The name of the maestro consumer.')
-param maestroConsumerName string
-
-@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
-param maestroConsumerCertSAN string
-
-@description('The issuer of the Maestro certificate.')
-param maestroCertIssuer string
-
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
 
@@ -287,10 +278,6 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
   }
 ]
 
-resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
-  name: mgmtKeyVaultName
-}
-
 //
 //   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
@@ -317,28 +304,9 @@ module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-acce
 //   M A E S T R O
 //
 
-resource maestroConsumerUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: 'maestro-consumer'
-  scope: identityScope
-  dependsOn: [
-    managedIdentities
-  ]
-}
-
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
-  name: 'maestro-consumer'
-  params: {
-    maestroAgentManagedIdentityPrincipalId: maestroConsumerUAMI.properties.principalId
-    maestroConsumerName: maestroConsumerName
-    maestroEventGridNamespaceId: maestroEventGridNamespaceId
-    certKeyVaultName: mgmtKeyVaultName
-    certificateSAN: maestroConsumerCertSAN
-    certificateIssuer: maestroCertIssuer
-  }
-  dependsOn: [
-    mgmtKeyVault
-  ]
-}
+// Maestro is retired. The consumer Event Grid client registration and its certificate
+// access are gone; the managed identity and its federated credential remain because the
+// identity still exists and is not part of this removal.
 
 //
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N

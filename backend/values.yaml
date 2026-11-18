@@ -7,10 +7,13 @@ pullBinding:
 configMap:
   location: "{{ .region }}"
   backendMiClientId: "__backendMsiClientId__"
-  databaseUrl: "__cosmosDBDocumentEndpoint__"
-  databaseName: "{{ .frontend.cosmosDB.name }}"
+  cosmosAccountResourceId: "__rpCosmosDbAccountResourceId__"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
+orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"
+orphanedMRGCleanupExcludedSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}"
+# Shared rollout mode for all environments; change here when promoting to delete mode.
+orphanedMRGCleanupRunningMode: "dry-run"
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
@@ -69,6 +72,10 @@ armPermissionsManagerIdentity:
   clientId: "{{ .armHelperClientId }}"
   # The Azure Tenant ID where the ARM Permissions Manager Identity is registered.
   tenantId: "{{ .armHelperTenantId }}"
+  # mockFirstPartyApplicationPrincipalId is the principal ID of the mock First
+  # Party Application (FPA) service principal that the ARM Permissions Manager
+  # Identity grants the Owner role over each cluster's managed resource group.
+  mockFirstPartyApplicationPrincipalId: "{{ .armHelperFPAPrincipalId }}"
 azure:
   cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   # The Azure Tenant ID where backend service is running. In values.yaml we
@@ -79,7 +86,7 @@ azure:
   ocpAcrResourceId: "__ocpAcrResourceId__"
   ocpAcrHostname: "__ocpAcrHostname__"
   oidcIssuerBlobServiceUrl: "__regionalOidcStorageAccountBlobEndpoint__"
-  oidcIssuerBaseUrl: "__regionalOidcStorageAccountWebEndpoint__"
+  oidcIssuerBaseUrl: "__oidcIssuerBaseUrl__"
   tlsCertificatesConfig:
     issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
     certificatesGenerationSource: "AzureKeyVault"

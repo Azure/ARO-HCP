@@ -128,7 +128,7 @@ func TestBackfillSyncOnce(t *testing.T) {
 			if len(tt.wantErr) > 0 {
 				require.ErrorContains(t, err, tt.wantErr)
 				report := &coreapi.Controller{}
-				controllerutils.ReportSyncError(err)(report)
+				controllerutils.ReportSyncError(err)(testContext(t), report)
 				require.Equal(t, metav1.ConditionTrue, meta.FindStatusCondition(report.Status.Conditions, "Degraded").Status)
 			} else {
 				require.NoError(t, err)

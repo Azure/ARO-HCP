@@ -299,7 +299,7 @@ func TestSelectVMSize(t *testing.T) {
 			want: "Standard_D8s_v3",
 		},
 		{
-			name: "SKU with all advertised zones restricted is excluded even without RequireZones",
+			name: "SKU with all advertised zones restricted is usable without RequireZones",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_D8s_v3", testLocation,
 					withCapability(capabilityVCPUs, "8"),
@@ -312,7 +312,7 @@ func TestSelectVMSize(t *testing.T) {
 				Preferred: []string{"Standard_D8s_v3"},
 				MinVCPUs:  8,
 			},
-			wantErr: ErrNoUsableVMSize,
+			want: "Standard_D8s_v3",
 		},
 		{
 			name: "SKU with a surviving zone is usable when only some zones are restricted",
@@ -324,14 +324,15 @@ func TestSelectVMSize(t *testing.T) {
 				),
 			},
 			selector: VMSizeSelector{
-				Name:      "default-worker",
-				Preferred: []string{"Standard_D8s_v3"},
-				MinVCPUs:  8,
+				Name:         "zonal-worker",
+				Preferred:    []string{"Standard_D8s_v3"},
+				MinVCPUs:     8,
+				RequireZones: true,
 			},
 			want: "Standard_D8s_v3",
 		},
 		{
-			name: "restriction listing more zones than advertised still excludes the SKU",
+			name: "restriction listing more zones than advertised permits non-zonal placement",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_NV12s_v3", testLocation,
 					withCapability(capabilityVCPUs, "12"),
@@ -345,7 +346,7 @@ func TestSelectVMSize(t *testing.T) {
 				MinVCPUs:          8,
 				IgnoreRPAllowlist: true,
 			},
-			wantErr: ErrNoUsableVMSize,
+			want: "Standard_NV12s_v3",
 		},
 		{
 			name: "GPU selector has no fallback: non-preferred GPU SKUs are not selected",
@@ -525,11 +526,7 @@ func TestEphemeralSelectorFallsBackToArm64(t *testing.T) {
 	}
 }
 
-// TestSkuRestrictedInLocation covers the zone-aware restriction detection added
-// for zone-level SKU bans. Azure often expresses a full subscription/region ban
-// as a Zone-type restriction listing every zone rather than a Location-type
-// restriction, so a SKU whose every advertised zone is restricted must be
-// reported as restricted even though no Location-type restriction is present.
+// Zone restrictions constrain zonal placement, not availability in the region.
 func TestSkuRestrictedInLocation(t *testing.T) {
 	tests := []struct {
 		name string
@@ -547,12 +544,12 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "all advertised zones restricted is restricted",
+			name: "all advertised zones restricted does not restrict the location",
 			sku: makeSKU("Standard_D8s_v3", testLocation,
 				withZones(testLocation, "1", "2", "3"),
 				withZoneRestriction(testLocation, "1", "2", "3"),
 			),
-			want: true,
+			want: false,
 		},
 		{
 			name: "some zones restricted is not restricted",
@@ -563,12 +560,12 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "restriction covering more zones than advertised is restricted",
+			name: "restriction covering more zones than advertised does not restrict the location",
 			sku: makeSKU("Standard_NV12s_v3", testLocation,
 				withZones(testLocation, "2", "3"),
 				withZoneRestriction(testLocation, "1", "2", "3"),
 			),
-			want: true,
+			want: false,
 		},
 		{
 			name: "non-zonal SKU with no restrictions is not restricted",
@@ -664,6 +661,57 @@ func TestSpecializedVMSizeSelectorsIgnoreFamilyPolicy(t *testing.T) {
 			}
 			if err != nil || got != tt.want {
 				t.Fatalf("expected specialized SKU %q, got SKU=%q err=%v", tt.want, got, err)
+			}
+		})
+	}
+}
+
+func TestConsumerSelectorsWithZoneOnlyRestrictions(t *testing.T) {
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"],"helper_families":["standardDSv5Family"]}`)
+	skus := []*armcompute.ResourceSKU{}
+	for _, size := range []struct {
+		name  string
+		vcpus string
+	}{
+		{"Standard_D8s_v5", "8"},
+		{"Standard_D4s_v5", "4"},
+		{"Standard_D2s_v5", "2"},
+	} {
+		sku := makeSKU(size.name, testLocation,
+			withCapability(capabilityVCPUs, size.vcpus),
+			withCapability(capabilityCPUArchitecture, "x64"),
+			withZones(testLocation, "1", "2", "3"),
+			withZoneRestriction(testLocation, "1", "2", "3"),
+		)
+		sku.Family = to.Ptr("standardDSv5Family")
+		skus = append(skus, sku)
+	}
+	tests := []struct {
+		selector VMSizeSelector
+		want     string
+	}{
+		{DefaultWorkerVMSizeSelector(), "Standard_D8s_v5"},
+		{SmallWorkerVMSizeSelector(), "Standard_D4s_v5"},
+		{JumpboxVMSizeSelector(), "Standard_D2s_v5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.selector.Name, func(t *testing.T) {
+			for _, candidates := range [][]*armcompute.ResourceSKU{skus, {skus[2], skus[1], skus[0]}} {
+				got, _, err := selectVMSize(candidates, testLocation, tt.selector)
+				if err != nil || got != tt.want {
+					t.Fatalf("non-zonal selection = %q, %v; want %q", got, err, tt.want)
+				}
+			}
+			zonal := tt.selector
+			zonal.RequireZones = true
+			if got, _, err := selectVMSize(skus, testLocation, zonal); got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+				t.Fatalf("zonal selection = %q, %v; want no usable size", got, err)
+			}
+			outsidePolicy := tt.selector
+			outsidePolicy.Families = []string{"standardDASv5Family"}
+			if got, _, err := selectVMSize(skus, testLocation, outsidePolicy); got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+				t.Fatalf("out-of-policy selection = %q, %v; want no usable size", got, err)
 			}
 		})
 	}

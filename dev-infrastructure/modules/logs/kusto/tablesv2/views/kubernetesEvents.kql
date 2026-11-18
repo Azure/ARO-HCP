@@ -1,0 +1,18 @@
+// Backward-compatibility read facade for kubernetesEvents (migration step 1 / PR1).
+//
+// Thin, cheap view inheriting the legacy table name. Legacy Kubernetes events were
+// stored in two databases: service-cluster events in ServiceLogs.kubernetesEvents and
+// hosted-control-plane events in HostedControlPlaneLogs.kubernetesEvents. The facade
+// unions the new routed table (tab_kubernetesEvents) with both legacy sources so no
+// historical events are lost during the migration. Legacy data ages out by retention.
+//
+// union kind=outer tolerates minor column drift between the sources.
+// skipvalidation is required because the cross-database sources are not resolvable
+// at script-execution time (validation emulator, single-database deploy).
+.create-or-alter function with (view = true, skipvalidation = "true", docstring = "compat view: kubernetesEvents (new tab_kubernetesEvents + legacy ServiceLogs + HostedControlPlaneLogs)", folder = "views")
+kubernetesEvents() {
+    union kind=outer
+      database("AllAroHcpLogs").tab_kubernetesEvents,
+      database("ServiceLogs").kubernetesEvents,
+      database("HostedControlPlaneLogs").kubernetesEvents
+}

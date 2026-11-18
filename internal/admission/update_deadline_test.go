@@ -94,14 +94,14 @@ func TestUpdateOperationCompletionDeadline(t *testing.T) {
 				wantDuration time.Duration
 				wantError    string
 			}{
-				{name: "default resets previous deadline", wantDuration: time.Hour},
-				{name: "registered without tag", subscription: subscription, wantDuration: time.Hour},
-				{name: "empty tag", subscription: subscription, duration: "", wantDuration: time.Hour},
-				{name: "override", subscription: subscription, duration: "1h30m", wantDuration: 90 * time.Minute},
+				{name: "default resets previous deadline", wantDuration: 90 * time.Minute},
+				{name: "registered without tag", subscription: subscription, wantDuration: 90 * time.Minute},
+				{name: "empty tag", subscription: subscription, duration: "", wantDuration: 90 * time.Minute},
+				{name: "override", subscription: subscription, duration: "2h", wantDuration: 2 * time.Hour},
 				{name: "case insensitive", subscription: subscription, duration: "25m", uppercase: true, wantDuration: 25 * time.Minute},
 				{name: "minimum", subscription: subscription, duration: "1m", wantDuration: time.Minute},
-				{name: "nil subscription ignores override", duration: "25m", wantDuration: time.Hour},
-				{name: "unregistered ignores invalid tag", subscription: &coreapi.Subscription{}, duration: "invalid", wantDuration: time.Hour},
+				{name: "nil subscription ignores override", duration: "25m", wantDuration: 90 * time.Minute},
+				{name: "unregistered ignores invalid tag", subscription: &coreapi.Subscription{}, duration: "invalid", wantDuration: 90 * time.Minute},
 				{name: "invalid", subscription: subscription, duration: "invalid", wantError: "must be a valid Go duration"},
 				{name: "too short", subscription: subscription, duration: "30s", wantError: "must be at least 1m0s"},
 				{name: "zero", subscription: subscription, duration: "0s", wantError: "must be at least 1m0s"},

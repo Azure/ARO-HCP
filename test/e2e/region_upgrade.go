@@ -59,11 +59,10 @@ var _ = Describe("Region in-place upgrade", func() {
 
 			tc := framework.NewTestContext()
 
-			// Set up the upgrade barrier after NewTestContext so its DeferCleanups
-			// run before tc teardown in FILO order, unblocking other specs before
-			// Azure resource deletion begins. ARTIFACT_DIR is optional (falls back
-			// to os.TempDir() for local runs).
-			barrier, err := framework.NewUpgradeBarrier()
+			// Constructed via TestContext so DeferCleanups run before tc teardown
+			// in FILO order, unblocking other specs before Azure resource deletion
+			// begins. ARTIFACT_DIR is optional (falls back to os.TempDir() for local runs).
+			barrier, err := tc.NewUpgradeBarrier()
 			Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 			if tc.UsePooledIdentities() {

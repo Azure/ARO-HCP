@@ -160,7 +160,7 @@ func buildDomainContent(mode Mode) (string, error) {
 	}
 	if len(exemplars) > 0 {
 		sb.WriteString("\n\n## Exemplar Analyses\n\n")
-		sb.WriteString("The following are completed analyses demonstrating the expected quality, depth, and reasoning patterns.\n\n")
+		sb.WriteString("The following are historical analyses demonstrating the expected quality, depth, and reasoning patterns. Their component paths and code excerpts reflect the deployment at the time; use the architecture reference and deployed source code for the current kube-applier path.\n\n")
 		for _, content := range exemplars {
 			sb.WriteString(content)
 			sb.WriteString("\n\n---\n\n")
@@ -269,7 +269,7 @@ func BuildInitialPrompt(manifest, testError, testOutput, siblingTests, dataDir s
 	}
 
 	sb.WriteString("\n\n## Data Directory\n\n")
-	sb.WriteString(fmt.Sprintf("Pre-gathered diagnostic artifacts (traces, state files, logs) are available at: `%s`\n", dataDir))
+	fmt.Fprintf(&sb, "Pre-gathered diagnostic artifacts (traces, state files, logs) are available at: `%s`\n", dataDir)
 	sb.WriteString("Use the available tools to explore this directory and read files as needed.\n")
 	sb.WriteString("Reference findings from these data by re-evaluating the Kusto queries, not by referring to these files on disk.\n")
 
@@ -278,7 +278,7 @@ func BuildInitialPrompt(manifest, testError, testOutput, siblingTests, dataDir s
 		sb.WriteString("The following repositories are checked out at the commits that were deployed when this test ran. ")
 		sb.WriteString("Use the available tools to read files from these directories when you need to understand the source code.\n\n")
 		for repo, path := range worktreePaths {
-			sb.WriteString(fmt.Sprintf("- **%s**: `%s`\n", repo, path))
+			fmt.Fprintf(&sb, "- **%s**: `%s`\n", repo, path)
 		}
 	}
 
@@ -328,7 +328,7 @@ func BuildIntentInitialPrompt(intent, manifest, testError, testOutput, siblingTe
 	}
 
 	sb.WriteString("\n\n## Data Directory\n\n")
-	sb.WriteString(fmt.Sprintf("Pre-gathered diagnostic artifacts (traces, state files, logs) are available at: `%s`\n", dataDir))
+	fmt.Fprintf(&sb, "Pre-gathered diagnostic artifacts (traces, state files, logs) are available at: `%s`\n", dataDir)
 	sb.WriteString("Use the available tools to explore this directory and read files as needed.\n")
 	sb.WriteString("Reference findings from these data by re-evaluating the Kusto queries, not by referring to these files on disk.\n")
 
@@ -337,7 +337,7 @@ func BuildIntentInitialPrompt(intent, manifest, testError, testOutput, siblingTe
 		sb.WriteString("The following repositories are checked out at the commits deployed in the affected environment. ")
 		sb.WriteString("Use the available tools to read files from these directories when you need to understand the source code.\n\n")
 		for repo, path := range worktreePaths {
-			sb.WriteString(fmt.Sprintf("- **%s**: `%s`\n", repo, path))
+			fmt.Fprintf(&sb, "- **%s**: `%s`\n", repo, path)
 		}
 	}
 

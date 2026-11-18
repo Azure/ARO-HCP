@@ -297,7 +297,7 @@ func (c *UpgradeCoordinator) writeState(state *upgradeBarrierState) error {
 // Configuration is driven by environment variables set by the CI step registry
 // shell script (aro-hcp-test-local-upgrade-commands.sh):
 //
-//   - DEPLOY_ENV          → dev environment name (e.g. "cspr")
+//   - DEPLOY_ENV          → dev environment name (e.g. "ci01")
 //   - OVERRIDE_CONFIG_FILE → config overlay with PR image overrides
 //   - LOCATION            → Azure region
 //
@@ -337,7 +337,7 @@ func runRegionEntrypoint(ctx context.Context) error {
 }
 
 // deployEnv returns the DEPLOY_ENV environment variable, which selects the
-// templatize dev-environment (e.g. "cspr", "pers").
+// templatize dev-environment (e.g. "ci01", "pers").
 func deployEnv() string {
 	return os.Getenv(leaseenv.DeployEnvironment)
 }

@@ -33,6 +33,7 @@ func DefaultOptions() *RawOptions {
 		SourceDir: ".",
 		Environ:   os.Environ(),
 		Out:       os.Stdout,
+		ErrOut:    os.Stderr,
 	}
 	// All defaults and generator inputs come from the same environment snapshot.
 	for _, entry := range opts.Environ {
@@ -45,8 +46,6 @@ func DefaultOptions() *RawOptions {
 			opts.SharedDir = value
 		case leaseenv.DeployEnvironment:
 			opts.DeployEnvironment = value
-		case "ARM_HELPER_POOL_CATALOG":
-			opts.ARMHelperCatalog = value
 		}
 	}
 	return opts
@@ -54,13 +53,14 @@ func DefaultOptions() *RawOptions {
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 	flags := cmd.Flags()
-	flags.StringVar(&opts.SourceDir, "source-dir", opts.SourceDir, "Selected source checkout for relative catalog paths")
+	flags.StringVar(&opts.SourceDir, "source-dir", opts.SourceDir, "Selected source checkout")
 	flags.StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Shared CI directory")
 	flags.StringVar(&opts.DeployEnvironment, "deploy-env", opts.DeployEnvironment, "Deployment environment")
 	flags.StringVar(&opts.OutputFile, "output-file", opts.OutputFile, "Override output file (default shared-dir/config-override.yaml)")
-	flags.StringVar(&opts.MSIMockCatalog, "msi-mock-pool-catalog", opts.MSIMockCatalog, "MSI mock catalog (default source-dir/dev-infrastructure/openshift-ci/msi-mock-pool.yaml)")
-	flags.StringVar(&opts.ARMHelperCatalog, "arm-helper-pool-catalog", opts.ARMHelperCatalog, "ARM helper catalog (default source-dir/dev-infrastructure/openshift-ci/arm-helper-pool.yaml)")
 	flags.StringVar(&opts.HypershiftOverlay, "hypershift-override-file", opts.HypershiftOverlay, "Hypershift overlay (default shared-dir/hypershift-image-overrides.yaml)")
+	flags.StringArrayVar(&opts.RawOverrides, "raw-config-override", opts.RawOverrides, fmt.Sprintf(
+		"Set a configuration key as path.to.key=value, repeatable. The path is rooted at the override document (e.g. clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize) "+
+			"and the value is YAML. Applied after, and over, every generated value, in addition to newline-separated entries in $%s", configoverride.RawConfigOverridesEnv))
 }
 
 type RawOptions struct {
@@ -68,11 +68,11 @@ type RawOptions struct {
 	SharedDir         string
 	DeployEnvironment string
 	OutputFile        string
-	MSIMockCatalog    string
-	ARMHelperCatalog  string
 	HypershiftOverlay string
+	RawOverrides      []string
 	Environ           []string
 	Out               io.Writer
+	ErrOut            io.Writer
 }
 
 type validatedOptions struct {
@@ -89,6 +89,7 @@ type completedOptions struct {
 	paths      configoverride.Paths
 	outputFile string
 	out        io.Writer
+	errOut     io.Writer
 }
 
 type Options struct {
@@ -104,6 +105,7 @@ func NewCommand() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(command *cobra.Command, _ []string) error {
 			opts.Out = command.OutOrStdout()
+			opts.ErrOut = command.ErrOrStderr()
 			validated, err := opts.Validate()
 			if err != nil {
 				return err
@@ -127,6 +129,11 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
+	flagOverrides, err := configoverride.ParseRawOverrides(o.RawOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("--raw-config-override: %w", err)
+	}
+	input.RawOverrides = append(input.RawOverrides, flagOverrides...)
 	input.DeployEnvironment = o.DeployEnvironment
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{RawOptions: o, input: input},
@@ -138,14 +145,6 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	if outputFile == "" {
 		outputFile = filepath.Join(o.SharedDir, "config-override.yaml")
 	}
-	msiMockCatalog := o.MSIMockCatalog
-	if msiMockCatalog == "" {
-		msiMockCatalog = "dev-infrastructure/openshift-ci/msi-mock-pool.yaml"
-	}
-	armHelperCatalog := o.ARMHelperCatalog
-	if armHelperCatalog == "" {
-		armHelperCatalog = "dev-infrastructure/openshift-ci/arm-helper-pool.yaml"
-	}
 	hypershiftOverlay := o.HypershiftOverlay
 	if hypershiftOverlay == "" && o.SharedDir != "" {
 		hypershiftOverlay = filepath.Join(o.SharedDir, "hypershift-image-overrides.yaml")
@@ -154,12 +153,11 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 		completedOptions: &completedOptions{
 			input: o.input,
 			paths: configoverride.Paths{
-				MSIMockCatalog:    sourcePath(o.SourceDir, msiMockCatalog),
-				ARMHelperCatalog:  sourcePath(o.SourceDir, armHelperCatalog),
 				HypershiftOverlay: hypershiftOverlay,
 			},
 			outputFile: outputFile,
 			out:        o.Out,
+			errOut:     o.ErrOut,
 		},
 	}, nil
 }
@@ -172,13 +170,13 @@ func (o *Options) Run(_ context.Context) error {
 	if err := configoverride.WriteOverride(o.outputFile, result.YAML); err != nil {
 		return err
 	}
+	// stdout is registry data for the shell adapter; report on stderr. Values
+	// are echoed verbatim, so raw overrides must never carry secrets.
+	for _, override := range o.input.RawOverrides {
+		if _, err := fmt.Fprintf(o.errOut, "raw config override applied: %s\n", override.Entry); err != nil {
+			return err
+		}
+	}
 	_, err = fmt.Fprintln(o.out, result.OCLoginRegistries)
 	return err
-}
-
-func sourcePath(sourceDir, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(sourceDir, path)
 }

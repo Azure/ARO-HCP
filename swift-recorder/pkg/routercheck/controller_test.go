@@ -188,7 +188,8 @@ func TestControllerCachedPodsAndCancellation(t *testing.T) {
 			defer func() {
 				cancel()
 				select {
-				case <-done:
+				case err := <-done:
+					_ = err
 				case <-time.After(5 * time.Second):
 					t.Error("controller failed to stop")
 				}
@@ -250,7 +251,7 @@ func TestRuntimeFailureDoesNotStopController(t *testing.T) {
 	factory.Start(ctx.Done())
 	done := make(chan error, 1)
 	go func() { done <- ctrl.Run(ctx) }()
-	defer func() { cancel(); <-done; factory.Shutdown() }()
+	defer func() { cancel(); err := <-done; _ = err; factory.Shutdown() }()
 	for i := range 2 {
 		select {
 		case <-called:

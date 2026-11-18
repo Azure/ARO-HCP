@@ -1,4 +1,5 @@
 param cosmosDBAccountName string
+param backendManagedIdentityPrincipalId string
 param userAssignedMIs array
 param readOnlyUserAssignedMIs array = []
 
@@ -12,6 +13,7 @@ param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
 param fleetContainerMaxScale int
+param azureResourcesContainerMaxScale int
 
 var containers = [
   {
@@ -38,6 +40,12 @@ var containers = [
     partitionKeyPaths: ['/partitionKey']
     maxThroughput: fleetContainerMaxScale
   }
+  {
+    name: 'AzureResources'
+    defaultTtl: -1 // On, no default expiration
+    partitionKeyPaths: ['/partitionKey']
+    maxThroughput: azureResourcesContainerMaxScale
+  }
 ]
 
 // https://learn.microsoft.com/en-us/azure/cosmos-db/reference-data-plane-security#cosmos-db-built-in-data-contributor
@@ -46,6 +54,21 @@ param cosmosReadOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000
 
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
   name: cosmosDBAccountName
+}
+
+var readerRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+resource backendCosmosReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cosmosDbAccount.id, backendManagedIdentityPrincipalId, readerRoleDefinitionId)
+  scope: cosmosDbAccount
+  properties: {
+    roleDefinitionId: readerRoleDefinitionId
+    principalId: backendManagedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' existing = {

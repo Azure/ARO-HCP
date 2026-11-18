@@ -43,6 +43,8 @@ import (
 type verifyCiliumOperational struct {
 	ciliumNamespace     string
 	ciliumLabelSelector string
+	pollInterval        time.Duration
+	pollTimeout         time.Duration
 }
 
 func (v verifyCiliumOperational) Name() string {
@@ -64,16 +66,30 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 	}
 
 	// Wait for all cilium pods to be running
+	interval := v.pollInterval
+	if interval == 0 {
+		interval = 30 * time.Second
+	}
+	timeout := v.pollTimeout
+	if timeout == 0 {
+		timeout = 10 * time.Minute
+	}
 	var lastErr error
 	var lastErrMsg string
 	var lastNotRunningPods []string
-	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (done bool, err error) {
 		listOptions := metav1.ListOptions{}
 		if v.ciliumLabelSelector != "" {
 			listOptions = metav1.ListOptions{LabelSelector: v.ciliumLabelSelector}
 		}
 		pods, err := kubeClient.CoreV1().Pods(v.ciliumNamespace).List(ctx, listOptions)
 		if err != nil {
+			if isContextExpiration(ctx, err) {
+				if lastErr != nil {
+					lastErr = &pollObservationError{observation: lastErr, interruption: err}
+				}
+				return false, nil
+			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", v.ciliumNamespace, err)
 			lastNotRunningPods = nil
 			if msg := lastErr.Error(); msg != lastErrMsg {
@@ -334,6 +350,12 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		pods, err := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
 		if err != nil {
+			if isContextExpiration(ctx, err) {
+				if lastErr != nil {
+					lastErr = &pollObservationError{observation: lastErr, interruption: err}
+				}
+				return false, nil
+			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", namespaceName, err)
 			return false, nil
 		}

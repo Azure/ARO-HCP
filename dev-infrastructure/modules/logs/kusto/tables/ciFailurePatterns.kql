@@ -1,0 +1,73 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Complete per-computation findings, not an observation census. Retry copies
+// are allowed; readers validate and collapse them before joining retained raw
+// inputs. Multiplicity and enrichment status belong to current raw inputs.
+// Raw content is deliberately not copied: message and timings come from
+// ciTestResults. A test can report several failures with the same
+// (buildId, source, testId), so also match messageHash, the lowercase hex SHA-256
+// of the raw message (empty for an empty message, exactly what Kusto's
+// hash_sha256 returns). Finding locations are byte offsets into that message:
+//
+//     ciFailurePatterns
+//     | join kind=inner (
+//         ciTestResults | where failed | extend messageHash = hash_sha256(message)
+//       ) on buildId, source, testId, messageHash
+//
+// Failures that are identical in message still match each other; they carry the
+// same message, so the offsets stay correct.
+// Retention inherits the ServiceLogs database policy (90 days).
+.create-merge table ciFailurePatterns (
+    resultKey: string,
+    rawFingerprint: string,
+    messageHash: string,
+    extractorVersion: string,
+    resultSchemaVersion: long,
+    origin: string,
+    buildId: string,
+    source: string,
+    testId: string,
+    testName: string,
+    findings: dynamic,
+    computedAt: datetime,
+    producerCommit: string
+)
+with (
+    docstring = "Complete version-qualified CI failure findings; message and timings are joined from ciTestResults on buildId, source, testId and messageHash",
+    folder = "CI"
+)
+
+.create-or-alter table ciFailurePatterns ingestion json mapping "ciFailurePatternsMapping"
+```
+[
+  {"column":"resultKey","path":"$['resultKey']","datatype":"string"},
+  {"column":"rawFingerprint","path":"$['rawFingerprint']","datatype":"string"},
+  {"column":"messageHash","path":"$['messageHash']","datatype":"string"},
+  {"column":"extractorVersion","path":"$['extractorVersion']","datatype":"string"},
+  {"column":"resultSchemaVersion","path":"$['resultSchemaVersion']","datatype":"long"},
+  {"column":"origin","path":"$['origin']","datatype":"string"},
+  {"column":"buildId","path":"$['buildId']","datatype":"string"},
+  {"column":"source","path":"$['source']","datatype":"string"},
+  {"column":"testId","path":"$['testId']","datatype":"string"},
+  {"column":"testName","path":"$['testName']","datatype":"string"},
+  {"column":"findings","path":"$['findings']","datatype":"dynamic"},
+  {"column":"computedAt","path":"$['computedAt']","datatype":"datetime"},
+  {"column":"producerCommit","path":"$['producerCommit']","datatype":"string"}
+]
+```
+
+// Do not silently apply ADX's default 1 MiB value limit to complete findings.
+// The writer separately bounds whole rows and submission batches.
+.alter column ciFailurePatterns.findings policy encoding type='BigObject32'

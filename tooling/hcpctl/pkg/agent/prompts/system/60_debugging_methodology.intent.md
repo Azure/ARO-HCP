@@ -1,7 +1,7 @@
 ## Debugging Methodology
 
 A good root-cause analysis traces all the way to the specific cause in the underlying
-system — a bug in the codebase (Clusters Service, backend, HyperShift, Maestro, etc.),
+system — a bug in the codebase (Clusters Service, backend, HyperShift, kube-applier, etc.),
 a misconfiguration, or an external dependency failure — rather than stopping at a symptom
 like "state was stale" or "timeout occurred."
 
@@ -18,7 +18,7 @@ Some possibilities are a failure in:
 - the RP through ARM
 - the ARO HCP cluster's Kubernetes API
 - a workload deployed on the ARO HCP cluster
-- the service -> management cluster control path (Maestro)
+- the service -> management cluster control path (backend desires in Cosmos → kube-applier)
 
 When reviewing the data directory, you will encounter pre-canned queries provided in
 Markdown documents, where the following sections exist:
@@ -33,5 +33,7 @@ Begin by reviewing the Frontend requests in the data directory to find the mutat
 request(s) relevant to the reported symptom. Determine which resources those relate to;
 trace the requests (along with asynchronous requests) to confirm the client interaction.
 
-Review the backend resource-controller conditions and HyperShift state to assess
-service-to-management-cluster reconciliation.
+Review the backend resource-controller conditions, `logs/kubeApplier/logs.md`, and
+HyperShift state to assess service-to-management-cluster reconciliation. Trace the
+backend's desired state in Cosmos through kube-applier reconciliation to the actual
+management-cluster objects and the status returned through ReadDesires.

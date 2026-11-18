@@ -21,7 +21,10 @@ export GOTOOLCHAIN ?= local
 
 # There is currently no convenient way to run commands against a whole Go workspace
 # https://github.com/golang/go/issues/50745
-MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
+# Read workspace membership without loading dependencies, so tidy/vendor can
+# repair an inconsistent vendor tree after dependency or workspace changes.
+MODULE_DIRS := $(abspath $(shell go work edit -json | jq -r '.Use[].DiskPath'))
+MODULES := $(addsuffix /...,$(MODULE_DIRS))
 TIDY_MODULES := $(MODULES) $(abspath image-sync/oc-mirror/acrauth)/...
 
 all: test lint
@@ -80,7 +83,7 @@ verify-generate: generate
 
 generate-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go internal/api/azureresourcesapi/zz_generated.deepcopy.go
 .PHONY: generate-deepcopy
 
 deepcopy: generate-deepcopy
@@ -121,7 +124,12 @@ verify-tool-automation: $(JQ)
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
-	python3 -m unittest discover -s .github/scripts -p 'test_agentic_pr_maintenance.py'
+	go test -C tooling/depctl -timeout 600s ./cmd/maintenance ./cmd/dependabot/... ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi
+	@set -e; directory=$$(mktemp -d); trap 'rm -rf "$$directory"' EXIT; \
+		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"; \
+		export DEPCTL_BINARY="$$directory/depctl"; \
+		python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'; \
+		python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format
@@ -152,14 +160,15 @@ verify-yamlfmt: yamlfmt
 
 mocks: generate-deepcopy $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name 'mock_*.go' -exec $(GOIMPORTS) -w -local github.com/Azure/ARO-HCP {} +
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
-	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name '*.go' -exec $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {} +
+.PHONY: licenses
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
@@ -170,7 +179,7 @@ lint-fix: $(GOLANGCI_LINT)
 .PHONY: lint-fix
 
 fmt: $(GOIMPORTS)
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
+	find $(MODULE_DIRS) -type d -name vendor -prune -o -type f -name '*.go' -exec $(GOIMPORTS) -w -local github.com/Azure/ARO-HCP {} +
 .PHONY: fmt
 
 yamlfmt: $(YAMLFMT) $(YAMLWRAP)
@@ -186,10 +195,25 @@ work-sync:
 	go work sync
 .PHONY: work-sync
 
-tidy: $(TIDY_MODULES:/...=.tidy) work-sync
+tidy: $(TIDY_MODULES:/...=.tidy)
+	$(MAKE) work-sync
+	# Sync may upgrade dependencies; tidy again to settle their checksum files.
+	$(MAKE) $(TIDY_MODULES:/...=.tidy)
+.PHONY: tidy
 
 %.tidy:
-	cd $(basename $@) && go mod tidy
+	cd $(basename $@) && GOWORK=off go mod tidy
+
+# Finish all module updates and workspace synchronization before vendoring,
+# including when invoked with make -j.
+vendor: tidy
+	go work vendor
+	cd image-sync/oc-mirror/acrauth && GOWORK=off go mod vendor
+.PHONY: vendor
+
+verify-vendor:
+	bash hack/verify-vendor.sh
+.PHONY: verify-vendor
 
 bump-aro-tools: $(MODULES:/...=.bump-aro-tools) tidy
 
@@ -211,6 +235,10 @@ record-nonlocal-e2e: $(GOJQ)
 build-hcpctl:
 	$(MAKE) -C tooling/hcpctl build
 .PHONY: build-hcpctl
+
+build-depctl:
+	$(MAKE) -C tooling/depctl build
+.PHONY: build-depctl
 
 e2e/local: e2e-local/setup build-hcpctl
 	$(MAKE) e2e-local/run
@@ -249,7 +277,7 @@ e2e-local/run-test:
 
 mega-lint:
 	$(CONTAINER_ENGINE) run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
+		-e FILTER_REGEX_EXCLUDE='(^|/)vendor/|hypershiftoperator/deploy/crds/|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
@@ -379,7 +407,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder
+services_mgmt_pipelines = secret-sync-controller hypershiftoperator mgmt-agent swift-recorder
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -416,12 +444,12 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
-	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name 'zz_fixture_TestHelmTemplate*' -exec rm -f {} +
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 
 test-infrastructure:
-	BICEP="$(BICEP)" go test -C dev-infrastructure system_pool_only_test.go infrastructure_identities_test.go
+	BICEP="$(BICEP)" go test -C dev-infrastructure infrastructure_identities_test.go
 .PHONY: test-infrastructure
 
 test-helm-fixtures: test-infrastructure
@@ -519,6 +547,7 @@ latest-services-override: $(YQ)
 	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
 	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
 	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
+	$(MAKE) -C swift-recorder record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_swift-recorder-override.yaml &
 	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
 	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
 	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml &
@@ -529,6 +558,7 @@ latest-services-override: $(YQ)
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_swift-recorder-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
@@ -570,7 +600,11 @@ dev-ci-local-run:
 # definitions and role assignments (requires Owner / User Access Administrator
 # on the target subscriptions). Not part of the dev-ci postsubmit; run by an
 # OWNERS-group member. See docs/ci/dev-ci-topology.md.
+# The Shell steps of the privileged pipelines run the locally built
+# tooling/entra-app-credentials binary, so (re)build it first; the tool's own
+# Makefile only rebuilds when sources changed.
 dev-ci-privileged-local-run:
+	$(MAKE) -C tooling/entra-app-credentials
 	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Privileged" STEP_CACHE_DIR=""
 .PHONY: dev-ci-privileged-local-run
 
@@ -700,6 +734,17 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
+
+# Component updater (shared version bumper; Istio wired today — tooling/component-updater/README.md)
+COMPONENT ?=
+SUBSCRIPTION_ID ?=
+component-updater-check:
+	@$(MAKE) -C tooling/component-updater check COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-check
+
+component-updater-update:
+	@$(MAKE) -C tooling/component-updater update COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-update
 
 # Tool version bumper
 update-tool-versions:

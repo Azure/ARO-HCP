@@ -24,6 +24,15 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 @description('Custom role name for the MSI mock principal')
 param msiMockRoleName string = 'dev-msi-mock'
 
+@description('Custom role name for the data-plane disk CSI operator')
+param dpDiskCsiOperatorRoleName string = 'ARO HCP Data Plane Disk CSI Operator'
+
+@description('Custom role name for the data-plane file CSI operator')
+param dpFileCsiOperatorRoleName string = 'ARO HCP Data Plane File CSI Operator'
+
+@description('Custom role name for the data-plane image registry operator')
+param dpImageRegistryOperatorRoleName string = 'ARO HCP Data Plane Image Registry Operator'
+
 var contributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'b24988ac-6180-42a0-ab88-20f7382dd24c'
@@ -111,6 +120,76 @@ resource msiMockRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Compute/diskEncryptionSets/read'
         ]
         notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+// Data-plane operator role definitions only. Not assigned by this module.
+resource dpDiskCsiOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpDiskCsiOperatorRoleName)
+  properties: {
+    roleName: '${dpDiskCsiOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the Azure Disk CSI driver'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Compute/virtualMachines/read'
+          'Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read'
+        ]
+        notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource dpFileCsiOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpFileCsiOperatorRoleName)
+  properties: {
+    roleName: '${dpFileCsiOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the Azure File CSI driver'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Storage/storageAccounts/listKeys/action'
+        ]
+        notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource dpImageRegistryOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpImageRegistryOperatorRoleName)
+  properties: {
+    roleName: '${dpImageRegistryOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the image registry operator'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Storage/storageAccounts/blobServices/generateUserDelegationKey/action'
+        ]
+        notActions: []
+        dataActions: [
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/move/action'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete'
+        ]
+        notDataActions: []
       }
     ]
     assignableScopes: [

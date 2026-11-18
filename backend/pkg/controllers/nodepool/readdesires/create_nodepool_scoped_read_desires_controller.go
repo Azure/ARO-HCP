@@ -156,7 +156,10 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// (see internal/ocm/convert.go's BuildCSNodePool), so the target name here must match.
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		return nil
 	}
@@ -204,9 +207,7 @@ func buildNodePoolReadDesire(
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the
-// backend uses for the NodePool mirror. Lowercase form of the existing
-// MaestroBundleInternalName so the downstream ManagementClusterContent
-// document path stays stable.
+// backend uses for the NodePool mirror.
 const readDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
 // nodePoolTarget builds the ResourceReference that points at the

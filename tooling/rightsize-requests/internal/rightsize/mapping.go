@@ -64,7 +64,6 @@ var mapping = map[key]Target{
 	{"clusters-service", "clusters-service-server"}: {Service: "clustersService", ResourcePath: "clustersService.k8s.resources"},
 	{"fleet", "fleet-controller"}:                   {Service: "fleet", ResourcePath: "fleet.k8s.resources"},
 	{"kube-applier", "kube-applier"}:                {Service: "kubeApplier", ResourcePath: "kubeApplier.k8s.resources"},
-	{"maestro", "maestro-server"}:                   {Service: "maestro.server", ResourcePath: "maestro.server.k8s.resources"},
 	{"mgmt-agent", "mgmt-agent-controller"}:         {Service: "mgmtAgent", ResourcePath: "mgmtAgent.k8s.resources"},
 	{"secret-sync-controller", "manager"}:           {Service: "secretSyncController", ResourcePath: "secretSyncController.k8s.resources"},
 	{"sessiongate", "sessiongate-controller"}:       {Service: "sessiongate", ResourcePath: "sessiongate.k8s.resources"},

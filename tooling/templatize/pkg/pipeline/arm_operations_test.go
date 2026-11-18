@@ -27,11 +27,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 // fakeTransport returns canned HTTP responses keyed by subscription ID extracted from the request URL.
@@ -209,6 +213,62 @@ func TestNewCachedOperationsClientGetter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Same(t, client1, client2, "should return cached client on second call")
 	})
+}
+
+func TestDeploymentRetryPolicyClients(t *testing.T) {
+	t.Parallel()
+	for _, clientKind := range []string{"deployment", "operations", "cross-subscription operations", "resource group"} {
+		t.Run(clientKind, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			opts := &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+				PerCallPolicies: []policy.Policy{azclient.NewLROPollerRetryPolicy(&azclient.LROPollerRetryPolicyOptions{
+					Backoff:             &wait.Backoff{Duration: time.Millisecond, Steps: 3},
+					RetryDeploymentGETs: true,
+				})},
+				Retry: policy.RetryOptions{MaxRetries: -1},
+				Transport: &fakeTransport{interceptor: func(req *http.Request) (*http.Response, error) {
+					calls++
+					if clientKind == "cross-subscription operations" {
+						assert.Contains(t, req.URL.Path, "/subscriptions/sub-2/")
+					}
+					return &http.Response{
+						StatusCode: http.StatusNotFound,
+						Header:     http.Header{"Content-Type": {"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"DeploymentNotFound"}}`)),
+					}, nil
+				}},
+			}}
+			cred := &fakeCredential{}
+			deploymentClient, err := armresources.NewDeploymentsClient("sub-1", cred, opts)
+			require.NoError(t, err)
+			operationsClient, err := armresources.NewDeploymentOperationsClient("sub-1", cred, opts)
+			require.NoError(t, err)
+			resourceGroupClient, err := armresources.NewResourceGroupsClient("sub-1", cred, opts)
+			require.NoError(t, err)
+			getter := NewCachedOperationsClientGetter("sub-1", operationsClient, cred, opts)
+			wantCalls := 3
+			switch clientKind {
+			case "deployment":
+				_, err = deploymentClient.Get(t.Context(), "rg", "deployment", nil)
+			case "operations", "cross-subscription operations":
+				subscription := "sub-1"
+				if clientKind == "cross-subscription operations" {
+					subscription = "sub-2"
+				}
+				client, clientErr := getter(subscription)
+				require.NoError(t, clientErr)
+				_, err = client.NewListPager("rg", "deployment", nil).NextPage(t.Context())
+			case "resource group":
+				wantCalls = 1
+				_, err = resourceGroupClient.Get(t.Context(), "rg", nil)
+			}
+			var responseErr *azcore.ResponseError
+			require.ErrorAs(t, err, &responseErr)
+			assert.Equal(t, "DeploymentNotFound", responseErr.ErrorCode)
+			assert.Equal(t, wantCalls, calls)
+		})
+	}
 }
 
 func TestFetchOperationsForCrossSubscription(t *testing.T) {

@@ -4,12 +4,12 @@ digraph cluster_delete {
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
   resources [label="ClusterResources\nordered applyDesireRemovalChain\ndrop cascade-covered desire documents\nset selected desires to Type=Delete and wait\nManagedCluster / ingress / HostedCluster\nthen SWIFT resources, namespaces last", fillcolor="#e6f0fa", color="#35648a"];
-  ingress [label="IngressCertificate\ndelete known ApplyDesire/ReadDesire names\nno Kubernetes deletes", fillcolor="#e6f0fa", color="#35648a"];
+  ingress [label="IngressServingCertificateK8sResources +\nKubeAPIServerServingCertificateK8sResources\ndelete known ApplyDesire/ReadDesire names\nno Kubernetes deletes", fillcolor="#e6f0fa", color="#35648a"];
   ordered [label="Kube-applier / HyperShift / Kubernetes\nManagedCluster → shared ingress manifests\n→ HostedCluster (NodePool cleanup)\n→ PodNetworkInstance → PodNetwork\n→ cluster namespaces\nWait for deletion at each stage", fillcolor="#fff0da", color="#b27624"];
   stuck_pvc [label="Kubernetes: terminating control-plane namespace\nDeleting PVC held by snapshot source finalizer\n(conditional stall)", fillcolor="#fff0da", color="#b27624"];
   snapshot_cleanup [label="SnapshotPVCFinalizerCleanupController\n(mgmt-agent)", fillcolor="#e6f0fa", color="#35648a"];
   pvc_released [label="PVC snapshot finalizer released\nKubernetes can finish namespace teardown", fillcolor="#e4f2e5", color="#4c8053"];
-  drained [label="ClusterResources\npurge completed ApplyDesires + paired reads\nfinally sweep owned orphan ReadDesires", fillcolor="#e6f0fa", color="#35648a"];
+  drained [label="ClusterResources\npurge completed ApplyDesires + paired reads\nfinally sweep owned orphan ReadDesires\nKAS certificate names excluded throughout", fillcolor="#e6f0fa", color="#35648a"];
   dispatch [label="ClusterClusterServiceDelete\nDispatch\nrecover pending ID before CS DELETE", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];

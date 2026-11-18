@@ -27,6 +27,7 @@ import (
 func TestInfrastructureIdentityDeclarations(t *testing.T) {
 	for _, file := range []string{
 		"templates/svc-cluster.bicep",
+		"templates/svc-cluster-infra.bicep",
 		"templates/mgmt-infra.bicep",
 		"modules/aks-cluster-base.bicep",
 		"modules/aks-cluster-post.bicep",
@@ -67,7 +68,6 @@ func compileIdentityTemplate(t *testing.T, file string, result any) {
 func TestManagementIdentityMappingIsGuarded(t *testing.T) {
 	for _, file := range []string{
 		"modules/mgmt-agent/mgmt-agent-lookup.bicep",
-		"modules/maestro/maestro-agent-lookup.bicep",
 		"templates/kube-applier-lookup.bicep",
 		"templates/image-puller-lookup.bicep",
 		"templates/output-mgmt-cluster.bicep",
@@ -151,7 +151,7 @@ func TestPostgresUsesSelectedIdentityResourceGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	steps := strings.Split(string(data), "\n  - name: ")
-	for _, name := range []string{"cluster-output", "cs-postgres-access", "maestro-postgres-access"} {
+	for _, name := range []string{"cluster-output", "cs-postgres-access"} {
 		found := false
 		for _, step := range steps {
 			if !strings.HasPrefix(step, name+"\n") {

@@ -1,0 +1,18 @@
+// Backward-compatibility read facade for kubeApplierLogs (migration step 1 / PR1).
+//
+// This thin, computationally-cheap view inherits the legacy table name so existing
+// readers keep working unchanged while the write path migrates to AllAroHcpLogs.
+// It unions the new routed table (tab_kubeApplierLogs, fed by the rawLogs update policy) with
+// the legacy ServiceLogs.kubeApplierLogs table, so the facade returns both new and pre-cutover
+// data. During PR1 the forwarder still writes ServiceLogs.kubeApplierLogs, so the new side is
+// empty until the forwarder is cut over (PR2); legacy data ages out by retention.
+//
+// union kind=outer tolerates minor column drift between the two sources.
+// skipvalidation is required because the cross-database sources are not resolvable
+// at script-execution time (validation emulator, single-database deploy).
+.create-or-alter function with (view = true, skipvalidation = "true", docstring = "compat view: kubeApplierLogs (new tab_kubeApplierLogs + legacy ServiceLogs.kubeApplierLogs)", folder = "views")
+kubeApplierLogs() {
+    union kind=outer
+      database("AllAroHcpLogs").tab_kubeApplierLogs,
+      database("ServiceLogs").kubeApplierLogs
+}

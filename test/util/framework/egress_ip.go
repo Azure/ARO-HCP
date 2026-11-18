@@ -17,6 +17,7 @@ package framework
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 )
 
 // EgressIPGVR identifies the cluster-scoped OVN-Kubernetes EgressIP custom
@@ -52,7 +54,13 @@ func LabelNodeEgressAssignable(ctx context.Context, adminRESTConfig *rest.Config
 	}
 
 	patch := fmt.Appendf(nil, `{"metadata":{"labels":{%q:""}}}`, EgressAssignableLabel)
-	if _, err := kubeClient.CoreV1().Nodes().Patch(ctx, nodeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+	err = retry.OnError(retry.DefaultBackoff, func(err error) bool {
+		return apierrors.IsForbidden(err) && strings.Contains(err.Error(), "autoscaling.openshift.io/ManagedNode infra config cache not synchronized")
+	}, func() error {
+		_, err := kubeClient.CoreV1().Nodes().Patch(ctx, nodeName, types.MergePatchType, patch, metav1.PatchOptions{})
+		return err
+	})
+	if err != nil {
 		return fmt.Errorf("failed to apply %s label to node %q: %w", EgressAssignableLabel, nodeName, err)
 	}
 	return nil

@@ -73,17 +73,6 @@ make -C config materialize
 
 Run this from the repo root (`/path/to/ARO-HCP`).
 
-#### ACM components (acm-operator, acm-mce)
-
-If any `acm-*` component was updated, run ALL of the following from the repo root:
-
-```bash
-make -C config materialize
-make -C acm helm-charts
-make update-helm-fixtures
-make yamlfmt
-```
-
 ### Commit and PR Strategy
 
 All bump changes (image digest update, rendered configs, fixtures) go into a
@@ -120,8 +109,7 @@ To preview changes without writing:
 
 ### Repository Version Upgrade
 
-Some components create new Quay repos for each y-stream (minor) version (e.g.
-`acm-operator-bundle-acm-216` → `acm-operator-bundle-acm-217` for ACM 2.16 → 2.17). The
+Some components create new Quay repos for each y-stream (minor) version. The
 `update --repositories` mode detects when a next y-stream repo appears on
 Quay and updates the config files. Components opt in via the
 `repoVersionUpgrade` field in `config.yaml`.
@@ -142,12 +130,10 @@ cd tooling/image-updater
 make update-repositories
 ```
 
-After running `update-repositories`, follow the same post-bump steps as ACM
-component updates:
+After running `update-repositories`, rematerialize and refresh fixtures:
 
 ```bash
 make -C config materialize
-make -C acm helm-charts
 make update-helm-fixtures
 make yamlfmt
 ```

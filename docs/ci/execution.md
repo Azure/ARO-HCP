@@ -35,7 +35,7 @@ When investigating memory pressure, distinguish the traced build from query anal
 DEV PR validation combines fast repository checks with an end-to-end path that can exercise unmerged service and infrastructure changes:
 
 - required build and simulation jobs such as `images` and `frontend-simulation`
-- the always-run and required `e2e-parallel` job
+- the required `e2e-parallel` and `e2e-parallel-inplace-upgrade` jobs
 - DEV-specific environment provisioning through the `aro-hcp-local-e2e` workflow in `openshift/release`
 
 This is the only PR mode that provisions the RP footprint on demand as part of the job run. That makes DEV PR CI the place to validate unmerged RP changes and shared deployment artifacts such as pipeline definitions, Helm charts, Bicep templates, and alerting. It is still not a perfect proxy for higher-environment rollouts, because create-from-scratch CI behavior and in-place updates exercise different paths.
@@ -316,6 +316,42 @@ For every environment, each test or spec that creates Azure resources gets its o
 - in **INT**, **STG**, and **PROD**, the request flows through ARM into the environment's RP footprint in another tenant
 
 For tests that create HCP clusters, the RP creates the cluster resource back into that test's resource group. Not every test reaches this point; negative and validation tests may only exercise API behavior without creating a cluster.
+
+### Run Cost Attribution
+
+In DEV, a Prow job that opts in tags the resource groups it creates with `jobID.aro-hcp-ci.redhat.com=<BUILD_ID>`. Cost Management tag inheritance on the E2E subscriptions then applies that tag to the usage records of everything inside those groups, so one filter shows a job's spend across subscriptions:
+
+- opting in means setting `RUN_COST_TAG_VALUE` in the job's openshift/release configuration; the literal `BUILD_ID` resolves to this job's Prow build ID (ci-operator configuration cannot expand `$(BUILD_ID)` itself). Jobs that do not set the variable are never tagged
+- the config override generator (`aro-hcp-tests infra build-config-override`, sourced through `hack/ci/build-config-override.sh`) adds the tag to the service and management AKS cluster tags, replacing the tag defaults ci00/ci01 otherwise inherit from `config/config.yaml`; AKS copies them onto each node resource group
+- `hack/ci/provision-environment.sh` resolves the same `RUN_COST_TAG_VALUE` and passes `--resource-group-tags` to templatize, which applies the tags to the resource groups the run creates or reuses
+- the E2E framework tags each test resource group at creation
+
+HCP clusters' RP-managed resource groups are not tagged: the RP creates them without tags, so their worker spend is not yet attributed to a job.
+
+Shared resources such as the leased identity pools, global Key Vault, and registries are never tagged with a job ID.
+
+The deprovision step also uses the tag to find an aborted job's test resource groups (`cleanup resource-groups --job-id`).
+
+### Experimental Configuration Overrides
+
+A job can change any configuration key for one run without a dedicated change in this repository. Set `RAW_CONFIG_OVERRIDES` in the job's openshift/release configuration (the `aro-hcp-provision-environment` step declares it) to one `path.to.key=value` entry per line:
+
+```yaml
+env:
+  RAW_CONFIG_OVERRIDES: |
+    clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize=Standard_D16ads_v6
+    clouds.dev.environments.ci00.regions.westus3.mgmt.aks.userAgentPool.maxCount=4
+```
+
+The step wrapper, `hack/ci/provision-environment.sh` and the generator live in this repository, so an experiment never needs to merge: open an openshift/release PR that sets the variable on a job and run `/pj-rehearse` on it.
+
+- the path is rooted at the override document, which has the shape of `config/config.yaml`. The author picks the overlay that must win: an entry under `regions.<region>` in `config/config.yaml` beats the same key under `defaults`, so override that region entry instead (or as well)
+- the value is YAML: `3` is an integer, `true` a boolean, `"3"` a string, and `[a, b]` or `{x: 1}` are collections. Only the first `=` separates path from value, so values may contain `=`. Quote values containing `: ` or ` #`
+- entries replace the value at exactly that key, after, and over, every generated value and the Hypershift overlay; sibling generated keys are kept (for example the healthcheck `minCount`). `null` clears a key
+- two entries that set the same key, or a key inside another entry's value, fail instead of depending on order
+- the resolved configuration is schema-validated downstream, so a misspelled key (for example `vmSizee`) fails the provision with `additional properties ... not allowed` instead of being ignored
+- applied entries are echoed on stderr and the resolved `config.yaml` lands in the job artifacts. Values are logged verbatim, so never use this for secrets
+- `aro-hcp-tests infra build-config-override --raw-config-override path=value` (repeatable) does the same locally and is combined with the environment variable
 
 ### Cleanup Handoff
 

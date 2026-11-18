@@ -136,13 +136,8 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 		}
 	}
 
-	// Excluded principal IDs are resolved from the identities the MSI and data-plane identity
-	// controllers mirror onto the ServiceProviderCluster. If those maps are empty, resolution can
-	// only fail, so there is nothing to do yet; wait for the resolution controllers to populate them.
-	if len(serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities) == 0 {
-		return false
-	}
-	if len(serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities) == 0 {
+	// Wait for all configured principal IDs before reconciling deny assignments.
+	if !c.principalIDsResolvable(cluster, serviceProviderCluster) {
 		return false
 	}
 
@@ -156,6 +151,47 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 		return false
 	}
 	return true
+}
+
+// principalIDsResolvable checks the same legacy identity fields used by
+// resolvePrincipalID. Empty or partially resolved identity maps cannot supply
+// the complete set of excluded principal IDs.
+func (c *clusterDenyAssignmentSyncer) principalIDsResolvable(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	controlPlaneIdentities := serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities
+	dataPlaneIdentities := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities
+	if len(controlPlaneIdentities) == 0 || len(dataPlaneIdentities) == 0 {
+		return false
+	}
+	for _, identity := range controlPlaneIdentities {
+		if identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
+			return false
+		}
+	}
+	for _, identity := range dataPlaneIdentities {
+		if identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 || identity.RetrievalError != nil {
+			return false
+		}
+	}
+	serviceManagedIdentity := serviceProviderCluster.Status.MSIManagedIdentities.ServiceManagedIdentity
+	if serviceManagedIdentity == nil || serviceManagedIdentity.PrincipalID == nil || len(*serviceManagedIdentity.PrincipalID) == 0 {
+		return false
+	}
+
+	// Also check the configured identities so a non-empty but incomplete map
+	// cannot allow reconciliation to fail later in resolvePrincipalID.
+	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	for _, identityResourceID := range identities.ControlPlaneOperators {
+		if _, err := resolvePrincipalID(serviceProviderCluster, identityResourceID); err != nil {
+			return false
+		}
+	}
+	for _, identityResourceID := range identities.DataPlaneOperators {
+		if _, err := resolvePrincipalID(serviceProviderCluster, identityResourceID); err != nil {
+			return false
+		}
+	}
+	_, err := resolvePrincipalID(serviceProviderCluster, identities.ServiceManagedIdentity)
+	return err == nil
 }
 
 func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster) error {

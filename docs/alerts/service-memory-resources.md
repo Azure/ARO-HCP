@@ -33,7 +33,7 @@ warm-up data (for example, right after a pod starts or a scrape gap).
 
 These alerts cover all ARO-HCP service namespaces:
 `aro-hcp`, `aro-hcp-admin-api`, `aro-hcp-exporter`, `arobit`, `clusters-service`,
-`fleet`, `kube-applier`, `maestro`, `mgmt-agent`, `monitoring`, `prometheus`,
+`fleet`, `kube-applier`, `mgmt-agent`, `monitoring`, `prometheus`,
 `secret-sync-controller`, `sessiongate`.
 
 Only containers with a configured request will fire (the PromQL join against

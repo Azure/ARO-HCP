@@ -2,63 +2,41 @@
 
 ## RP Frontend
 
-- **Purpose**: The RP frontend is the primary regional API entry point for the ARO HCP service.
-- **Main Responsibilities**:
-  - Translates ARM API requests to Cluster Service API requests
-  - Authentication and authorization with the help of MISE
-- **Ingress**: Istio ingress gateway via AKS ingress public IP
-
-* It keeps track of cluster state in CosmosDB
-* It delegates authentication to [MISE](../frontend/deploy/charts/mise) through an Istio [AuthorizationPolicy](../frontend/deploy/templates/ext-authz.authorizationpolicy.yaml)
-* It delegates the HCP creation to Clusters Service
-* Communication with Clusters Service is done via the Istio with mTLS and policies in place
+* Serves the ARM resource API through the Istio ingress gateway, with authentication and authorization through MISE
+* Converts API versions, defaults and validates requests, and runs admission using state loaded from CosmosDB
+* Persists accepted resource intent and asynchronous operation records in CosmosDB
+* Serves resource and operation state from CosmosDB; management-cluster information comes from provider state published by the backend
 
 ## RP Backend
 
-* Updates the state of the hosted control plane in CosmosDB to support async operations
+* Reconciles resource intent from CosmosDB to drive cluster and node-pool creation, updates and deletion
+* Calls Clusters Service APIs and reconciles Azure resources and service-provider configuration
+* Retrieves manifests from Clusters Service, combines them with backend-owned Kubernetes resources and settings, and writes ApplyDesire documents for kube-applier
+* Consumes ReadDesire observations and updates resource state, provider state and asynchronous operation status in CosmosDB
 
 ## Clusters Service
 
-* orchestrates HCP creation by
-  * provisioning Azure cloud resources within the customer tenant
-    * Loadbalancer
-    * DNS zone
-  * ... and ARO HCP service tenants
-    * DNS records and delegations to the customer DNS zone
-  * placing Hypershift related manifests onto the management clusters (via Maestro) to drive the actual control plane creation
-* provide an opinionated API for day 2 operations like
-  * node pool management
-  * upgrade management
-  * breakglass credential management
-* Clusters Service communicates with the Maestro Server via GRPC over Istio
-* Clusters Service is not exposed outside of the service cluster
+Clusters Service remains a stateful provisioning service within the backend's ARM lifecycle orchestration. It stores its cluster, node-pool, upgrade-policy and generated-resource records in PostgreSQL and runs workers to advance their lifecycle.
 
-## Maestro Server
+* Exposes internal APIs for clusters, node pools, external authentication, autoscaling and upgrade policies
+* Runs cluster provisioning, update and deletion workflows, and node-pool validation, provisioning, upgrade and deletion workflows
+* Provisions Azure infrastructure, including egress public IPs and load balancers, SWIFT subnet delegation and internal load balancing, DNS, and network security group associations
+* Retrieves managed-identity details and credentials, provisions OIDC discovery/JWKS material and identity federation, and provisions TLS certificates when enabled
+* Generates and persists Kubernetes resources, including HostedCluster, NodePool and SWIFT networking resources; the backend retrieves these through the cluster-resources API and delivers them as ApplyDesires
+* Creates its own HostedCluster and NodePool ReadDesires in CosmosDB and consumes kube-applier observations to update installation, readiness, replica and upgrade state in PostgreSQL
+* Runs ordered cleanup of its Azure resources, credentials and ReadDesires during deletion, then archives its cluster record
 
-* In a nutshell, Maestro is a `kubectl apply over MQTT` service to bridge the gap between Clusters Service and the management cluster
-* The Maestro Server is transfering `ManifestWork` resources from Clusters Service to the management cluster
-* ... and transfers status back for Clusters Service to read (e.g. `HostedCluster` status)
-* The Maestro Server runs on the service cluster in the `maestro` namespace
-* The Maestro Server is not exposed outside of the service cluster
-* ... because only Clusters Service and Backplane need to access it
-* It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consumes it via CSI secret store
+Azure responsibilities are shared with the backend. For example, the backend creates the managed resource group before submitting the cluster to CS; CS verifies it and retains a create-if-absent path. Operator role assignments on that group are normally handled by the backend; CS only performs them when explicitly enabled by the cluster property. CS lifecycle state feeds backend reconciliation, while the backend determines the ARM operation result.
 
+## Kube Applier
 
-## Maestro Agent
-
-* The Maestro Agent is the client component of Maestro running on each management cluster
-* ... receiving `ManifestWork` resources from the Maestro Server via MQTT (Azure Eventgrid Namespaces)
-* ... applying them to the management cluster
-* ... and sending status updates back to the Maestro Server
-* The Maestro Agent runs on the management cluster in the `maestro` namespace
-* It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consumes it via CSI secret store
-
+* Runs on each management cluster
+* Reconciles ApplyDesire documents in CosmosDB by applying or deleting Kubernetes resources
+* Mirrors requested Kubernetes resources into ReadDesire documents consumed by the RP Backend and Clusters Service
 
 ## Hypershift
 
 * Hypershift is an operator for hosted controlplanes running on the management cluster in the `hypershift` namespace
-* `HostedCluster` CRs are create by Clusters Service in `ocm-xxx-${CLUSTER_ID}` namespaces (via Maestro)
+* `HostedCluster` manifests generated by Clusters Service are applied by kube-applier in hosted cluster namespaces
 * Hypershift reacts to `HostedCluster` CRs and provisiones control planes for each of them
 * ... by creating an `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace to host the control plane pods, secrets, etc.

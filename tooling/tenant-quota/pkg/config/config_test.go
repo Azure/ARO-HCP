@@ -35,11 +35,36 @@ func minimalValidTenant() TenantConfig {
 }
 
 // minimalValidConfig returns a Config with all required fields and no optional ones.
+// The failure-pattern controller always runs, so its Kusto inputs are required.
 func minimalValidConfig() Config {
 	return Config{
 		Tenants: []TenantConfig{minimalValidTenant()},
+		CIJobOutcomes: CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames:   KustoTableConfig{Table: "ciTestNames"},
+			TestResults: KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: CIFailurePatternsConfig{
+			Results: KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
 	}
 }
+
+// failurePatternsYAML is the runtime YAML the always-on failure-pattern controller needs.
+const failurePatternsYAML = `
+ciJobOutcomes:
+  clusterURI: "http://localhost:8080"
+  ingestionURI: "http://localhost:8081"
+  database: local
+  testNames:
+    table: ciTestNames
+  testResults:
+    table: ciTestResults
+ciFailurePatterns:
+  results:
+    table: ciFailurePatterns
+    ingestionMapping: ciFailurePatternsMapping
+`
 
 // writeYAML writes content to a temp file and returns the path.
 func writeYAML(t *testing.T, content string) string {
@@ -295,16 +320,11 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "valid subscriptions",
-			cfg: Config{
-				Tenants: []TenantConfig{
-					func() TenantConfig {
-						tenant := minimalValidTenant()
-						tenant.Subscriptions = []SubscriptionConfig{
-							{Name: "prod", Regions: []string{"eastus", "westus"}},
-						}
-						return tenant
-					}(),
-				},
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Tenants[0].Subscriptions = []SubscriptionConfig{
+					{Name: "prod", Regions: []string{"eastus", "westus"}},
+				}
 			},
 		},
 	}
@@ -360,7 +380,7 @@ func TestLoadFromFile(t *testing.T) {
 			name: "valid",
 			setup: func(t *testing.T) string {
 				t.Helper()
-				return writeYAML(t, `
+				return writeYAML(t, failurePatternsYAML+`
 exitOnPanic: true
 prow:
   enabled: true
@@ -432,7 +452,7 @@ tenants:
 			name: "ignores legacy role assignment limit",
 			setup: func(t *testing.T) string {
 				t.Helper()
-				return writeYAML(t, `
+				return writeYAML(t, failurePatternsYAML+`
 tenants:
   - tenantId: "tid-1"
     servicePrincipalClientId: "sp-id"
@@ -835,5 +855,40 @@ func TestCIJobOutcomesControllerSettingsValidation(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestFailurePatternsIndependentOfDiscovery(t *testing.T) {
+	cfg := minimalValidConfig()
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// Raw discovery remains disabled, without GCS filters, raw write mappings,
+	// or discovered/processed ledgers. Only extraction's actual inputs matter.
+	if cfg.CIJobOutcomes.Enabled {
+		t.Fatal("validation enabled raw discovery")
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"missing database", func(c *Config) { c.CIJobOutcomes.Database = "" }, "ciJobOutcomes.database"},
+		{"missing input", func(c *Config) { c.CIJobOutcomes.TestNames.Table = "" }, "ciJobOutcomes.testNames.table"},
+		{"missing results mapping", func(c *Config) { c.CIFailurePatterns.Results.IngestionMapping = "" }, "ciFailurePatterns.results.ingestionMapping"},
+		{"bad endpoint", func(c *Config) { c.CIJobOutcomes.ClusterURI = "localhost" }, "ciJobOutcomes.clusterURI"},
+		{"zero workers", func(c *Config) { n := 0; c.CIFailurePatterns.Workers = &n }, "ciFailurePatterns.workers"},
+		{"negative cache", func(c *Config) { n := -1; c.CIFailurePatterns.CacheSize = &n }, "ciFailurePatterns.cacheSize"},
+		{"zero interval", func(c *Config) { c.CIFailurePatterns.Interval = "0s" }, "ciFailurePatterns.interval"},
+		{"bad cache TTL", func(c *Config) { c.CIFailurePatterns.CacheTTL = "-1s" }, "ciFailurePatterns.cacheTTL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := cfg
+			tc.mutate(&candidate)
+			err := candidate.Validate()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v; want error containing %q", err, tc.want)
+			}
+		})
 	}
 }

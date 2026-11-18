@@ -15,9 +15,6 @@ registration:
   publicDNSZoneResourceID: "__cxDnsZoneResourceId__"
   hostedClustersSecretsKeyVaultURL: "__cxKeyVaultUrl__"
   hostedClustersManagedIdentitiesKeyVaultURL: "__msiKeyVaultUrl__"
-  maestroConsumerName: '{{ .maestro.agent.consumerName }}'
   hostedClustersSecretsKeyVaultManagedIdentityClientID: "__hostedClustersSecretsKvMiClientId__"
-  maestroRESTAPIURL: "http://maestro.maestro.svc.cluster.local:8000"
-  maestroGRPCTarget: "maestro-grpc.maestro.svc.cluster.local:8090"
   kubeApplierCosmosContainerName: '{{ .kubeApplier.cosmosContainerName }}'
   kubeApplierCosmosContainerMaxScale: {{ .kubeApplier.cosmosContainerMaxScale }}

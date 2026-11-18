@@ -1,0 +1,6 @@
+HTTP 404: {
+  "error": {
+    "code": "NotFound",
+    "message": "session \"breakglass-1\" not found"
+  }
+}

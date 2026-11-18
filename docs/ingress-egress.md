@@ -41,7 +41,13 @@ Ingress traffic is routed through a `Service` of type `LoadBalancer`, backed by 
 
 Currently, routing is limited to a single service. However, the architecture anticipates hostname-based routing as additional services are exposed. A Gateway resource is already deployed, although today it does not yet define multiple hostnames or virtual services for distinct components.
 
-Access to the ingress IP is controlled via an NSG that allows traffic only from specific Azure IP service tags—those representing ARM, Geneva, and SAW devices. TLS termination is handled directly in Istio using certificates sourced from Azure Key Vault and mounted into the pod via CSI Secret Store.
+Access to the ingress IP is controlled via an NSG that normally allows traffic only from specific Azure IP service tags—those representing ARM, Geneva, and SAW devices. TLS termination is handled directly in Istio using certificates sourced from Azure Key Vault and mounted into the pod via CSI Secret Store.
+
+#### Additional service-cluster ingress rules
+
+`svc.aks.additionalIngressRules` adds Allow/Inbound rules to the service cluster's built-in NSG rules. It is a comma-separated string with the format `name=priority:protocol:source:destination:destinationPort`. An empty string adds no rules. Each rule uses source port `*`.
+
+For example, `allow-istio-ingress=1000:Tcp:192.0.2.37:*:443` permits inbound TCP 443 from one IPv4 address with priority 1000. Multiple rules are separated by commas. Address prefixes support IPv4/CIDR, service tags, and `*`; free-text descriptions and IPv6 addresses are not supported. The configuration schema restricts the mapping's syntax and excludes quotes and backslashes. Rule validity and name/priority collisions are checked during deployment.
 
 ### Management Cluster Ingress
 

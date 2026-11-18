@@ -665,14 +665,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
-          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -693,14 +693,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
-          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1207,271 +1207,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'maestro'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCSourceClientExcessConnections'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCSourceClientExcessConnections/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          info: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro has too many gRPC source client connections'
-          title: 'Maestro has too many gRPC source client connections'
-        }
-        expression: 'sum by (region) (grpc_server_registered_source_clients{namespace="maestro"}) > 100'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroRESTAPIErrorRate'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroRESTAPIErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro REST API error rate is high'
-          title: 'Maestro REST API error rate is high'
-        }
-        expression: 'sum by (region) (rate(rest_api_inbound_request_count{code=~"5..",namespace="maestro"}[5m])) / sum by (region) (rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCServerErrorRate'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCServerErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro gRPC server error rate is high'
-          title: 'Maestro gRPC server error rate is high'
-        }
-        expression: 'sum by (region) (rate(grpc_server_processed_total{code!="OK",namespace="maestro"}[5m])) / sum by (region) (rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroSpecControllerReconcileErrors'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroSpecControllerReconcileErrors/{{ $labels.cluster }}'
-          description: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro spec controller reconcile error rate is high'
-          title: 'Maestro spec controller reconcile error rate is high'
-        }
-        expression: 'sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro",status="error"}[5m])) / sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroServerNoReadyReplicas'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'MaestroServerNoReadyReplicas/{{ $labels.cluster }}'
-          description: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
-          info: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'No maestro-server replicas are Ready'
-          title: 'No maestro-server replicas are Ready'
-        }
-        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} == 0 and kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"} > 0'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroServerReplicaNotReady'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroServerReplicaNotReady/{{ $labels.cluster }}'
-          description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
-          info: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'A maestro-server replica is not Ready'
-          title: 'A maestro-server replica is not Ready'
-        }
-        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} > 0 and kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} < kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"}'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroPostgresNotificationQueueUsageHigh'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroPostgresNotificationQueueUsageHigh/{{ $labels.cluster }}'
-          description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
-          info: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro PostgreSQL notification queue usage is high'
-          title: 'Maestro PostgreSQL notification queue usage is high'
-        }
-        expression: 'max by (region) (postgres_notification_queue_usage{namespace="maestro"}) > 0.5'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroWorkqueueDepthHigh'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroWorkqueueDepthHigh/{{ $labels.cluster }}/{{ $labels.queue_name }}'
-          description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
-          info: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
-          title: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
-        }
-        expression: 'max by (queue_name, region) (workqueue_depth{namespace="maestro",queue_name!=""}) > 100'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroEventStuckUnreconciled'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroEventStuckUnreconciled/{{ $labels.cluster }}'
-          description: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
-          info: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
-          title: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
-        }
-        expression: 'max by (region) (spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300'
-        for: 'PT1M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

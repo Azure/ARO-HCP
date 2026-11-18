@@ -1,0 +1,29 @@
+digraph rollout_catalog_lifecycle {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Rollout catalog · discovery, reference inventory and retirement", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  archive [label="Cincinnati graph-data archive\nread-only GET; 1m deadline\nvalidate complete bounded gzip/tar + channel YAML", fillcolor="#fff0da", color="#b27624"];
+  discovery [label="ControlPlaneVersionCincinnatiSeeding\nimmediate discovery after cache sync\nthen 5m + jitter; queued 5m resync\nminor >= backend floor 4.20"];
+  requested [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly parent\nrequested + pinned channels; no floor gate"];
+  rollout [label="Fleet ControlPlaneVersionRollout\ncreate only when absent\nSpec.Version; existing best/status preserved", fillcolor="#e4f2e5", color="#4c8053"];
+  references [label="Cached Cluster + provider inventory\nrequested / exact override / desired / active / pin\nINCLUDING deleting clusters\nunique parent IDs per minor + channel", fillcolor="#e4f2e5", color="#4c8053"];
+  collector [label="ControlPlaneVersionStatusCollector\nold + new reference watches; 5m resync\nincomplete scan: error, retain ALL old status"];
+  status [label="Status.ReferencingClusterCount\nnil = unobserved; zero = published no references\nwritten with five separate-purpose upgrade maps", fillcolor="#e4f2e5", color="#4c8053"];
+  retirement [label="ControlPlaneVersionRolloutRetirement\nALL: nonzero profile + below backend floor\n+ observed reference count exactly zero\nrollout watch; 5m resync"];
+  deletion [label="Fleet DeleteWithETag(cached rollout ETag)\nlive read then If-Match soft-delete replacement\nmissing / already deleted: success", fillcolor="#e4f2e5", color="#4c8053"];
+  conflict [label="412: evaluated rollout changed\nno retirement of newer document", fillcolor="#fbe8e5", color="#a64f43"];
+  absent [label="Rollout absent from active catalog\nTTL cleanup later; no external cluster deletion", fillcolor="#e4f2e5", color="#4c8053"];
+  archive -> discovery [label="validated profiles at / above floor"];
+  discovery -> rollout [label="Create; conflict accepted"];
+  requested -> rollout [label="Create; conflict accepted"];
+  rollout -> collector [label="rollout informer"];
+  references -> collector [label="all references; cached non-atomic inventory"];
+  collector -> status [label="one ETag replacement if changed"];
+  status -> retirement [label="published zero; nil never qualifies"];
+  rollout -> retirement [label="Spec.Version below floor"];
+  retirement -> deletion [label="only evaluated rollout version"];
+  deletion -> absent [label="conditional replacement succeeds"];
+  deletion -> conflict [label="stale ETag / race"];
+  conflict -> retirement [label="new watch / resync; re-evaluate", style=dashed, color="#857456", constraint=false];
+  absent -> requested [label="cluster/provider resync may recreate\nstill-required channel", style=dashed, color="#857456", constraint=false];
+}

@@ -1,0 +1,55 @@
+#!/bin/bash
+# Test script for Go SDK (when Go is available)
+
+set -e
+set -o pipefail
+
+echo "=== Testing Go SDK ==="
+echo
+
+# Check prerequisites
+if ! command -v go &> /dev/null; then
+    echo "❌ Go is not installed. Please install Go 1.24 or later."
+    echo "   Visit: https://golang.org/dl/"
+    exit 1
+fi
+
+# Determine COPILOT_CLI_PATH
+if [ -z "$COPILOT_CLI_PATH" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    if POTENTIAL_PATH="$(cd "$SCRIPT_DIR/../nodejs" && npm run --silent prepare:runtime -- --print-path)" &&
+        [ -n "$POTENTIAL_PATH" ] && [ -f "$POTENTIAL_PATH" ]; then
+        export COPILOT_CLI_PATH="$POTENTIAL_PATH"
+        echo "📍 Auto-detected CLI path: $COPILOT_CLI_PATH"
+    else
+        echo "❌ COPILOT_CLI_PATH environment variable not set"
+        echo "   Run: export COPILOT_CLI_PATH=/path/to/copilot"
+        exit 1
+    fi
+fi
+
+if [ ! -f "$COPILOT_CLI_PATH" ]; then
+    echo "❌ CLI not found at: $COPILOT_CLI_PATH"
+    exit 1
+fi
+
+echo "✅ Go version: $(go version)"
+echo "✅ CLI path: $COPILOT_CLI_PATH"
+echo
+
+# Run Go tests
+cd "$(dirname "$0")"
+
+echo "=== Running Go SDK E2E Tests ==="
+echo
+
+if [ -n "${CI_TEST_RESULTS_DIR:-}" ]; then
+    output="${CI_TEST_GO_OUTPUT:-$CI_TEST_RESULTS_DIR/go-sdk-go-subprocess.jsonl}"
+    mkdir -p "$(dirname "$output")"
+    go test -json -v ./... -race -timeout=20m | tee "$output"
+else
+    go test -v ./... -race -timeout=20m
+fi
+
+echo
+echo "✅ All tests passed!"

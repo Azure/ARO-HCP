@@ -43,6 +43,7 @@ var _ = Describe("Customer", func() {
 		// This test creates its own dedicated identities (useMsiPool=false) so it can
 		// safely delete them, and never leases from the shared identity container pool.
 		labels.MIContainers(0),
+		labels.StartPriority(30),
 		func(ctx context.Context) {
 			const customerClusterName = "missing-mi-hcp-cluster"
 			tc := framework.NewTestContext()
@@ -142,7 +143,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to delete managed identities for cluster %q", customerClusterName)
 
 			By("deleting the HCP cluster")
-			err = framework.DeleteHCPCluster20240610(
+			err = tc.DeleteHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,

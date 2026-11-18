@@ -46,9 +46,9 @@ func writeDetails(entrypoints []topology.Entrypoint, service topology.Service, i
 	for i := 0; i < depth; i++ {
 		summary.WriteString("  ")
 	}
-	summary.WriteString(fmt.Sprintf("- %s", service.ServiceGroup))
-	summary.WriteString(fmt.Sprintf(" ([ref](https://github.com/Azure/ARO-HCP/tree/main/%s))", service.PipelinePath))
-	summary.WriteString(fmt.Sprintf(": %s", service.Purpose))
+	fmt.Fprintf(&summary, "- %s", service.ServiceGroup)
+	fmt.Fprintf(&summary, " ([ref](https://github.com/Azure/ARO-HCP/tree/main/%s))", service.PipelinePath)
+	fmt.Fprintf(&summary, ": %s", service.Purpose)
 
 	for _, entrypoint := range entrypoints {
 		if entrypoint.Identifier == service.ServiceGroup {
@@ -57,7 +57,7 @@ func writeDetails(entrypoints []topology.Entrypoint, service topology.Service, i
 				reference += name
 			}
 			if reference != "" {
-				summary.WriteString(fmt.Sprintf(" (%s)", reference))
+				fmt.Fprintf(&summary, " (%s)", reference)
 			}
 		}
 	}

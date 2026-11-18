@@ -49,10 +49,9 @@ type GatherForTestOptions struct {
 	// MonitoringEventsDatabase is the Kusto database name for monitoring events (alerts).
 	MonitoringEventsDatabase string
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter Kusto queries to only relevant clusters for PR jobs.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ServiceClusterName is the AKS cluster that emitted service-side logs for
+	// PR jobs. The gatherer resolves the management cluster from placement.
+	ServiceClusterName string
 
 	// SiblingTests contains metadata for all e2e tests from the same Prow job run.
 	SiblingTests []TestSummary
@@ -147,7 +146,6 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 		MonitoringEventsDatabase: opts.MonitoringEventsDatabase,
 		ResourceGroup:            test.ResourceGroup,
 		ServiceClusterName:       opts.ServiceClusterName,
-		ManagementClusterName:    opts.ManagementClusterName,
 		TimeWindow: TimeWindow{
 			Start:           startTime,
 			End:             endTime,

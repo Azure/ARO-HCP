@@ -16,6 +16,7 @@ package cluster
 
 import (
 	"strings"
+	"time"
 
 	utilsclock "k8s.io/utils/clock"
 
@@ -29,12 +30,14 @@ import (
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
+	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
+	mockfparoleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -46,6 +49,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
 
@@ -334,7 +338,9 @@ func instantiateClusterClusterServiceCreateController(controllerContext controll
 		controllerContext.ClustersServiceClient,
 		managementClusterLister,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.HasRealFPA,
+		!controllerContext.HasRealFPA,
 	), nil
 }
 
@@ -549,6 +555,7 @@ func instantiateClusterDegradedAggregatorController(controllerContext controller
 		clusterLister,
 		controllerLister,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.UnionKubeApplierInformers,
 		controllerContext.Clock,
 	), nil
@@ -761,21 +768,33 @@ func instantiateCreateServiceProviderClusterController(controllerContext control
 	), nil
 }
 
-func registerCleanOrphanedClusterManagedResourceGroupController() controllerconfig.ControllerRegistration {
+func registerOrphanedManagedResourceGroupWatchingController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCleanOrphanedClusterManagedResourceGroupController, false),
+		Workers: 50,
+		Enabled: func(ctx controllerconfig.ControllerContext) bool {
+			return ctx.OrphanedMRGCleanupConfig.Enabled()
+		},
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateOrphanedManagedResourceGroupWatchingController, false),
 	}
 }
 
-func instantiateCleanOrphanedClusterManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+func instantiateOrphanedManagedResourceGroupWatchingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	orphanedMRGController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		controllerContext.AzureLocation,
-		activeOperationLister,
 		controllerContext.ResourcesDBClient,
+		subscriptionLister,
+		clusterLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.OrphanedMRGCleanupConfig,
+	)
+	return controllerutils.NewManagedResourceGroupWatchingController(
+		controllerContext.AzureLocation,
+		orphanedMRGController,
 		controllerContext.FPAClientBuilder,
 		controllerContext.BackendInformers,
+		24*time.Hour,
 	), nil
 }
 
@@ -856,6 +875,7 @@ func registerClusterChildResourcesCleanupController() controllerconfig.Controlle
 func instantiateClusterChildResourcesCleanupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return clusterdeletion.NewClusterChildResourcesCleanupController(
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
@@ -873,6 +893,7 @@ func instantiateClusterDeletionController(controllerContext controllerconfig.Con
 	return clusterdeletion.NewClusterDeletionController(
 		utilsclock.RealClock{},
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
@@ -1093,6 +1114,40 @@ func instantiateFetchManagedIdentitiesInfoController(controllerContext controlle
 	return fetchManagedIdentitiesInfoController, nil
 }
 
+func registerDataPlaneWorkloadsOIDCFederationIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationIntentController, true),
+	}
+}
+
+func instantiateDataPlaneWorkloadsOIDCFederationIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationIntentController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+	), nil
+}
+
+func registerDataPlaneWorkloadsOIDCFederationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationController, true),
+	}
+}
+
+func instantiateDataPlaneWorkloadsOIDCFederationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.SMIClientBuilder,
+		controllerContext.FPAMIDataplaneClientBuilder,
+		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.ClusterOIDCIssuerBaseURL,
+	), nil
+}
+
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1112,6 +1167,42 @@ func instantiateIdentityRoleAssignmentsController(controllerContext controllerco
 		controllerContext.ClusterScopedIdentitiesConfig,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
+func registerMockFPARoleAssignmentIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Enabled:     func(controllerContext controllerconfig.ControllerContext) bool { return !controllerContext.HasRealFPA },
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMockFPARoleAssignmentsIntentController, false),
+	}
+}
+
+func instantiateMockFPARoleAssignmentsIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return mockfparoleassignments.NewMockFPARoleAssignmentsIntentController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
+		controllerContext.MockFirstPartyApplicationPrincipalID,
+		mockfparoleassignments.OwnerRoleDefinitionResourceID,
+	), nil
+}
+
+func registerMockFPARoleAssignmentsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Enabled:     func(controllerContext controllerconfig.ControllerContext) bool { return !controllerContext.HasRealFPA },
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMockFPARoleAssignmentsController, true),
+	}
+}
+
+func instantiateMockFPARoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return mockfparoleassignments.NewMockFPARoleAssignmentsController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 	), nil
 }
 
@@ -1347,7 +1438,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
-	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
+	registry[strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)] = registerOrphanedManagedResourceGroupWatchingController()
 	registry[strings.ToLower(clusterazureresources.ManagedResourceGroupControllerName)] = registerEnsureManagedResourceGroupController()
 	registry[strings.ToLower(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName)] = registerClusterDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(clusterdeletion.ClusterDeletionClusterServiceIDClearerControllerName)] = registerClusterClusterServiceIDClearerController()
@@ -1366,6 +1457,10 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
+	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
+	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsIntentControllerName)] = registerMockFPARoleAssignmentIntentController()
+	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsControllerName)] = registerMockFPARoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

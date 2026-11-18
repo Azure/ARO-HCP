@@ -2,7 +2,7 @@ module github.com/Azure/ARO-HCP/tooling/acrauth
 
 go 1.25.7
 
-require github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20260904180154-466f2f384637
+require github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20261029184915-ae250b4c53dd
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
@@ -17,8 +17,8 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

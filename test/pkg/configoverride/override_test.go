@@ -155,8 +155,8 @@ func TestRecognizedEnvironmentInputs(t *testing.T) {
 		"UNRELATED=value", "IMAGE_FORMAT=ignored",
 	})
 	want := Inputs{
-		DeployEnvironment: "overlay-env", MSIMockLease: "mock",
-		ARMHelperLeases: []string{"one", "two"}, MSIContainers: "container-one container-two",
+		DeployEnvironment:            "overlay-env",
+		MSIContainers:                "container-one container-two",
 		InfrastructureIdentityBundle: `{"literal":"a=b"}`,
 		OCLoginRegistries:            " existing.registry ", Images: map[string]string{"BACKEND_IMAGE": ""},
 	}
@@ -171,6 +171,54 @@ func TestRecognizedEnvironmentInputs(t *testing.T) {
 	defaults := defaultsAt(t, document, "ci01")
 	if _, ok := defaults["backend"]; ok {
 		t.Fatal("empty optional image generated an override")
+	}
+}
+
+func TestCIRPAllowedSource(t *testing.T) {
+	for _, source := range []string{"", "192.0.2.42"} {
+		t.Run("source="+source, func(t *testing.T) {
+			input, err := InputsFromEnvironment([]string{
+				"DEPLOY_ENV=ci01",
+				"LEASED_MSI_CONTAINERS=leased",
+				"CI_RP_ALLOWED_SOURCE=" + source,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, document := generated(t, input, Paths{})
+			if source == "" {
+				if len(document) != 0 {
+					t.Fatalf("empty source generated overrides: %#v", document)
+				}
+				return
+			}
+			defaults := defaultsAt(t, document, "ci01")
+			encoded := defaults["svc"].(map[string]interface{})["aks"].(map[string]interface{})["additionalIngressRules"].(string)
+			want := "allow-istio-ingress=1000:Tcp:" + source + ":*:443"
+			if encoded != want {
+				t.Fatalf("ingress rules = %q, want %q", encoded, want)
+			}
+		})
+	}
+}
+
+func TestInvalidCIRPAllowedSource(t *testing.T) {
+	for _, source := range []string{"not-an-ip", "192.0.2.1/32", "192.0.2.1 192.0.2.2", " 192.0.2.1", "192.0.2.1\n", "192.000.2.1", "256.0.0.1", "2001:db8::1", "::ffff:192.0.2.1"} {
+		t.Run(source, func(t *testing.T) {
+			input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "CI_RP_ALLOWED_SOURCE=" + source})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, candidate := range []Inputs{input, {DeployEnvironment: "ci01", CIRPAllowedSource: source}} {
+				result, err := Generate(candidate, Paths{})
+				if err == nil || !strings.Contains(err.Error(), "CI_RP_ALLOWED_SOURCE") {
+					t.Fatalf("Generate = %#v, %v; want invalid IPv4 source error", result, err)
+				}
+				if result.YAML != nil || result.OCLoginRegistries != "" {
+					t.Fatalf("invalid source returned partial output: %#v", result)
+				}
+			}
+		})
 	}
 }
 
@@ -203,140 +251,6 @@ func TestHealthcheckAndEnvironmentKeys(t *testing.T) {
 	}
 	if _, err := Generate(Inputs{}, Paths{}); err == nil {
 		t.Fatal("empty deployment environment accepted")
-	}
-}
-
-const mockCatalog = `miMockPool:
-  selected:
-    clientId: mock-client
-    principalId: mock-principal
-    certName: mock-cert
-  other:
-    clientId: other-client
-    principalId: other-principal
-    certName: other-cert
-`
-
-const helperCatalog = `armHelperPool:
-  backend:
-    clientId: backend-client
-    principalId: backend-principal
-    certName: backend-cert
-  clusters-service:
-    clientId: clusters-client
-    principalId: clusters-principal
-    certName: clusters-cert
-`
-
-func TestSelectedCatalogs(t *testing.T) {
-	paths := Paths{MSIMockCatalog: fixture(t, "mock.yaml", mockCatalog), ARMHelperCatalog: fixture(t, "helper.yaml", helperCatalog)}
-	for _, tc := range []struct {
-		name  string
-		input Inputs
-		want  map[string]interface{}
-	}{
-		{"mock selected", Inputs{MSIMockLease: "selected"}, map[string]interface{}{"miMockClientId": "mock-client", "miMockPrincipalId": "mock-principal", "miMockCertName": "mock-cert"}},
-		{"single helper fallback", Inputs{ARMHelperLeases: []string{"backend"}}, map[string]interface{}{"armHelperClientId": "backend-client", "armHelperCertName": "backend-cert", "clustersServiceArmHelperClientId": "backend-client", "clustersServiceArmHelperCertName": "backend-cert"}},
-		{"two independent helpers", Inputs{ARMHelperLeases: []string{"backend", "clusters-service"}}, map[string]interface{}{"armHelperClientId": "backend-client", "armHelperCertName": "backend-cert", "clustersServiceArmHelperClientId": "clusters-client", "clustersServiceArmHelperCertName": "clusters-cert"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.input.DeployEnvironment, tc.input.MSIContainers = "ci01", "leased"
-			_, document := generated(t, tc.input, paths)
-			got := defaultsAt(t, document, "ci01")
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("defaults = %#v, want %#v", got, tc.want)
-			}
-			if _, exists := got["armHelperFPAPrincipalId"]; exists {
-				t.Fatal("FPA principal was overwritten")
-			}
-		})
-	}
-}
-
-func TestCatalogErrorsAndDemandedReads(t *testing.T) {
-	for _, pool := range []struct{ name, root, lease string }{
-		{"mock", "miMockPool", "selected"}, {"helper", "armHelperPool", "backend"}, {"second helper", "armHelperPool", "clusters-service"},
-	} {
-		t.Run(pool.name, func(t *testing.T) {
-			for _, tc := range []struct {
-				name, body string
-				missing    bool
-			}{
-				{"missing file", "", true}, {"malformed YAML", "[", false}, {"wrong root", "otherPool: {}", false},
-				{"wrong pool type", pool.root + ": []", false}, {"missing entry", pool.root + ": {}", false},
-				{"scalar entry", pool.root + ":\n  " + pool.lease + ": bad", false},
-				{"multiple documents", pool.root + ": {}\n---\nother: value", false},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					path := filepath.Join(t.TempDir(), "missing.yaml")
-					if !tc.missing {
-						path = fixture(t, "catalog.yaml", tc.body)
-					}
-					input := Inputs{DeployEnvironment: "ci01"}
-					paths := Paths{MSIMockCatalog: path, ARMHelperCatalog: path}
-					if pool.name == "mock" {
-						input.MSIMockLease = pool.lease
-					} else {
-						input.ARMHelperLeases = []string{pool.lease}
-					}
-					if result, err := Generate(input, paths); err == nil || result.YAML != nil {
-						t.Fatalf("Generate = %#v, %v; expected error", result, err)
-					}
-					// Neither missing nor malformed catalogs matter without selected leases.
-					generated(t, Inputs{DeployEnvironment: "ci01"}, paths)
-				})
-			}
-			for _, field := range []string{"clientId", "principalId", "certName"} {
-				for _, value := range []string{"", `""`, "null", `"null"`, "42", "true", "[]", "{}"} {
-					t.Run(field+"="+value, func(t *testing.T) {
-						fields := map[string]interface{}{"clientId": "client", "principalId": "principal", "certName": "cert"}
-						body := pool.root + ":\n  " + pool.lease + ":\n"
-						for _, key := range []string{"clientId", "principalId", "certName"} {
-							if key == field {
-								if value != "" {
-									body += "    " + key + ": " + value + "\n"
-								}
-								continue
-							}
-							body += "    " + key + ": " + fields[key].(string) + "\n"
-						}
-						input := Inputs{DeployEnvironment: "ci01"}
-						if pool.name == "mock" {
-							input.MSIMockLease = pool.lease
-						} else {
-							input.ARMHelperLeases = []string{pool.lease}
-							if pool.name == "second helper" {
-								body += "  backend:\n    clientId: valid-client\n    principalId: valid-principal\n    certName: valid-cert\n"
-								input.ARMHelperLeases = []string{"backend", pool.lease}
-							}
-						}
-						path := fixture(t, "catalog.yaml", body)
-						if result, err := Generate(input, Paths{MSIMockCatalog: path, ARMHelperCatalog: path}); err == nil || result.YAML != nil {
-							t.Fatalf("Generate = %#v, %v; expected error", result, err)
-						}
-					})
-				}
-			}
-		})
-	}
-	if _, err := Generate(Inputs{DeployEnvironment: "ci01", ARMHelperLeases: []string{"one", "two", "three"}}, Paths{}); err == nil || !strings.Contains(err.Error(), "at most two") {
-		t.Fatalf("expected helper count error, got %v", err)
-	}
-}
-
-func TestCatalogKeysAndValuesAreLiteral(t *testing.T) {
-	lease := `name" | .injected = true | "`
-	value := `$(touch should-not-exist); " | .injected = true`
-	catalog, err := yaml.Marshal(map[string]interface{}{"miMockPool": map[string]interface{}{
-		lease: map[string]interface{}{"clientId": value, "principalId": "principal", "certName": "certificate"},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, document := generated(t, Inputs{DeployEnvironment: "ci01", MSIMockLease: lease, MSIContainers: "leased"}, Paths{MSIMockCatalog: fixture(t, "catalog.yaml", string(catalog))})
-	want := map[string]interface{}{"miMockClientId": value, "miMockPrincipalId": "principal", "miMockCertName": "certificate"}
-	if got := defaultsAt(t, document, "ci01"); !reflect.DeepEqual(got, want) {
-		t.Fatalf("defaults = %#v, want %#v", got, want)
 	}
 }
 
@@ -378,7 +292,7 @@ func TestOverlayMerge(t *testing.T) {
           enabled: false
           list: [one, two]
 `
-	result, document := generated(t, Inputs{DeployEnvironment: "ci01", Images: map[string]string{"BACKEND_IMAGE": "registry/repo@sha256:123"}, ARMHelperLeases: []string{"backend"}}, Paths{ARMHelperCatalog: fixture(t, "helper.yaml", helperCatalog), HypershiftOverlay: fixture(t, "overlay.yaml", overlay)})
+	result, document := generated(t, Inputs{DeployEnvironment: "ci01", Images: map[string]string{"BACKEND_IMAGE": "registry/repo@sha256:123"}}, Paths{HypershiftOverlay: fixture(t, "overlay.yaml", overlay)})
 	defaults := defaultsAt(t, document, "ci01")
 	wantImage := map[string]interface{}{"registry": "registry", "repository": "repo", "digest": "hypershift-digest"}
 	if image := defaults["backend"].(map[string]interface{})["image"]; !reflect.DeepEqual(image, wantImage) {
@@ -424,5 +338,82 @@ func TestOverlayErrors(t *testing.T) {
 				t.Fatalf("partial result on failure: %#v", result)
 			}
 		})
+	}
+}
+
+func TestRunCostTag(t *testing.T) {
+	const tagged = "jobID.aro-hcp-ci.redhat.com=1234567"
+	for _, tc := range []struct {
+		name      string
+		input     Inputs
+		svc, mgmt string
+	}{
+		{"sentinel resolves build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "1234567", MSIContainers: "leased"},
+			"clusterType=svc-cluster," + tagged, "clusterType=mgmt-cluster," + tagged},
+		{"explicit value", Inputs{DeployEnvironment: "dev", RunCostTagValue: "nightly-2026.10.28", MSIContainers: "leased"},
+			"clusterType=svc-cluster,jobID.aro-hcp-ci.redhat.com=nightly-2026.10.28", "clusterType=mgmt-cluster,jobID.aro-hcp-ci.redhat.com=nightly-2026.10.28"},
+		{"no opt-in", Inputs{DeployEnvironment: "ci01", BuildID: "1234567", MSIContainers: "leased"}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, document := generated(t, tc.input, Paths{})
+			if tc.svc == "" {
+				if len(document) != 0 {
+					t.Fatalf("overrides generated without opt-in: %#v", document)
+				}
+				return
+			}
+			defaults := defaultsAt(t, document, tc.input.DeployEnvironment)
+			for _, kind := range []struct{ name, want string }{{"svc", tc.svc}, {"mgmt", tc.mgmt}} {
+				var got interface{}
+				if cluster, ok := defaults[kind.name].(map[string]interface{}); ok {
+					if aks, ok := cluster["aks"].(map[string]interface{}); ok {
+						got = aks["tags"]
+					}
+				}
+				if got != kind.want {
+					t.Fatalf("%s aks tags = %#v, want %q", kind.name, got, kind.want)
+				}
+			}
+		})
+	}
+	// A per-run management environment also sized for healthchecks keeps both
+	// overrides.
+	t.Run("merges with healthcheck sizing", func(t *testing.T) {
+		_, document := generated(t, Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "1234567"}, Paths{})
+		defaults := defaultsAt(t, document, "ci01")
+		mgmt := defaults["mgmt"].(map[string]interface{})["aks"].(map[string]interface{})
+		if got := mgmt["tags"]; got != "clusterType=mgmt-cluster,"+tagged {
+			t.Fatalf("mgmt aks tags = %#v", got)
+		}
+		if got := mgmt["userAgentPool"].(map[string]interface{})["minCount"]; got != 1 {
+			t.Fatalf("healthcheck sizing lost: %#v", got)
+		}
+	})
+}
+
+func TestRunCostTagErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		input  Inputs
+		errMsg string
+	}{
+		{"sentinel without build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID"}, "BUILD_ID is not set"},
+		{"invalid build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "$(injection)"}, "not a valid"},
+		{"invalid value", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "has space"}, "not a valid"},
+		{"injected value", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "semi;colon"}, "not a valid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := Generate(tc.input, Paths{})
+			if err == nil || !strings.Contains(err.Error(), tc.errMsg) {
+				t.Fatalf("Generate = %#v, %v; want %q error", result, err, tc.errMsg)
+			}
+			if result.YAML != nil {
+				t.Fatalf("partial result on failure: %#v", result)
+			}
+		})
+	}
+	if input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "BUILD_ID=1234567", "RUN_COST_TAG_VALUE=BUILD_ID"}); err != nil ||
+		input.BuildID != "1234567" || input.RunCostTagValue != "BUILD_ID" {
+		t.Fatalf("InputsFromEnvironment = %#v, %v; want BUILD_ID and RUN_COST_TAG_VALUE captured", input, err)
 	}
 }

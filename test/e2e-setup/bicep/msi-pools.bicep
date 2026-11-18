@@ -29,6 +29,7 @@ var identities = {
   dpDiskCsiDriverMiName: 'dp-disk-csi-driver'
   dpFileCsiDriverMiName: 'dp-file-csi-driver'
   dpImageRegistryMiName: 'dp-image-registry'
+  dpAutoNodeMiName: 'dp-autonode'
   serviceManagedIdentityName: 'service'
 }
 

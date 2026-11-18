@@ -164,12 +164,13 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
-		// lister hasn't caught up). Skip and rely on retrigger. When the MC
-		// document is registered but misconfigured (e.g. missing its
-		// kube-applier container name), For() surfaces that loudly.
+		// lister hasn't caught up). Skip and rely on retrigger.
 		return nil
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -239,9 +240,7 @@ type desiredReadDesire struct {
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name
-// the backend uses for the HostedCluster mirror. It matches the existing
-// MaestroBundleInternalName in lowercase so the downstream
-// ManagementClusterContent document path stays stable across the migration.
+// the backend uses for the HostedCluster mirror.
 const readDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
 // hostedClusterTarget builds the ResourceReference that points at the

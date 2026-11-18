@@ -19,6 +19,9 @@
         "diskCsiDriverMiName": {
           "type": "string"
         },
+        "dpAutoNodeMiName": {
+          "type": "string"
+        },
         "dpDiskCsiDriverMiName": {
           "type": "string"
         },
@@ -54,6 +57,13 @@
     }
   },
   "parameters": {
+    "enableAutoNode": {
+      "defaultValue": false,
+      "metadata": {
+        "description": "If true, grant the dp-autonode identity its role assignments"
+      },
+      "type": "bool"
+    },
     "identities": {
       "$ref": "#/definitions/ManagedIdentities",
       "metadata": {
@@ -102,6 +112,27 @@
       "existing": true,
       "name": "[parameters('identities').diskCsiDriverMiName]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpAutoNodeMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').dpAutoNodeMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpAutoNodeMiFederatedCredentialsRoleAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[and(parameters('enableAutoNode'), equals(parameters('rbacScope'), 'resource'))]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
     },
     "dpDiskCsiDriverMi": {
       "apiVersion": "2023-01-31",

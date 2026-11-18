@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -41,13 +42,13 @@ import (
 
 // clusterDeletionController issues a Cosmos cluster delete
 // for the Clusters that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
-// their ClusterServiceID has been cleared, all cluster-scoped Maestro readonly bundles
-// have been deleted from the ServiceProviderCluster, and all child NodePool and
+// their ClusterServiceID has been cleared, and all child NodePool and
 // ExternalAuth Cosmos documents have been deleted.
 type clusterDeletionController struct {
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient       azureresourcescosmosstorage.AzureResourcesDBClient
 	billingDBClient              billingcosmosstorage.BillingDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	passiveClock                 utilsclock.PassiveClock
@@ -60,6 +61,7 @@ const ClusterDeletionControllerControllerName = "ClusterDeletionController"
 func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -71,6 +73,7 @@ func NewClusterDeletionController(
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
+		azureResourcesDBClient:       azureResourcesDBClient,
 		billingDBClient:              billingDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		passiveClock:                 clock,
@@ -117,10 +120,9 @@ func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
 
 // SyncOnce deletes a Cluster document from Cosmos after verifying that all
 // deletion preconditions are satisfied:
-//  1. All cluster-scoped Maestro readonly bundles are cleared.
-//  2. All node pool documents are deleted.
-//  3. All external auth documents are deleted.
-//  4. All other Cosmos child resources are deleted.
+//  1. All node pool documents are deleted.
+//  2. All external auth documents are deleted.
+//  3. All other Cosmos child resources are deleted.
 //
 // Before removing the cluster document, the corresponding billing document is
 // marked as deleted (idempotent). Returns nil without acting when NeedsWork is
@@ -139,11 +141,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Quick cache check for Maestro readonly bundles
-	cachedSPC, spcCacheErr := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if spcCacheErr == nil && len(cachedSPC.Status.MaestroReadonlyBundles) > 0 {
-		return nil
-	}
+	cachedSPC, _ := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 
 	// Confirm against the live document.
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
@@ -170,15 +168,6 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	preconditionMet, err = c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
-	}
-	if !preconditionMet {
-		return nil
-	}
-
-	// Precondition: all cluster-scoped Maestro readonly bundles must be cleared
-	preconditionMet, err = c.deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx, key)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
 		return nil
@@ -229,6 +218,19 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
+	// Precondition: all Cosmos documents in the AzureResources container for this cluster
+	// must be deleted (today only DeploymentStackDesire). They live in a separate Cosmos
+	// container, which deletePreconditionCosmosChildResourcesDeleted does not walk, so
+	// without this gate the cluster document (and therefore the delete operation) could
+	// complete while one of those Cosmos documents is left orphaned.
+	preconditionMet, err = c.deletePreconditionCosmosChildAzureResourcesDeleted(ctx, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check azure resources container precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
 	// Mark billing document as deleted before deleting the cluster document.
 	// This is idempotent: if the billing document was already marked or never
 	// existed, MarkBillingDocumentDeleted returns nil.
@@ -249,24 +251,6 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	logger.Info("cluster deleted from Cosmos")
 
 	return nil
-}
-
-// deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared checks if the
-// ServiceProviderCluster has any Maestro readonly bundles.
-func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	spcCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	spc, spcErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	if spcErr != nil && !cosmosstorageutils.IsNotFoundError(spcErr) {
-		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", spcErr))
-	}
-	if spc != nil && len(spc.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"remainingBundles", len(spc.Status.MaestroReadonlyBundles))
-		return false, nil
-	}
-	return true, nil
 }
 
 func (c *clusterDeletionController) deletePreconditionTLSCertificatesCleared(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
@@ -336,6 +320,77 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 	return true, nil
 }
 
+// deletePreconditionCosmosChildAzureResourcesDeleted reports whether every Cosmos
+// document in the AzureResources container scoped under this cluster (today only
+// DeploymentStackDesire) has been deleted. This precondition reads Cosmos only; it
+// does not touch the Azure ARM API. Those documents live in a separate Cosmos
+// container, which deletePreconditionCosmosChildResourcesDeleted does not walk, and
+// the cluster child-resources cleanup controller removes them during teardown.
+// Gating the cluster document deletion on them keeps the cluster (and therefore the
+// delete operation, which completes only once the cluster document is gone) from
+// finalizing while one of those Cosmos documents would otherwise be left orphaned.
+//
+// The walk is an untyped resourceID-prefix recursion over the container rather than a
+// typed per-type List, so it blocks on any document type the container may hold (not
+// just DeploymentStackDesire) and cannot be defeated by a resourceType mismatch that a
+// typed List might silently skip. Whatever writes a cluster-scoped document into this
+// container must therefore also delete it during cluster teardown, or this precondition
+// will block the cluster deletion.
+//
+// Documents under subtrees with their own deletion pipelines (nodepools, external auths,
+// system-admin credential requests/revocations) are skipped, mirroring
+// deletePreconditionCosmosChildResourcesDeleted: those pipelines own their own
+// AzureResources container documents, and cluster deletion already waits for those
+// resources to be gone via dedicated preconditions.
+func (c *clusterDeletionController) deletePreconditionCosmosChildAzureResourcesDeleted(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+	}
+
+	// Subtrees with their own deletion pipelines are skipped here, mirroring
+	// deletePreconditionCosmosChildResourcesDeleted. Cluster deletion already waits for all
+	// nodepools and external auths to be deleted via their own preconditions, and their
+	// cleanup controllers own any AzureResources container documents scoped under them
+	// (for example future nodepool-scoped DeploymentStackDesires). Gating on those here
+	// would duplicate that ownership and risk blocking on documents this controller does
+	// not clean up.
+	skipSubtreeTypes := []azcorearm.ResourceType{
+		coreapi.NodePoolResourceType,
+		coreapi.ExternalAuthResourceType,
+		coreapi.SystemAdminCredentialRequestResourceType,
+		coreapi.SystemAdminCredentialRevocationResourceType,
+	}
+
+	untypedCRUD, err := c.azureResourcesDBClient.UntypedCRUD(*cluster.ID)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to create untyped CRUD for azure resources container check: %w", err))
+	}
+	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list azure resources container documents: %w", err))
+	}
+	for _, childResource := range childIterator.Items(ctx) {
+		if hasSkippedResourceTypePrefix(childResource.ResourceID, skipSubtreeTypes) {
+			continue
+		}
+		logger.Info("azure resources container Cosmos document still exists, waiting for cleanup",
+			"childResourceID", childResource.ResourceID)
+		return false, nil
+	}
+	if err := childIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("error iterating azure resources container documents: %w", err))
+	}
+
+	return true, nil
+}
+
 // deletePreconditionAllApplyDesiresGone checks that no ApplyDesires remain for
 // this cluster. Each controller that creates ApplyDesires is responsible for
 // cleaning up its own; this method only verifies they are all gone before
@@ -349,7 +404,10 @@ func (c *clusterDeletionController) deletePreconditionAllApplyDesiresGone(ctx co
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if err != nil {
+		return false, err
+	}
 	if kubeApplierDBClient == nil {
 		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
 		return false, nil

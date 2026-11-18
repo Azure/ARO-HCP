@@ -27,7 +27,12 @@ spec:
     rules:
     - alert: userJourneyClusterUpgradeStuckInDesired
       expr: |
-        hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+        (
+          hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+        )
+        unless on (cluster, resource_id) (
+          backend_cluster_provision_state{phase="deleting"} == 1
+        )
       for: 5m
       labels:
         severity: "4"
@@ -42,7 +47,12 @@ spec:
         correlationId: "userJourneyClusterUpgradeStuckInDesired/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}"
     - alert: userJourneyClusterUpgradeStuckInProgress
       expr: |
-        hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+        (
+          hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+        )
+        unless on (cluster, resource_id) (
+          backend_cluster_provision_state{phase="deleting"} == 1
+        )
       for: 5m
       labels:
         severity: "4"

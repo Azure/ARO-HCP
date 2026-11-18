@@ -1,0 +1,22 @@
+digraph manifest_delivery {
+  graph [rankdir=TB, bgcolor="white", pad=0.3, nodesep=0.4, ranksep=0.65, fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Manifest delivery · intent, execution and observation", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  cs [label="Cluster Service resource endpoint\nexternal manifest producer", fillcolor="#fff0da", color="#b27624"];
+  fetch [label="ClusterResources\nplacement + CS ID + not deleting\n30s primary resync; successful-response cache"];
+  intent [label="Per-management-cluster ApplyDesires\nclassified / ownership-filtered manifests\ncluster or node-pool scope", fillcolor="#e4f2e5", color="#4c8053"];
+  apply [label="ApplyDesireController\nserver-side apply / explicit Delete\nfield-manager override is not agent liveness"];
+  objects [label="Management-cluster Kubernetes objects\nHyperShift / Kubernetes reconciliation\nexternal completion is asynchronous", fillcolor="#fff0da", color="#b27624"];
+  read [label="ReadDesireKubernetesController\nrequested resource observation"];
+  backend [label="ActualHostedCluster / version / operation controllers\nindependent observed-state and completion gates"];
+  config [label="Maestro-agent chart + pipeline values\nenabled: false\nno mandatory work-agent delivery hop", fillcolor="#eee7fb", color="#7b59a4"];
+  legacy [label="Retained contracts, not delivery evidence\nMaestroRegistered still gates Fleet Ready\nMaestroReadonlyBundles still gate child cleanup", fillcolor="#eee7fb", color="#7b59a4"];
+  cs -> fetch [label="GetClusterResources response"];
+  fetch -> intent [label="persist desired objects"];
+  intent -> apply [label="informer events / reconcile"];
+  apply -> objects [label="Kubernetes API mutation"];
+  objects -> read [label="watch / read", style=dashed, color="#857456"];
+  read -> backend [label="ReadDesire status", style=dashed, color="#857456"];
+  objects -> objects [label="reconcile / finalizer work", style=dashed, color="#857456"];
+  { rank=same; config; legacy; }
+}

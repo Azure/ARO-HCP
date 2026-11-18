@@ -17,6 +17,8 @@ package root
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/checkowners"
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/ensuresecret"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/pin"
 )
 
@@ -37,6 +39,14 @@ func NewCommand() (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.AddCommand(pinCommand)
+	ensureSecretCommand, err := ensuresecret.NewCommand()
+	if err != nil {
+		return nil, err
+	}
+	checkOwnersCommand, err := checkowners.NewCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(pinCommand, ensureSecretCommand, checkOwnersCommand)
 	return cmd, nil
 }

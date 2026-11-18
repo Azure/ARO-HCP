@@ -78,7 +78,7 @@ type ZoneMapping struct {
 
 type AccountOwner struct {
 	Puid  *string `json:"puid,omitempty"`
-	Email *string `json:"-,omitempty"` // we don't need to nor want to serialize this field
+	Email *string `json:"-"` // we don't need to nor want to serialize this field
 }
 
 type SubscriptionState string

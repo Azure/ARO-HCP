@@ -2,52 +2,14 @@ using '../templates/svc-cluster.bicep'
 
 param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
 param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
-param leasedAksIdentityName = '{{ .infrastructureIdentities.serviceAksIdentityName }}'
 
 // AKS
-param systemPoolOnly = {{ .svc.aks.systemPoolOnly }}
-param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
-param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
-param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
-param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
-param istioIngressGatewayIPAddressName = '{{ .svc.istio.ingressGatewayIPAddressName }}'
-param istioIngressGatewayIPAddressIPTags = '{{ .svc.istio.ingressGatewayIPAddressIPTags }}'
-param opsIngressGatewayIPAddressName = '{{ .svc.opsIngress.gateway.ipAddressName }}'
-param opsIngressGatewayIPAddressTags = '{{ .svc.opsIngress.gateway.ipAddressTags }}'
+param nodeSubnetId = '__nodeSubnetId__'
+param vnetId = '__vnetId__'
+param istioIngressGatewayIP = '__istioIngressGatewayIP__'
+param opsIngressGatewayIP = '__opsIngressGatewayIP__'
 param aksClusterName = '{{ .svc.aks.name }}'
 param aksKeyVaultName = '{{ .svc.aks.etcd.name }}'
-param aksKeyVaultTagName = '{{ .svc.aks.etcd.tagKey }}'
-param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
-param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
-param systemAgentPoolName = '{{ .svc.aks.systemAgentPool.name }}'
-param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
-param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
-param systemAgentPoolZones = '{{ .svc.aks.systemAgentPool.zones }}'
-param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
-param systemZoneRedundantMode = '{{ .svc.aks.systemAgentPool.zoneRedundantMode }}'
-param aksSystemOsDiskSizeGB = {{ .svc.aks.systemAgentPool.osDiskSizeGB }}
-param userAgentPoolName = '{{ .svc.aks.userAgentPool.name }}'
-param userAgentMinCount = {{ .svc.aks.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
-param userAgentPoolCount = {{ .svc.aks.userAgentPool.poolCount }}
-param userAgentPoolZones = '{{ .svc.aks.userAgentPool.zones }}'
-param userZoneRedundantMode = '{{ .svc.aks.userAgentPool.zoneRedundantMode }}'
-param infraAgentPoolName = '{{ .svc.aks.infraAgentPool.name }}'
-param infraAgentMinCount = {{ .svc.aks.infraAgentPool.minCount }}
-param infraAgentMaxCount = {{ .svc.aks.infraAgentPool.maxCount }}
-param infraAgentVMSize = '{{ .svc.aks.infraAgentPool.vmSize }}'
-param infraAgentPoolCount = {{ .svc.aks.infraAgentPool.poolCount }}
-param infraAgentPoolZones = '{{ .svc.aks.infraAgentPool.zones }}'
-param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
-param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
-param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
-param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
-param istioVersions = '{{ .svc.istio.versions }}'
-param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
-param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
-param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
@@ -69,9 +31,6 @@ param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
-param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
-param maestroServerCertSAN = '{{ .maestro.server.certSAN }}'
-param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
 param maestroPostgresServerVersion = '{{ .maestro.postgres.serverVersion }}'
@@ -147,8 +106,6 @@ param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
-param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
-param sreServiceTag = '{{ .administration.sreServiceTag }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
@@ -165,15 +122,11 @@ param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 // Geneva logging settings
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 
-// Alert rules tag value
-param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
-param aksClusterTags = '{{ .svc.aks.tags }}'
-
-
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}
 param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 param fleetContainerMaxScale = {{ .frontend.cosmosDB.fleetContainerMaxScale }}
+param azureResourcesContainerMaxScale = {{ .frontend.cosmosDB.azureResourcesContainerMaxScale }}
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

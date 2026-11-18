@@ -104,12 +104,6 @@ type ServiceProviderNodePoolStatus struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
-
-	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
-	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
-	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
-	// and the Maestro Bundle Name and ID at the Maestro API level.
-	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
 }
 
 // ServiceProviderNodePoolStatusVersion contains the actual version information.
@@ -119,12 +113,6 @@ type ServiceProviderNodePoolStatusVersion struct {
 	// Written by: NodePoolActiveVersions
 	ActiveVersions []ServiceProviderNodePoolActiveVersion `json:"activeVersions,omitempty"`
 }
-
-const (
-	// MaestroBundleInternalNameReadonlyHypershiftNodePool is the internal name of the Maestro Bundle that represents
-	// the NodePool's Hypershift's NodePool K8s resource.
-	MaestroBundleInternalNameReadonlyHypershiftNodePool MaestroBundleInternalName = "readonlyHypershiftNodePool"
-)
 
 // ServiceProviderNodePoolActiveVersion represents a single version active in the nodepool.
 type ServiceProviderNodePoolActiveVersion struct {

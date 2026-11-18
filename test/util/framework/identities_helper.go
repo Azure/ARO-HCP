@@ -68,6 +68,7 @@ const (
 	DpFileCsiDriverMiName        = "dp-file-csi-driver"
 	DpImageRegistryMiName        = "dp-image-registry"
 	ServiceManagedIdentityName   = "service"
+	DpAutoNodeMiName             = "dp-autonode"
 )
 
 type LeasedIdentityPool struct {
@@ -89,6 +90,9 @@ type Identities struct {
 	DpFileCsiDriverMiName        string `json:"dpFileCsiDriverMiName"`
 	DpImageRegistryMiName        string `json:"dpImageRegistryMiName"`
 	ServiceManagedIdentityName   string `json:"serviceManagedIdentityName"`
+	// DpAutoNodeMiName is not in ToSlice(): the pool-provisioning rollout keeps it out of the
+	// mandatory admission/validation inventory until all pools have been re-provisioned.
+	DpAutoNodeMiName string `json:"dpAutoNodeMiName"`
 }
 
 func (i Identities) ToSlice() []string {
@@ -124,6 +128,22 @@ func NewDefaultIdentities() Identities {
 		DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
 		DpImageRegistryMiName:        DpImageRegistryMiName,
 		ServiceManagedIdentityName:   ServiceManagedIdentityName,
+		DpAutoNodeMiName:             DpAutoNodeMiName,
+	}
+}
+
+// OptionalIdentityNames lists managed identity names that are not yet required
+// in the e2e MSI pool. NewDefaultIdentities().ToSlice() excludes these names.
+// Pool resource groups can contain some, all, or none of these identities.
+//
+// compareIdentityPoolInventory must accept these names and report all other
+// unknown names as unexpected.
+//
+// When an identity is in every pool resource group, add its name to ToSlice()
+// and remove it from this list in the same change. This makes the identity required.
+func OptionalIdentityNames() []string {
+	return []string{
+		DpAutoNodeMiName,
 	}
 }
 
@@ -142,6 +162,7 @@ func NewDefaultIdentitiesWithSuffix(suffix string) Identities {
 		DpFileCsiDriverMiName:        fmt.Sprintf("%s-%s", DpFileCsiDriverMiName, suffix),
 		DpImageRegistryMiName:        fmt.Sprintf("%s-%s", DpImageRegistryMiName, suffix),
 		ServiceManagedIdentityName:   fmt.Sprintf("%s-%s", ServiceManagedIdentityName, suffix),
+		DpAutoNodeMiName:             fmt.Sprintf("%s-%s", DpAutoNodeMiName, suffix),
 	}
 }
 

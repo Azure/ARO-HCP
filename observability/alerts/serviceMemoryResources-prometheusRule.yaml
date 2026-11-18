@@ -29,11 +29,11 @@ spec:
           avg_over_time(
             (
               max by(namespace, pod, container, cluster) (
-                container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+                container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
               )
               / on(namespace, pod, container, cluster) group_left()
               max by(namespace, pod, container, cluster) (
-                kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+                kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
               )
             )[30m:1m]
           ) > 1.2
@@ -42,7 +42,7 @@ spec:
         (
           count_over_time(
             max by(namespace, pod, container, cluster) (
-              container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+              container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
             )[30m:1m]
           ) >= 30
         )
@@ -63,11 +63,11 @@ spec:
           avg_over_time(
             (
               max by(namespace, pod, container, cluster) (
-                rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
+                rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
               )
               / on(namespace, pod, container, cluster) group_left()
               max by(namespace, pod, container, cluster) (
-                kube_pod_container_resource_requests{resource="cpu", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+                kube_pod_container_resource_requests{resource="cpu", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
               )
             )[30m:1m]
           ) > 1.2
@@ -76,7 +76,7 @@ spec:
         (
           count_over_time(
             max by(namespace, pod, container, cluster) (
-              rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
+              rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
             )[30m:1m]
           ) >= 30
         )
@@ -95,11 +95,11 @@ spec:
       expr: |
         (
           predict_linear(
-            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
+            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
           )
           / on(namespace, pod, container, cluster) group_left()
           max by(namespace, pod, container, cluster) (
-            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
           )
         ) > 2.0
       for: 30m

@@ -197,10 +197,10 @@ tests:
 # ServiceMemoryTrend - alert fires when predict_linear projects > 2x request
 - interval: 1m
   input_series:
-  - series: 'container_memory_working_set_bytes{container="maestro", namespace="maestro", pod="maestro-0", cluster="test"}'
+  - series: 'container_memory_working_set_bytes{container="backend", namespace="aro-hcp", pod="backend-0", cluster="test"}'
     # Starts at 134217728 (128Mi) and grows by 1048576 (1Mi) per minute over 6h+30m
     values: "134217728+1048576x390"
-  - series: 'kube_pod_container_resource_requests{container="maestro", namespace="maestro", pod="maestro-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+  - series: 'kube_pod_container_resource_requests{container="backend", namespace="aro-hcp", pod="backend-0", cluster="test", resource="memory", job="kube-state-metrics"}'
     values: "134217728+0x390"
   alert_rule_test:
   - eval_time: 390m
@@ -212,13 +212,13 @@ tests:
         team: hcp-sl
         component: service-memory
         cluster: test
-        container: maestro
-        namespace: maestro
-        pod: maestro-0
+        container: backend
+        namespace: aro-hcp
+        pod: backend-0
       exp_annotations:
-        summary: maestro in maestro memory trending toward 2x its request on cluster test. pod:maestro-0
+        summary: backend in aro-hcp memory trending toward 2x its request on cluster test. pod:backend-0
         description: |
-          Container maestro in pod maestro-0 (namespace maestro) on cluster test memory is growing steadily.
+          Container backend in pod backend-0 (namespace aro-hcp) on cluster test memory is growing steadily.
           At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
           Investigate for potential memory leaks or increased workload.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
@@ -226,9 +226,9 @@ tests:
 # ServiceMemoryTrend - no alert when memory is stable
 - interval: 1m
   input_series:
-  - series: 'container_memory_working_set_bytes{container="maestro", namespace="maestro", pod="maestro-0", cluster="test"}'
+  - series: 'container_memory_working_set_bytes{container="backend", namespace="aro-hcp", pod="backend-0", cluster="test"}'
     values: "134217728+0x390"
-  - series: 'kube_pod_container_resource_requests{container="maestro", namespace="maestro", pod="maestro-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+  - series: 'kube_pod_container_resource_requests{container="backend", namespace="aro-hcp", pod="backend-0", cluster="test", resource="memory", job="kube-state-metrics"}'
     values: "134217728+0x390"
   alert_rule_test:
   - eval_time: 390m

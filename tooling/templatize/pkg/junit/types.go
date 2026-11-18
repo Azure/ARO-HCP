@@ -79,6 +79,11 @@ type TestCase struct {
 	// Classname is an attribute set by the package type and is required
 	Classname string `xml:"classname,attr,omitempty"`
 
+	// Timestamp is when the test case started, in RFC 3339 format. The
+	// test case finished Duration seconds later. Optional: reports written
+	// before this field existed do not carry it.
+	Timestamp string `xml:"timestamp,attr,omitempty"`
+
 	// Duration is the time taken in seconds to run the test
 	Duration float64 `xml:"time,attr"`
 

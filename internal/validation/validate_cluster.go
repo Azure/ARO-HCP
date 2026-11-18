@@ -580,11 +580,6 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
 		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-		// only allow OpenShift v5 and above for subscriptions that have the experimental feature registered for now
-		// remove this together with the matching check in the control plane desired version controller when we are ready
-		if v, err := semver.ParseTolerant(newObj.ID); err == nil && v.Major >= 5 {
-			errs = append(errs, field.Invalid(fldPath.Child("id"), newObj.ID, "OpenShift v5 and above is not supported"))
-		}
 	} else {
 		// Even for CI clusters version.id carries only the release line: the published
 		// API documents id as "the desired X.Y version of the cluster control plane",
@@ -1259,7 +1254,7 @@ func validateManagedServiceIdentity(ctx context.Context, op operation.Operation,
 
 	//Type                   ManagedServiceIdentityType       `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), coreapi.ValidManagedServiceIdentityTypes, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), coreapi.ValidManagedServiceIdentityTypes, nil)...)
 
 	//UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"`
 	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),

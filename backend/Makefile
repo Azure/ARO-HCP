@@ -29,14 +29,13 @@ BACKEND_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(BACKEND_SOURCES)
+$(BINARY): $(BACKEND_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run: $(BINARY)
 	./$(BINARY) --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
-		--cosmos-name ${DB_NAME} \
-		--cosmos-url ${DB_URL} \
+		--cosmos-account-resource-id ${COSMOS_ACCOUNT_RESOURCE_ID} \
 		--namespace ${RP_NAMESPACE}
 .PHONY: run
 
@@ -92,3 +91,7 @@ record-latest-override: $(YQ)
 deploy: build-and-push record-override
 	make -C .. pipeline/RP.Backend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

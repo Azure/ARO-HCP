@@ -48,6 +48,12 @@ func (failure *pollObservationError) Unwrap() []error {
 	return []error{failure.observation, failure.interruption}
 }
 
+// isContextExpiration reports whether err merely signals that ctx has ended
+// rather than carrying a fresh observation (see ARO-30237).
+func isContextExpiration(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && errors.Is(err, ctx.Err())
+}
+
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
 // Logs to GinkgoLogr (structured) and GinkgoWriter (visible in default CI output).
 func logVerifierTiming(name, outcome string, elapsed time.Duration) {
@@ -91,7 +97,7 @@ func pollUntilReady(
 		if err == nil {
 			return true, nil
 		}
-		if lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		if lastErr != nil && isContextExpiration(ctx, err) {
 			lastErr = &pollObservationError{observation: lastErr, interruption: err}
 			return false, nil
 		}

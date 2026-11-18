@@ -30,9 +30,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -113,19 +116,9 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
-			name:            "cluster still has maestro readonly bundles -- blocks",
+			name:            "SPC still present as child -- blocks",
 			existingCluster: readyForDeletionCluster(t),
-			extraResources: []any{
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "test-bundle"},
-				}),
-			},
-			verifyDB: verifyClusterStillExists,
-		},
-		{
-			name:            "SPC with no bundles still present as child -- blocks",
-			existingCluster: readyForDeletionCluster(t),
-			extraResources:  []any{newTestSPC(t, nil)},
+			extraResources:  []any{newTestSPC(t)},
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
@@ -212,6 +205,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: spcForLister},
 				resourcesDBClient:            mockResourcesDBClient,
+				azureResourcesDBClient:       azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
 				billingDBClient:              mockBillingDBClient,
 				passiveClock:                 clocktesting.NewFakePassiveClock(fixedClockTime),
 			}
@@ -330,7 +324,7 @@ func newTestExternalAuth(t *testing.T) *coreapi.ExternalAuth {
 	}
 }
 
-func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *coreapi.ServiceProviderCluster {
+func newTestSPC(t *testing.T) *coreapi.ServiceProviderCluster {
 	t.Helper()
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -341,9 +335,6 @@ func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *corea
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
-		},
-		Status: coreapi.ServiceProviderClusterStatus{
-			MaestroReadonlyBundles: bundles,
 		},
 	}
 }
@@ -459,4 +450,56 @@ func newTestCredentialRevocationController(t *testing.T, name string) *coreapi.C
 			Conditions: []metav1.Condition{},
 		},
 	}
+}
+
+func TestDeletePreconditionCosmosChildAzureResourcesDeleted(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	cluster := newTestCluster(t, nil)
+	resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
+	require.NoError(t, err)
+
+	// An arbitrary desire name: the precondition gates on any document in the container,
+	// not on a specific well-known desire.
+	const someDesireName = "some-deployment-stack-desire"
+
+	clusterScopedDesire := func(t *testing.T) *azureresourcesapi.DeploymentStackDesire {
+		t.Helper()
+		desireID := metadataapi.Must(azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(
+			testSubscriptionID, testResourceGroupName, testClusterName, someDesireName))
+		return &azureresourcesapi.DeploymentStackDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   desireID,
+				PartitionKey: strings.ToLower(testSubscriptionID),
+			},
+		}
+	}
+
+	t.Run("no documents in container, precondition met", func(t *testing.T) {
+		c := &clusterDeletionController{
+			resourcesDBClient:      resourcesDB,
+			azureResourcesDBClient: azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
+		}
+		met, err := c.deletePreconditionCosmosChildAzureResourcesDeleted(ctx, key)
+		require.NoError(t, err)
+		assert.True(t, met, "expected precondition to be met when the container holds no documents")
+	})
+
+	t.Run("cluster-scoped DeploymentStackDesire present, precondition not met", func(t *testing.T) {
+		azureDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{clusterScopedDesire(t)})
+		require.NoError(t, err)
+		c := &clusterDeletionController{
+			resourcesDBClient:      resourcesDB,
+			azureResourcesDBClient: azureDB,
+		}
+		met, err := c.deletePreconditionCosmosChildAzureResourcesDeleted(ctx, key)
+		require.NoError(t, err)
+		assert.False(t, met, "expected precondition to block while a cluster-scoped DeploymentStackDesire remains")
+	})
 }

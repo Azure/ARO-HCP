@@ -37,6 +37,21 @@ steps:
     with:
       go-version-file: go.work
       check-latest: true
+  - name: Build depctl
+    run: make -C tooling/depctl build BINARY="$RUNNER_TEMP/depctl"
+  - name: Collect deterministic tool-family inventory
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      set -euo pipefail
+      printf '%s\n' tool-version-inventory.json >> "$(git rev-parse --git-path info/exclude)"
+      code=0
+      "$RUNNER_TEMP/depctl" inventory --repo . --offline=false --output tool-version-inventory.json || code=$?
+      # Exit 3 means the record exists but the inventory is incomplete; the
+      # agent must still read that record and report the missing data.
+      if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+        exit "$code"
+      fi
   - name: Bootstrap the repository-pinned Bingo
     env:
       GOTOOLCHAIN: local
@@ -57,19 +72,38 @@ steps:
         | jq -s '.' > tool-version-open-prs.json
 
 safe-outputs:
+  # Keep failure diagnostics in Actions logs and artifacts, not GitHub issues.
+  # External alerting can monitor failed runs without expanding the App's permissions.
+  report-failure-as-issue: false
+  report-failed-jobs: false
+  report-missing-tool:
+    create-issue: false
+  report-incomplete:
+    create-issue: false
   github-app:
     client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
     private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
   noop:
     report-as-issue: false
   steps:
+    - name: Set up Go for the publication guard
+      if: contains(needs.agent.outputs.output_types, 'create_pull_request')
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.work
+        check-latest: true
+    - name: Build the publication guard
+      if: contains(needs.agent.outputs.output_types, 'create_pull_request')
+      run: make -C tooling/depctl build BINARY="$RUNNER_TEMP/depctl"
     - name: Serialize tooling proposals before creation
       if: contains(needs.agent.outputs.output_types, 'create_pull_request')
       env:
         GH_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         REPO: ${{ github.repository }}
         AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-      run: python3 .github/scripts/tool_version_guard.py "$AGENT_OUTPUT" "$REPO"
+      run: |
+        set -euo pipefail
+        "$RUNNER_TEMP/depctl" guard --agent-output "$AGENT_OUTPUT" --repository "$REPO"
   create-pull-request:
     max: 1
     draft: false
@@ -84,6 +118,9 @@ safe-outputs:
       - .bingo/variables.env
       - dev-infrastructure/openshift-ci/versions.mk
       - dev-infrastructure/openshift-ci/Dockerfile
+      # Only for the mechanical fixes a bumped linter requires, see the
+      # lint-tool procedure below; never for unrelated source changes.
+      - "**/*.go"
     protected-files:
       policy: blocked
       exclude:
@@ -122,22 +159,32 @@ block this daily automation.
    `aro-hcp-robot[bot]`. Validate the owner and apply the same label or
    title-and-family-marker ownership rule as the publication guard. Fetch only
    matching tool-update PR metadata with the read-only GitHub tools to confirm
-   the PR is still open and targets `main`. If one exists, emit `noop`
-   identifying it and stop, regardless of family. Ignore unrelated bot PRs;
-   do not fetch human PRs or any PR filenames. Waiting for CI or an existing
-   owned tool-update PR is not missing data and does not need an issue.
-2. Inspect both tools in `dev-infrastructure/openshift-ci/versions.mk` and every
-   `.bingo/*.mod` tool pin. `.bingo/go.mod` is only Bingo's fake root, not a tool.
-   Use `bingo list` and the module files; do not maintain a second hardcoded list.
-3. Resolve official stable releases: GitHub releases for bicep/promtool and
-   `GOWORK=off GOTOOLCHAIN=local go -C .bingo list -m -json <module>@latest`
-   for Bingo's upstream modules. Record an explicit target version before edits.
-   Never downgrade, select prereleases, cross an import-path major version, or
-   change the Go toolchain to make an otherwise unsupported release build.
-4. Group Bingo tools by their required upstream module. In particular, all five
-   `k8s.io/code-generator` tools belong to one version-coherent update. The Bingo
-   updater itself is a separate family. Prefer the oldest pinned release among
-   eligible families so frequently released tools do not starve other tools.
+   the PR is still open and targets `main`. If one exists, defer all new work
+   regardless of family, but still read the inventory below before reporting.
+   Ignore unrelated bot PRs; do not fetch human PRs or any PR filenames. Waiting
+   for CI or an owned tool-update PR alone is not missing data and needs no issue.
+2. Read `tool-version-inventory.json`, produced by the read-only preflight from
+   the updater's CI tool mapping and every `.bingo/*.mod` tool pin except the fake
+   `go.mod` root. Its `families` rows group shared upstream modules, with
+   `toolNames`, per-tool `pins`, `sourceURL`, `current`, `latest`, `status` and
+   `reason`. Do not maintain another tool list or redo version classification
+   from memory, string ordering, or an individual lookup.
+3. Use this machine output as the authority for every version classification in
+   selection, PR bodies and final summaries: only `status: current` means
+   current; `outdated` means an update exists; `ahead` means never downgrade.
+   `error`, missing rows/data, or `complete: false` are missing-data failures,
+   never evidence that tools are current. Report their explicit reasons using
+   `report_incomplete`; do not hide them behind a successful update or `noop`.
+   `blocked` rows are ineligible and must retain their reason. An outdated
+   family not attempted because of single-flight, the two-family limit, or a
+   failed gate is deferred/blocked, not current. Keep version status separate
+   from execution outcomes.
+4. Select only `outdated` rows and use their exact `latest` target versions.
+   Never select prereleases, cross an import-path major version, or change the
+   Go toolchain to make an otherwise unsupported release build. All tools in
+   one row, including the `k8s.io/code-generator` family, update together.
+   Prefer the oldest pinned release among eligible families so frequently
+   released tools do not starve other tools.
 
 Try no more than two eligible candidate families in one run, prioritizing the
 oldest pinned release. For each family, create a temporary detached worktree at
@@ -187,14 +234,51 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   Leave `Symlinks.mk` unchanged. For a Bingo self-update, use the new pinned
   executable to regenerate its own helpers as well. Build each changed tool
   using its generated Make target. Commit the candidate before the clean-tree
-  checks, then run `make verify` and `make lint` with the proposed tools.
+  checks, then run `make verify` with the proposed tools. For a diff limited to
+  `.bingo/` pins and generated helpers, do not run the full-workspace `make lint`
+  inside the sandbox; record in the PR body that `ci/prow/lint` covers it instead.
+  Any other diff must also run `make lint` locally.
   Existing `.bingo/` path selectors also select the CI image build; the standard
   Prow verify/lint jobs consume the repository's other pinned tools before merge.
+- **Lint-tool bumps:** when the selected family is the linter used by `make lint`
+  (currently `golangci-lint`), a newer version can report findings the old one
+  did not. A pin-only candidate then fails `ci/prow/lint`, so build the proposed
+  binary first and run it over the workspace with a bounded memory setting:
+
+  ```bash
+  GOMEMLIMIT=4GiB GOGC=50 make lint GOLANGCI_LINT="$(go env GOBIN)/golangci-lint-v<version>"
+  ```
+
+  This measures about 8-9 minutes and under 5GB; a whole-workspace run without
+  `GOMEMLIMIT` can exceed 9GB and be killed. Fix only the findings the new
+  version reports, and only mechanically: unchecked errors in tests,
+  `fmt.Fprintf` instead of `WriteString(fmt.Sprintf(...))`, JSON tag fixes,
+  constant inlining, and behaviour-preserving replacement of a deprecated field.
+  Do not change behaviour, do not edit `.golangci.yml`, do not add exclusions,
+  `nolint` directives or config changes, and do not fix findings from other
+  tools or unrelated code. Keep the pin and the mechanical fixes in one PR,
+  describe them as separate sections in the body, list the finding count per
+  linter, and state that the bounded run and Prow's `ci/prow/lint` are the
+  verification. If a finding needs a design decision, do not publish; report its
+  file, line and linter as blocked.
+- **Long gates:** `make verify` (especially `verify-materialize`) can run for
+  several minutes; the repository-pinned lint measured about 3.5 minutes and
+  under 0.5 GB on a normal machine, so a short foreground timeout is not evidence
+  of an out-of-memory kill. Start each long gate with output redirected to a file
+  in the background, poll it with `sleep`, and let it run for its natural duration
+  (allow at least 20 minutes total for `make verify`). Read the captured log
+  before reporting a result: a non-zero exit is that gate's real error, and you
+  must quote its final lines instead of inferring memory pressure. Full-workspace
+  `make lint` runs locally only when the diff changes Go source, generated code,
+  workflows or other non-Bingo files. The sandbox cannot complete it for
+  Bingo-only diffs, so those candidates rely on `ci/prow/lint` and must say so in
+  the PR body; never describe that as an out-of-memory or runner failure.
 
 Before publishing, confirm the diff contains only the selected family's pins,
 checksums and generated helpers, or the selected CI tool's variable/ARG pair.
-Do not change builder images, production dependencies, workflow files, source,
-fixtures, or unrelated pins. Commit the candidate before running
+The only exception is a lint-tool bump, which may also contain the mechanical
+findings procedure described above. Do not change builder images, production
+dependencies, workflow files, fixtures, or unrelated pins. Commit the candidate before running
 `make verify-yamlfmt` and `make -C config detect-change`, and exclude all scratch
 files and binaries. A check that fails only because the intended proposal is
 uncommitted is not a tool regression; keep the proposal committed for those gates.
@@ -204,8 +288,11 @@ PR template with the actual old/new versions and exercised regression checks.
 Record the family with `<!-- agentic-tool-family: <upstream module or repo> -->`
 in the body. Do not claim local checks prove the later Prow jobs succeeded.
 
-If candidate checks are blocked, report one aggregated `report_incomplete` with
-each family, gate, baseline/candidate classification, and the concise failure
-signature. Keep already-current or already-covered families silent. If all
-families are current or already covered and there are no blocked candidates,
-call `noop` with a concise inspection summary. Do not create routine reports.
+If inventory data or candidate checks are blocked, report one aggregated
+`report_incomplete` with each family, gate, baseline/candidate classification,
+and concise failure signature. A required gate not run is unverified, not a
+pass; runner OOMs and failed baseline checks remain explicit blocked outcomes.
+Keep successfully inspected current or covered families silent. Use `noop`
+only when there is no missing data or blocked candidate; summarize versions
+from the inventory and identify waiting/deferred work separately. Do not
+create routine reports for single-flight waiting alone.

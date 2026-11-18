@@ -60,6 +60,7 @@ spec:
         - --cosmos-name={{ .Values.cosmosDB.databaseName }}
         - --cosmos-url={{ .Values.cosmosDB.endpoint }}
         - --cosmos-container={{ .Values.cosmosDB.containerName }}
+        - --cosmos-container-max-scale={{ .Values.cosmosDB.containerMaxScale }}
         - --namespace={{ .Release.Namespace }}
         imagePullPolicy: Always
         env:

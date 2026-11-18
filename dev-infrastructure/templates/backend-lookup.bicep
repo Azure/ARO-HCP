@@ -13,6 +13,9 @@ param rpCosmosDbName string
 @description('The name of the Storage Account used by Backend to configure OIDC in ARO-HCP clusters')
 param regionalOidcStorageAccountName string
 
+@description('The Azure Front Door OIDC base endpoint, used when blob public access is disabled')
+param afdOidcBaseEndpoint string
+
 param useLeasedInfrastructureIdentities bool = false
 param infrastructureIdentityResourceGroup string = ''
 var identityScope = resourceGroup(useLeasedInfrastructureIdentities
@@ -54,7 +57,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
   name: rpCosmosDbName
 }
 
-output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint
+output rpCosmosDbAccountResourceId string = cosmosDbAccount.id
 
 //
 //   S T O R A G E   A C C O U N T   L O O K U P
@@ -66,4 +69,6 @@ resource regionalOidcStorageAccount 'Microsoft.Storage/storageAccounts@2025-06-0
 }
 
 output regionalOidcStorageAccountBlobEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.blob
-output regionalOidcStorageAccountWebEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.web
+output oidcIssuerBaseUrl string = regionalOidcStorageAccount.properties.allowBlobPublicAccess
+  ? regionalOidcStorageAccount.properties.primaryEndpoints.web
+  : afdOidcBaseEndpoint

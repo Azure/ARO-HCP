@@ -34,6 +34,7 @@ const (
 	L2ClusterService = taxonomy.L2ClusterService
 	L2Backend        = taxonomy.L2Backend
 	L2Maestro        = taxonomy.L2Maestro
+	L2KubeApplier    = taxonomy.L2KubeApplier
 	L2HyperShift     = taxonomy.L2HyperShift
 	L2RHUpstream     = taxonomy.L2RHUpstream
 )
@@ -56,7 +57,7 @@ type Classification struct {
 
 	// Confidence is a score from 0 to 1 indicating how certain the
 	// model is about this classification.
-	Confidence float64 `json:"confidence"`
+	Confidence *float64 `json:"confidence"`
 }
 
 // DraftChain is the structured output the agent must produce as its final message.

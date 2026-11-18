@@ -50,6 +50,9 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
+			if isContextExpiration(ctx, err) {
+				return false, nil
+			}
 			lastErr = fmt.Errorf("failed to list ClusterOperators: %w", err)
 			if msg := lastErr.Error(); msg != lastErrMsg {
 				ginkgo.GinkgoLogr.Info("Failed to list ClusterOperators, retrying.", "error", err)

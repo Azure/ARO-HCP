@@ -146,7 +146,10 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		logger.Info("waiting for kube-applier client for management cluster", "managementCluster", mcResourceID.String())
 		return nil

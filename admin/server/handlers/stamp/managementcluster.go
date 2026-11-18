@@ -37,9 +37,6 @@ type ManagementClusterStatus struct {
 	HostedClustersSecretsKeyVaultURL                     string             `json:"hostedClustersSecretsKeyVaultURL,omitempty"`
 	HostedClustersManagedIdentitiesKeyVaultURL           string             `json:"hostedClustersManagedIdentitiesKeyVaultURL,omitempty"`
 	HostedClustersSecretsKeyVaultManagedIdentityClientID string             `json:"hostedClustersSecretsKeyVaultManagedIdentityClientID,omitempty"`
-	MaestroConsumerName                                  string             `json:"maestroConsumerName,omitempty"`
-	MaestroRESTAPIURL                                    string             `json:"maestroRESTAPIURL,omitempty"`
-	MaestroGRPCTarget                                    string             `json:"maestroGRPCTarget,omitempty"`
 	ClusterServiceProvisionShardID                       string             `json:"clusterServiceProvisionShardID"`
 	KubeApplierCosmosContainerName                       string             `json:"kubeApplierCosmosContainerName,omitempty"`
 	KubeApplierCosmosContainerMaxScale                   int32              `json:"kubeApplierCosmosContainerMaxScale,omitempty"`
@@ -86,9 +83,6 @@ func toManagementClusterStatus(status fleetapi.ManagementClusterStatus) (Managem
 		HostedClustersSecretsKeyVaultURL:                     status.HostedClustersSecretsKeyVaultURL,
 		HostedClustersManagedIdentitiesKeyVaultURL:           status.HostedClustersManagedIdentitiesKeyVaultURL,
 		HostedClustersSecretsKeyVaultManagedIdentityClientID: status.HostedClustersSecretsKeyVaultManagedIdentityClientID,
-		MaestroConsumerName:                                  status.MaestroConsumerName,
-		MaestroRESTAPIURL:                                    status.MaestroRESTAPIURL,
-		MaestroGRPCTarget:                                    status.MaestroGRPCTarget,
 		ClusterServiceProvisionShardID:                       status.ClusterServiceProvisionShardID.String(),
 		KubeApplierCosmosContainerName:                       status.KubeApplierCosmosContainerName,
 		KubeApplierCosmosContainerMaxScale:                   status.KubeApplierCosmosContainerMaxScale,

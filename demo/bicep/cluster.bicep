@@ -591,6 +591,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview'
             'cloud-network-config': cloudNetworkConfigMi.id
             'kms': kmsMi.id
           }
+          // No autonode entry: the demo path doesn't support AutoNode yet.
           dataPlaneOperators: {
             'disk-csi-driver': dpDiskCsiDriverMi.id
             'file-csi-driver': dpFileCsiDriverMi.id

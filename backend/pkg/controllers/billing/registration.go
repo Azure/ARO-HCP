@@ -57,7 +57,32 @@ func instantiateCreateBillingDocController(controllerContext controllerconfig.Co
 	return controller, nil
 }
 
+func registerReconcileBillingManagedResourceGroupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateReconcileBillingManagedResourceGroupController, false),
+	}
+}
+
+func instantiateReconcileBillingManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	billingInformer, billingLister := controllerContext.BackendInformers.BillingDocs()
+	controller := controllerutils.NewClusterWatchingController(
+		ReconcileBillingManagedResourceGroupControllerName, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, nil, time.Hour,
+		newReconcileBillingManagedResourceGroupSyncer(controllerContext.BillingDBClient, clusterLister, billingLister))
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	queue, ok := controller.(billingResourceEnqueuer)
+	if !ok {
+		panic("ReconcileBillingManagedResourceGroup controller must implement billingResourceEnqueuer")
+	}
+	if err := watchBillingManagedResourceGroup(queue, billingInformer); err != nil {
+		return nil, err
+	}
+	return controller, nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(OrphanedBillingCleanupControllerName)] = registerOrphanedBillingCleanupController()
 	registry[strings.ToLower(CreateBillingDocControllerName)] = registerCreateBillingDocController()
+	registry[strings.ToLower(ReconcileBillingManagedResourceGroupControllerName)] = registerReconcileBillingManagedResourceGroupController()
 }

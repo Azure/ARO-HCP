@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
+const maxParallelMockCases = 4
+
 func TestDatabaseCRUD(t *testing.T) {
 	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testDatabaseCRUD)
@@ -130,6 +132,10 @@ func testCRUDSuite[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMet
 // CRUD client, so we instantiate with cosmosstorageutils.TypedDocument and skip the constraint.
 func testUntypedCRUDSuite(ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
 	testDirs := metadataapi.Must(fs.ReadDir(crudSuiteDir, "."))
+	var slots chan struct{}
+	if withMock {
+		slots = make(chan struct{}, maxParallelMockCases)
+	}
 	for _, testDirEntry := range testDirs {
 		testDir := metadataapi.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
@@ -141,6 +147,13 @@ func testUntypedCRUDSuite(ctx context.Context, t *testing.T, crudSuiteDir fs.FS,
 		)
 		require.NoError(t, err)
 
-		t.Run(testDirEntry.Name(), currTest.RunTest)
+		t.Run(testDirEntry.Name(), func(t *testing.T) {
+			if withMock {
+				t.Parallel()
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
+			currTest.RunTest(t)
+		})
 	}
 }

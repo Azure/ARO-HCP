@@ -27,7 +27,7 @@ BACKEND_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(BACKEND_SOURCES)
+$(BINARY): $(BACKEND_SOURCES) force-go-build
 	go build -o $(BINARY) .
 
 clean:
@@ -82,3 +82,7 @@ record-latest-override: $(YQ)
 deploy: build-and-push record-override
 	make -C .. pipeline/KubeApplier OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

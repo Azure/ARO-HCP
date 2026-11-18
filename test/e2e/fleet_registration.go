@@ -102,10 +102,10 @@ var _ = Describe("Fleet", func() {
 				g.Expect(err).NotTo(HaveOccurred(), "failed to get HCP resource requirements")
 
 				g.Expect(requirements.Conditions).NotTo(BeEmpty(), "HCP resource requirements must have conditions")
-				g.Expect(apimeta.IsStatusConditionTrue(requirements.Conditions, fleetapi.ConditionTypeDataCurrent)).To(BeTrue(), "DataCurrent condition must be True")
+				g.Expect(apimeta.IsStatusConditionTrue(requirements.Conditions, fleetapi.ConditionTypeSamplesAvailable)).To(BeTrue(), "SamplesAvailable condition must be True")
 
 				g.Expect(requirements.SampleSize).To(BeNumerically(">", 0), "SampleSize must be positive")
-				g.Expect(requirements.LastReportedAt).NotTo(BeNil(), "LastReportedAt must be set")
+				g.Expect(requirements.LastUpdatedAt).NotTo(BeNil(), "LastUpdatedAt must be set")
 
 				g.Expect(requirements.AverageUsage).NotTo(BeEmpty(), "AverageUsage must not be empty")
 				g.Expect(requirements.AverageUsage.Cpu().IsZero()).To(BeFalse(), "AverageUsage CPU must be positive")

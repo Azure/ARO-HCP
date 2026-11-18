@@ -25,20 +25,11 @@ spec:
           defaultMode: 0755
       containers:
       - name: cs-shell-script-executor
-        image: 'mcr.microsoft.com/azurelinux/base/core:3.0'
+        # Use preinstalled tools so maintenance does not depend on package repositories.
+        image: '{{ .Values.scriptExecutorImage }}'
         command: ["/bin/sh", "-c"]
         args:
         - |
-
-          # TODO create a custom image with the needed
-          # commands instead of installing them at runtime
-          echo "Setting up tools..."
-          tdnf update -y
-          echo "Installing kubectl..."
-          tdnf install -y kubectl
-          echo "Installing jq..."
-          tdnf install -y jq
-
           # Run your arbitrary commands below
           echo "Running arbitrary commands..."
           /bin/bash /scripts/arbitrary-commands.sh

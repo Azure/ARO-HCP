@@ -48,4 +48,25 @@ func IsRoleAssignmentNotFoundErr(err error) bool {
 func IsAzureCoreResponseErrorHTTP404(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
+
+}
+
+// IsFederatedCredentialNotFoundErr is used to determine if we are failing to find a federated credential
+func IsFederatedCredentialNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "NotFound"
+}
+
+// IsFederatedCredentialParentResourceNotFoundErr is used to determine if we are failing to find
+// the parent resource of the federated credential
+func IsFederatedCredentialParentResourceNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "ParentResourceNotFound"
+}
+
+// IsAzureAuthorizationFailedError returns true if the error is an azcore.ResponseError
+// and it has error code ErrCodeAuthorizationFailed.
+func IsAzureAuthorizationFailedError(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "AuthorizationFailed"
 }

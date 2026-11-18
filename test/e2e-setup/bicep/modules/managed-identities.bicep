@@ -29,6 +29,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 
@@ -50,6 +51,9 @@ param keyVaultName string
 @description('Cluster name used to ensure unique deployment names within the resource group')
 param clusterName string = ''
 
+@description('If true, grant the dp-autonode identity its role assignments; forwarded to non-msi-scoped-assignments.bicep and msi-scoped-assignments.bicep, which implement the effects')
+param enableAutoNode bool = false
+
 // Suffix for module deployment names to ensure uniqueness when multiple clusters share a resource group.
 // ARM deployment names must be unique per scope and are limited to 64 characters.
 // Use a hash to keep the suffix short while maintaining uniqueness.
@@ -67,6 +71,7 @@ module pooledNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (us
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
+    enableAutoNode: enableAutoNode
   }
 }
 
@@ -78,6 +83,7 @@ module pooledMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (useMsiPoo
   params: {
     identities: identities
     rbacScope: rbacScope
+    enableAutoNode: enableAutoNode
   }
 }
 
@@ -103,6 +109,7 @@ module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
+    enableAutoNode: enableAutoNode
   }
 }
 
@@ -112,6 +119,7 @@ module clusterMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (!useMsiP
   params: {
     identities: clusterIdentities.outputs.msiIdentities
     rbacScope: rbacScope
+    enableAutoNode: enableAutoNode
   }
 }
 

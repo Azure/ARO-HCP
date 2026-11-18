@@ -269,7 +269,6 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 				readDesireLister:              contentLister,
 				resourcesDBClient:             mockResourcesDBClient,
 				cincinnatiClientCache:         mockClientCache,
@@ -291,7 +290,6 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 		HCPClusterName:    testClusterName,
 		HCPNodePoolName:   testNodePoolName,
 	}
-	subscriptionLister := newTestSubscriptionLister()
 
 	stableURI := metadataapi.Must(cincinnati.GetCincinnatiURI("stable"))
 
@@ -489,7 +487,6 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				subscriptionLister:            subscriptionLister,
 				readDesireLister:              newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:             mockResourcesDBClient,
 				cincinnatiClientCache:         mockClientCache,
@@ -569,7 +566,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 		desiredVersion       string
 		activeVersions       []string
 		controlPlaneVersions []string
-		allowMajorUpgrades   bool
 		expectError          bool
 		errorContains        string
 	}{
@@ -636,19 +632,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "skipping more than 2 minor versions",
 		},
 		{
-			name:                 "major version change - fail by default",
+			name:                 "major version change succeeds without AFEC",
 			desiredVersion:       "5.0.0",
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.0.0"},
-			expectError:          true,
-			errorContains:        "major version changes are not supported",
-		},
-		{
-			name:                 "valid major upgrade 4.22 to 5.0",
-			desiredVersion:       "5.0.0",
-			activeVersions:       []string{"4.22.0"},
-			controlPlaneVersions: []string{"5.0.0"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -656,7 +643,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "5.1.0",
 			activeVersions:       []string{"4.23.0"},
 			controlPlaneVersions: []string{"5.1.0"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -664,7 +650,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "5.1.0",
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.1.0"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "4.22 can only upgrade to 5.0",
 		},
@@ -673,7 +658,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "5.0.0",
 			activeVersions:       []string{"4.23.0"},
 			controlPlaneVersions: []string{"5.0.0"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "4.23 can only upgrade to 5.1",
 		},
@@ -682,7 +666,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "5.0.0",
 			activeVersions:       []string{"4.20.0"},
 			controlPlaneVersions: []string{"5.0.0"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "major version upgrades are not supported",
 		},
@@ -738,19 +721,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "must be within 2 minor versions of control plane",
 		},
 		{
-			name:                 "major version downgrade - fail by default",
+			name:                 "major version downgrade succeeds without AFEC",
 			desiredVersion:       "4.22.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
-			expectError:          true,
-			errorContains:        "major version changes are not supported",
-		},
-		{
-			name:                 "valid major downgrade 5.0 to 4.22",
-			desiredVersion:       "4.22.0",
-			activeVersions:       []string{"5.0.1"},
-			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -758,7 +732,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.20.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "not allowed to coexist with a different-major control plane",
 		},
@@ -767,7 +740,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.23.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "cannot coexist with control plane version",
 		},
@@ -815,7 +787,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.21.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -823,7 +794,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.22.0",
 			activeVersions:       []string{"5.1.0"},
 			controlPlaneVersions: []string{"5.1.0"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -831,7 +801,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.23.0",
 			activeVersions:       []string{"5.1.0"},
 			controlPlaneVersions: []string{"5.1.0"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		{
@@ -839,7 +808,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.23.0",
 			activeVersions:       []string{"5.2.0"},
 			controlPlaneVersions: []string{"5.2.0"},
-			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
 		// Empty activeVersions edge cases
@@ -852,19 +820,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 		},
 		// Cross-major skew: same-major NP change when CP is different major
 		{
-			name:                 "same-major NP change with cross-major CP - valid skew",
-			desiredVersion:       "4.21.0",
-			activeVersions:       []string{"4.22.0"},
-			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
-			expectError:          false,
-		},
-		{
 			name:                 "same-major NP change with cross-major CP - invalid skew",
 			desiredVersion:       "4.15.0",
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "not allowed to coexist with a different-major control plane",
 		},
@@ -873,17 +832,15 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion:       "4.20.0",
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.0.1"},
-			allowMajorUpgrades:   true,
 			expectError:          true,
 			errorContains:        "not allowed to coexist with a different-major control plane",
 		},
 		{
-			name:                 "same-major NP change with cross-major CP - rejected without AFEC",
+			name:                 "same-major NP change with cross-major CP - allowed without AFEC",
 			desiredVersion:       "4.21.0",
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.0.1"},
-			expectError:          true,
-			errorContains:        "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)",
+			expectError:          false,
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
 		{
@@ -961,7 +918,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 				spCluster,
 				"stable",
 				[16]byte{}, // dummy UUID
-				tt.allowMajorUpgrades,
 			)
 
 			if tt.expectError {
@@ -995,7 +951,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1053,7 +1008,6 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1114,7 +1068,6 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1172,7 +1125,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1230,7 +1182,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1291,7 +1242,6 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1350,7 +1300,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1547,14 +1496,4 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 	}
 	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
 	require.NoError(t, err)
-}
-
-func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
-	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	return &corelistertesting.SliceSubscriptionLister{
-		Subscriptions: []*coreapi.Subscription{{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
-			Properties:     &coreapi.SubscriptionProperties{},
-		}},
-	}
 }

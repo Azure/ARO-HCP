@@ -1,0 +1,17 @@
+{
+	"id": "599e38df-f3d1-5b7a-a1f1-72266b3429e8",
+	"partitionKey": "1",
+	"properties": {
+		"cosmosMetadata": {
+			"instanceVersion": 0,
+			"partitionKey": "1",
+			"resourceID": "/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"
+		},
+		"spec": {},
+		"status": {
+			"aksResourceID": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mgmt-foo/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster"
+		}
+	},
+	"resourceID": "/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default",
+	"resourceType": "Microsoft.RedHatOpenShift/stamps/managementClusters"
+}

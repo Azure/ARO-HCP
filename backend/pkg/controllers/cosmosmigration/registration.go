@@ -31,6 +31,7 @@ func registerCosmosMigrationController() controllerconfig.ControllerRegistration
 func instantiateCosmosMigrationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return NewCosmosMigrationController(
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		5*time.Minute,

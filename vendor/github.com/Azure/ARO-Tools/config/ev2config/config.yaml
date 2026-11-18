@@ -1,0 +1,708 @@
+clouds:
+  ff:
+    defaults:
+      arm:
+        endpoint: management.usgovcloudapi.net
+      azureContainerRegistry:
+        domainNameSuffix: azurecr.us
+      cloudName: Fairfax
+      entra:
+        federatedcredentials:
+          audience: api://AzureADTokenExchangeUSGov
+        fqdn:
+          device: device.login.microsoftonline.us
+          login: login.microsoftonline.us
+          logincert: logincert.microsoftonline.us
+          sts: sts.microsoftonline.us
+          windowslogin: login.windows.us
+        tenants:
+          azure:
+            tenantdomain: usgovcloud.onmicrosoft.us
+            tenantid: cab8a31a-1906-4287-a0d8-4eef66b95f6e
+            tenantname: usgovcloud
+      geneva:
+        actions:
+          homeDsts:
+            primary: usgoveast-dsts.dsts.core.usgovcloudapi.net
+      keyVault:
+        domainNameSuffix: vault.usgovcloudapi.net
+    regions:
+      usdodcentral:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usd
+        geography: USDoD
+        regionFriendlyName: USDoD Central
+        regionShortName: dd
+      usdodeast:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 0
+        geoShortId: usd
+        geography: USDoD
+        regionFriendlyName: USDoD East
+        regionShortName: bd
+      usdodsouthcentral:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usd
+        geography: USDoD
+        regionFriendlyName: USDoD South Central
+        regionShortName: usdsc
+      usdodsouthwest:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usd
+        geography: USDoD
+        regionFriendlyName: USDoD Southwest
+        regionShortName: phxd
+      usdodwestcentral:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usd
+        geography: USDoD
+        regionFriendlyName: USDoD West Central
+        regionShortName: usdwc
+      usgovarizona:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 1
+        geoShortId: usg
+        geography: USGov
+        regionFriendlyName: USGov Arizona
+        regionShortName: phx
+      usgovtexas:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usg
+        geography: USGov
+        regionFriendlyName: USGov Texas
+        regionShortName: sn
+      usgovvirginia:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: usg
+        geography: USGov
+        regionFriendlyName: USGov Virginia
+        regionShortName: bn
+      usgovwyoming:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: usg
+        geography: USGov
+        regionFriendlyName: USGov Wyoming
+        regionShortName: cy
+  public:
+    defaults:
+      arm:
+        endpoint: management.azure.com
+      azureContainerRegistry:
+        domainNameSuffix: azurecr.io
+      cloudName: Public
+      entra:
+        federatedcredentials:
+          audience: api://AzureADTokenExchange
+        fqdn:
+          device: device.login.microsoftonline.com
+          login: login.microsoftonline.com
+          logincert: logincert.microsoftonline.com
+          sts: sts.windows.net
+          windowslogin: login.windows.net
+        tenants:
+          azure:
+            tenantdomain: msazurecloud.onmicrosoft.com
+            tenantid: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
+            tenantname: msazurecloud
+      geneva:
+        actions:
+          homeDsts:
+            primary: usnorth-dsts.dsts.core.windows.net
+      keyVault:
+        domainNameSuffix: vault.azure.net
+    regions:
+      apacsoutheast2:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: ap
+        geography: Asia Pacific
+        regionFriendlyName: APAC Southeast 2
+        regionShortName: kul
+      australiacentral:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: au
+        geography: Australia
+        regionFriendlyName: Australia Central
+        regionShortName: cbr
+      australiacentral2:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: au
+        geography: Australia
+        regionFriendlyName: Australia Central 2
+        regionShortName: cbr2
+      australiaeast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: au
+        geography: Australia
+        regionFriendlyName: Australia East
+        regionShortName: sy
+      australiasoutheast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 2
+        geoShortId: au
+        geography: Australia
+        regionFriendlyName: Australia Southeast
+        regionShortName: ml
+      austriaeast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: at
+        geography: Austria
+        regionFriendlyName: Austria East
+        regionShortName: ate
+      belgiumcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: be
+        geography: Belgium
+        regionFriendlyName: Belgium Central
+        regionShortName: bec
+      brazilnortheast:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: br
+        geography: Brazil
+        regionFriendlyName: Brazil Northeast
+        regionShortName: brne
+      brazilsouth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: br
+        geography: Brazil
+        regionFriendlyName: Brazil South
+        regionShortName: cq
+      brazilsoutheast:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: br
+        geography: Brazil
+        regionFriendlyName: Brazil Southeast
+        regionShortName: brse
+      canadacentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: ca
+        geography: Canada
+        regionFriendlyName: Canada Central
+        regionShortName: yt
+      canadaeast:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: ca
+        geography: Canada
+        regionFriendlyName: Canada East
+        regionShortName: yq
+      centralindia:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: in
+        geography: India
+        regionFriendlyName: Central India
+        regionShortName: pn
+      centralus:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Central US
+        regionShortName: dm
+      centraluseuap:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: usc
+        geography: Canary (US)
+        regionFriendlyName: Central US EUAP
+        regionShortName: cdm
+      chilecentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: cl
+        geography: Chile
+        regionFriendlyName: Chile Central
+        regionShortName: clc
+      denmarkeast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: dk
+        geography: Denmark
+        regionFriendlyName: Denmark East
+        regionShortName: dke
+      eastasia:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: ap
+        geography: Asia Pacific
+        regionFriendlyName: East Asia
+        regionShortName: hk
+      eastus:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: East US
+        regionShortName: bl
+      eastus2:
+        availabilityZoneCount: 4
+        availabilityZoneLiveCount: 4
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: East US 2
+        regionShortName: bn
+      eastus2euap:
+        availabilityZoneCount: 4
+        availabilityZoneLiveCount: 3
+        geoShortId: usc
+        geography: Canary (US)
+        regionFriendlyName: East US 2 EUAP
+        regionShortName: cbn
+      eastus3:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 1
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: East US 3
+        regionShortName: use3
+      eastusslv:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 0
+        geoShortId: ust
+        geography: Stage (US)
+        regionFriendlyName: East US SLV
+        regionShortName: use
+      eastusstg:
+        availabilityZoneCount: 2
+        availabilityZoneLiveCount: 2
+        geoShortId: ust
+        geography: Stage (US)
+        regionFriendlyName: East US STG
+        regionShortName: uste
+      finlandcentral:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: fl
+        geography: Finland
+        regionFriendlyName: Finland Central
+        regionShortName: flc
+      francecentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: fr
+        geography: France
+        regionFriendlyName: France Central
+        regionShortName: par
+      francesouth:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: fr
+        geography: France
+        regionFriendlyName: France South
+        regionShortName: mrs
+      germanynorth:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: de
+        geography: Germany
+        regionFriendlyName: Germany North
+        regionShortName: den
+      germanywestcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: de
+        geography: Germany
+        regionFriendlyName: Germany West Central
+        regionShortName: dewc
+      indiasouthcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: in
+        geography: India
+        regionFriendlyName: India South Central
+        regionShortName: insc
+      indonesiacentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: id
+        geography: Indonesia
+        regionFriendlyName: Indonesia Central
+        regionShortName: idc
+      israelcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: il
+        geography: Israel
+        regionFriendlyName: Israel Central
+        regionShortName: ilc
+      israelnorthwest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: il
+        geography: Israel
+        regionFriendlyName: Israel Northwest
+        regionShortName: ilnw
+      italynorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: it
+        geography: Italy
+        regionFriendlyName: Italy North
+        regionShortName: itn
+      japaneast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: jp
+        geography: Japan
+        regionFriendlyName: Japan East
+        regionShortName: ty
+      japanwest:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: jp
+        geography: Japan
+        regionFriendlyName: Japan West
+        regionShortName: os
+      jioindiacentral:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: in
+        geography: India
+        regionFriendlyName: Jio India Central
+        regionShortName: jinc
+      jioindiawest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: in
+        geography: India
+        regionFriendlyName: Jio India West
+        regionShortName: jinw
+      koreacentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: kr
+        geography: Korea
+        regionFriendlyName: Korea Central
+        regionShortName: se
+      koreasouth:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: kr
+        geography: Korea
+        regionFriendlyName: Korea South
+        regionShortName: ps
+      koreasouth2:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: kr
+        geography: Korea
+        regionFriendlyName: Korea South 2
+        regionShortName: krs2
+      malaysiasouth:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: my
+        geography: Malaysia
+        regionFriendlyName: Malaysia South
+        regionShortName: mys
+      malaysiawest:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: my
+        geography: Malaysia
+        regionFriendlyName: Malaysia West
+        regionShortName: myw
+      mexicocentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: mx
+        geography: Mexico
+        regionFriendlyName: Mexico Central
+        regionShortName: mxc
+      netherlandsnortheast:
+        availabilityZoneCount: 0
+        availabilityZoneLiveCount: 0
+        geoShortId: eu
+        geography: Europe
+        regionFriendlyName: Netherlands Northeast
+        regionShortName: nlne
+      newzealandnorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: nz
+        geography: New Zealand
+        regionFriendlyName: New Zealand North
+        regionShortName: nzn
+      northcentralus:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: North Central US
+        regionShortName: ch
+      northeastus5:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 0
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Northeast US 5
+        regionShortName: usne5
+      northeurope:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: eu
+        geography: Europe
+        regionFriendlyName: North Europe
+        regionShortName: db
+      norwayeast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: "no"
+        geography: Norway
+        regionFriendlyName: Norway East
+        regionShortName: noe
+      norwaywest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: "no"
+        geography: Norway
+        regionFriendlyName: Norway West
+        regionShortName: now
+      polandcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: pl
+        geography: Poland
+        regionFriendlyName: Poland Central
+        regionShortName: plc
+      qatarcentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: qa
+        geography: Qatar
+        regionFriendlyName: Qatar Central
+        regionShortName: qac
+      saudiarabiaeast:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 0
+        geoShortId: sa
+        geography: Saudi Arabia
+        regionFriendlyName: Saudi Arabia East
+        regionShortName: sae
+      southafricanorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: za
+        geography: South Africa
+        regionFriendlyName: South Africa North
+        regionShortName: jnb
+      southafricawest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: za
+        geography: South Africa
+        regionFriendlyName: South Africa West
+        regionShortName: cpt
+      southcentralus:
+        availabilityZoneCount: 4
+        availabilityZoneLiveCount: 4
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: South Central US
+        regionShortName: sn
+      southcentralus2:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: South Central US 2
+        regionShortName: ussc2
+      southcentralusstg:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: ust
+        geography: Stage (US)
+        regionFriendlyName: South Central US STG
+        regionShortName: ustsc
+      southeastasia:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: ap
+        geography: Asia Pacific
+        regionFriendlyName: Southeast Asia
+        regionShortName: sg
+      southeastasia3:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 0
+        geoShortId: my
+        geography: Malaysia
+        regionFriendlyName: Southeast Asia 3
+        regionShortName: sg3
+      southeastus:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Southeast US
+        regionShortName: usse1
+      southeastus3:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 0
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Southeast US 3
+        regionShortName: usse3
+      southeastus5:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Southeast US 5
+        regionShortName: usse5
+      southindia:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: in
+        geography: India
+        regionFriendlyName: South India
+        regionShortName: ma
+      southwestus:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: Southwest US
+        regionShortName: ussw1
+      spaincentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: es
+        geography: Spain
+        regionFriendlyName: Spain Central
+        regionShortName: esc
+      swedencentral:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: se
+        geography: Sweden
+        regionFriendlyName: Sweden Central
+        regionShortName: sec
+      swedensouth:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: se
+        geography: Sweden
+        regionFriendlyName: Sweden South
+        regionShortName: ses
+      switzerlandnorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: ch
+        geography: Switzerland
+        regionFriendlyName: Switzerland North
+        regionShortName: chn
+      switzerlandwest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: ch
+        geography: Switzerland
+        regionFriendlyName: Switzerland West
+        regionShortName: chw
+      taiwannorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 1
+        geoShortId: tw
+        geography: Taiwan
+        regionFriendlyName: Taiwan North
+        regionShortName: twn
+      taiwannorthwest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: tw
+        geography: Taiwan
+        regionFriendlyName: Taiwan Northwest
+        regionShortName: twnw
+      uaecentral:
+        availabilityZoneCount: 2
+        availabilityZoneLiveCount: 2
+        geoShortId: ae
+        geography: UAE
+        regionFriendlyName: UAE Central
+        regionShortName: auh
+      uaenorth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: ae
+        geography: UAE
+        regionFriendlyName: UAE North
+        regionShortName: dxb
+      uksouth:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: uk
+        geography: United Kingdom
+        regionFriendlyName: UK South
+        regionShortName: ln
+      ukwest:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: uk
+        geography: United Kingdom
+        regionFriendlyName: UK West
+        regionShortName: cw
+      westcentralus:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: West Central US
+        regionShortName: cy
+      westcentralusfre:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 0
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: West Central US FRE
+        regionShortName: cyfre
+      westeurope:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: eu
+        geography: Europe
+        regionFriendlyName: West Europe
+        regionShortName: am
+      westindia:
+        availabilityZoneCount: 1
+        availabilityZoneLiveCount: 1
+        geoShortId: in
+        geography: India
+        regionFriendlyName: West India
+        regionShortName: bm
+      westus:
+        availabilityZoneCount: 2
+        availabilityZoneLiveCount: 2
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: West US
+        regionShortName: by
+      westus2:
+        availabilityZoneCount: 3
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: West US 2
+        regionShortName: mwh
+      westus3:
+        availabilityZoneCount: 4
+        availabilityZoneLiveCount: 3
+        geoShortId: us
+        geography: United States
+        regionFriendlyName: West US 3
+        regionShortName: usw3

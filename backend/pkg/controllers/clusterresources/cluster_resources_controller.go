@@ -264,7 +264,10 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
 	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
 
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
+	if err != nil {
+		return err
+	}
 	if kubeApplierDBClient == nil {
 		return nil
 	}
@@ -305,7 +308,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		// HyperShift now manages the ingress certificate directly, so stop writing new ACM-path ingress certificate wiring desires (pre-existing ones are left alone; see deleteStaleApplyDesires).
+		// HyperShift now manages the ingress certificate directly, so stop writing ACM-path ingress certificate wiring desires; stale owned desires are removed by deleteStaleApplyDesires.
 		if legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
 			continue
 		}
@@ -795,17 +798,16 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 		return utils.TrackError(fmt.Errorf("list ApplyDesires for stale cleanup: %w", err))
 	}
 
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
+	if err != nil {
+		return err
+	}
 	if kubeApplierDBClient == nil {
 		return nil
 	}
 
 	for _, desire := range existing {
 		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
-			continue
-		}
-		// Pre-existing ACM-path ingress certificate wiring desires are no longer reasserted (see processClusterResources), so don't reap them as stale; the full-cluster teardown chain removes them once the cluster is deleted.
-		if legacyACMBasedIngressCertificateWiringDesireName(desire.ResourceID.Name) {
 			continue
 		}
 		if desire.Tags == nil ||

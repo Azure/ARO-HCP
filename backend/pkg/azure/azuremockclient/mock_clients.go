@@ -20,6 +20,7 @@ import (
 
 	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -105,6 +106,10 @@ func (m *FirstPartyApplicationClientBuilderFunc) ResourceGroupsClient(tenantID s
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *FirstPartyApplicationClientBuilderFunc) ActivityLogsClient(tenantID string, subscriptionID string) (azureclient.ActivityLogsClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *FirstPartyApplicationClientBuilderFunc) ResourceProvidersClient(tenantID string, subscriptionID string) (azureclient.ResourceProvidersClient, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -117,6 +122,10 @@ func (m *FirstPartyApplicationClientBuilderFunc) UsageClient(tenantID string, su
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *FirstPartyApplicationClientBuilderFunc) FeaturesClient(tenantID string, subscriptionID string) (azureclient.FeaturesClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *FirstPartyApplicationClientBuilderFunc) GenericResourcesClient(tenantID string, subscriptionID string) (azureclient.GenericResourcesClient, error) {
 	return m.GenericResourcesClientVal, m.GenericResourcesClientErr
 }
@@ -126,5 +135,9 @@ func (m *FirstPartyApplicationClientBuilderFunc) DenyAssignmentsClient(tenantID 
 }
 
 func (m *FirstPartyApplicationClientBuilderFunc) RoleAssignmentsClient(tenantID string, subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *FirstPartyApplicationClientBuilderFunc) DeploymentStacksClient(tenantID, subscriptionID string) (*armdeploymentstacks.Client, error) {
 	return nil, fmt.Errorf("not implemented")
 }

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -37,8 +38,8 @@ import (
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
-	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
+	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments"
 	armdeploymentsfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments/fake"
 
@@ -54,6 +55,8 @@ type deployedTestResource struct {
 	DependsOn  []string                   `json:"dependsOn"`
 	Properties map[string]json.RawMessage `json:"properties"`
 	Tags       map[string]string          `json:"tags"`
+	Identity   json.RawMessage            `json:"identity,omitempty"`
+	SKU        json.RawMessage            `json:"sku,omitempty"`
 }
 
 func deploymentResources(t *testing.T, deployment armdeployments.Deployment) map[string]deployedTestResource {
@@ -68,11 +71,169 @@ func deploymentResources(t *testing.T, deployment armdeployments.Deployment) map
 	require.NoError(t, json.Unmarshal(body, &template))
 	resources := make(map[string]deployedTestResource, len(template.Resources))
 	for _, resource := range template.Resources {
-		require.Equal(t, "2026-04-02-preview", resource.APIVersion)
+		require.Equal(t, "2026-08-01", resource.APIVersion)
 		require.NotContains(t, resources, resource.Name, "a pool cannot be deployed twice")
 		resources[resource.Name] = resource
 	}
 	return resources
+}
+
+func TestServiceProfileDeploymentFromEnvironment(t *testing.T) {
+	o, pools := deploymentOptionsFromEnvironment(t, serviceDeploymentEnvironment())
+	deployment, _, err := o.buildDeployment(nil, pools)
+	require.NoError(t, err)
+	resources := deploymentResources(t, deployment)
+	cluster := resources[o.clusterName]
+	assert.JSONEq(t, `{"mode":"Istio","istio":{"revisions":["asm-1-27"],"components":{"ingressGateways":[{"enabled":true,"mode":"External"}]}}}`, string(cluster.Properties["serviceMeshProfile"]))
+	assert.JSONEq(t, `{"gatewayAPI":{"installation":"Standard"}}`, string(cluster.Properties["ingressProfile"]))
+}
+
+func serviceDeploymentEnvironment() map[string]string {
+	return map[string]string{
+		"ISTIO_VERSIONS":   "asm-1-27",
+		"SYSTEM_POOL_ONLY": "false",
+	}
+}
+
+func deploymentOptionsFromEnvironment(t *testing.T, overrides map[string]string) (*validatedOptions, []compute.Pool) {
+	t.Helper()
+	values := map[string]string{
+		"SYSTEM_POOL_VM_SIZE": "sku",
+		"USER_POOL_VM_SIZE":   "sku",
+		"INFRA_POOL_VM_SIZE":  "sku",
+	}
+	maps.Copy(values, overrides)
+	o, err := newServiceRawOptionsFromEnv(envFunc(values)).Validate()
+	require.NoError(t, err)
+	completed := newDeploymentRunOptions(t, &armcontainerservicefake.ManagedClustersServer{}, &armdeploymentsfake.DeploymentsServer{})
+	completed.validatedOptions = o
+	completed.system, completed.user, completed.infra, err = completePoolConfigs(context.Background(), completed.validatedOptions, completed.skuCache, nil)
+	require.NoError(t, err)
+	pools, err := completed.desiredPools(context.Background())
+	require.NoError(t, err)
+	return o, pools
+}
+
+func TestServiceProfileUpdateOmitsIstioRevisions(t *testing.T) {
+	for _, revisions := range []string{`["asm-1-28"]`, `["asm-1-28","asm-1-29"]`} {
+		t.Run(revisions, func(t *testing.T) {
+			o, pools := deploymentOptionsFromEnvironment(t, serviceDeploymentEnvironment())
+			var live armcontainerservice.ManagedCluster
+			require.NoError(t, json.Unmarshal([]byte(`{
+				"properties": {
+					"provisioningState": "Succeeded",
+					"serviceMeshProfile": {
+						"mode": "Disabled",
+						"istio": {
+							"revisions": `+revisions+`,
+							"certificateAuthority": {"plugin":{"keyVaultId":"preserved-vault"}},
+							"components": {"ingressGateways":[{"enabled":false,"mode":"External"}]}
+						}
+					},
+					"ingressProfile": {"gatewayAPI":{"installation":"Disabled"}}
+				}
+			}`), &live))
+			deployment, changed, err := o.buildDeployment(&live, pools)
+			require.NoError(t, err)
+			resources := deploymentResources(t, deployment)
+			cluster := resources[o.clusterName]
+			assert.JSONEq(t, `{"mode":"Istio","istio":{"certificateAuthority":{"plugin":{"keyVaultId":"preserved-vault"}},"components":{"ingressGateways":[{"enabled":true,"mode":"External"}]}}}`, string(cluster.Properties["serviceMeshProfile"]))
+			assert.JSONEq(t, `{"gatewayAPI":{"installation":"Standard"}}`, string(cluster.Properties["ingressProfile"]))
+			assert.NotContains(t, changed, "properties.serviceMeshProfile.istio.revisions")
+			assert.JSONEq(t, `{"maxSurge":"10%"}`, string(resources[o.clusterName+"/s1abc1234567"].Properties["upgradeSettings"]))
+			assert.JSONEq(t, `{"maxSurge":"10%","maxUnavailable":"0"}`, string(resources[o.clusterName+"/w1"].Properties["upgradeSettings"]))
+			assert.NotContains(t, resources[o.clusterName+"/w1"].Properties, "tags")
+			assert.Equal(t, "Disabled", string(*live.Properties.ServiceMeshProfile.Mode), "the observation must not be mutated")
+
+			observedRevisions, err := json.Marshal(live.Properties.ServiceMeshProfile.Istio.Revisions)
+			require.NoError(t, err)
+			assert.JSONEq(t, revisions, string(observedRevisions), "the observation must not be mutated")
+
+			body, err := json.Marshal(cluster)
+			require.NoError(t, err)
+			var converged armcontainerservice.ManagedCluster
+			require.NoError(t, json.Unmarshal(body, &converged))
+			converged.Properties.ServiceMeshProfile.Istio.Revisions = live.Properties.ServiceMeshProfile.Istio.Revisions
+			rerun, changed, err := o.buildDeployment(&converged, pools)
+			require.NoError(t, err)
+			assert.Empty(t, changed, "upgraded revisions must not cause configuration drift")
+			assert.NotContains(t, deploymentResources(t, rerun), o.clusterName)
+
+			converged.Properties.ProvisioningState = ptr.To("Failed")
+			recovery, _, err := o.buildDeployment(&converged, pools)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(cluster.Properties["serviceMeshProfile"]), string(deploymentResources(t, recovery)[o.clusterName].Properties["serviceMeshProfile"]), "recovery must also omit revisions")
+		})
+	}
+}
+
+func TestServiceProfileSystemOnlyScheduling(t *testing.T) {
+	env := serviceDeploymentEnvironment()
+	env["SYSTEM_POOL_ONLY"] = "true"
+	// Disabled pool blocks need no usable configuration or SKU.
+	env["USER_POOL_NAME"], env["INFRA_POOL_NAME"] = "", ""
+	env["USER_POOL_VM_SIZE"], env["INFRA_POOL_VM_SIZE"] = "missing", "missing"
+	o, pools := deploymentOptionsFromEnvironment(t, env)
+	for _, existing := range []*armcontainerservice.ManagedCluster{nil, ptr.To(deployedTestCluster())} {
+		deployment, _, err := o.buildDeployment(existing, pools)
+		require.NoError(t, err)
+		resources := deploymentResources(t, deployment)
+		if existing == nil {
+			require.Len(t, resources, 1)
+			var inline []map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(resources[o.clusterName].Properties["agentPoolProfiles"], &inline))
+			require.Len(t, inline, 1)
+			assert.JSONEq(t, `[]`, string(inline[0]["nodeTaints"]))
+		} else {
+			require.Len(t, resources, 2, "only the cluster and existing system pool are managed")
+			assert.JSONEq(t, `[]`, string(resources[o.clusterName+"/s1abc1234567"].Properties["nodeTaints"]))
+			assert.NotContains(t, resources[o.clusterName].Properties, "agentPoolProfiles", "other existing pools must not be deleted")
+		}
+	}
+}
+
+func TestServiceProfileUpdateDoesNotBootstrapMissingRevisions(t *testing.T) {
+	o, pools := deploymentOptionsFromEnvironment(t, serviceDeploymentEnvironment())
+	live := deployedTestCluster()
+	deployment, _, err := o.buildDeployment(&live, pools)
+	require.NoError(t, err)
+	cluster := deploymentResources(t, deployment)[o.clusterName]
+	assert.JSONEq(t, `{"mode":"Istio","istio":{"components":{"ingressGateways":[{"enabled":true,"mode":"External"}]}}}`, string(cluster.Properties["serviceMeshProfile"]), "updates must never submit bootstrap revisions or explicit null")
+	assert.JSONEq(t, `{"gatewayAPI":{"installation":"Standard"}}`, string(cluster.Properties["ingressProfile"]))
+}
+
+func TestServiceProfileGatewayAPIReconciliation(t *testing.T) {
+	for _, installation := range []string{"Standard", "Disabled"} {
+		t.Run(installation, func(t *testing.T) {
+			o, pools := deploymentOptionsFromEnvironment(t, serviceDeploymentEnvironment())
+			created, _, err := o.buildDeployment(nil, pools)
+			require.NoError(t, err)
+			wireCluster := deploymentResources(t, created)[o.clusterName]
+			wireCluster.Properties["provisioningState"] = json.RawMessage(`"Succeeded"`)
+			wireCluster.Properties["ingressProfile"] = json.RawMessage(`{"gatewayAPI":{"installation":"` + installation + `"},"webAppRouting":{"enabled":true}}`)
+			payload, err := json.Marshal(wireCluster)
+			require.NoError(t, err)
+			var observed armcontainerservice.ManagedCluster
+			require.NoError(t, json.Unmarshal(payload, &observed))
+			deployment, changed, err := o.buildDeployment(&observed, pools)
+			require.NoError(t, err)
+			resources := deploymentResources(t, deployment)
+			if installation == "Standard" {
+				assert.Empty(t, changed)
+				assert.NotContains(t, resources, o.clusterName, "the live Gateway API value must participate in no-op detection")
+			} else {
+				assert.Equal(t, []string{"properties.ingressProfile.gatewayAPI.installation"}, changed)
+				assert.JSONEq(t, `{"gatewayAPI":{"installation":"Standard"},"webAppRouting":{"enabled":true}}`, string(resources[o.clusterName].Properties["ingressProfile"]), "repair only owned Gateway API configuration and preserve unrelated ingress settings")
+			}
+			unchanged, err := json.Marshal(observed)
+			require.NoError(t, err)
+			var observation struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			require.NoError(t, json.Unmarshal(unchanged, &observation))
+			assert.JSONEq(t, string(wireCluster.Properties["ingressProfile"]), string(observation.Properties["ingressProfile"]), "merging must not mutate the observation")
+		})
+	}
 }
 
 func TestBuildDeploymentResourceOwnership(t *testing.T) {
@@ -189,6 +350,7 @@ func deployedTestCluster() armcontainerservice.ManagedCluster {
 			agentpools.ProvisioningTagKey: ptr.To(agentpools.ProvisioningTagValue),
 			"clusterType":                 ptr.To("mgmt"), "persist": ptr.To("true"),
 			"external-owner": ptr.To("keep"),
+			"owningTeam":     ptr.To("team-from-monitoring"),
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			ProvisioningState: ptr.To("Succeeded"),
@@ -199,10 +361,12 @@ func deployedTestCluster() armcontainerservice.ManagedCluster {
 
 func newDeploymentRunOptions(t *testing.T, clusters *armcontainerservicefake.ManagedClustersServer, deployments *armdeploymentsfake.DeploymentsServer) *completedOptions {
 	t.Helper()
-	o := testValidatedOptions()
-	o.system = poolConfig{name: "sys", vmSize: "sku", osDiskSizeGB: 32, minCount: 1, maxCount: 3, poolCount: 1, zones: []string{"1"}}
-	o.user = poolConfig{name: "worker", vmSize: "sku", osDiskSizeGB: 128, minCount: 0, maxCount: 5, poolCount: 1, zones: []string{"1"}}
-	o.infra = poolConfig{vmSize: "sku"}
+	o, err := newManagementRawOptionsFromEnv(envFunc(map[string]string{
+		"SYSTEM_POOL_NAME": "sys", "SYSTEM_POOL_VM_SIZE": "sku",
+		"USER_POOL_NAME": "worker", "USER_POOL_VM_SIZE": "sku", "USER_POOL_COUNT": "1",
+		"INFRA_POOL_VM_SIZE": "sku",
+	})).Validate()
+	require.NoError(t, err)
 	client, err := armdeployments.NewDeploymentsClient("sub1", &azfake.TokenCredential{}, &azcorearm.ClientOptions{
 		ClientOptions: policy.ClientOptions{Transport: armdeploymentsfake.NewDeploymentsServerTransport(deployments)},
 	})
@@ -219,6 +383,7 @@ func newDeploymentRunOptions(t *testing.T, clusters *armcontainerservicefake.Man
 		}),
 		skuCache: newRunTestSKUCache(t, []*armcompute.ResourceSKU{{
 			Name: ptr.To("sku"), Family: ptr.To("family"), ResourceType: ptr.To("virtualMachines"),
+			LocationInfo: []*armcompute.ResourceSKULocationInfo{{Location: ptr.To("eastus"), Zones: []*string{ptr.To("1"), ptr.To("2"), ptr.To("3"), ptr.To("4")}}},
 			Capabilities: []*armcompute.ResourceSKUCapabilities{
 				{Name: ptr.To("vCPUs"), Value: ptr.To("4")},
 				{Name: ptr.To("MemoryGB"), Value: ptr.To("16")},
@@ -274,7 +439,7 @@ func TestRunDeploymentFinalization(t *testing.T) {
 						return
 					},
 					BeginUpdateTags: func(_ context.Context, _, _ string, tags armcontainerservice.TagsObject, options *armcontainerservice.ManagedClustersClientBeginUpdateTagsOptions) (resp azfake.PollerResponder[armcontainerservice.ManagedClustersClientUpdateTagsResponse], errResp azfake.ErrorResponder) {
-						require.Equal(t, ptr.To("fresh-etag"), options.IfMatch, "handover must use the post-deployment observation")
+						require.Equal(t, ptr.To("fresh-etag"), options.IfMatch, "initial completion must use the post-deployment observation")
 						finalTags <- tags.Tags
 						resp.SetTerminalResponse(http.StatusOK, armcontainerservice.ManagedClustersClientUpdateTagsResponse{ManagedCluster: live}, nil)
 						return
@@ -351,10 +516,27 @@ func TestRunDeploymentFinalization(t *testing.T) {
 					},
 				})
 				result := make(chan error, 1)
-				go func() { result <- o.run(ctx) }()
+				go func() {
+					if err := waitForDeployment(ctx, o.deploymentsClient, o.deploymentOperationsClient, o.resourceGroup, deploymentName); err != nil {
+						result <- err
+						return
+					}
+					cluster, err := observeCluster(ctx, o.clustersClient, o.resourceGroup, o.clusterName)
+					if err != nil {
+						result <- err
+						return
+					}
+					o.cluster = cluster
+					o.system, o.user, o.infra, err = completePoolConfigs(ctx, o.validatedOptions, o.skuCache, cluster)
+					if err != nil {
+						result <- err
+						return
+					}
+					result <- o.run(ctx)
+				}()
 				synctest.Wait()
 				require.True(t, submitted)
-				assert.Empty(t, finalTags, "handover must not happen while the deployment is pending")
+				assert.Empty(t, finalTags, "initial provisioning must not complete while the deployment is pending")
 				assert.Zero(t, operationLists.Load(), "diagnostics must not poll alongside the deployment")
 				err := <-result
 				assert.Equal(t, int32(1), operationLists.Load(), "collect operations once, on both success and failure")
@@ -372,7 +554,7 @@ func TestRunDeploymentFinalization(t *testing.T) {
 				assert.Equal(t, observedName, submittedName, "the observed deployment must be the one this cluster submits")
 				if test.failure != "" {
 					require.ErrorContains(t, err, test.failure)
-					assert.Empty(t, finalTags, "failed or canceled deployments must leave the handover marker intact")
+					assert.Empty(t, finalTags, "failed or canceled deployments must leave the initial provisioning marker intact")
 					return
 				}
 				require.NoError(t, err)
@@ -442,6 +624,12 @@ func TestRunWaitsForActiveDeployment(t *testing.T) {
 					},
 				})
 
+				require.NoError(t, waitForDeployment(ctx, o.deploymentsClient, o.deploymentOperationsClient, o.resourceGroup, deploymentName))
+				cluster, err := observeCluster(ctx, o.clustersClient, o.resourceGroup, o.clusterName)
+				require.NoError(t, err)
+				o.cluster = cluster
+				o.system, o.user, o.infra, err = completePoolConfigs(ctx, o.validatedOptions, o.skuCache, cluster)
+				require.NoError(t, err)
 				require.NoError(t, o.run(ctx))
 				require.Equal(t, 1, submissions, "configured resources must be redeployed even after a previous success or failure")
 			})
@@ -462,12 +650,29 @@ func TestRunCancelWhileWaitingForActiveDeployment(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		result := make(chan error, 1)
-		go func() { result <- o.run(ctx) }()
+		go func() {
+			if err := waitForDeployment(ctx, o.deploymentsClient, o.deploymentOperationsClient, o.resourceGroup, deploymentName); err != nil {
+				result <- err
+				return
+			}
+			cluster, err := observeCluster(ctx, o.clustersClient, o.resourceGroup, o.clusterName)
+			if err != nil {
+				result <- err
+				return
+			}
+			o.cluster = cluster
+			o.system, o.user, o.infra, err = completePoolConfigs(ctx, o.validatedOptions, o.skuCache, cluster)
+			if err != nil {
+				result <- err
+				return
+			}
+			result <- o.run(ctx)
+		}()
 		synctest.Wait()
 		cancel()
 		require.ErrorIs(t, <-result, context.Canceled)
 		// No cluster or deployment write endpoint is supplied: cancellation must
-		// leave the active operation and its handover marker untouched.
+		// leave the active operation and its initial provisioning marker untouched.
 	})
 }
 
@@ -503,7 +708,7 @@ func TestDeploymentDiagnosticsAfterCancellation(t *testing.T) {
 				require.NoError(t, err)
 				o := &completedOptions{validatedOptions: testValidatedOptions(), deploymentOperationsClient: client}
 				started := time.Now()
-				o.logDeploymentOperations(ctx, deploymentName)
+				logDeploymentOperations(ctx, o.deploymentOperationsClient, o.resourceGroup, deploymentName)
 				if blocked {
 					assert.Contains(t, logs.String(), context.DeadlineExceeded.Error())
 					assert.LessOrEqual(t, time.Since(started), time.Minute, "unavailable diagnostics must not hang recovery")

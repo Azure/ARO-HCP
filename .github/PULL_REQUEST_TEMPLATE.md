@@ -26,6 +26,7 @@ justification.
 
 ### PR Checklist
 
+- [ ] Understand [Code Review Process](https://github.com/kubernetes/community/blob/main/contributors/guide/owners.md#the-code-review-process) managed by [OpenShift CI bot](https://github.com/apps/openshift-ci)
 - [ ] PR is scoped to a single task (no mixed concerns)
 - [ ] Title follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
 - [ ] Summary explains the "Why" behind the change
@@ -36,7 +37,7 @@ justification.
 - [ ] Draft PR used for WIP (if applicable)
 - [ ] Commit history is clean (rebased/squashed)
 - [ ] Tricky code blocks are commented
-- [ ] Specific reviewers tagged
+- [ ] Specific reviewers tagged via [`/assign` command](https://prow.ci.openshift.org/command-help#assign)
 - [ ] All comment threads resolved before merge
 
 If E2E tests are included:

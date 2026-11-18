@@ -18,15 +18,19 @@ import (
 	"github.com/spf13/cobra"
 
 	buildconfigoverride "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra/build-config-override"
+	discoverpublicip "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra/discover-public-ip"
+	frontendgrantingress "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra/frontend-grant-ingress"
 )
 
-// NewCommand provides offline infrastructure configuration utilities.
+// NewCommand provides infrastructure configuration and access utilities.
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:          "infra",
-		Short:        "Offline infrastructure configuration utilities",
+		Short:        "Infrastructure configuration and access utilities",
 		SilenceUsage: true,
 	}
 	command.AddCommand(buildconfigoverride.NewCommand())
+	command.AddCommand(discoverpublicip.NewCommand())
+	command.AddCommand(frontendgrantingress.NewCommand())
 	return command
 }

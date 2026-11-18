@@ -38,6 +38,8 @@ Use this workflow to expose a new feature to customers as a preview without upda
 
 The steps to develop and submit your changes are the same as above, except that this time you **should** update [setup.py](https://github.com/Azure/azure-cli-extensions/blob/main/src/aro/setup.py) with a new version number. When your PR merges, the Azure CLI team's automation will detect the new version number, build a new extension wheel, and update [index.json](https://github.com/Azure/azure-cli-extensions/blob/main/src/index.json) automatically. This exposes the new extension to customers through `az extension add --name aro`.
 
+If you're updating to a new version number, make sure to add the new version number and notes about your changes to `HISTORY.rst`. If you're making changes *without* updating to a new version number, put your changes in a `Pending` section in `HISTORY.rst`. The CLI PR reviewers will expect to see your changes listed there.
+
 ### Workflow to update the stable CLI command module
 
 Use this workflow to include the extension's functionality in the next release of the stable CLI. Customers will then have access to the new functionality without having to run `az extension add`.
@@ -54,6 +56,15 @@ Copy the contents of [`Azure/azure-cli-extensions/src/aro`](https://github.com/A
 | Stable command module code | `Azure/azure-cli` | TBD |
 
 In all cases, the command models live in the `Azure/aaz` repo, and the generated code plus customizations (`custom.py`, `commands.py`) live in the appropriate upstream Azure repo. The ARO-HCP repo only contains the Swagger/TypeSpec API specs and this workflow documentation.
+
+### A note on breaking changes
+
+The stable command module repo, `azure-cli`, only allows breaking changes in "breaking change releases", which happen relatively infrequently. If you look through the release history at https://github.com/Azure/azure-cli/milestones, you'll be able to see how, for example, 2026 had 2 breaking change releases, while 2025 only had 1. Something to be aware of if you're looking at a possible breaking change in your work.
+
+On the other hand, we can merge breaking changes to `azure-cli-extensions` anytime as long as we ensure the extension and commands are still marked as "in preview". Links to the code that ensures the extension is in preview:
+
+- https://github.com/Azure/azure-cli-extensions/blob/48cc9dabc97670904b8ddfc231862cd985a00732/src/aro/azext_aro/azext_metadata.json#L2
+- https://github.com/Azure/azure-cli-extensions/blob/48cc9dabc97670904b8ddfc231862cd985a00732/src/aro/azext_aro/__init__.py#L41
 
 ## ARO HCP-specific considerations
 
@@ -82,6 +93,7 @@ Customizations use the [AAZ inheritance pattern](https://azure.github.io/aaz-dev
 - **`request-admin-credential`**: exposes the kubeconfig (hidden by default as a secret), replaces literal `\n` sequences with actual newlines, and adds `--file` to write the kubeconfig directly to a file. It also generates a private key and certificate signing request (CSR) on behalf of the user, submits the CSR as part of the API request, and inserts the private key into the resulting kubeconfig.
 - **`cluster create`**: injects `identity.type = "UserAssigned"` into the request body. The generated code sets `userAssignedIdentities` but does not set the required ARM `identity.type` field. This customization also restructures the identity assignment arguments to align more closely with the Standard CLI's user experience.
 - **`cluster update`**: restructures the identity assignment arguments in the same way as `cluster create`.
+- **`nodepool create`**: ensures required arguments are annotated accordingly.
 - **`get-versions`**: formats output nicely.
 
 ## Submitting PRs

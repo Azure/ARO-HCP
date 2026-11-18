@@ -17,6 +17,7 @@ package gatherobservability
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"net/http"
 	"os"
@@ -612,5 +613,214 @@ func TestMissingWorkspaceSetupDoesNotGateAlertScope(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(o.OutputDir, "alerts.json"))
 	if err != nil || !strings.Contains(string(data), "retained") {
 		t.Fatalf("unresolved workspace alert was discarded: %s, %v", data, err)
+	}
+}
+
+func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
+	t.Parallel()
+	const regionScope = "/subscriptions/sub/resourceGroups/hcp-underlay-ci01-j0882816"
+
+	newOptions := func(t *testing.T) Options {
+		t.Helper()
+		return Options{completedOptions: &completedOptions{
+			OutputDir: t.TempDir(),
+			Workspaces: map[string]azcorearm.ResourceID{
+				workspaceSvc: *mustParseResourceID("sub", "hcp-underlay-ci01-j0882816", "svc"),
+				workspaceHcp: *mustParseResourceID("sub", "hcp-underlay-ci01-j0882816", "hcp"),
+			},
+			resourceGroups:    sets.New(regionScope),
+			regionRGScope:     regionScope,
+			SeverityThreshold: -1,
+			TimeWindow:        timing.TimeWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)},
+		}}
+	}
+
+	// healthyDeps stubs a provisioned environment whose alert rules are all quiet.
+	healthyDeps := func(o Options) gatherDependencies {
+		deps := o.dependencies()
+		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+			return nil, nil
+		}
+		deps.fetchMetricAlertRules = func(context.Context, azcore.TokenCredential, string, string) ([]string, error) {
+			return []string{"metric-rule"}, nil
+		}
+		deps.fetchAlertRules = func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error) {
+			return alertRuleInventory{Names: []string{"quiet"}}, nil
+		}
+		deps.lookupEndpoint = func(context.Context, azcore.TokenCredential, string, string, string) (string, error) {
+			return "http://prometheus", nil
+		}
+		deps.collectAMW = func(context.Context) amwReport { return amwReport{} }
+		deps.collectUtilization = func(context.Context, map[string]*workspaceData) utilizationReport {
+			return utilizationReport{
+				SchemaVersion: 1,
+				GeneratedAt:   time.Unix(2000, 0),
+				Start:         time.Unix(1000, 0),
+				End:           time.Unix(2000, 0),
+			}
+		}
+		return deps
+	}
+
+	readSuites := func(t *testing.T, dir string) *junit.TestSuites {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, "junit_alerts.xml"))
+		if err != nil {
+			t.Fatalf("missing JUnit artifact: %v", err)
+		}
+		var suites junit.TestSuites
+		if err := xml.Unmarshal(data, &suites); err != nil {
+			t.Fatalf("invalid JUnit artifact: %v\n%s", err, data)
+		}
+		if len(suites.Suites) != 1 {
+			t.Fatalf("expected a single suite, got %d", len(suites.Suites))
+		}
+		return &suites
+	}
+
+	t.Run("missing region resource group skips collection", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		deps := o.dependencies()
+		deps.checkResourceGroupExists = func(ctx context.Context, _ azcore.TokenCredential, scope string) (bool, error) {
+			if _, ok := ctx.Deadline(); !ok {
+				t.Error("existence probe must run under its own deadline")
+			}
+			if scope != regionScope {
+				t.Errorf("probed %q, want the region resource group %q", scope, regionScope)
+			}
+			return false, nil
+		}
+		// The probe is the only call allowed; every collector fails the test.
+		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+			t.Error("alerts fetched for a missing region resource group")
+			return nil, nil
+		}
+		deps.fetchMetricAlertRules = func(context.Context, azcore.TokenCredential, string, string) ([]string, error) {
+			t.Error("metric alert rules fetched for a missing region resource group")
+			return nil, nil
+		}
+		deps.fetchAlertRules = func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error) {
+			t.Error("alert rules fetched for a missing region resource group")
+			return alertRuleInventory{}, nil
+		}
+		deps.lookupEndpoint = func(context.Context, azcore.TokenCredential, string, string, string) (string, error) {
+			t.Error("Prometheus endpoint looked up for a missing region resource group")
+			return "", nil
+		}
+		deps.collectAMW = func(context.Context) amwReport {
+			t.Error("AMW evidence collected for a missing region resource group")
+			return amwReport{}
+		}
+		deps.collectUtilization = func(context.Context, map[string]*workspaceData) utilizationReport {
+			t.Error("utilization collected for a missing region resource group")
+			return utilizationReport{}
+		}
+		deps.renderAlerts = func(any) ([]byte, error) {
+			t.Error("alert page rendered for a missing region resource group")
+			return nil, nil
+		}
+
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
+			t.Fatalf("a missing region resource group must not fail the gather step: %v", err)
+		}
+
+		// Nothing collected, nothing published.
+		entries, err := os.ReadDir(o.OutputDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 0 {
+			names := make([]string, 0, len(entries))
+			for _, e := range entries {
+				names = append(names, e.Name())
+			}
+			t.Errorf("expected no artifacts for a skipped collection, got %v", names)
+		}
+	})
+
+	t.Run("missing region resource group still reports setup errors", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		o.queriesError = errors.New("failed to load queries")
+		deps := o.dependencies()
+		deps.checkResourceGroupExists = func(context.Context, azcore.TokenCredential, string) (bool, error) {
+			return false, nil
+		}
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err == nil || !strings.Contains(err.Error(), "failed to load queries") {
+			t.Fatalf("setup errors must still fail the step when collection is skipped, got %v", err)
+		}
+	})
+
+	t.Run("existing region resource group collects normally", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		deps := healthyDeps(o)
+		deps.checkResourceGroupExists = func(context.Context, azcore.TokenCredential, string) (bool, error) {
+			return true, nil
+		}
+		var alertsCalled bool
+		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+			alertsCalled = true
+			return nil, nil
+		}
+
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
+			t.Fatalf("a provisioned environment must collect cleanly: %v", err)
+		}
+		if !alertsCalled {
+			t.Fatal("collection skipped although the region resource group exists")
+		}
+		suite := readSuites(t, o.OutputDir).Suites[0]
+		if suite.NumFailed != 0 || suite.NumSkipped != 0 {
+			t.Errorf("expected a clean collection, got %+v", suite)
+		}
+	})
+
+	t.Run("existence probe failure does not fail a clean collection", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		deps := healthyDeps(o)
+		deps.checkResourceGroupExists = func(context.Context, azcore.TokenCredential, string) (bool, error) {
+			return false, &azcore.ResponseError{ErrorCode: "AuthorizationFailed", StatusCode: http.StatusForbidden}
+		}
+		var alertsCalled bool
+		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+			alertsCalled = true
+			return nil, nil
+		}
+
+		// A broken probe must not become a new source of CI flakes.
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
+			t.Fatalf("a failed existence probe must not fail a clean collection: %v", err)
+		}
+		if !alertsCalled {
+			t.Error("a failed probe must not suppress collection")
+		}
+		if suite := readSuites(t, o.OutputDir).Suites[0]; suite.NumFailed != 0 || suite.NumSkipped != 0 {
+			t.Errorf("a failed probe must not change collection results, got %+v", suite)
+		}
+	})
+
+	t.Run("no region scope configured skips the probe", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		o.regionRGScope = ""
+		deps := healthyDeps(o)
+		deps.checkResourceGroupExists = func(context.Context, azcore.TokenCredential, string) (bool, error) {
+			t.Error("existence probed without a configured region resource group")
+			return false, nil
+		}
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
+			t.Fatalf("missing regionRG must not fail the gather step: %v", err)
+		}
+	})
+}
+
+func TestResourceGroupExistsRejectsMalformedScope(t *testing.T) {
+	t.Parallel()
+	// A malformed scope must error, not report "does not exist".
+	if _, err := resourceGroupExists(t.Context(), nil, "not-a-resource-group-id"); err == nil {
+		t.Fatal("expected an error for a malformed resource group scope")
 	}
 }

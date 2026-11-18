@@ -1016,7 +1016,7 @@ func TestCustomerPlatformProfileImmutability(t *testing.T) {
 				switch v.Kind() {
 				case reflect.String:
 					v.SetString(v.String() + "-changed")
-				case reflect.Ptr:
+				case reflect.Pointer:
 					changed := reflect.New(v.Type().Elem())
 					v.Set(changed)
 				case reflect.Struct:

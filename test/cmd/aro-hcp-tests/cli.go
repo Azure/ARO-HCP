@@ -39,6 +39,8 @@ import (
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra"
 	mergegate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/merge-gate"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities"
+	refreshpriorities "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/refresh-priorities"
 	slotmanager "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
@@ -65,6 +67,20 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	}
 	for _, arg := range os.Args {
 		if arg == "upgrade/in-place" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasExpectFailureLabel reports whether any of the given spec labels is an
+// expect-failure label. ExpectFailure labels carry a per-JIRA value
+// ("ExpectFailure:ARO-123"), so membership is tested by prefix rather than by
+// exact match — mirroring the CEL `l.startsWith(ExpectFailureLabelPrefix)`
+// qualifiers in registerSuites.
+func hasExpectFailureLabel(specLabels []string) bool {
+	for _, l := range specLabels {
+		if strings.HasPrefix(l, labels.ExpectFailureLabelPrefix) {
 			return true
 		}
 	}
@@ -111,9 +127,14 @@ func setupCli() (*cobra.Command, error) {
 			panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 		}
 
+		// Count only the specs the upgrade/in-place suite actually schedules.
+		// ExpectFailure specs are quarantined out of that suite (see registerSuites),
+		// so counting them here would make the coordinator wait at the barrier for
+		// participants that never start — deadlocking the cohort until the
+		// settlement timeout. Keep this filter in sync with the suite qualifier.
 		upgradeInPlaceCount := 0
 		for _, spec := range specs {
-			if spec.Labels.Has(labels.UpgradeInPlace[0]) {
+			if spec.Labels.Has(labels.UpgradeInPlace[0]) && !hasExpectFailureLabel(spec.Labels.UnsortedList()) {
 				upgradeInPlaceCount++
 			}
 		}
@@ -216,6 +237,12 @@ func setupCli() (*cobra.Command, error) {
 
 		registerEV2RetryCatcher(specs)
 
+		// The scheduler is FIFO, so higher priority specs have to enter the queue
+		// first to stay off the suite's critical path.
+		if err := orderSpecsForStart(specs); err != nil {
+			return err
+		}
+
 		ext.AddSpecs(specs)
 		registry.Register(ext)
 
@@ -257,6 +284,8 @@ func setupCli() (*cobra.Command, error) {
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
+	root.AddCommand(priorities.NewCommand())
+	root.AddCommand(refreshpriorities.NewCommand())
 	root.AddCommand(metadataapi.Must(mergegate.NewCommand()))
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))

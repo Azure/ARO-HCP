@@ -38,7 +38,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -58,20 +57,19 @@ const (
 // Manager is the fleet controller manager. It runs informers, leader election,
 // and the fleet controllers.
 type Manager struct {
-	FleetDBClient                fleetcosmosstorage.FleetDBClient
-	ClustersServiceClient        ocm.ClusterServiceClientSpec
-	MaestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
-	LeaderElectionLock           resourcelock.Interface
-	Region                       string
-	HealthzListenAddr            string
-	MetricsListenAddr            string
-	KubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
-	AMWWorkspaceResourceIDs      []string
-	AMWScalingPollInterval       time.Duration
-	AzureCredential              azcore.TokenCredential
-	AzureClientOptions           *policy.ClientOptions
-	NodePoolProfile              *compute.Profile
-	NodePoolZones                []string
+	FleetDBClient           fleetcosmosstorage.FleetDBClient
+	ClustersServiceClient   ocm.ClusterServiceClientSpec
+	LeaderElectionLock      resourcelock.Interface
+	Region                  string
+	HealthzListenAddr       string
+	MetricsListenAddr       string
+	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
+	AMWWorkspaceResourceIDs []string
+	AMWScalingPollInterval  time.Duration
+	AzureCredential         azcore.TokenCredential
+	AzureClientOptions      *policy.ClientOptions
+	NodePoolProfile         *compute.Profile
+	NodePoolZones           []string
 }
 
 // Run starts the fleet controller manager. It serves /healthz, /startupz and /metrics,

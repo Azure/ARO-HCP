@@ -16,11 +16,14 @@ package kubeapplier_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
@@ -33,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -115,15 +119,13 @@ func (f *fakeMCInformer) emitDelete(obj any) {
 
 // stubFactory builds an kubeapplierinformers.KubeApplierInformers per call by wiring
 // up the per-MC mock DB client registered for the given resourceID. Calls
-// for unregistered resourceIDs return nil and bump a counter so tests can
-// assert "factory had nothing to give yet".
+// for unregistered resourceIDs return nil, nil.
 type stubFactory struct {
 	relist time.Duration
 
-	mu       sync.Mutex
-	clients  map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient // keyed by lower(rid.String())
-	started  []*stubFactoryRun
-	missCntr atomic.Int32
+	mu      sync.Mutex
+	clients map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient // keyed by lower(rid.String())
+	started []*stubFactoryRun
 }
 
 type stubFactoryRun struct {
@@ -144,22 +146,19 @@ func (s *stubFactory) register(rid *azcorearm.ResourceID, mock *kubeappliercosmo
 
 func (s *stubFactory) NewKubeApplierInformers(
 	ctx context.Context, rid *azcorearm.ResourceID,
-) kubeapplierinformers.KubeApplierInformers {
+) (kubeapplierinformers.KubeApplierInformers, error) {
 	s.mu.Lock()
 	mock, ok := s.clients[strings.ToLower(rid.String())]
 	s.mu.Unlock()
 	if !ok {
-		s.missCntr.Add(1)
-		return nil
+		return nil, nil
 	}
 	inf := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
 	s.mu.Lock()
 	s.started = append(s.started, &stubFactoryRun{rid: rid, inf: inf})
 	s.mu.Unlock()
-	return inf
+	return inf, nil
 }
-
-func (s *stubFactory) misses() int { return int(s.missCntr.Load()) }
 
 func (s *stubFactory) runs() []*stubFactoryRun {
 	s.mu.Lock()
@@ -347,48 +346,81 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 //  4. Register the factory entry without emitting another MC event.
 //  5. Wait for the union to pick up the sub.
 //  6. Cancel and join.
+type retryInformerClients struct {
+	mu       sync.Mutex
+	client   kubeappliercosmosstorage.KubeApplierDBClient
+	err      error
+	attempts atomic.Int32
+}
+
+func (clients *retryInformerClients) For(context.Context, *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	clients.attempts.Add(1)
+	clients.mu.Lock()
+	defer clients.mu.Unlock()
+	return clients.client, clients.err
+}
+
 func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	relist := 100 * time.Millisecond
-	factory := newStubFactory(relist)
-
-	mcInformer := newFakeMCInformer()
-	mcLister := &mutableMCLister{}
-	mcLister.set(ctlMC(ctlMgmtAID))
-	ctl := unionkubeapplier.NewUnionKubeApplierInformersController(mcInformer, mcLister, factory)
-
-	runDone := startController(t, ctx, ctl, mcInformer, 1)
-
-	mcInformer.emitAdd(ctlMC(ctlMgmtAID))
-
-	waitUntil(t, ctx, "factory miss recorded", func() bool {
-		return factory.misses() >= 1
-	})
-	if ctl.Union().HasSynced() {
-		t.Errorf("union with an unavailable expected management cluster must not be synced")
+	injected := errors.New("client lookup failed")
+	type testCase struct {
+		name          string
+		resolutionErr error
 	}
-
-	// Wire up the factory; the controller retries without another event.
-	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
-		ctlNewApplyDesire(t,
-			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
-			ctlMgmtAID),
-	})
-	if err != nil {
-		t.Fatalf("mock A: %v", err)
+	for _, testCase := range []testCase{
+		{name: "absent client"},
+		{name: "client resolution error", resolutionErr: injected},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			relist := 100 * time.Millisecond
+			clients := &retryInformerClients{err: testCase.resolutionErr}
+			factory := unionkubeapplier.NewKubeApplierInformerFactory(clients, &relist)
+			sub, err := factory.NewKubeApplierInformers(ctx, ctlMgmtAID)
+			require.Nil(t, sub)
+			if testCase.resolutionErr != nil {
+				require.ErrorIs(t, err, testCase.resolutionErr)
+				require.ErrorContains(t, err, "failed to resolve kube-applier informer client")
+			} else {
+				require.NoError(t, err)
+			}
+			mcInformer := newFakeMCInformer()
+			mcLister := &mutableMCLister{}
+			mcLister.set(ctlMC(ctlMgmtAID))
+			ctl := unionkubeapplier.NewUnionKubeApplierInformersController(mcInformer, mcLister, factory)
+			err = ctl.SyncOnce(ctx, unionkubeapplier.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: fleetapi.ManagementClusterResourceName})
+			if testCase.resolutionErr != nil {
+				require.ErrorIs(t, err, testCase.resolutionErr)
+			} else {
+				require.ErrorContains(t, err, "informers unavailable")
+			}
+			_, applyLister := ctl.Union().ApplyDesires()
+			got, err := applyLister.ListForManagementCluster(ctx, ctlMgmtAID)
+			require.NoError(t, err)
+			require.Empty(t, got)
+			runDone := startController(t, ctx, ctl, mcInformer, 1)
+			attempts := clients.attempts.Load()
+			mcInformer.emitAdd(ctlMC(ctlMgmtAID))
+			waitUntil(t, ctx, "factory retry recorded", func() bool {
+				return clients.attempts.Load() > attempts
+			})
+			require.False(t, ctl.Union().HasSynced())
+			mockClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+				ctlNewApplyDesire(t, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"), ctlMgmtAID),
+			})
+			require.NoError(t, err)
+			clients.mu.Lock()
+			clients.client = mockClient
+			clients.err = nil
+			clients.mu.Unlock()
+			waitUntil(t, ctx, "lister sees mgmt-a after retry without a new event", func() bool {
+				got, err := applyLister.ListForManagementCluster(ctx, ctlMgmtAID)
+				return err == nil && len(got) == 1
+			})
+			cancel()
+			waitChan(t, runDone, "controller Run returned")
+		})
 	}
-	factory.register(ctlMgmtAID, mockA)
-
-	_, applyLister := ctl.Union().ApplyDesires()
-	waitUntil(t, ctx, "lister sees mgmt-a after retry", func() bool {
-		got, err := applyLister.ListForManagementCluster(ctx, ctlMgmtAID)
-		return err == nil && len(got) == 1
-	})
-
-	cancel()
-	waitChan(t, runDone, "controller Run returned")
 }
 
 // 1. Build controller with two MCs in lister + factory.

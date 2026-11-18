@@ -16,6 +16,8 @@ package identity
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -296,6 +298,14 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("unexpected number of Managed Identities Data Plane Credentials. Expected: %d, Received: %d", len(identitiesToSyncResourceIDStrs), len(fpaMIDataplaneCredentials.ExplicitIdentities)))
 	}
 
+	// Sort returned credentials by lowercased ResourceID for deterministic error ordering.
+	// The MI dataplane may return credentials in different order than requested.
+	slices.SortFunc(fpaMIDataplaneCredentials.ExplicitIdentities, func(a, b dataplane.UserAssignedIdentityCredentials) int {
+		iID := ptr.Deref(a.ResourceID, "")
+		jID := ptr.Deref(b.ResourceID, "")
+		return strings.Compare(strings.ToLower(iID), strings.ToLower(jID))
+	})
+
 	// Index returned credentials by lowercased Resource ID so later lookups are
 	// case-insensitive. ARM resource IDs are case-insensitive and the MI dataplane may return a different casing than Cosmos, as well as a
 	// different order than how it's been requested.
@@ -388,12 +398,16 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 func (c *fetchMSIIdentitiesInfoSyncer) collectMSIBasedIdentitiesToFetch(cluster *coreapi.Cluster) (*msiBasedIdentitiesToFetch, error) {
 	identities := &msiBasedIdentitiesToFetch{}
 
+	// Sort control plane operator names for deterministic processing order.
+	sortedControlPlaneOperatorNames := slices.Sorted(maps.Keys(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators))
+
 	// Multiple control plane operators may reference the same user-assigned
 	// identity, so de-duplicate by lowercased resource ID. Otherwise the
 	// request/response count check and desiredMSIResourceIDsMatchServiceProviderCluster's
 	// length comparison (against the lowercased-keyed stored map) would never converge.
 	seenControlPlaneOperatorResourceIDs := map[string]struct{}{}
-	for operatorName, operatorIdentityResourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+	for _, operatorName := range sortedControlPlaneOperatorNames {
+		operatorIdentityResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName]
 		if len(operatorName) == 0 {
 			return nil, utils.TrackError(fmt.Errorf("unexpected empty operator name for control plane operator"))
 		}

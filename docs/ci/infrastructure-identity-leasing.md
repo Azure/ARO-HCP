@@ -68,8 +68,7 @@ not create or validate the contents of a persistent identity pool.
 `test/aro-hcp-tests infra build-config-override` generates CI configuration
 overrides offline, without Azure credentials or E2E suite initialization. The
 sourced `hack/ci/build-config-override.sh` adapter uses the existing binary at
-`test/aro-hcp-tests` in the source checkout; `ARO_HCP_TESTS_BINARY` can select an
-explicit binary for local use.
+`test/aro-hcp-tests` in the source checkout.
 
 The root CLI still validates `ARO_HCP_SUITE_PARALLELISM` during construction;
 when supplied, it must be empty or a positive integer, even for offline commands.

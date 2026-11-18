@@ -26,6 +26,16 @@ import (
 // The JSON tags on these types are the paths the tables' ingestion mappings
 // expect. Changing one without changing the mapping silently drops a column.
 
+// source identifies the artifact producer that fed a mixed table. family already
+// records the CI population; these values are the job-step families that publish
+// the ingested files.
+const (
+	sourceE2E           = "e2e"
+	sourceObservability = "observability"
+	sourceRPProvision   = "rp-provision"
+	sourceRPUpgrade     = "rp-upgrade"
+)
+
 // ciJobOutcome is one row of the ciJobOutcomes table: a single CI job run.
 type ciJobOutcome struct {
 	BuildID       string        `json:"buildId"`
@@ -54,6 +64,7 @@ type ciTestName struct {
 type ciTestResult struct {
 	BuildID          string    `json:"buildId"`
 	TestID           string    `json:"testId"`
+	Source           string    `json:"source"`
 	Result           string    `json:"result"`
 	Failed           bool      `json:"failed"`
 	Message          string    `json:"message"`

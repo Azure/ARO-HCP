@@ -38,6 +38,7 @@ var _ = Describe("Engineering", func() {
 		labels.AroRpApiCompatible,
 		labels.RequiresConfig,
 		labels.MIContainers(1),
+		labels.StartPriority(20),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "ksm-hcp-metrics"

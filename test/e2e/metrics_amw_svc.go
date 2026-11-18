@@ -106,7 +106,6 @@ var _ = Describe("Engineering", func() {
 				{`backend_health`, "backend health (SVC)"},
 				{`fleet_controller_health`, "fleet controller health (SVC)"},
 				{`frontend_http_requests_total`, "frontend HTTP request counts (SVC)"},
-				{`go_goroutines{namespace="maestro",service="maestro-metrics"} > 0`, "maestro server goroutines (SVC)"},
 
 				// MGMT cluster services
 				{`kube_applier_health`, "kube-applier health (MGMT)"},

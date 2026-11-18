@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -89,10 +90,9 @@ type Frontend struct {
 	// definition config set it is built from varies per environment, so it is supplied by the
 	// caller rather than chosen here.
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
-
-	exitOnPanic bool
 }
 
+// NewFrontend constructs an instance without changing process-wide panic policy.
 func NewFrontend(
 	logger logr.Logger,
 	listener net.Listener,
@@ -104,7 +104,6 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
-	exitOnPanic bool,
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 ) *Frontend {
 	// zero side-effect registration path
@@ -144,7 +143,6 @@ func NewFrontend(
 		),
 		azureLocation: azureLocation,
 		apiRegistry:   apiRegistry,
-		exitOnPanic:   exitOnPanic,
 	}
 
 	_, f.clusterLister = informers.Clusters()
@@ -157,6 +155,7 @@ func NewFrontend(
 	return f
 }
 
+// Run warms admission caches and serves the frontend and metrics until shutdown.
 func (f *Frontend) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	logger := utils.LoggerFromContext(ctx)
@@ -184,10 +183,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
-
-	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
-	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
-	k8sutilruntime.ReallyCrash = f.exitOnPanic
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
@@ -338,6 +333,65 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 	return nil
 }
 
+func (f *Frontend) ArmResourceListOperatorIdentityRoleSets(writer http.ResponseWriter, request *http.Request) error {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	location := request.PathValue(PathSegmentLocation)
+
+	pagedResponse := coreapi.NewPagedResponse()
+
+	// Track seen minor versions to avoid duplicates (e.g., 4.20.8 and 4.20.25 both produce 4.20)
+	seenVersions := make(map[string]bool)
+
+	csIterator := f.clusterServiceClient.ListVersions()
+	for csVersion := range csIterator.Items(ctx) {
+		versionName, err := metadataapi.GetMinorOpenShiftVersion(csVersion.ID())
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		// Skip if we've already processed this minor version
+		if seenVersions[versionName] {
+			continue
+		}
+		seenVersions[versionName] = true
+
+		stringResource := "/subscriptions/" + subscriptionID + "/providers/" + coreapi.ProviderNamespace +
+			"/locations/" + location + "/" + coreapi.OperatorIdentityRoleSetResourceTypeName + "/" + versionName
+		resourceID, err := azcorearm.ParseResourceID(stringResource)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		version, err := semver.ParseTolerant(versionName)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		value, err := marshalClusterScopedIdentitiesConfig(resourceID, &version, f.clusterScopedIdentitiesConfig, versionedInterface)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(value)
+	}
+	err = csIterator.GetError()
+
+	// Check for iteration error.
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
+}
+
 // GetOpenshiftVersions implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
@@ -359,6 +413,59 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 		return utils.TrackError(err)
 	}
 	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
+}
+
+func (f *Frontend) GetOperatorIdentityRoleSet(writer http.ResponseWriter, request *http.Request) error {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	roleSetName := resourceID.Name
+	version, err := semver.ParseTolerant(roleSetName)
+	if err != nil {
+		// Return 404 for invalid version names instead of 500
+		return coreapi.NewResourceNotFoundError(resourceID)
+	}
+
+	// Check if this minor version is available in the cluster service catalog
+	versionAvailable := false
+	csIterator := f.clusterServiceClient.ListVersions()
+	for csVersion := range csIterator.Items(ctx) {
+		minorVersion, err := metadataapi.GetMinorOpenShiftVersion(csVersion.ID())
+		if err != nil {
+			continue
+		}
+		if minorVersion == roleSetName {
+			versionAvailable = true
+			break
+		}
+	}
+	if err := csIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Return 404 if the requested minor version is not available in the catalog
+	if !versionAvailable {
+		return coreapi.NewResourceNotFoundError(resourceID)
+	}
+
+	responseBody, err := marshalClusterScopedIdentitiesConfig(resourceID, &version, f.clusterScopedIdentitiesConfig, versionedInterface)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -1272,4 +1379,80 @@ func featuresMap(features *[]coreapi.Feature) map[string]string {
 func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface coreapi.Version) ([]byte, error) {
 	openShiftVersion := ocm.ConvertCStoOpenShiftVersion(resourceID, version)
 	return coreapi.MarshalJSON(versionedInterface.NewOpenShiftVersion(openShiftVersion))
+}
+
+func marshalClusterScopedIdentitiesConfig(resourceID *azcorearm.ResourceID, version *semver.Version, config *azure.ClusterScopedIdentitiesConfig, versionedInterface coreapi.Version) ([]byte, error) {
+	operatorIdentityRoleSet := &coreapi.OperatorIdentityRoleSet{
+		ProxyResource: coreapi.ProxyResource{
+			Resource: coreapi.Resource{
+				ID:   resourceID,
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
+			},
+		},
+		Properties: coreapi.OperatorIdentityRoleSetProperties{
+			ControlPlaneOperators: make([]coreapi.OperatorIdentityRoles, 0),
+			DataPlaneOperators:    make([]coreapi.OperatorIdentityRoles, 0),
+		},
+	}
+
+	// Add control plane operators
+	for _, operator := range config.ControlPlaneOperatorsIdentities {
+		if operator.IsSupportedForOpenshiftVersion(version) {
+			required := coreapi.OperatorIdentityRequiredAlways
+			if operator.Requirement != nil && operator.Requirement.Type == azure.IdentityRequirementTypeOnEnablement {
+				required = coreapi.OperatorIdentityRequiredOnEnablement
+			}
+
+			roleDefinitions := make([]coreapi.RoleDefinition, 0, len(operator.RoleDefinitions))
+			for _, rd := range operator.RoleDefinitions {
+				if rd != nil && rd.ResourceID != nil {
+					roleDefinitions = append(roleDefinitions, coreapi.RoleDefinition{
+						Name:       rd.DescriptiveName,
+						ResourceID: rd.ResourceID.String(),
+					})
+				}
+			}
+
+			operatorIdentityRoleSet.Properties.ControlPlaneOperators = append(
+				operatorIdentityRoleSet.Properties.ControlPlaneOperators,
+				coreapi.OperatorIdentityRoles{
+					Name:            string(operator.ClusterOperatorIdentifier),
+					Required:        required,
+					RoleDefinitions: roleDefinitions,
+				},
+			)
+		}
+	}
+
+	// Add data plane operators
+	for _, operator := range config.DataPlaneOperatorsIdentities {
+		if operator.IsSupportedForOpenshiftVersion(version) {
+			required := coreapi.OperatorIdentityRequiredAlways
+			if operator.Requirement != nil && operator.Requirement.Type == azure.IdentityRequirementTypeOnEnablement {
+				required = coreapi.OperatorIdentityRequiredOnEnablement
+			}
+
+			roleDefinitions := make([]coreapi.RoleDefinition, 0, len(operator.RoleDefinitions))
+			for _, rd := range operator.RoleDefinitions {
+				if rd != nil && rd.ResourceID != nil {
+					roleDefinitions = append(roleDefinitions, coreapi.RoleDefinition{
+						Name:       rd.DescriptiveName,
+						ResourceID: rd.ResourceID.String(),
+					})
+				}
+			}
+
+			operatorIdentityRoleSet.Properties.DataPlaneOperators = append(
+				operatorIdentityRoleSet.Properties.DataPlaneOperators,
+				coreapi.OperatorIdentityRoles{
+					Name:            string(operator.ClusterOperatorIdentifier),
+					Required:        required,
+					RoleDefinitions: roleDefinitions,
+				},
+			)
+		}
+	}
+
+	return coreapi.MarshalJSON(versionedInterface.NewOperatorIdentityRoleSet(operatorIdentityRoleSet))
 }

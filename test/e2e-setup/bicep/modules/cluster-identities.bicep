@@ -14,6 +14,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 
@@ -82,6 +83,11 @@ resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   location: resourceGroup().location
 }
 
+resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: identities.dpAutoNodeMiName
+  location: resourceGroup().location
+}
+
 // Service managed identity
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: identities.serviceManagedIdentityName
@@ -102,6 +108,7 @@ output msiIdentities ManagedIdentities = {
   dpDiskCsiDriverMiName: dpDiskCsiDriverMi.name
   dpFileCsiDriverMiName: dpFileCsiDriverMi.name
   dpImageRegistryMiName: dpImageRegistryMi.name
+  dpAutoNodeMiName: dpAutoNodeMi.name
   serviceManagedIdentityName: serviceManagedIdentity.name
 }
 

@@ -1,0 +1,88 @@
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags:
+    - integration
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - gosec
+    - bodyclose
+    - noctx
+    - errorlint
+    - durationcheck
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      exclude-functions:
+        - (*os.File).Close
+        - (*io.PipeReader).Close
+        - (*io.PipeWriter).Close
+        - (io.Closer).Close
+        - io.Closer.Close
+        - (net.Conn).Close
+        - fmt.Fprintln
+        - fmt.Fprintf
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
+    gosec:
+      excludes:
+        - G104
+        - G204
+        - G304
+        - G402
+        - G306
+        - G601
+        - G115
+
+    misspell:
+      locale: US
+      # Upstream Claude Code wire protocol uses British spelling for
+      # certain enum values (e.g. hook outcome "cancelled"); the Go SDK
+      # mirrors them verbatim to round-trip.
+      ignore-rules:
+        - cancelled
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - dupl
+          - govet
+
+      - path: testdata/
+        linters:
+          - all
+
+      - text: "Error return value of .*.Close.*is not checked"
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/roasbeef/claude-agent-sdk-go
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

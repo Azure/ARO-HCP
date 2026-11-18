@@ -1,13 +1,11 @@
 ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
-ENV GOTOOLCHAIN=local
-COPY internal/go.mod internal/go.sum internal/
-COPY swift-recorder/go.mod swift-recorder/go.sum swift-recorder/
-RUN cd swift-recorder && go mod download
+ENV GOTOOLCHAIN=local GOWORK=/app/go.work GOFLAGS=-mod=vendor GOPROXY=off
 WORKDIR /app
-COPY internal/ internal/
-COPY --exclude=swift-recorder/bin swift-recorder/ swift-recorder/
+# Dockerfile.dockerignore includes the complete workspace and vendor tree,
+# while excluding locally built binaries and development setup files.
+COPY . .
 ARG ARO_HCP_REVISION
 ENV CGO_ENABLED=1 GOFIPS140=latest
 RUN --mount=type=cache,target=/go/cache \

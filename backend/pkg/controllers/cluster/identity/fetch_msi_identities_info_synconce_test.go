@@ -17,6 +17,7 @@ package identity
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -60,7 +61,16 @@ func (f *fakeManagedIdentitiesDataplaneClient) GetUserAssignedIdentitiesCredenti
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.creds, nil
+	if f.creds == nil {
+		return nil, nil
+	}
+	// Return a fresh response per call, mirroring the real client (which deserializes a new
+	// response each time). Handing back the shared f.creds directly would let a controller that
+	// sorts the response in place mutate a backing array shared across parallel subtests when a
+	// single canned response is reused for several test cases.
+	clone := *f.creds
+	clone.ExplicitIdentities = slices.Clone(f.creds.ExplicitIdentities)
+	return &clone, nil
 }
 
 // fakeFPAMIDataplaneClientBuilder is a test double for

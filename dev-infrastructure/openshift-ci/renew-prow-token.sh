@@ -28,7 +28,7 @@ OPENSHIFT_CI_NAMESPACE="aro-hcp-prow-ci"
 OPENSHIFT_CI_SECRET="api-token-secret"
 OPENSHIFT_CI_CONSOLE="https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/"
 
-VAULT_NAMES=("arohcpdev-global" "arohcpint-global" "arohcpstg-global" "arohcpprod-global")
+VAULT_NAMES=("arohcpdev-global" "arohcpint-global" "arohcpstg2-global" "arohcpprod-global")
 
 cloud_for_vault() {
     case "$1" in

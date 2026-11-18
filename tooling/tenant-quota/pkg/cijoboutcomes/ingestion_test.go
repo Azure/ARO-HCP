@@ -59,6 +59,8 @@ func TestIngestPayloadHTTPRequestTimeout(t *testing.T) {
 				var body string
 				status := http.StatusOK
 				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v1/rest/auth/metadata":
+					status = http.StatusNotFound
 				case r.URL.Path == "/v1/rest/mgmt":
 					var request struct {
 						Query string `json:"csl"`
@@ -125,6 +127,8 @@ func TestIngestRowsWireFormat(t *testing.T) {
 				var body string
 				status := http.StatusOK
 				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v1/rest/auth/metadata":
+					status = http.StatusNotFound
 				case r.URL.Path == "/v1/rest/mgmt":
 					var request struct {
 						Query string `json:"csl"`

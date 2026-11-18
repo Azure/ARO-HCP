@@ -106,7 +106,7 @@ func (s *gatheredLogSources) verify(expectedSources []expectedLogSource) error {
 	}
 
 	missingOrchestrationSources := []string{}
-	for _, source := range []string{"hypershift", "acm-agent"} {
+	for _, source := range []string{"hypershift"} {
 		if s.orchestrationCounts[source] == 0 {
 			missingOrchestrationSources = append(missingOrchestrationSources, source)
 		}

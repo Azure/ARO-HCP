@@ -77,6 +77,7 @@ func TestComputeResourceGroupTags(t *testing.T) {
 	tests := []struct {
 		name         string
 		existingTags map[string]*string
+		extraTags    map[string]string
 		persist      bool
 		expectedTags map[string]*string
 		description  string
@@ -231,8 +232,67 @@ func TestComputeResourceGroupTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := computeResourceGroupTags(tt.existingTags, tt.persist)
+			result := computeResourceGroupTags(tt.existingTags, tt.extraTags, tt.persist)
 			assert.Equal(t, tt.expectedTags, result, tt.description)
+		})
+	}
+}
+
+func TestComputeResourceGroupTagsExtras(t *testing.T) {
+	const jobID = "jobID.aro-hcp-ci.redhat.com"
+	// Extra tags are the desired values: they apply in full on the create path
+	// (nil existing tags) and to pre-existing groups alike.
+	tests := []struct {
+		name         string
+		existingTags map[string]*string
+		extraTags    map[string]string
+		persist      bool
+		expectedTags map[string]*string
+	}{
+		{
+			name:         "create applies extras",
+			existingTags: nil,
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			expectedTags: map[string]*string{jobID: to.Ptr("2097011220782518272")},
+		},
+		{
+			name:         "create applies extras with persist",
+			existingTags: nil,
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			persist:      true,
+			expectedTags: map[string]*string{
+				jobID:     to.Ptr("2097011220782518272"),
+				"persist": to.Ptr("true"),
+			},
+		},
+		{
+			name:         "existing overwrites carried key",
+			existingTags: map[string]*string{"owner": to.Ptr("shared"), jobID: to.Ptr("previous")},
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			expectedTags: map[string]*string{"owner": to.Ptr("shared"), jobID: to.Ptr("2097011220782518272")},
+		},
+		{
+			name:         "existing overwrites carried key in any casing",
+			existingTags: map[string]*string{"JOBID.ARO-HCP-CI.REDHAT.COM": to.Ptr("previous")},
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			expectedTags: map[string]*string{"JOBID.ARO-HCP-CI.REDHAT.COM": to.Ptr("2097011220782518272")},
+		},
+		{
+			name:         "existing gains a key it did not carry",
+			existingTags: map[string]*string{"owner": to.Ptr("shared")},
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			expectedTags: map[string]*string{"owner": to.Ptr("shared"), jobID: to.Ptr("2097011220782518272")},
+		},
+		{
+			name:         "existing without tags gains extras",
+			existingTags: map[string]*string{},
+			extraTags:    map[string]string{jobID: "2097011220782518272"},
+			expectedTags: map[string]*string{jobID: to.Ptr("2097011220782518272")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedTags, computeResourceGroupTags(tt.existingTags, tt.extraTags, tt.persist))
 		})
 	}
 }

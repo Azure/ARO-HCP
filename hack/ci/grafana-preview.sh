@@ -131,8 +131,13 @@ upload_dashboard() {
     local preview_uid="$3"
     local title="$4"
 
-    local dashboard_json
-    dashboard_json=$(jq \
+    local dashboard_file payload_file
+    dashboard_file=$(mktemp)
+    payload_file=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '${dashboard_file}' '${payload_file}'" RETURN
+
+    if ! jq -c \
         --arg uid "${preview_uid}" \
         --arg title "${title}" \
         'if .dashboard then .dashboard else . end
@@ -140,16 +145,19 @@ upload_dashboard() {
          | .title = $title
          | .id = null
          | .version = 0' \
-        "${file}")
+        "${file}" > "${dashboard_file}"; then
+        echo "ERROR: Failed to parse dashboard JSON from ${file}" >&2
+        return 1
+    fi
 
-    local payload
-    payload=$(jq -n \
+    jq -nc \
         --arg folder_uid "${folder_uid}" \
-        --argjson dashboard "${dashboard_json}" \
-        '{dashboard: $dashboard, folderUid: $folder_uid, overwrite: true}')
+        --slurpfile dashboard "${dashboard_file}" \
+        '{dashboard: $dashboard[0], folderUid: $folder_uid, overwrite: true}' \
+        > "${payload_file}"
 
     local response
-    response=$(grafana_api POST "/api/dashboards/db" -d "${payload}")
+    response=$(grafana_api POST "/api/dashboards/db" --data-binary "@${payload_file}")
 
     local status
     status=$(echo "${response}" | jq -r '.status')

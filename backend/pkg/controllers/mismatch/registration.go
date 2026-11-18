@@ -42,7 +42,7 @@ func registerDeleteOrphanedCosmosResourcesController() controllerconfig.Controll
 func instantiateDeleteOrphanedCosmosResourcesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
-	return NewDeleteOrphanedCosmosResourcesController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients, subscriptionLister, managementClusterLister), nil
+	return NewDeleteOrphanedCosmosResourcesController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.AzureResourcesDBClient, controllerContext.KubeApplierDBClients, subscriptionLister, managementClusterLister), nil
 }
 
 func registerMissingResourceIDController() controllerconfig.ControllerRegistration {

@@ -29,7 +29,7 @@ FRONTEND_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.su
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(FRONTEND_SOURCES)
+$(BINARY): $(FRONTEND_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run: $(BINARY)
@@ -96,3 +96,7 @@ deploy: build-and-push record-override
 
 smoke-tests:
 	go test -v -count 1 ./utils/frontend_smoke_test.go
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

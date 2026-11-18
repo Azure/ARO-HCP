@@ -2,7 +2,7 @@
 
 These tests run after service rollouts, so failures are likely caused by bugs introduced in the
 newly deployed code. A good root-cause analysis should trace all the way to the specific bug in
-the underlying codebase (Clusters Service, backend, HyperShift, Maestro, etc.) rather than
+the underlying codebase (Clusters Service, backend, HyperShift, kube-applier, etc.) rather than
 stopping at a symptom like "state was stale" or "timeout occurred."
 
 First, determine which phase of the test failed - some setup code runs before the spec,
@@ -33,5 +33,7 @@ request(s) that correspond to the failures seen in the test. Determine which res
 those relate to; trace the requests (along with asynchronous requests) to confirm
 the client interaction.
 
-Review the backend resource-controller conditions and HyperShift state to assess
-service-to-management-cluster reconciliation.
+Review the backend resource-controller conditions, `logs/kubeApplier/logs.md`, and
+HyperShift state to assess service-to-management-cluster reconciliation. Trace the
+backend's desired state in Cosmos through kube-applier reconciliation to the actual
+management-cluster objects and the status returned through ReadDesires.

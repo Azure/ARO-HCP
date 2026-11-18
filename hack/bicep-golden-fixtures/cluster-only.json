@@ -454,6 +454,9 @@
                 "diskCsiDriverMiName": {
                   "type": "string"
                 },
+                "dpAutoNodeMiName": {
+                  "type": "string"
+                },
                 "dpDiskCsiDriverMiName": {
                   "type": "string"
                 },
@@ -511,6 +514,13 @@
                 "description": "HCP cluster RG name"
               },
               "type": "string"
+            },
+            "enableAutoNode": {
+              "defaultValue": false,
+              "metadata": {
+                "description": "If true, grant the dp-autonode identity its role assignments; forwarded to non-msi-scoped-assignments.bicep and msi-scoped-assignments.bicep, which implement the effects"
+              },
+              "type": "bool"
             },
             "identities": {
               "$ref": "#/definitions/ManagedIdentities",
@@ -603,6 +613,9 @@
                         "diskCsiDriverMiName": {
                           "type": "string"
                         },
+                        "dpAutoNodeMiName": {
+                          "type": "string"
+                        },
                         "dpDiskCsiDriverMiName": {
                           "type": "string"
                         },
@@ -649,6 +662,7 @@
                         "clusterApiAzureMiName": "[parameters('identities').clusterApiAzureMiName]",
                         "controlPlaneMiName": "[parameters('identities').controlPlaneMiName]",
                         "diskCsiDriverMiName": "[parameters('identities').diskCsiDriverMiName]",
+                        "dpAutoNodeMiName": "[parameters('identities').dpAutoNodeMiName]",
                         "dpDiskCsiDriverMiName": "[parameters('identities').dpDiskCsiDriverMiName]",
                         "dpFileCsiDriverMiName": "[parameters('identities').dpFileCsiDriverMiName]",
                         "dpImageRegistryMiName": "[parameters('identities').dpImageRegistryMiName]",
@@ -697,6 +711,12 @@
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').diskCsiDriverMiName]",
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMi": {
+                      "apiVersion": "2023-01-31",
+                      "location": "[resourceGroup().location]",
+                      "name": "[parameters('identities').dpAutoNodeMiName]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "dpDiskCsiDriverMi": {
@@ -766,6 +786,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "enableAutoNode": {
+                    "value": "[parameters('enableAutoNode')]"
+                  },
                   "identities": {
                     "value": "[reference('clusterIdentities').outputs.msiIdentities.value]"
                   },
@@ -792,6 +815,9 @@
                           "type": "string"
                         },
                         "diskCsiDriverMiName": {
+                          "type": "string"
+                        },
+                        "dpAutoNodeMiName": {
                           "type": "string"
                         },
                         "dpDiskCsiDriverMiName": {
@@ -829,6 +855,13 @@
                     }
                   },
                   "parameters": {
+                    "enableAutoNode": {
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "If true, grant the dp-autonode identity its role assignments"
+                      },
+                      "type": "bool"
+                    },
                     "identities": {
                       "$ref": "#/definitions/ManagedIdentities",
                       "metadata": {
@@ -877,6 +910,27 @@
                       "existing": true,
                       "name": "[parameters('identities').diskCsiDriverMiName]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMi": {
+                      "apiVersion": "2023-01-31",
+                      "existing": true,
+                      "name": "[parameters('identities').dpAutoNodeMiName]",
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMiFederatedCredentialsRoleAssignment": {
+                      "apiVersion": "2022-04-01",
+                      "condition": "[and(parameters('enableAutoNode'), equals(parameters('rbacScope'), 'resource'))]",
+                      "dependsOn": [
+                        "serviceManagedIdentity"
+                      ],
+                      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+                      "properties": {
+                        "principalId": "[reference('serviceManagedIdentity').principalId]",
+                        "principalType": "ServicePrincipal",
+                        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+                      },
+                      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName)]",
+                      "type": "Microsoft.Authorization/roleAssignments"
                     },
                     "dpDiskCsiDriverMi": {
                       "apiVersion": "2023-01-31",
@@ -1157,6 +1211,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "enableAutoNode": {
+                    "value": "[parameters('enableAutoNode')]"
+                  },
                   "identities": {
                     "value": "[reference('clusterIdentities').outputs.msiIdentities.value]"
                   },
@@ -1198,6 +1255,9 @@
                           "type": "string"
                         },
                         "diskCsiDriverMiName": {
+                          "type": "string"
+                        },
+                        "dpAutoNodeMiName": {
                           "type": "string"
                         },
                         "dpDiskCsiDriverMiName": {
@@ -1267,16 +1327,19 @@
                           "ingress": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').ingressMiName)]",
                           "kms": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').kmsMiName)]"
                         },
-                        "dataPlaneOperators": {
-                          "disk-csi-driver": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName)]",
-                          "file-csi-driver": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName)]",
-                          "image-registry": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName)]"
-                        },
+                        "dataPlaneOperators": "[union(createObject('disk-csi-driver', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName), 'file-csi-driver', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), 'image-registry', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName)), if(parameters('enableAutoNode'), createObject('autonode', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName)), createObject()))]",
                         "serviceManagedIdentity": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName)]"
                       }
                     }
                   },
                   "parameters": {
+                    "enableAutoNode": {
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "If true, deploy the dp-autonode role assignments module and include the identity in dataPlaneOperators"
+                      },
+                      "type": "bool"
+                    },
                     "identities": {
                       "$ref": "#/definitions/ManagedIdentities",
                       "metadata": {
@@ -1326,6 +1389,121 @@
                     }
                   },
                   "resources": {
+                    "autonodeAssignments": {
+                      "apiVersion": "2025-04-01",
+                      "condition": "[parameters('enableAutoNode')]",
+                      "name": "[format('{0}-autonode', deployment().name)]",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "dpAutoNodeMiName": {
+                            "value": "[parameters('identities').dpAutoNodeMiName]"
+                          },
+                          "nsgName": {
+                            "value": "[parameters('nsgName')]"
+                          },
+                          "rbacScope": {
+                            "value": "[parameters('rbacScope')]"
+                          },
+                          "resourceGroupName": {
+                            "value": "[parameters('resourceGroupName')]"
+                          },
+                          "vnetName": {
+                            "value": "[parameters('vnetName')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep"
+                            }
+                          },
+                          "parameters": {
+                            "dpAutoNodeMiName": {
+                              "metadata": {
+                                "description": "Name of the dp-autonode identity"
+                              },
+                              "type": "string"
+                            },
+                            "nsgName": {
+                              "metadata": {
+                                "description": "The Network security group name for the HCP cluster resources"
+                              },
+                              "type": "string"
+                            },
+                            "rbacScope": {
+                              "allowedValues": [
+                                "resource",
+                                "resourceGroup"
+                              ],
+                              "defaultValue": "resourceGroup",
+                              "metadata": {
+                                "description": "RBAC scope to use for role assignments: resourceGroup or resource"
+                              },
+                              "type": "string"
+                            },
+                            "resourceGroupName": {
+                              "metadata": {
+                                "description": "Resource group name where the dp-autonode identity is located"
+                              },
+                              "type": "string"
+                            },
+                            "vnetName": {
+                              "metadata": {
+                                "description": "The virtual network name for the HCP cluster resources"
+                              },
+                              "type": "string"
+                            }
+                          },
+                          "resources": [
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            },
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            },
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            }
+                          ],
+                          "variables": {
+                            "networkContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]"
+                          }
+                        }
+                      },
+                      "type": "Microsoft.Resources/deployments"
+                    },
                     "cloudControllerManagerMi": {
                       "apiVersion": "2023-01-31",
                       "existing": true,
@@ -1402,6 +1580,13 @@
                       "apiVersion": "2023-01-31",
                       "existing": true,
                       "name": "[parameters('identities').diskCsiDriverMiName]",
+                      "resourceGroup": "[parameters('resourceGroupName')]",
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMi": {
+                      "apiVersion": "2023-01-31",
+                      "existing": true,
+                      "name": "[parameters('identities').dpAutoNodeMiName]",
                       "resourceGroup": "[parameters('resourceGroupName')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
@@ -1817,6 +2002,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "enableAutoNode": {
+                    "value": "[parameters('enableAutoNode')]"
+                  },
                   "identities": {
                     "value": "[parameters('identities')]"
                   },
@@ -1843,6 +2031,9 @@
                           "type": "string"
                         },
                         "diskCsiDriverMiName": {
+                          "type": "string"
+                        },
+                        "dpAutoNodeMiName": {
                           "type": "string"
                         },
                         "dpDiskCsiDriverMiName": {
@@ -1880,6 +2071,13 @@
                     }
                   },
                   "parameters": {
+                    "enableAutoNode": {
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "If true, grant the dp-autonode identity its role assignments"
+                      },
+                      "type": "bool"
+                    },
                     "identities": {
                       "$ref": "#/definitions/ManagedIdentities",
                       "metadata": {
@@ -1928,6 +2126,27 @@
                       "existing": true,
                       "name": "[parameters('identities').diskCsiDriverMiName]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMi": {
+                      "apiVersion": "2023-01-31",
+                      "existing": true,
+                      "name": "[parameters('identities').dpAutoNodeMiName]",
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMiFederatedCredentialsRoleAssignment": {
+                      "apiVersion": "2022-04-01",
+                      "condition": "[and(parameters('enableAutoNode'), equals(parameters('rbacScope'), 'resource'))]",
+                      "dependsOn": [
+                        "serviceManagedIdentity"
+                      ],
+                      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+                      "properties": {
+                        "principalId": "[reference('serviceManagedIdentity').principalId]",
+                        "principalType": "ServicePrincipal",
+                        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+                      },
+                      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName)]",
+                      "type": "Microsoft.Authorization/roleAssignments"
                     },
                     "dpDiskCsiDriverMi": {
                       "apiVersion": "2023-01-31",
@@ -2205,6 +2424,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "enableAutoNode": {
+                    "value": "[parameters('enableAutoNode')]"
+                  },
                   "identities": {
                     "value": "[parameters('identities')]"
                   },
@@ -2246,6 +2468,9 @@
                           "type": "string"
                         },
                         "diskCsiDriverMiName": {
+                          "type": "string"
+                        },
+                        "dpAutoNodeMiName": {
                           "type": "string"
                         },
                         "dpDiskCsiDriverMiName": {
@@ -2315,16 +2540,19 @@
                           "ingress": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').ingressMiName)]",
                           "kms": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').kmsMiName)]"
                         },
-                        "dataPlaneOperators": {
-                          "disk-csi-driver": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName)]",
-                          "file-csi-driver": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName)]",
-                          "image-registry": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName)]"
-                        },
+                        "dataPlaneOperators": "[union(createObject('disk-csi-driver', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName), 'file-csi-driver', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), 'image-registry', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName)), if(parameters('enableAutoNode'), createObject('autonode', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpAutoNodeMiName)), createObject()))]",
                         "serviceManagedIdentity": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName)]"
                       }
                     }
                   },
                   "parameters": {
+                    "enableAutoNode": {
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "If true, deploy the dp-autonode role assignments module and include the identity in dataPlaneOperators"
+                      },
+                      "type": "bool"
+                    },
                     "identities": {
                       "$ref": "#/definitions/ManagedIdentities",
                       "metadata": {
@@ -2374,6 +2602,121 @@
                     }
                   },
                   "resources": {
+                    "autonodeAssignments": {
+                      "apiVersion": "2025-04-01",
+                      "condition": "[parameters('enableAutoNode')]",
+                      "name": "[format('{0}-autonode', deployment().name)]",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "dpAutoNodeMiName": {
+                            "value": "[parameters('identities').dpAutoNodeMiName]"
+                          },
+                          "nsgName": {
+                            "value": "[parameters('nsgName')]"
+                          },
+                          "rbacScope": {
+                            "value": "[parameters('rbacScope')]"
+                          },
+                          "resourceGroupName": {
+                            "value": "[parameters('resourceGroupName')]"
+                          },
+                          "vnetName": {
+                            "value": "[parameters('vnetName')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep"
+                            }
+                          },
+                          "parameters": {
+                            "dpAutoNodeMiName": {
+                              "metadata": {
+                                "description": "Name of the dp-autonode identity"
+                              },
+                              "type": "string"
+                            },
+                            "nsgName": {
+                              "metadata": {
+                                "description": "The Network security group name for the HCP cluster resources"
+                              },
+                              "type": "string"
+                            },
+                            "rbacScope": {
+                              "allowedValues": [
+                                "resource",
+                                "resourceGroup"
+                              ],
+                              "defaultValue": "resourceGroup",
+                              "metadata": {
+                                "description": "RBAC scope to use for role assignments: resourceGroup or resource"
+                              },
+                              "type": "string"
+                            },
+                            "resourceGroupName": {
+                              "metadata": {
+                                "description": "Resource group name where the dp-autonode identity is located"
+                              },
+                              "type": "string"
+                            },
+                            "vnetName": {
+                              "metadata": {
+                                "description": "The virtual network name for the HCP cluster resources"
+                              },
+                              "type": "string"
+                            }
+                          },
+                          "resources": [
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            },
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            },
+                            {
+                              "apiVersion": "2022-04-01",
+                              "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                              "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), variables('networkContributorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
+                              "properties": {
+                                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('dpAutoNodeMiName')), '2023-01-31').principalId]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[variables('networkContributorRoleId')]"
+                              },
+                              "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
+                              "type": "Microsoft.Authorization/roleAssignments"
+                            }
+                          ],
+                          "variables": {
+                            "networkContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]"
+                          }
+                        }
+                      },
+                      "type": "Microsoft.Resources/deployments"
+                    },
                     "cloudControllerManagerMi": {
                       "apiVersion": "2023-01-31",
                       "existing": true,
@@ -2450,6 +2793,13 @@
                       "apiVersion": "2023-01-31",
                       "existing": true,
                       "name": "[parameters('identities').diskCsiDriverMiName]",
+                      "resourceGroup": "[parameters('resourceGroupName')]",
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+                    },
+                    "dpAutoNodeMi": {
+                      "apiVersion": "2023-01-31",
+                      "existing": true,
+                      "name": "[parameters('identities').dpAutoNodeMiName]",
                       "resourceGroup": "[parameters('resourceGroupName')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },

@@ -54,6 +54,13 @@ func TestCollectorRestartsAfterRecoveredPanic(t *testing.T) {
 	utilruntime.ReallyCrash = false
 	defer func() { utilruntime.ReallyCrash = originalCrash }()
 	cfg := &config.Config{
+		CIJobOutcomes: config.CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: config.CIFailurePatternsConfig{
+			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
 		Tenants: []config.TenantConfig{{TenantID: "tenant", ServicePrincipalClientId: "client", KeyVaultSecretName: "secret"}},
 		Prow: config.ProwConfig{
 			Enabled: true, Interval: "1h", BaseURL: "https://prow.example.com",
@@ -221,6 +228,7 @@ func TestServeShutdown(t *testing.T) {
 			defer cancel()
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			controllerCancelled := make(chan struct{})
+			extractionCancelled := make(chan struct{})
 			controllerRelease := make(chan struct{})
 			defer func() {
 				select {
@@ -232,6 +240,11 @@ func TestServeShutdown(t *testing.T) {
 			startController := func(ctx context.Context) {
 				<-ctx.Done()
 				close(controllerCancelled)
+				<-controllerRelease
+			}
+			startExtraction := func(ctx context.Context) {
+				<-ctx.Done()
+				close(extractionCancelled)
 				<-controllerRelease
 			}
 			address := make(chan string, 1)
@@ -264,7 +277,7 @@ func TestServeShutdown(t *testing.T) {
 				server.Addr = listener.Addr().String()
 			}
 			finished := make(chan error, 1)
-			go func() { finished <- serve(ctx, cancel, logger, server, startController) }()
+			go func() { finished <- serve(ctx, cancel, logger, server, startController, startExtraction) }()
 			if !failHTTP {
 				var addr string
 				select {
@@ -303,6 +316,11 @@ func TestServeShutdown(t *testing.T) {
 			case <-controllerCancelled:
 			case <-time.After(5 * time.Second):
 				t.Fatal("controller was not cancelled")
+			}
+			select {
+			case <-extractionCancelled:
+			case <-time.After(5 * time.Second):
+				t.Fatal("extraction controller was not cancelled independently")
 			}
 			select {
 			case err := <-finished:

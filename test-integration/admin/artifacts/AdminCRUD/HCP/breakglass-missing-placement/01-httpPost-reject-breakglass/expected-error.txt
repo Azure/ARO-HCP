@@ -1,0 +1,6 @@
+HTTP 500: {
+  "error": {
+    "code": "InternalServerError",
+    "message": "Internal server error."
+  }
+}

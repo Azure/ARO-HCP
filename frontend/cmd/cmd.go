@@ -161,7 +161,10 @@ func (opts *FrontendOpts) Validate() error {
 	return nil
 }
 
+// Run sets the process-wide panic policy before starting frontend services.
 func (opts *FrontendOpts) Run() error {
+	utilruntime.ReallyCrash = opts.exitOnPanic
+
 	err := opts.Validate()
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
@@ -263,7 +266,7 @@ func (opts *FrontendOpts) Run() error {
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
 		resourcesDBClient,
 		coreinformers.NewFrontendInformers(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient),
-		csClient, auditClient, opts.location, opts.exitOnPanic,
+		csClient, auditClient, opts.location,
 		clusterScopedIdentitiesConfig,
 	)
 

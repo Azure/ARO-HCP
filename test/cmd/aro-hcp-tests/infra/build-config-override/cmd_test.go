@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Azure/ARO-HCP/test/pkg/configoverride"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -41,7 +42,7 @@ func clearEnvironment(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES",
+		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES", "BUILD_ID", "RUN_COST_TAG_VALUE", configoverride.RawConfigOverridesEnv,
 		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
@@ -149,46 +150,6 @@ func TestFlagsOverrideEnvironment(t *testing.T) {
 	}
 }
 
-func TestSelectedSourceCatalogs(t *testing.T) {
-	for _, selection := range []string{"default", "relative", "absolute", "environment", "flag-over-environment"} {
-		t.Run(selection, func(t *testing.T) {
-			clearEnvironment(t)
-			source, shared := t.TempDir(), t.TempDir()
-			relative := "dev-infrastructure/openshift-ci/arm-helper-pool.yaml"
-			if selection != "default" {
-				relative = "selected/arm.yaml"
-			}
-			catalog := filepath.Join(source, relative)
-			if err := os.MkdirAll(filepath.Dir(catalog), 0755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(catalog, []byte("armHelperPool:\n  selected:\n    clientId: baseline-client\n    principalId: baseline-principal\n    certName: baseline-cert\n"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv(leaseenv.ARMHelperSP, "selected")
-			args := []string{"--source-dir", source, "--shared-dir", shared, "--deploy-env", "baseline"}
-			switch selection {
-			case "relative":
-				args = append(args, "--arm-helper-pool-catalog", relative)
-			case "absolute":
-				args = append(args, "--arm-helper-pool-catalog", catalog)
-			case "environment":
-				t.Setenv("ARM_HELPER_POOL_CATALOG", relative)
-			case "flag-over-environment":
-				t.Setenv("ARM_HELPER_POOL_CATALOG", "missing.yaml")
-				args = append(args, "--arm-helper-pool-catalog", relative)
-			}
-			if stdout, err := execute(args...); err != nil || stdout != "\n" {
-				t.Fatalf("stdout = %q, err = %v", stdout, err)
-			}
-			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "baseline")
-			if defaults["armHelperClientId"] != "baseline-client" || defaults["clustersServiceArmHelperCertName"] != "baseline-cert" {
-				t.Fatalf("selected catalog not used: %#v", defaults)
-			}
-		})
-	}
-}
-
 type publicationWriter struct {
 	t      *testing.T
 	path   string
@@ -225,7 +186,7 @@ func TestOutputPublication(t *testing.T) {
 }
 
 func TestFailureDoesNotPublish(t *testing.T) {
-	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output"} {
+	for _, failure := range []string{"invalid-input", "unknown-image", "invalid-bundle", "publication", "extra-argument", "missing-output"} {
 		t.Run(failure, func(t *testing.T) {
 			clearEnvironment(t)
 			shared := t.TempDir()
@@ -233,19 +194,21 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			if err := os.WriteFile(path, []byte("previous"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"--shared-dir", shared, "--deploy-env", "dev"}
+			args := []string{"--shared-dir", shared}
 			switch failure {
 			case "invalid-input":
 				t.Setenv("BACKEND_IMAGE", "not-a-digest")
+				args = append(args, "--deploy-env", "dev")
 			case "unknown-image":
 				t.Setenv("UNSUPPORTED_IMAGE", "registry.example/unsupported@sha256:1234")
-			case "missing-catalog":
-				t.Setenv(leaseenv.MSIMockSP, "missing")
-				args = append(args, "--source-dir", t.TempDir())
+				args = append(args, "--deploy-env", "dev")
+			case "invalid-bundle":
+				t.Setenv(leaseenv.MockIdentityBundle, "{}")
+				args = append(args, "--deploy-env", "dev", "--source-dir", t.TempDir())
 			case "publication":
-				args = append(args, "--output-file", shared)
+				args = append(args, "--deploy-env", "dev", "--output-file", shared)
 			case "extra-argument":
-				args = append(args, "unexpected")
+				args = append(args, "--deploy-env", "dev", "unexpected")
 			case "missing-output":
 				args = []string{"--deploy-env", "dev"}
 			}
@@ -257,6 +220,67 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunCostTag(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv(leaseenv.MSIContainers, "leased")
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"sentinel resolves build ID", map[string]string{"RUN_COST_TAG_VALUE": "BUILD_ID", "BUILD_ID": "1234567"}, "1234567"},
+		{"explicit value", map[string]string{"RUN_COST_TAG_VALUE": "nightly-2026.10.28"}, "nightly-2026.10.28"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shared := t.TempDir()
+			t.Setenv("DEPLOY_ENV", "ci01")
+			t.Setenv("SHARED_DIR", shared)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			if _, err := execute(); err != nil {
+				t.Fatal(err)
+			}
+			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "ci01")
+			for _, kind := range []string{"svc", "mgmt"} {
+				aks := defaults[kind].(map[string]any)["aks"].(map[string]any)
+				want := "clusterType=" + kind + "-cluster,jobID.aro-hcp-ci.redhat.com=" + tc.want
+				if tags := aks["tags"]; tags != want {
+					t.Fatalf("%s aks tags = %#v, want %q", kind, tags, want)
+				}
+			}
+			// The tag is never handed through a file: the provisioning shell
+			// reads RUN_COST_TAG_VALUE from the same environment.
+			if _, err := os.Stat(filepath.Join(shared, "run-cost-tag.env")); !os.IsNotExist(err) {
+				t.Fatalf("run cost tag file published: %v", err)
+			}
+		})
+	}
+	t.Run("no opt-in", func(t *testing.T) {
+		shared := t.TempDir()
+		t.Setenv("DEPLOY_ENV", "ci01")
+		t.Setenv("SHARED_DIR", shared)
+		t.Setenv("BUILD_ID", "1234567")
+		if _, err := execute(); err != nil {
+			t.Fatal(err)
+		}
+		override, err := os.ReadFile(filepath.Join(shared, "config-override.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(override, []byte("jobID")) {
+			t.Fatalf("run cost tag in override without opt-in: %s", override)
+		}
+	})
+	t.Run("sentinel without build ID", func(t *testing.T) {
+		t.Setenv("DEPLOY_ENV", "ci01")
+		t.Setenv("RUN_COST_TAG_VALUE", "BUILD_ID")
+		if stdout, err := execute(); err == nil || stdout != "" {
+			t.Fatalf("stdout = %q, err = %v; want failure", stdout, err)
+		}
+	})
 }
 
 // Run the actual command implementation in a child process for the sourced
@@ -294,12 +318,11 @@ func TestSourcedAdapter(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(checkout, "test"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	launcher := filepath.Join(t.TempDir(), "aro-hcp-tests")
+	launcher := filepath.Join(checkout, "test/aro-hcp-tests")
 	if err := os.WriteFile(launcher, []byte("#!/bin/bash\nexec \"${CLI_TEST_BINARY}\" -test.run=^TestCommandProcess$ -- \"$@\"\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("CLI_TEST_BINARY", binary)
-	t.Setenv("ARO_HCP_TESTS_BINARY", launcher)
 	t.Setenv("ARO_HCP_INFRA_TEST_PROCESS", "1")
 	t.Setenv("DEPLOY_ENV", "dev")
 	t.Setenv("SHARED_DIR", t.TempDir())
@@ -326,11 +349,21 @@ bash -c '[[ ! -v USE_OC_LOGIN_REGISTRIES ]]'
 export BACKEND_IMAGE=registry.example/backend@sha256:1234
 source "$1"
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example" ]]'
-ln -s "$ARO_HCP_TESTS_BINARY" "$PWD/test/aro-hcp-tests"
-unset ARO_HCP_TESTS_BINARY
 source "$1"
 [[ -f "$OVERRIDE_CONFIG_FILE" ]]
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example registry.example" ]]'
+export DEPLOY_ENV=ci01 BUILD_ID=1234567 RUN_COST_TAG_VALUE=BUILD_ID
+source "$1"
+grep -q 'jobID.aro-hcp-ci.redhat.com=1234567' "$OVERRIDE_CONFIG_FILE"
+# The tag is never handed through a file: provision-environment.sh reads
+# RUN_COST_TAG_VALUE from the same environment.
+[[ ! -e "${SHARED_DIR}/run-cost-tag.env" ]]
+unset RUN_COST_TAG_VALUE
+source "$1"
+if grep -q jobID "$OVERRIDE_CONFIG_FILE"; then
+    cat "$OVERRIDE_CONFIG_FILE"
+    exit 21
+fi
 `, "adapter-test", adapter)
 	command.Dir = checkout
 	var stderr bytes.Buffer
@@ -341,5 +374,63 @@ bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example r
 	}
 	if string(stdout) != strings.Repeat(registry, 2) {
 		t.Fatalf("adapter changed registry data: %q", stdout)
+	}
+}
+
+func TestRawConfigOverrides(t *testing.T) {
+	clearEnvironment(t)
+	shared := t.TempDir()
+	t.Setenv("SHARED_DIR", shared)
+	t.Setenv("DEPLOY_ENV", "ci00")
+	t.Setenv("USE_OC_LOGIN_REGISTRIES", "prior.example")
+	t.Setenv(configoverride.RawConfigOverridesEnv, "\nclouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize=Standard_D16ads_v6\n")
+	command := NewCommand()
+	var stdout, stderr bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetErr(&stderr)
+	command.SetArgs([]string{
+		"--raw-config-override", "clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.maxCount=9",
+		"--raw-config-override", "clouds.dev.environments.ci00.regions.westus3.svc.aks.systemAgentPool.minCount=2",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	// stdout stays pure registry data; overrides are reported on stderr only.
+	if stdout.String() != "prior.example\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	for _, entry := range []string{
+		"userAgentPool.vmSize=Standard_D16ads_v6", "userAgentPool.maxCount=9", "systemAgentPool.minCount=2",
+	} {
+		if !strings.Contains(stderr.String(), "raw config override applied: ") || !strings.Contains(stderr.String(), entry) {
+			t.Fatalf("stderr %q does not report %q", stderr.String(), entry)
+		}
+	}
+	pool := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "ci00")["mgmt"].(map[string]any)["aks"].(map[string]any)["userAgentPool"]
+	// Environment entries, flag entries and generated healthcheck sizing coexist.
+	if want := map[string]any{"minCount": 1, "vmSize": "Standard_D16ads_v6", "maxCount": 9}; !reflect.DeepEqual(pool, want) {
+		t.Fatalf("userAgentPool = %#v, want %#v", pool, want)
+	}
+}
+
+func TestRawConfigOverrideRejectsInvalidInput(t *testing.T) {
+	for name, args := range map[string][]string{
+		"flag without value":   {"--raw-config-override", "a.b"},
+		"env and flag overlap": {"--raw-config-override", "a.b=2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clearEnvironment(t)
+			shared := t.TempDir()
+			t.Setenv("SHARED_DIR", shared)
+			t.Setenv("DEPLOY_ENV", "ci00")
+			t.Setenv(configoverride.RawConfigOverridesEnv, "a.b=1")
+			stdout, err := execute(args...)
+			if err == nil || stdout != "" {
+				t.Fatalf("stdout = %q, err = %v, want an error and no output", stdout, err)
+			}
+			if _, statErr := os.Stat(filepath.Join(shared, "config-override.yaml")); !os.IsNotExist(statErr) {
+				t.Fatalf("override file was published despite the error: %v", statErr)
+			}
+		})
 	}
 }

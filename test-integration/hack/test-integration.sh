@@ -68,6 +68,19 @@ KUBEBUILDER_ASSETS="$(make -C "${REPO_ROOT}" -s envtest-setup)"
 export KUBEBUILDER_ASSETS
 echo "envtest binaries: ${KUBEBUILDER_ASSETS}"
 
+# In CI mode, compile every integration test binary in parallel before the serial run.
+# CI pods start with a cold build cache, so this pays for compilation once, up front.
+# Local runs skip it: a warm cache gains nothing and the extra link pass only adds time.
+# -exec /bin/true with -run '^$' builds the binaries without executing any test, and
+# -race matches the serial run, so the serial -p 1 invocation reuses the warm cache.
+if [ "${USE_GOTESTSUM}" = "true" ]; then
+  # Prewarming is an optimization. A failure, including scratch exhaustion, falls back to
+  # the serial build below, which keeps responsibility for the test result and JUnit report.
+  echo "Prewarming integration test binaries with build parallelism 6..."
+  if ! go test -p 6 -race -count=1 -run '^$' -exec /bin/true github.com/Azure/ARO-HCP/test-integration/...; then
+    echo "Prewarm failed; the serial test run compiles the binaries itself."
+  fi
+fi
 
 if [ "${USE_GOTESTSUM}" = "true" ]; then
     echo "Running tests with gotestsum (CI mode) with ARTIFACTS in ${ARTIFACT_DIR} and GOPATH=${GOPATH}..."

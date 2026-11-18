@@ -57,10 +57,19 @@ const (
 	IngressDNSVerifyTimeout         = 10 * time.Minute
 	CloudNetworkConfigVerifyTimeout = 10 * time.Minute
 	CSIVolumeVerifyTimeout          = 10 * time.Minute
+	CCMLoadBalancerVerifyTimeout    = 10 * time.Minute
 )
 
 // Backup timeouts
 const (
 	BackupWaitTimeout  = 11 * time.Minute
 	BackupWaitInterval = 30 * time.Second
+)
+
+// HyperShift v2 execution timeouts
+const (
+	hyperShiftV2RunTimeout    = 20 * time.Minute
+	hyperShiftV2ClientTimeout = 30 * time.Second
+	hyperShiftV2ChildTimeout  = 15 * time.Minute
+	hyperShiftV2WaitDelay     = 5 * time.Second
 )

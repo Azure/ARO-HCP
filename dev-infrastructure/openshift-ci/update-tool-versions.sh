@@ -21,6 +21,7 @@
 # this script never needs to change for the bicep/promtool case
 # specifically.
 # Pass *_VERSION variable names to update only those tools; omit them to check all.
+# --metadata-json reports the upstream mapping without fetching or changing pins.
 
 set -o errexit
 set -o nounset
@@ -34,6 +35,14 @@ declare -A TOOL_REPOS=(
   [PROMTOOL_VERSION]="prometheus/prometheus"
   [BICEP_VERSION]="Azure/bicep"
 )
+
+if [[ "${1:-}" == "--metadata-json" ]]; then
+  for var in "${!TOOL_REPOS[@]}"; do
+    jq -cn --arg variable "$var" --arg repository "${TOOL_REPOS[$var]}" \
+      '{variable: $variable, repository: $repository}'
+  done | jq -s 'sort_by(.variable)'
+  exit 0
+fi
 
 changed=0
 

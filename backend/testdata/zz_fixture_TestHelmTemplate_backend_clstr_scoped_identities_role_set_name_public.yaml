@@ -40,7 +40,7 @@ data:
     dataPlaneIdentitiesOIDCConfiguration:
       storageAccountBlobContainerName: "$web"
       storageAccountBlobServiceURL: "__regionalOidcStorageAccountBlobEndpoint__"
-      oidcIssuerBaseURL: "__regionalOidcStorageAccountWebEndpoint__"
+      oidcIssuerBaseURL: "__oidcIssuerBaseUrl__"
     tlsCertificatesConfig:
       issuer: "Self"
       certificatesGenerationSource: AzureKeyVault
@@ -52,8 +52,7 @@ metadata:
   name: backend-config
   namespace: 'aro-hcp'
 data:
-  DB_NAME: 'arohcpdev-rp-usw3'
-  DB_URL: '__cosmosDBDocumentEndpoint__'
+  COSMOS_ACCOUNT_RESOURCE_ID: '__rpCosmosDbAccountResourceId__'
   BACKEND_MI_CLIENT_ID: '__backendMsiClientId__'
   CURRENT_VERSION: ''
   LOCATION: 'westus3'
@@ -137,7 +136,7 @@ spec:
         azure.workload.identity/use: "true"
       annotations:
         checksum/backendservicekeyvault: 'be82d8149e3a59cca672fb0538c4374a0458490a685122deba53e092240e32a5'
-        checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
+        checksum/azureruntimeconfig: 'c8f5e412a88baa1f4bb6002c144f2f96aaacda2e3b91e833b4d45b2da6683870'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -185,6 +184,7 @@ spec:
         - "arohcpdev"
         - "--exit-on-panic=true"
         - "--log-verbosity=4"
+        - "--orphaned-mrg-cleanup-running-mode=dry-run"
         # MI Mock flags. They should only be set in ARO-HCP environments where Microsoft's Managed Identities Dataplane service is not available.
         - "--insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock"
         - "--insecure-azure-managed-identity-mock-certificate-bundle-path"
@@ -202,19 +202,16 @@ spec:
         - "3331e670-0804-48e8-a086-6241671ddc93"
         - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
+        - "--insecure-azure-mock-first-party-application-principal-id"
+        - "47f69502-0065-4d9a-b19b-d403e183d2f4"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "public"
         env:
-        - name: DB_NAME
+        - name: COSMOS_ACCOUNT_RESOURCE_ID
           valueFrom:
             configMapKeyRef:
               name: backend-config
-              key: DB_NAME
-        - name: DB_URL
-          valueFrom:
-            configMapKeyRef:
-              name: backend-config
-              key: DB_URL
+              key: COSMOS_ACCOUNT_RESOURCE_ID
         - name: LOCATION
           valueFrom:
             configMapKeyRef:

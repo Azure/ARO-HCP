@@ -73,6 +73,7 @@ const (
 	VersionResourceTypeName                         = "hcpOpenShiftVersions"
 	NodePoolResourceTypeName                        = "nodePools"
 	ExternalAuthResourceTypeName                    = "externalAuths"
+	OperatorIdentityRoleSetResourceTypeName         = "hcpOperatorIdentityRoleSets"
 	OperationResultResourceTypeName                 = "hcpOperationResults"
 	OperationStatusResourceTypeName                 = "hcpOperationStatuses"
 	ControllerResourceTypeName                      = "hcpOpenShiftControllers"
@@ -93,6 +94,7 @@ var (
 	ExternalAuthResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType                   = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 	VersionResourceType                     = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	OperatorIdentityRoleSetResourceType     = azcorearm.NewResourceType(ProviderNamespace, "locations/"+OperatorIdentityRoleSetResourceTypeName)
 	ClusterControllerResourceType           = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
 	NodePoolControllerResourceType          = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
 	ExternalAuthControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
@@ -128,6 +130,7 @@ type VersionedCluster VersionedCreatableResource[Cluster]
 type VersionedNodePool VersionedCreatableResource[NodePool]
 type VersionedExternalAuth VersionedCreatableResource[ExternalAuth]
 type VersionedOpenShiftVersion VersionedResource
+type VersionedOperatorIdentityRoleSet VersionedResource
 
 // ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
 // for this particular version.  This needs to be as close as possible, but perfection isn't required since fields
@@ -145,6 +148,7 @@ type Version interface {
 	NewNodePool(*NodePool) VersionedNodePool
 	NewExternalAuth(*ExternalAuth) VersionedExternalAuth
 	NewOpenShiftVersion(*OpenShiftVersion) VersionedOpenShiftVersion
+	NewOperatorIdentityRoleSet(*OperatorIdentityRoleSet) VersionedOperatorIdentityRoleSet
 
 	// Request Unmarshaling
 	UnmarshalClusterAdminCredentialRequest([]byte) (*ClusterAdminCredentialRequest, error)

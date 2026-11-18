@@ -51,8 +51,8 @@ func TestParseObservabilityFailures(t *testing.T) {
 			if len(results) == 0 {
 				return
 			}
-			rows, names := testRowsFor("123", results)
-			if len(rows) != 1 || len(names) != 1 || rows[0].Message != tc.message || names[0].Name != "exact name " || rows[0].TestID != testIDFor("exact name ") || !rows[0].Failed || rows[0].Result != "failed" {
+			rows, names := testRowsFor("123", sourceObservability, results)
+			if len(rows) != 1 || len(names) != 1 || rows[0].Message != tc.message || names[0].Name != "exact name " || rows[0].TestID != testIDFor("exact name ") || rows[0].Source != sourceObservability || !rows[0].Failed || rows[0].Result != "failed" {
 				t.Fatalf("rows=%+v names=%+v", rows, names)
 			}
 		})
@@ -123,7 +123,7 @@ func TestFetchObservabilityRows(t *testing.T) {
 				}
 			}
 			for _, row := range rows {
-				if row.BuildID != "123" || row.Result != "failed" || !row.Failed || row.Message == "" {
+				if row.BuildID != "123" || row.Source != sourceObservability || row.Result != "failed" || !row.Failed || row.Message == "" {
 					t.Fatalf("failure row = %+v", row)
 				}
 				if tc.wantTiming {

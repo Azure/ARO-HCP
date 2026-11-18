@@ -19,6 +19,13 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/go-logr/logr"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
 )
 
 type controllerArtifactTransport func(*http.Request) (*http.Response, error)
@@ -118,19 +125,299 @@ func TestProwControllerStrictAndSnapshotBestEffort(t *testing.T) {
 	}
 }
 
+func TestProwJobTestResultsStepSelection(t *testing.T) {
+	const root = "logs/job/123/artifacts/e2e/"
+	for _, tc := range []struct {
+		name, jobName string
+		reports       map[string]string
+		wantName      string
+		wantEmpty     bool
+	}{
+		{
+			name: "local", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local": `[{"name":"local test","result":"passed"}]`},
+			wantName: "local test",
+		},
+		{
+			name: "upgrade", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed","error":"upgrade failed"}]`},
+			wantName: "upgrade test",
+		},
+		{
+			name: "rehearsal upgrade", jobName: "rehearse-123-pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed","error":"upgrade failed"}]`},
+			wantName: "upgrade test",
+		},
+		{
+			name: "persistent", jobName: "periodic-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-persistent":    `[{"name":"persistent test","result":"passed"}]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantName: "persistent test",
+		},
+		{
+			name: "local takes precedence", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-local":         `[{"name":"local test","result":"passed"}]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantName: "local test",
+		},
+		{
+			name: "empty local report is authoritative", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-local":         `[]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantEmpty: true,
+		},
+	} {
+		for _, strict := range []bool{false, true} {
+			mode := "snapshot"
+			if strict {
+				mode = "controller"
+			}
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+					prefix := r.URL.Query().Get("prefix")
+					body := `{}`
+					if prefix == "logs/job/123/artifacts/" {
+						body = `{"prefixes":["` + root + `"]}`
+					}
+					for step, report := range tc.reports {
+						resultPrefix := root + step + "/artifacts/extension_test_result_e2e_"
+						if prefix == resultPrefix {
+							body = `{"items":[{"name":"` + resultPrefix + `1.json"}]}`
+						}
+						if r.URL.Path == "/bucket/"+resultPrefix+"1.json" {
+							body = report
+						}
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				})}
+				gcs, err := controllerGCSClient(t.Context(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer gcs.Close()
+				var strictClient *http.Client
+				if strict {
+					strictClient = client
+				}
+				results, err := fetchProwJobTestResults(t.Context(), gcs, &ProwJobInfo{
+					GCSBucket: "bucket", GCSPrefix: "logs/job/123", JobName: tc.jobName,
+				}, strictClient)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.wantEmpty {
+					if len(results) != 0 || (strict && results == nil) {
+						t.Fatalf("expected valid empty report, got %+v", results)
+					}
+					return
+				}
+				if len(results) != 1 || results[0].Name != tc.wantName {
+					t.Fatalf("results=%+v, want only %q", results, tc.wantName)
+				}
+				if tc.wantName == "upgrade test" && (!results[0].Failed || results[0].Error != "upgrade failed") {
+					t.Fatalf("lost upgrade failure evidence: %+v", results[0])
+				}
+			})
+		}
+	}
+}
+
 func TestProwArtifactProblemHandlerBoundedCategories(t *testing.T) {
 	var problems []string
 	ctx := WithProwArtifactProblemHandler(t.Context(), func(source, reason string) { problems = append(problems, source+"/"+reason) })
-	for _, source := range []string{"e2e", "timing", "config", "observability", "job", "slot-state"} {
+	for _, source := range []string{"e2e", "timing", "config", "observability", "job", "slot-state", "rp-provision", "rp-upgrade"} {
 		for _, reason := range []string{"absent", "malformed", "unsupported-version"} {
 			ReportProwArtifactProblem(ctx, source, reason)
 		}
 	}
 	ReportProwArtifactProblem(ctx, "arbitrary-job-name", "absent")
 	ReportProwArtifactProblem(ctx, "job", "arbitrary-error")
-	if len(problems) != 18 {
+	if len(problems) != 24 {
 		t.Fatalf("unexpected categories: %v", problems)
 	}
 	ReportProwArtifactProblem(t.Context(), "job", "absent")
 	ReportProwArtifactProblem(WithProwArtifactProblemHandler(t.Context(), nil), "job", "absent")
+}
+
+func TestFetchTestTimingsCleanupBoundary(t *testing.T) {
+	t.Parallel()
+	const prefix = "logs/job/123/" + timingMetadataPath + "timing-metadata-"
+	for _, fullLifecycle := range []bool{false, true} {
+		name := "historical"
+		if fullLifecycle {
+			name = "full-lifecycle"
+		}
+		t.Run(name, func(t *testing.T) {
+			client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+				var body string
+				if r.URL.Query().Get("prefix") == prefix {
+					body = `{"items":[{"name":"` + prefix + `test.yaml"}]}`
+				} else {
+					body = "identifier: [test]\nfinishedAt: '2026-10-30T14:39:42.324789Z'\n"
+					if fullLifecycle {
+						body += "cleanupStartedAt: '2026-10-30T14:20:23.155483Z'\n"
+					}
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+			})}
+			gcs, err := controllerGCSClient(t.Context(), client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer gcs.Close()
+			got, err := fetchTestTimings(t.Context(), gcs, "bucket", "logs/job/123", logr.Discard(), client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "2026-10-30T14:39:42.324789Z"
+			if fullLifecycle {
+				want = "2026-10-30T14:20:23.155483Z"
+			}
+			boundary, _ := time.Parse(time.RFC3339Nano, want)
+			if !got["test"].CleanupStartTime.Equal(boundary) {
+				t.Fatalf("wrong cleanup start: got %s, want %s", got["test"].CleanupStartTime, boundary)
+			}
+		})
+	}
+}
+
+func TestFetchTestTimingsPreCleanupBoundaries(t *testing.T) {
+	t.Parallel()
+	const prefix = "logs/job/123/" + timingMetadataPath + "timing-metadata-"
+	start, err := time.Parse(time.RFC3339Nano, "2026-10-30T10:00:00.123456789Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup := start.Add(10 * time.Minute)
+	step := func(name string, from, to time.Duration) timing.StepTimingMetadata {
+		return timing.StepTimingMetadata{Name: name, StartedAt: start.Add(from).Format(time.RFC3339Nano), FinishedAt: start.Add(to).Format(time.RFC3339Nano)}
+	}
+	for _, tc := range []struct {
+		name           string
+		steps          []timing.StepTimingMetadata
+		setupFinish    time.Time
+		testStart      time.Time
+		hasBodyRequest bool
+	}{
+		{name: "no spans", testStart: start, hasBodyRequest: true},
+		{
+			name: "cleanup only",
+			steps: []timing.StepTimingMetadata{
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			testStart: start, hasBodyRequest: true,
+		},
+		{
+			name: "setup and cleanup only",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(2 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "body span crosses cleanup",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Create cluster", 3*time.Minute, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "setup span crosses cleanup",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: cleanup, testStart: cleanup,
+		},
+		{
+			name: "setup overlaps body",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 5*time.Minute),
+				step("Create cluster", 3*time.Minute, 9*time.Minute),
+			},
+			setupFinish: start.Add(3 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+	} {
+		for _, fullLifecycle := range []bool{false, true} {
+			mode := "legacy"
+			if fullLifecycle {
+				mode = "full lifecycle"
+			}
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				metadata := timing.SpecTimingMetadata{
+					Identifier: []string{"test"},
+					StartedAt:  start.Format(time.RFC3339Nano),
+					FinishedAt: cleanup.Format(time.RFC3339Nano),
+					Steps:      tc.steps,
+				}
+				finish := cleanup
+				if fullLifecycle {
+					metadata.CleanupStartedAt = cleanup.Format(time.RFC3339Nano)
+					finish = cleanup.Add(2 * time.Minute)
+					metadata.FinishedAt = finish.Format(time.RFC3339Nano)
+				}
+				data, err := yaml.Marshal(metadata)
+				if err != nil {
+					t.Fatal(err)
+				}
+				client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+					body := string(data)
+					if r.URL.Query().Get("prefix") == prefix {
+						body = `{"items":[{"name":"` + prefix + `test.yaml"}]}`
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				})}
+				gcs, err := controllerGCSClient(t.Context(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer gcs.Close()
+				got, err := fetchTestTimings(t.Context(), gcs, "bucket", "logs/job/123", logr.Discard(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				boundaries := got["test"]
+				if !boundaries.SetupFinishTime.Equal(tc.setupFinish) || !boundaries.TestStartTime.Equal(tc.testStart) || !boundaries.CleanupStartTime.Equal(cleanup) {
+					t.Fatalf("unexpected phase boundaries: %+v", boundaries)
+				}
+				if boundaries.TestStartTime.Before(start) ||
+					(!boundaries.SetupFinishTime.IsZero() && (boundaries.SetupFinishTime.Before(start) || boundaries.SetupFinishTime.After(boundaries.TestStartTime))) {
+					t.Fatalf("setup/test boundaries must stay ordered: %+v", boundaries)
+				}
+				phases := computePhases(GatherInput{
+					TimeWindow:       TimeWindow{Start: start, End: finish.Add(5 * time.Minute), SetupFinishTime: boundaries.SetupFinishTime},
+					TestStartTime:    boundaries.TestStartTime,
+					CleanupStartTime: boundaries.CleanupStartTime,
+				})
+				if len(phases) != 2 || phases[0].end.After(phases[1].start) {
+					t.Fatalf("expected ordered test and cleanup phases: %+v", phases)
+				}
+				for _, phase := range phases {
+					if phase.start.After(phase.end) {
+						t.Fatalf("phase has negative duration: %+v", phase)
+					}
+				}
+				gatherer := &Gatherer{}
+				bodyRequest := frontendRequest{Timestamp: start.Add(4 * time.Minute)}
+				if tc.hasBodyRequest && (!gatherer.requestInPhase(bodyRequest, phases[0]) || gatherer.requestInPhase(bodyRequest, phases[1])) {
+					t.Fatalf("timestamped body request must remain in test phase: %+v", phases)
+				}
+				cleanupRequest := frontendRequest{Timestamp: cleanup}
+				if gatherer.requestInPhase(cleanupRequest, phases[0]) || !gatherer.requestInPhase(cleanupRequest, phases[1]) {
+					t.Fatalf("cleanup boundary request must belong only to cleanup phase: %+v", phases)
+				}
+			})
+		}
+	}
 }

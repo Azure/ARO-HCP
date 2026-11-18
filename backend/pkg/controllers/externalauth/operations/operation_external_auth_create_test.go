@@ -114,12 +114,12 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify:      nil,
 		},
 		{
-			name:         "ClusterServiceID nil skips reconciliation",
+			name:         "ClusterServiceID nil keeps provisioning",
 			externalAuth: externalAuthWithoutCSID,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -183,6 +183,8 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tt.expectError {

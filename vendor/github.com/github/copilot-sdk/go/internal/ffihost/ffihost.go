@@ -1,0 +1,496 @@
+//go:build copilot_inprocess && (darwin || linux || windows)
+
+// Package ffihost hosts the Copilot runtime in-process by loading its native
+// library and driving JSON-RPC over the runtime's C ABI.
+//
+// It pumps opaque LSP Content-Length-framed JSON-RPC bytes across the boundary:
+//
+//   - client → server frames go to copilot_runtime_connection_write
+//   - server → client frames arrive on a native callback that feeds a
+//     thread-safe receive buffer read by the JSON-RPC client
+//
+// The existing internal/jsonrpc2 client handles framing unchanged — this is a
+// transport swap, not a new protocol. Host exposes an io.WriteCloser (client →
+// server) and io.ReadCloser (server → client) that plug straight into
+// jsonrpc2.NewClient.
+//
+// The C ABI (shared with the .NET, Node.js, Python, and Rust SDKs):
+//
+//	uint32 copilot_runtime_host_start(uint8 *argv, size_t argv_len,
+//	                                  uint8 *env, size_t env_len);
+//	bool   copilot_runtime_host_shutdown(uint32 server_id);
+//	uint32 copilot_runtime_connection_open(uint32 server_id, outbound cb,
+//	                                       void *user_data,
+//	                                       uint8 *a, size_t a_len,
+//	                                       uint8 *b, size_t b_len,
+//	                                       uint8 *c, size_t c_len);
+//	bool   copilot_runtime_connection_write(uint32 conn_id, uint8 *bytes, size_t len);
+//	bool   copilot_runtime_connection_close(uint32 conn_id);
+//	// outbound callback:
+//	void   outbound(void *user_data, uint8 *bytes, size_t len);
+//
+// The native binding uses github.com/ebitengine/purego so the library is loaded
+// at runtime with CGO disabled, preserving the SDK's pure-Go build and
+// cross-compilation.
+package ffihost
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+	"unsafe"
+
+	"github.com/ebitengine/purego"
+)
+
+const symbolPrefix = "copilot_runtime_"
+
+// ffiLibrary binds the copilot_runtime_* C ABI exports of a loaded cdylib.
+type ffiLibrary struct {
+	handle                       uintptr
+	hostStart                    func(argv unsafe.Pointer, argvLen uintptr, env unsafe.Pointer, envLen uintptr) uint32
+	hostShutdown                 func(serverID uint32) bool
+	connectionOpen               func(serverID uint32, cb uintptr, userData uintptr, a unsafe.Pointer, aLen uintptr, b unsafe.Pointer, bLen uintptr, c unsafe.Pointer, cLen uintptr) uint32
+	connectionWrite              func(connID uint32, bytes unsafe.Pointer, length uintptr) bool
+	connectionClose              func(connID uint32) bool
+	connectionSetUiThreadHandler func(connID uint32, enabled bool) bool
+	connectionRunUiAction        func(connID uint32, actionID uint32) bool
+}
+
+// The cdylib may only be loaded once per process; a second load of a different
+// path is unsupported (matches the .NET/Node/Python/Rust hosts). Guard it here.
+var (
+	loadMu            sync.Mutex
+	loadedLibrary     *ffiLibrary
+	loadedLibraryPath string
+)
+
+var (
+	outboundCallbackOnce   sync.Once
+	outboundCallbackHandle uintptr
+	outboundTargets        sync.Map
+	nextOutboundToken      atomic.Uint64
+)
+
+var pendingCleanup = struct {
+	sync.Mutex
+	count int
+	idle  chan struct{}
+}{
+	idle: closedChannel(),
+}
+
+func closedChannel() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
+func beginPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	if pendingCleanup.count == 0 {
+		pendingCleanup.idle = make(chan struct{})
+	}
+	pendingCleanup.count++
+}
+
+func finishPendingCleanup() {
+	pendingCleanup.Lock()
+	defer pendingCleanup.Unlock()
+	pendingCleanup.count--
+	if pendingCleanup.count == 0 {
+		close(pendingCleanup.idle)
+	}
+}
+
+// WaitForCleanup waits for all deferred connection cleanup to finish.
+// In-process test harnesses use this before changing process-global state.
+func WaitForCleanup(timeout time.Duration) bool {
+	pendingCleanup.Lock()
+	idle := pendingCleanup.idle
+	pendingCleanup.Unlock()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-idle:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+func sharedOutboundCallback() uintptr {
+	outboundCallbackOnce.Do(func() {
+		outboundCallbackHandle = purego.NewCallback(routeOutbound)
+	})
+	return outboundCallbackHandle
+}
+
+func routeOutbound(userData uintptr, bytesPtr uintptr, bytesLen uintptr) uintptr {
+	target, ok := outboundTargets.Load(userData)
+	if !ok {
+		return 0
+	}
+	return target.(*Host).onOutbound(bytesPtr, bytesLen)
+}
+
+func loadLibrary(libraryPath string) (lib *ffiLibrary, err error) {
+	loadMu.Lock()
+	defer loadMu.Unlock()
+
+	if loadedLibrary != nil {
+		if loadedLibraryPath != libraryPath {
+			return nil, fmt.Errorf(
+				"an in-process FFI runtime library is already loaded from %q; loading a different library from %q in the same process is not supported",
+				loadedLibraryPath, libraryPath)
+		}
+		return loadedLibrary, nil
+	}
+
+	handle, err := openLibrary(libraryPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading FFI runtime library %q: %w", libraryPath, err)
+	}
+
+	// RegisterLibFunc panics if a symbol is missing; convert that to an error so
+	// callers get a clean failure instead of a crash.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("binding FFI runtime library %q: %v", libraryPath, r)
+			lib = nil
+		}
+	}()
+
+	bound := &ffiLibrary{handle: handle}
+	purego.RegisterLibFunc(&bound.hostStart, handle, symbolPrefix+"host_start")
+	purego.RegisterLibFunc(&bound.hostShutdown, handle, symbolPrefix+"host_shutdown")
+	purego.RegisterLibFunc(&bound.connectionOpen, handle, symbolPrefix+"connection_open")
+	purego.RegisterLibFunc(&bound.connectionWrite, handle, symbolPrefix+"connection_write")
+	purego.RegisterLibFunc(&bound.connectionClose, handle, symbolPrefix+"connection_close")
+	purego.RegisterLibFunc(&bound.connectionSetUiThreadHandler, handle, symbolPrefix+"connection_set_ui_thread_handler")
+	purego.RegisterLibFunc(&bound.connectionRunUiAction, handle, symbolPrefix+"connection_run_ui_action")
+
+	loadedLibrary = bound
+	loadedLibraryPath = libraryPath
+	return bound, nil
+}
+
+// Host hosts the Copilot runtime in-process via its native C ABI.
+//
+// Construct with Create, call Start to open the FFI connection, wire
+// Writer/Reader into jsonrpc2.NewClient, and call Dispose to tear everything
+// down.
+type Host struct {
+	libraryPath   string
+	cliEntrypoint string
+	environment   map[string]string
+	args          []string
+	lib           *ffiLibrary
+
+	// lifecycleMu serializes native start/write/shutdown operations. hostStart
+	// cannot be interrupted, so Dispose waits for it before closing native IDs.
+	lifecycleMu sync.Mutex
+	// mu serializes disposal with native callbacks so the receive buffer cannot
+	// be fed after it is closed.
+	mu               sync.Mutex
+	serverID         uint32
+	connectionID     uint32
+	disposed         bool
+	cleanupScheduled bool
+
+	recv *receiveBuffer
+
+	callbackToken uintptr
+}
+
+func (h *Host) rearmForeignSignalHandlers() {
+	rearmForeignSignalHandlers(h.lib.handle)
+}
+
+// PrepareForChildProcessWait repairs signal handlers that the embedded runtime
+// may have replaced before the Go process stops or waits for its own child.
+func PrepareForChildProcessWait() {
+	rearmForeignSignalHandlers(0)
+}
+
+// ProtectChildProcessWait keeps SIGCHLD compatible with the Go runtime while a
+// child process is being stopped and reaped.
+func ProtectChildProcessWait() func() {
+	return protectChildProcessSignalHandler()
+}
+
+// Create resolves the native library and prepares the host. environment and
+// args contain SDK-managed runtime options.
+func Create(runtimeEntrypoint, cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
+	libraryPath, err := ResolveLibraryPath(runtimeEntrypoint)
+	if err != nil {
+		return nil, err
+	}
+	lib, err := loadLibrary(libraryPath)
+	if err != nil {
+		return nil, err
+	}
+	return &Host{
+		libraryPath:   libraryPath,
+		cliEntrypoint: cliEntrypoint,
+		environment:   environment,
+		args:          append([]string(nil), args...),
+		lib:           lib,
+		recv:          newReceiveBuffer(),
+	}, nil
+}
+
+// Start opens the FFI connection. Native startup may block, so callers should
+// run it off any latency-sensitive goroutine.
+func (h *Host) Start() error {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
+	h.mu.Lock()
+	if h.disposed {
+		h.mu.Unlock()
+		return fmt.Errorf("the in-process runtime host is disposed")
+	}
+	h.mu.Unlock()
+
+	argv := h.buildArgv()
+	env := h.buildEnv()
+
+	var argvPtr, envPtr unsafe.Pointer
+	if len(argv) > 0 {
+		argvPtr = unsafe.Pointer(&argv[0])
+	}
+	if len(env) > 0 {
+		envPtr = unsafe.Pointer(&env[0])
+	}
+
+	h.serverID = h.lib.hostStart(argvPtr, uintptr(len(argv)), envPtr, uintptr(len(env)))
+	// Keep the JSON buffers alive across the (synchronous) native call.
+	runtime.KeepAlive(argv)
+	runtime.KeepAlive(env)
+	if h.serverID == 0 {
+		return fmt.Errorf("copilot_runtime_host_start failed (library %q)", h.libraryPath)
+	}
+
+	// An embedded host may install a SIGCHLD handler without SA_ONSTACK.
+	h.rearmForeignSignalHandlers()
+
+	callbackHandle := sharedOutboundCallback()
+	callbackToken := uintptr(nextOutboundToken.Add(1))
+	outboundTargets.Store(callbackToken, h)
+	h.callbackToken = callbackToken
+	h.connectionID = h.lib.connectionOpen(h.serverID, callbackHandle, callbackToken, nil, 0, nil, 0, nil, 0)
+	if h.connectionID == 0 {
+		outboundTargets.Delete(callbackToken)
+		h.callbackToken = 0
+		h.rearmForeignSignalHandlers()
+		h.lib.hostShutdown(h.serverID)
+		h.rearmForeignSignalHandlers()
+		h.serverID = 0
+		return fmt.Errorf("copilot_runtime_connection_open failed")
+	}
+	// Connection initialization may install Tokio's SIGCHLD handler after
+	// host startup, so repair it again before any child process can exit.
+	h.rearmForeignSignalHandlers()
+	return nil
+}
+
+// Writer returns the client → server frame sink (plug into jsonrpc2 as stdin).
+func (h *Host) Writer() io.WriteCloser { return hostWriter{h} }
+
+// Reader returns the server → client frame source (plug into jsonrpc2 as stdout).
+func (h *Host) Reader() io.ReadCloser { return h.recv }
+
+// ConfigureUiThread registers this SDK connection's native UI scheduling capability.
+func (h *Host) ConfigureUiThread(enabled bool) error {
+	h.mu.Lock()
+	conn, disposed := h.connectionID, h.disposed
+	h.mu.Unlock()
+	if disposed || !h.lib.connectionSetUiThreadHandler(conn, enabled) {
+		return fmt.Errorf("failed to configure the in-process UI dispatcher")
+	}
+	return nil
+}
+
+// RunUiAction enters synchronously on the caller's UI thread, not an FFI worker.
+func (h *Host) RunUiAction(actionID uint32) error {
+	h.mu.Lock()
+	conn, disposed := h.connectionID, h.disposed
+	h.mu.Unlock()
+	if disposed || !h.lib.connectionRunUiAction(conn, actionID) {
+		return fmt.Errorf("native UI action is retired, already executed, or not on the process main thread")
+	}
+	return nil
+}
+
+func (h *Host) buildArgv() []byte {
+	argv := make([]string, 0, len(h.args)+4)
+	if h.cliEntrypoint != "" {
+		if strings.HasSuffix(strings.ToLower(h.cliEntrypoint), ".js") {
+			argv = append(argv, "node")
+		}
+		argv = append(argv, h.cliEntrypoint, "--embedded-host", "--no-auto-update")
+	}
+	argv = append(argv, h.args...)
+	b, _ := json.Marshal(argv)
+	return b
+}
+
+func (h *Host) buildEnv() []byte {
+	if len(h.environment) == 0 {
+		return nil
+	}
+	b, _ := json.Marshal(h.environment)
+	return b
+}
+
+// onOutbound is the native server → client callback, invoked on a foreign
+// runtime thread. The native pointer is only valid for this call, so the bytes
+// are copied out before returning. Nothing may panic across the FFI boundary.
+func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
+	h.mu.Lock()
+	if h.disposed {
+		h.mu.Unlock()
+		return 0
+	}
+	h.mu.Unlock()
+
+	defer func() {
+		// Never let a panic unwind into native code.
+		_ = recover()
+	}()
+
+	if bytesPtr != 0 && bytesLen > 0 {
+		// The native runtime delivers the outbound frame as a raw buffer address
+		// (uintptr) plus length. Materialize a slice over it just long enough to
+		// copy the bytes into Go-owned memory before returning to native code.
+		//nolint:govet // FFI callback receives the buffer address as an integer; converting it to a pointer to copy out is the intended, checked-length use.
+		src := unsafe.Slice((*byte)(unsafe.Pointer(bytesPtr)), int(bytesLen))
+		buf := make([]byte, len(src))
+		copy(buf, src)
+		h.recv.feed(buf)
+	}
+	return 0
+}
+
+func (h *Host) writeFrame(frame []byte) (int, error) {
+	h.mu.Lock()
+	disposed := h.disposed
+	h.mu.Unlock()
+	if disposed {
+		return 0, fmt.Errorf("the in-process runtime connection is closed")
+	}
+
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
+	h.mu.Lock()
+	disposed = h.disposed
+	h.mu.Unlock()
+	connID := h.connectionID
+	if disposed || connID == 0 {
+		return 0, fmt.Errorf("the in-process runtime connection is closed")
+	}
+	if len(frame) == 0 {
+		return 0, nil
+	}
+	// A prior runtime request may have installed or restored Tokio's SIGCHLD
+	// handler. Repair it before another request can stop a native child process.
+	h.rearmForeignSignalHandlers()
+	ok := h.lib.connectionWrite(connID, unsafe.Pointer(&frame[0]), uintptr(len(frame)))
+	runtime.KeepAlive(frame)
+	if !ok {
+		return 0, fmt.Errorf("failed to write a frame to the in-process runtime connection")
+	}
+	return len(frame), nil
+}
+
+// Dispose closes the receive side immediately and releases native resources
+// after connectionClose confirms that outbound callbacks are quiescent.
+func (h *Host) Dispose() {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
+	h.mu.Lock()
+	if h.disposed {
+		h.mu.Unlock()
+		return
+	}
+	h.disposed = true
+	h.mu.Unlock()
+
+	h.recv.Close()
+	if !h.tryFinalizeCleanupLocked() {
+		h.scheduleCleanupRetryLocked()
+	}
+}
+
+func (h *Host) tryFinalizeCleanupLocked() bool {
+	connID := h.connectionID
+
+	if connID != 0 {
+		h.rearmForeignSignalHandlers()
+		if !h.lib.connectionClose(connID) {
+			return false
+		}
+		h.connectionID = 0
+	}
+
+	callbackToken := h.callbackToken
+	h.callbackToken = 0
+	if callbackToken != 0 {
+		outboundTargets.Delete(callbackToken)
+	}
+	serverID := h.serverID
+	if serverID != 0 {
+		h.rearmForeignSignalHandlers()
+		if !h.lib.hostShutdown(serverID) {
+			log.Printf("FfiRuntimeHost: host_shutdown did not recognize server %d", serverID)
+		}
+		h.serverID = 0
+		// A host may restore its saved SIGCHLD action during shutdown.
+		h.rearmForeignSignalHandlers()
+	}
+	return true
+}
+
+func (h *Host) scheduleCleanupRetryLocked() {
+	if h.cleanupScheduled {
+		return
+	}
+	h.cleanupScheduled = true
+	beginPendingCleanup()
+	go func() {
+		defer finishPendingCleanup()
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		for range timer.C {
+			h.lifecycleMu.Lock()
+			if h.tryFinalizeCleanupLocked() {
+				h.cleanupScheduled = false
+				h.lifecycleMu.Unlock()
+				return
+			}
+			h.lifecycleMu.Unlock()
+			timer.Reset(100 * time.Millisecond)
+		}
+	}()
+}
+
+// hostWriter adapts Host into the io.WriteCloser jsonrpc2 writes request frames to.
+type hostWriter struct{ h *Host }
+
+func (w hostWriter) Write(p []byte) (int, error) { return w.h.writeFrame(p) }
+
+func (w hostWriter) Close() error {
+	w.h.Dispose()
+	return nil
+}

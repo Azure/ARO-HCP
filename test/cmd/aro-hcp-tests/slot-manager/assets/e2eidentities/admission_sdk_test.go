@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -176,9 +177,15 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) *admitClie
 	if err != nil {
 		t.Fatal(err)
 	}
+	resourceGroups, err := armresources.NewResourceGroupsClient("sub", admissionCredential{}, options)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &admitClients{
-		identities: factory.NewUserAssignedIdentitiesClient(),
-		roles:      roles,
+		subscriptionID: "sub",
+		resourceGroups: resourceGroups,
+		identities:     factory.NewUserAssignedIdentitiesClient(),
+		roles:          roles,
 	}
 }
 

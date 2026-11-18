@@ -27,7 +27,8 @@ import (
 // ManagementClusterConditionType represents the type of a management cluster condition.
 //
 // Condition lifecycle follows Kubernetes conventions:
-//   - Conditions are added on first evaluation and never removed.
+//   - Active conditions are added on first evaluation and retained. Retired conditions
+//     may be removed by the lifecycle controller.
 //   - Status is toggled between True/False/Unknown; absence means "not yet evaluated."
 //   - Each condition type is owned by exactly one controller (see ownership below).
 type ManagementClusterConditionType string
@@ -38,7 +39,7 @@ type ManagementClusterConditionReason string
 const (
 	// ManagementClusterConditionReady indicates the management cluster is
 	// provisioned and operational. This is an aggregate condition: True only
-	// when ClustersServiceRegistered, MaestroRegistered, and
+	// when ClustersServiceRegistered and
 	// SharedIngressAvailable are all True.
 	// Owner: ManagementClusterLifecycleController.
 	ManagementClusterConditionReady ManagementClusterConditionType = "Ready"
@@ -48,9 +49,8 @@ const (
 	// Owner: ClustersServiceRegistrationController.
 	ManagementClusterConditionClustersServiceRegistered ManagementClusterConditionType = "ClustersServiceRegistered"
 
-	// ManagementClusterConditionMaestroRegistered indicates whether the consumer
-	// exists and is configured correctly in Maestro.
-	// Owner: MaestroRegistrationController.
+	// ManagementClusterConditionMaestroRegistered is retained for cleanup of legacy conditions.
+	// Owner: ManagementClusterLifecycleController.
 	ManagementClusterConditionMaestroRegistered ManagementClusterConditionType = "MaestroRegistered"
 
 	// ManagementClusterConditionSharedIngressAvailable indicates whether the
@@ -76,7 +76,7 @@ const (
 	ManagementClusterConditionReasonProvisionShardStatusUnknown ManagementClusterConditionReason = "ProvisionShardStatusUnknown"
 
 	// ManagementClusterConditionReasonRegistered indicates the downstream system
-	// (ClustersService or Maestro) is configured correctly.
+	// (ClustersService) is configured correctly.
 	ManagementClusterConditionReasonRegistered ManagementClusterConditionReason = "Registered"
 
 	// ManagementClusterConditionReasonRegistrationFailed indicates the downstream system
@@ -89,7 +89,7 @@ const (
 	ManagementClusterConditionReasonRegistrationCheckFailed ManagementClusterConditionReason = "CheckFailed"
 
 	// ManagementClusterConditionReasonAllRegistered indicates all sub-conditions
-	// (ClustersServiceRegistered, MaestroRegistered) are True.
+	// (ClustersServiceRegistered, SharedIngressAvailable) are True.
 	ManagementClusterConditionReasonAllRegistered ManagementClusterConditionReason = "AllRegistered"
 
 	// ManagementClusterConditionReasonRegistrationIncomplete indicates one or more
@@ -175,7 +175,7 @@ type ManagementClusterSpec struct {
 type ManagementClusterStatus struct {
 	// Conditions is a list of conditions tracking the lifecycle of the management cluster.
 	// Known condition types are defined as ManagementClusterConditionType constants:
-	// Ready, ClustersServiceRegistered, MaestroRegistered, SharedIngressAvailable.
+	// Ready, ClustersServiceRegistered, SharedIngressAvailable.
 	//
 	// Conditions are added on first evaluation and never removed. Status is toggled
 	// between True/False/Unknown. Absence of a condition means "not yet evaluated."
@@ -214,25 +214,6 @@ type ManagementClusterStatus struct {
 	//
 	// +required, validated as a UUID, immutable once set.
 	HostedClustersSecretsKeyVaultManagedIdentityClientID string `json:"hostedClustersSecretsKeyVaultManagedIdentityClientID,omitempty"`
-
-	// MaestroConsumerName is the consumer name of the management cluster in Maestro.
-	// Typically derived from the management cluster stamp identifier.
-	// Example: "hcp-underlay-westus3-mgmt-1"
-	//
-	// +required, immutable once set.
-	MaestroConsumerName string `json:"maestroConsumerName,omitempty"`
-
-	// MaestroRESTAPIURL is the URL of the Maestro REST API.
-	// Example: "http://maestro.maestro.svc.cluster.local:8000"
-	//
-	// +required, validated as a well-formed URL, immutable once set.
-	MaestroRESTAPIURL string `json:"maestroRESTAPIURL,omitempty"`
-
-	// MaestroGRPCTarget is the gRPC dial target (host:port) of the Maestro GRPC API.
-	// Example: "maestro-grpc.maestro.svc.cluster.local:8090"
-	//
-	// +required, immutable once set.
-	MaestroGRPCTarget string `json:"maestroGRPCTarget,omitempty"`
 
 	// ClusterServiceProvisionShardID is the Cluster Service provision shard HREF for this management cluster.
 	// Example: "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"

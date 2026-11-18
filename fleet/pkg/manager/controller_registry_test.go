@@ -34,7 +34,6 @@ func TestControllerRegistry(t *testing.T) {
 		"hcpresourcerequirementscontroller":                1,
 		"managementclusterlifecyclecontroller":             1,
 		"managementclusterscaleceilingreportingcontroller": 1,
-		"maestroregistrationcontroller":                    4,
 		"nodepoolcontroller":                               4,
 		"sharedingressreportingcontroller":                 1,
 		"union-kube-applier-informers-controller":          2,

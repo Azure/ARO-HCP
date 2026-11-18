@@ -76,6 +76,8 @@ func TestRawOptionsValidate(t *testing.T) {
 		overrides map[string]string
 		wantErr   string
 	}{
+		{name: "duplicate explicit zones", overrides: map[string]string{"SYSTEM_POOL_ZONES": "1,1,2"}, wantErr: "SYSTEM_POOL_ZONES: duplicate zone 1"},
+		{name: "invalid explicit zone", overrides: map[string]string{"SYSTEM_POOL_ZONES": "a"}, wantErr: `SYSTEM_POOL_ZONES: "a" is not a valid integer`},
 		{
 			name: "valid options",
 		},
@@ -105,35 +107,6 @@ func TestRawOptionsValidate(t *testing.T) {
 			wantErr:   `USER_POOL_MAX_COUNT: "many" is not a valid integer`,
 		},
 		{
-			name:      "regional zone count below the 3-zone minimum is rejected",
-			overrides: map[string]string{"REGION_AVAILABILITY_ZONE_COUNT": "2"},
-			wantErr:   "REGION_AVAILABILITY_ZONE_COUNT must be at least 3, got 2",
-		},
-		{
-			name:      "explicit pool zone outside region range is rejected",
-			overrides: map[string]string{"USER_POOL_ZONES": "1,2,5"},
-			wantErr:   "USER_POOL_ZONES: zone 5 is outside the region's availability zones [1,4]",
-		},
-		{
-			name:      "explicit zone list naming the wrong count is rejected",
-			overrides: map[string]string{"USER_POOL_ZONES": "1,2"},
-			wantErr:   `USER_POOL_ZONES: zone list "1,2" names 2 zones, must name exactly 3`,
-		},
-		{
-			name:      "region reporting more than 3 zones is capped at 3 for empty zones",
-			overrides: map[string]string{"REGION_AVAILABILITY_ZONE_COUNT": "5", "SYSTEM_POOL_ZONES": ""},
-		},
-		{
-			name:      "duplicate explicit pool zone is rejected",
-			overrides: map[string]string{"SYSTEM_POOL_ZONES": "1,1,2"},
-			wantErr:   "SYSTEM_POOL_ZONES: zone list \"1,1,2\" contains duplicate zone 1",
-		},
-		{
-			name:      "non-integer explicit pool zone is rejected",
-			overrides: map[string]string{"INFRA_POOL_ZONES": "a"},
-			wantErr:   `INFRA_POOL_ZONES: zone "a" is not a valid integer`,
-		},
-		{
 			name:      "malformed cluster tags",
 			overrides: map[string]string{"CLUSTER_TAGS": "clusterType"},
 			wantErr:   `malformed tag entry "clusterType"`,
@@ -157,7 +130,7 @@ func TestRawOptionsValidate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			raw := newRawOptionsFromEnv(envFunc(test.overrides))
+			raw := newManagementRawOptionsFromEnv(envFunc(test.overrides))
 			validated, err := raw.Validate()
 			if len(test.wantErr) > 0 {
 				require.Error(t, err)
@@ -167,25 +140,19 @@ func TestRawOptionsValidate(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "sub1", validated.subscriptionID)
 			assert.Equal(t, "s1abc1234567", validated.system.name)
-			assert.Equal(t, []string{"1", "2", "3"}, validated.system.zones)
 			assert.Equal(t, int32(5), validated.user.maxCount)
 			assert.Equal(t, 3, validated.user.poolCount)
 		})
 	}
 }
 
-func TestExplicitZonesWithinRegionRangeAreHonored(t *testing.T) {
-	raw := newRawOptionsFromEnv(envFunc(map[string]string{
-		"REGION_AVAILABILITY_ZONE_COUNT": "4",
-		"SYSTEM_POOL_ZONES":              "4,2,1",
-	}))
-	validated, err := raw.Validate()
-	require.NoError(t, err)
-	assert.Equal(t, []string{"4", "2", "1"}, validated.system.zones)
+func TestServiceProfileRejectsInvalidSystemPoolOnly(t *testing.T) {
+	_, err := newServiceRawOptionsFromEnv(envFunc(map[string]string{"SYSTEM_POOL_ONLY": "sometimes"})).Validate()
+	require.ErrorContains(t, err, "SYSTEM_POOL_ONLY")
 }
 
 func TestOwningTeamTagOverridesCSV(t *testing.T) {
-	raw := newRawOptionsFromEnv(envFunc(map[string]string{
+	raw := newManagementRawOptionsFromEnv(envFunc(map[string]string{
 		"CLUSTER_TAGS": "clusterType=mgmt,owningTeam=stale-team",
 	}))
 	o, err := raw.Validate()

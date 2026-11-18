@@ -7,7 +7,7 @@ BINARY = prometheus-rules
 SOURCES = $(shell find . -name '*.go')
 
 # Build the binary
-$(BINARY): $(SOURCES) $(MAKEFILE_LIST)
+$(BINARY): $(SOURCES) $(MAKEFILE_LIST) force-go-build
 	go build -o $(BINARY) .
 
 # Clean the build artifacts
@@ -99,3 +99,7 @@ ALERT_CONFIGS = \
 correlation-map:
 	go run ./... --correlation-map $(ALERT_CONFIGS) > $(OUTPUT)
 .PHONY: correlation-map
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

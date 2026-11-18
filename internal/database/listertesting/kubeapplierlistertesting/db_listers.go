@@ -65,7 +65,10 @@ func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.Apply
 	}
 	var all []*kubeapplierapi.ApplyDesire
 	for _, rid := range rids {
-		client := l.Clients.For(ctx, rid)
+		client, err := l.Clients.For(ctx, rid)
+		if err != nil {
+			return nil, err
+		}
 		if client == nil {
 			continue
 		}
@@ -145,7 +148,10 @@ func (l *DBApplyDesireLister) GetByResourceID(
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ApplyDesire, error) {
-	client := l.Clients.For(ctx, managementClusterResourceID)
+	client, err := l.Clients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, err
+	}
 	if client == nil {
 		return nil, nil
 	}
@@ -200,7 +206,10 @@ func findClusterDesireInAnyClient[T any, P coreapi.CosmosMetadataAccessorPtr[T]]
 		return nil, err
 	}
 	for _, rid := range rids {
-		client := clients.For(ctx, rid)
+		client, err := clients.For(ctx, rid)
+		if err != nil {
+			return nil, err
+		}
 		if client == nil {
 			continue
 		}
@@ -235,7 +244,10 @@ func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ReadDe
 	}
 	var all []*kubeapplierapi.ReadDesire
 	for _, rid := range rids {
-		client := l.Clients.For(ctx, rid)
+		client, err := l.Clients.For(ctx, rid)
+		if err != nil {
+			return nil, err
+		}
 		if client == nil {
 			continue
 		}
@@ -315,7 +327,10 @@ func (l *DBReadDesireLister) GetByResourceID(
 func (l *DBReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ReadDesire, error) {
-	client := l.Clients.For(ctx, managementClusterResourceID)
+	client, err := l.Clients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, err
+	}
 	if client == nil {
 		return nil, nil
 	}

@@ -768,59 +768,6 @@ func ConvertCStoOpenShiftVersion(resourceID *azcorearm.ResourceID, version *aroh
 	}
 }
 
-// StripVolatileErrorFields returns a copy of err with the OperationID and
-// Timestamp fields removed from the wrapped *ocmerrors.Error, if err is (or
-// wraps) one; Status, ID, HREF, Code, Reason and Details are preserved.
-// Returns err unchanged if it isn't an *ocmerrors.Error.
-//
-// Those two fields vary on every retry even when Cluster Service rejects
-// the same request for the same reason, which defeats the no-op check that
-// keeps a Degraded condition's Message stable in Cosmos and causes a
-// continuous reconcile loop (see ReportSyncError).
-//
-// Call this on the raw error from the Cluster Service client, before
-// wrapping it with any extra context. When it strips
-//
-// Note: calling this on an error that contains a *ocmerrors.Error discards
-// everything else in err's chain, including the Cluster Service client's
-// own utils.TrackError file/line annotation. Wrap the result in
-// utils.TrackError again if that's needed.
-func StripVolatileErrorFields(err error) error {
-	var ocmError *ocmerrors.Error
-	if !errors.As(err, &ocmError) {
-		return err
-	}
-	builder := ocmerrors.NewError()
-	// Each field is only copied when it was actually set on ocmError: the
-	// builder's setters mark a field present as soon as they're called, even
-	// with a zero value, so an unconditional call would turn an originally
-	// unset field (e.g. no Reason) into a present-but-empty one and change
-	// Error()'s formatting (e.g. adding a spurious trailing ": ").
-	if v, ok := ocmError.GetStatus(); ok {
-		builder = builder.Status(v)
-	}
-	if v, ok := ocmError.GetID(); ok {
-		builder = builder.ID(v)
-	}
-	if v, ok := ocmError.GetHREF(); ok {
-		builder = builder.HREF(v)
-	}
-	if v, ok := ocmError.GetCode(); ok {
-		builder = builder.Code(v)
-	}
-	if v, ok := ocmError.GetReason(); ok {
-		builder = builder.Reason(v)
-	}
-	if v, ok := ocmError.GetDetails(); ok {
-		builder = builder.Details(v)
-	}
-	stripped, buildErr := builder.Build()
-	if buildErr != nil {
-		return err
-	}
-	return stripped
-}
-
 // CSErrorToCloudError attempts to convert various 4xx status codes from
 // Cluster Service to an ARM-compliant error structure, with 500 Internal
 // Server Error as a last-ditch fallback.
@@ -923,19 +870,6 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 		return nil, fmt.Errorf("failed to parse public DNS zone resource ID %q: %w", azureShard.PublicDnsZoneResourceId(), err)
 	}
 
-	maestroConfig := csShard.MaestroConfig()
-	if maestroConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro config", shardID)
-	}
-	restConfig := maestroConfig.RestApiConfig()
-	if restConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro REST API config", shardID)
-	}
-	grpcConfig := maestroConfig.GrpcApiConfig()
-	if grpcConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
-	}
-
 	hostedClustersSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
 	hostedClustersManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
 	hostedClustersSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
@@ -994,9 +928,6 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			HostedClustersSecretsKeyVaultURL:                     hostedClustersSecretsKeyVaultURL,
 			HostedClustersManagedIdentitiesKeyVaultURL:           hostedClustersManagedIdentitiesKeyVaultURL,
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: hostedClustersSecretsKeyVaultManagedIdentityClientID,
-			MaestroConsumerName:                                  maestroConfig.ConsumerName(),
-			MaestroRESTAPIURL:                                    restConfig.Url(),
-			MaestroGRPCTarget:                                    grpcConfig.Url(),
 			ClusterServiceProvisionShardID:                       &shardID,
 			// i hate this a lot but there is no representation of the cosmosdb container as of now
 			// in CS or the RP so we replicate the naming convention here.
