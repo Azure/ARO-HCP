@@ -106,6 +106,8 @@ type perItOrDescribeTestContext struct {
 	knownDeployments []deploymentInfo
 	timingFinalized  bool
 	hcpAdminConfigs  map[string]*rest.Config
+	// DO NOT MERGE: set only after successfully handing one Stage canary to expiry cleanup.
+	retainedStageCanary bool
 }
 
 type deploymentInfo struct {
@@ -351,7 +353,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		}
 	}()
 
-	if tc.perBinaryInvocationTestContext.skipCleanup {
+	if tc.perBinaryInvocationTestContext.skipCleanup || tc.retainedStageCanary {
 		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
 	}
