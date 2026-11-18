@@ -9,12 +9,6 @@ param armHelperPrincipalId string
 @description('Principal ID for aro-dev-msi-mock2')
 param miMockPrincipalId string
 
-@description('Pooled MSI mock principals that also need customer-subscription access')
-param msiMockPoolPrincipals array = []
-
-@description('Pooled ARM helper principals that need E2E customer-subscription access')
-param armHelperPoolPrincipals array = []
-
 @description('Clusters Service ARM helper principal that needs E2E customer-subscription access')
 param clustersServiceArmHelperPrincipalId string = ''
 
@@ -249,54 +243,6 @@ resource miMockKmsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-0
     roleDefinitionId: kmsCryptoUserRoleDefinitionId
   }
 }
-
-resource pooledMiMockRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in msiMockPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, msiMockRole.id)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: msiMockRole.id
-    }
-  }
-]
-
-resource pooledMiMockKmsRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in msiMockPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, kmsCryptoUserRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: kmsCryptoUserRoleDefinitionId
-    }
-  }
-]
-
-resource pooledArmHelperContributorRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in armHelperPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, contributorRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: contributorRoleDefinitionId
-    }
-  }
-]
-
-resource pooledArmHelperRbacAdminRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in armHelperPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, rbacAdminRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: rbacAdminRoleDefinitionId
-    }
-  }
-]
 
 resource clustersServiceArmHelperContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(clustersServiceArmHelperPrincipalId)) {
   name: guid(subscription().id, clustersServiceArmHelperPrincipalId, contributorRoleDefinitionId)

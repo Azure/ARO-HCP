@@ -27,9 +27,7 @@ in config** — they are resolved at deployment time via Microsoft Graph lookup
 |---|---|---|
 | `aro-dev-first-party2` (firstParty) | The Microsoft First Party Application | `dev-first-party-mock` (custom) |
 | `aro-dev-arm-helper2` (armHelper) | The FPA's ARM/RBAC delegation ("MockFPA") | `Contributor` + `Role Based Access Control Administrator` (built-in) |
-| `aro-dev-arm-helper-pool-<i>` (ARM helper pool) | Same as armHelper, one per Boskos lease | Same as armHelper |
 | `aro-dev-msi-mock2` (miMock) | Every per-cluster operator managed identity | `dev-msi-mock` (custom) + `Key Vault Crypto User` (built-in) |
-| `aro-dev-msi-mock-pool-<i>` (pool) | Same as miMock, one per Boskos lease | Same as miMock |
 
 Clusters Service consumes them via its deployment arguments
 (`cluster-service/helm-charts/cluster-service/templates/deployment.yaml`):
@@ -72,30 +70,14 @@ it hands out; *Role Based Access Control Administrator* can assign `Key Vault Cr
 User` (and the operator roles) without holding them itself. This is why the ARM
 helper, not the MSI mock, is the identity that performs operator-role assignments.
 
-The pooled `aro-dev-arm-helper-pool-<i>` principals are identical ARM helper
-clones on the DEV home and E2E customer subscriptions. The home-subscription
-grants make it possible to test a pool member in a personal development
-environment. CheckAccess throttles third-party applications per
-identity/application, while each concurrent E2E environment runs its own
-backend-local limiter. Leasing one clone per environment prevents those
-independent backends from aggregating their CheckAccess requests through
-`aro-dev-arm-helper2`.
-
-At runtime the first lease overrides `armHelperClientId` and
-`armHelperCertName` for Backend. The second lease overrides
-`clustersServiceArmHelperClientId` and `clustersServiceArmHelperCertName`.
-`armHelperFPAPrincipalId` remains the shared first-party mock principal: despite
-its similar name, it identifies the principal that receives the simulated FPA
-grant, not the ARM helper authenticating the request.
-
-INT uses named ARM helper identities rather than the DEV lease pool. Backend
+INT uses named ARM helper identities. Backend
 uses `armHelperClientId` and `armHelperCertName`; Clusters Service can use the
 independent `clustersServiceArmHelperClientId` and
 `clustersServiceArmHelperCertName` values. Environments without a dedicated
 Clusters Service identity set both pairs to the same identity; the Clusters
 Service chart reads only the `clustersServiceArmHelper*` pair.
 
-## MSI Mock — `aro-dev-msi-mock2` and the pool
+## MSI Mock — `aro-dev-msi-mock2`
 
 This is the most important — and most easily misunderstood — identity.
 
@@ -127,11 +109,6 @@ Key Vault key operations. This path is exercised by DEV E2E
 the same role the product assigns to the per-cluster KMS identity for both Dev and
 Public (`internal/azure/cluster_scoped_identities_config.go`).
 
-The pooled `aro-dev-msi-mock-pool-<i>` principals are functionally identical clones
-of the MSI mock. They exist so concurrent presubmit jobs can each lease a distinct
-principal via Boskos, spreading subscription-level ARM throttling. They receive the
-exact same roles. See [CI Identity Leasing](identity-leasing.md) for the lease model.
-
 ## Why Some Roles Are Custom And Others Built-In
 
 Historically the operator-equivalent permissions were packaged as **custom** roles
@@ -161,14 +138,14 @@ unattended `dev-ci` postsubmit because it needs subscription Owner):
   Clusters Service authenticates in send-certificate-chain mode, so Subject Name
   and Issuer (SNI) trust does not validate (Entra rejects the self-signed chain
   with `AADSTS7000213`). Instead the privileged pipeline's DEV
-  `pin-mock-certs` Shell step pins the certificate's public key onto each shared
-  and pooled app as a `keyCredential` immediately after app deployment (see
+  `pin-mock-certs` Shell step pins the certificate's public key onto each
+  shared app as a `keyCredential` immediately after app deployment (see
   [Certificates](#certificates)), and Entra authenticates by matching the
   presented leaf's thumbprint. The template deliberately does not manage
   `keyCredentials`, so redeploying it does not wipe the pinned certs. It also
   does **not** create the Key Vault certificates itself; the following
   privileged Shell step owns certificate creation and pinning.
-- `templates/mock-identity-rbac.bicep` looks up each shared and pooled service
+- `templates/mock-identity-rbac.bicep` looks up each shared service
   principal's object ID via Microsoft Graph (by `uniqueName`, the normalized
   application name), then fans out over the target subscriptions and deploys
   `e2e-subscription-rbac-assignment-subscription.bicep` into each. That per-
@@ -179,9 +156,7 @@ unattended `dev-ci` postsubmit because it needs subscription Owner):
   subscriptions it does not own. Because each subscription gets its own copy and
   Azure enforces custom-role display-name uniqueness **per tenant**, the display
   name is suffixed with the subscription id (e.g. `dev-msi-mock-<subscriptionId>`)
-  to avoid `RoleDefinitionWithSameNameExists`. Pooled ARM helpers receive
-  Contributor plus Role Based Access Control Administrator in both the DEV home
-  subscription and the E2E customer subscriptions.
+  to avoid `RoleDefinitionWithSameNameExists`.
 
 The set of subscriptions that receive grants is controlled by two parameters:
 
@@ -205,8 +180,7 @@ The mock identity apps authenticate with a **pinned certificate**
 read their material, so the privileged pipeline invokes
 `tooling/entra-app-credentials` immediately after deploying the apps:
 
-Application names, certificate names, certificate DNS names, and indexed pool
-bases all come from the environment's `mockIdentities` configuration.
+Application names, certificate names, and certificate DNS names all come from the environment's `mockIdentities` configuration.
 
 1. Read the current certificate from the environment Key Vault
    (`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT).
@@ -217,9 +191,7 @@ bases all come from the environment's `mockIdentities` configuration.
 4. Apply RBAC only after every requested certificate has been reconciled.
 
 This makes `make dev-ci-privileged-local-run` the only routine write entrypoint
-for mock applications, certificates, pinning, and RBAC. Increasing a configured
-pool size creates and wires the missing indexed resources automatically.
-Decreasing a size does not delete higher-index resources.
+for mock applications, certificates, pinning, and RBAC.
 
 Templatize executes the Shell steps with the invoking OWNERS member's Azure CLI
 credentials. The caller needs Key Vault certificate create/read, Graph
@@ -265,7 +237,7 @@ the privileged pipeline is run.
 ## Where To Look
 
 - `config/config-dev-ci.yaml` — `.ci.dev.mockIdentities` / `.ci.int.mockIdentities`
-  application definitions and pool settings
+  application definitions
 - `dev-infrastructure/templates/mock-identity-apps.bicep` — creates the Entra
   apps + service principals (auth is pinned out-of-band, see Certificates)
 - `dev-infrastructure/templates/mock-identity-rbac.bicep` — Graph lookup of
@@ -294,11 +266,11 @@ New jobs consume its bundle, not legacy static-pool leases. Personal-dev
 shared-principal configuration remains supported. Old in-flight jobs retain their
 old checked-out consumers.
 
-The legacy DEV pools are retired. `armHelperPool` and `pool` are configured with
-`size: 0`, so the privileged pipeline creates no members, and the Boskos catalogs
-`arm-helper-pool.yaml` and `msi-mock-pool.yaml` no longer exist. The existing pool
-applications and their certificates are deleted separately, because decreasing a
-pool size does not delete higher-index resources.
+The legacy DEV pools are retired and the privileged pipeline no longer manages
+them: the `armHelperPool` and `pool` configuration, the pool Bicep modules, and
+the Boskos catalogs `arm-helper-pool.yaml` and `msi-mock-pool.yaml` are gone.
+Existing pool applications, certificates, and role assignments are not removed
+by the pipeline and must be deleted separately.
 
 ### Dedicated slot identity operations
 

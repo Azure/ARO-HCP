@@ -275,20 +275,10 @@ clouds:
               applicationName: "aro-dev-arm-helper2"
               certName: "armHelperCert2"
               certDns: "armhelper.hcp.osadev.cloud"
-            armHelperPool:
-              appBaseName: "aro-dev-arm-helper-pool"
-              certBaseName: "armHelperPoolCert"
-              certBaseDns: "armhelperpool.hcp.osadev.cloud"
-              size: 0
             msiMock:
               applicationName: "aro-dev-msi-mock2"
               certName: "msiMockCert2"
               certDns: "msimock.hcp.osadev.cloud"
-            pool:
-              appBaseName: "aro-dev-msi-mock-pool"
-              certBaseName: "msiMockPoolCert"
-              certBaseDns: "msimockpool.hcp.osadev.cloud"
-              size: 0
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"
@@ -314,11 +304,6 @@ clouds:
               applicationName: "aro-hcp-int-msi-mock"
               certName: "intMsiMockCert"
               certDns: "intmsimock.hcp.osadev.cloud"
-            pool:
-              appBaseName: "aro-hcp-int-msi-mock-pool"
-              certBaseName: "intMsiMockPoolCert"
-              certBaseDns: "intmsimockpool.hcp.osadev.cloud"
-              size: 0
         stg:
           bot:
             applicationName: "OpenShift Release Bot - STG"

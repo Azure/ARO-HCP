@@ -1,11 +1,8 @@
 # CI Identity Leasing
 
-ARO HCP E2E uses three related Boskos-backed leasing mechanisms:
+ARO HCP E2E uses Boskos-backed leasing for:
 
 - a **managed identity container pool** used by the test framework when creating HCP-related managed identities
-- a **DEV-only MSI mock service-principal pool** used during local E2E provisioning to spread ARM read traffic across multiple actors
-- a **DEV-only ARM helper service-principal pool** used to give each E2E backend
-  an independent CheckAccess request budget
 
 The important operational distinction today is that the managed identity container pool is acquired in two different ways:
 
@@ -23,14 +20,7 @@ runtime contract, and implementation status.
 Identity leasing exists to solve two different scaling problems:
 
 - **Managed identity reuse:** heavy identity creation and deletion churn consumes Azure directory quota. When the limit is reached, no more identities can be created until the monthly Azure process runs and soft-deleted objects are permanently purged, releasing quota.
-- **Mock service-principal reuse:** if every DEV CI run used the same MSI mock SP, ARM reads would all share the same throttle budget.
-
-The result is a split model:
-
-- the test framework reuses pre-created **identity-container resource groups**
-- DEV provisioning reuses a pool of **mock service principals**
-
-Both pools are backed by Boskos resource types, but they are consumed by different parts of the workflow. Both the directory quota and the role-assignment quota are actively monitored — see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
+The test framework reuses pre-created **identity-container resource groups**. Both the directory quota and the role-assignment quota are actively monitored — see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 ## Managed Identity Container Pool
 
@@ -452,126 +442,20 @@ Common failure modes:
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
   - investigate the container resource group directly in Azure; repeated leftovers usually mean permission issues or unexpected extra resources
 
-## MSI Mock Service Principal Pool
+## Retired Mock Service Principal Pools
 
-The MSI mock SP pool is DEV-only and solves a different problem from the managed identity container pool.
+The DEV MSI mock and ARM helper service-principal pools are retired. This
+repository no longer manages them: the `armHelperPool` and `pool` configuration,
+the pool Bicep modules, the static catalogs, and the populate targets are
+removed, and slot bundles supply dedicated mock identities (see
+[Slot-bound mock identities](#slot-bound-mock-identities)). Existing pool
+applications, certificates, and role assignments must be deleted separately; the
+privileged pipeline does not remove them. Personal-development configuration
+still uses the shared `miMockClientId` / `miMockPrincipalId` / `miMockCertName`
+identities.
 
-It remains a separate Boskos lease in the deployed workflow. For proposed
-slot-manager integration, see [future assets](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#future-assets).
-
-### Pooled MSI Mock SPs With Boskos
-
-A pool of MSI mock service principals is distributed across concurrent DEV local E2E jobs via Boskos leasing. Each job gets one SP from that pool so ARM read traffic is spread across different actors.
-
-Personal development environments continue using the existing single `miMockClientId` / `miMockPrincipalId` / `miMockCertName` configuration unchanged, so they share one ARM throttle budget.
-
-### Infrastructure Setup
-
-The pooled `aro-dev-msi-mock-pool-<i>` identities are fully declarative on the
-Azure side. Their certificates, Entra apps/service principals, pinning, and
-subscription RBAC are reconciled by the standalone, **Owner-only**
-`Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint. The pool size has one
-source of truth: `.ci.dev.mockIdentities.pool.size` in
-`config/config-dev-ci.yaml`.
-
-Typical maintainer flow:
-
-1. Change `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml`.
-2. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run`
-   (requires subscription Owner, Key Vault certificate create/read, and
-   owner/Application.ReadWrite on the apps). It creates every missing indexed
-   certificate and app/SP, pins the current certificate, and applies RBAC.
-3. Run `make -C dev-infrastructure populate-msi-mock-pool` to regenerate the
-   static Boskos catalog. The target reads the desired size directly from
-   `config/config-dev-ci.yaml`.
-4. Update the release-side Boskos inventory and step-registry lease wiring.
-
-In the current model:
-
-- `make dev-ci-privileged-local-run` creates the pooled Entra objects
-  (`mock-identity-apps.bicep`), creates missing Key Vault certificates and pins
-  them via the `pin-mock-certs` Shell step, and reconciles access on the DEV home
-  and E2E customer subscriptions (`mock-identity-rbac.bicep`). Decreasing the
-  configured size does not delete higher-index resources; they are simply no
-  longer reconciled.
-- `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
-
-### Naming Bridge
-
-The Azure objects and the Boskos leases intentionally use different names:
-
-- Azure app and service principal display name: `aro-dev-msi-mock-pool-<i>`
-- Boskos resource key and static catalog key: `aro-hcp-msi-mock-cs-sp-dev-<i>`
-
-`dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh` bridges those
-two namespaces by looking up each Azure object by display name and writing the
-resulting client ID and principal ID under the Boskos key in the pool's static
-catalog.
-
-### Boskos Configuration
-
-To change the naming or number of MSI mock SPs, update `openshift/release: core-services/prow/02_config/generate-boskos.py`.
-
-This Boskos inventory is still a consumer artifact. It is not generated automatically from `config/config-dev-ci.yaml` or from the `dev-ci` rollout today.
-
-### Lease Configuration
-
-The lease itself is currently declared on `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/aro-hcp-provision-environment-ref.yaml`, not in the top-level local workflow.
-
-That legacy step requests a single lease from the pool and exposes it as
-`LEASED_MSI_MOCK_SP`. Old checked-out provisioning code resolved the static
-catalog as follows; new consumers no longer perform this resolution:
-
-```bash
-MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-```
-
-Old checked-out jobs consume the Boskos key and static `msi-mock-pool.yaml`
-catalog at runtime. New slot jobs use live Graph discovery during admission and
-consume the exported bundle; they do not resolve these legacy catalogs.
-
-## ARM Helper Service Principal Pool
-
-The DEV ARM helper pool prevents concurrent E2E backends from sharing the
-third-party-application CheckAccess limit. Each member is an
-`aro-dev-arm-helper-pool-<i>` application/service principal with its own pinned
-`armHelperPoolCert-<i>` certificate and the same subscription-level Contributor
-and Role Based Access Control Administrator grants as `aro-dev-arm-helper2` on
-the DEV home and E2E customer subscriptions. The home-subscription grants allow
-a pool member to be tested in a personal development environment.
-
-The Azure-side pool size has one source of truth:
-`.ci.dev.mockIdentities.armHelperPool.size`. Increasing it causes the privileged
-pipeline to create the missing certificate, application/service principal,
-pinned credential, and E2E-subscription RBAC for each new index. Decreasing it
-does not delete higher-index resources.
-
-Maintainer flow:
-
-1. Change `.ci.dev.mockIdentities.armHelperPool.size`.
-2. Run `make dev-ci-privileged-local-run`. The DEV `pin-mock-certs` step
-   reconciles the shared identities, MSI mock pool, and ARM helper pool after
-   their combined app deployment.
-3. Verify token acquisition for every new application. The full entrypoint also
-   reconciles the pool's home- and E2E-subscription grants in
-   `mock-identity-rbac`.
-4. Run `make -C dev-infrastructure populate-arm-helper-pool`. The target reads
-   the desired size directly from `config/config-dev-ci.yaml`.
-5. Add or update the `aro-hcp-arm-helper-sp-dev` Boskos inventory in
-   `openshift/release`;
-   after that inventory has rolled out, request two leases as
-   `LEASED_ARM_HELPER_SP`.
-
-The legacy catalog `dev-infrastructure/openshift-ci/arm-helper-pool.yaml` remains
-deployed for old checked-out consumers. New jobs no longer select identities
-from either one or two legacy helper leases: slot bundles supply distinct
-Backend and Clusters Service helpers. Personal-development configuration still
-supplies shared identities outside slots. Neither path overrides
-`armHelperFPAPrincipalId`, the shared mock first-party principal rather than an
-authenticating ARM helper. Do not grow or retire these pools in this rollout;
-the existing lease declarations remain concurrency gates until follow-up work.
+Release-side Boskos lease declarations in `openshift/release` may still exist for
+old checked-out consumers and are owned there.
 
 ## Where To Look
 
@@ -588,13 +472,12 @@ When you need to change or debug identity leasing, start here:
 - release-side provision step: `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/`
 - slot catalog: `test/e2e-config/e2e-slots.yaml`
 - Boskos inventory: `openshift/release: core-services/prow/02_config/generate-boskos.py`
-- mock-SP pool setup and mixed management:
+- mock identity setup:
   - `config/config-dev-ci.yaml`
   - `dev-infrastructure/Makefile`
   - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
   - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
   - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
-  - `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 
 ## See Also
 
@@ -611,11 +494,8 @@ DEV/dev-xs slot-manager jobs now require a dedicated three-principal mock asset.
 See [dedicated slot identity operations](dev-mock-identities.md#dedicated-slot-identity-operations)
 for Owner commands and certificate management, and the
 [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities)
-for admission and the runtime contract. The legacy pools described above
-remain deployed and their Boskos leases still cap concurrency, but new consumers
-no longer resolve their static catalogs. Old in-flight jobs finish on old code;
-personal-development configuration remains supported. Azure pool/catalog
-retirement and removal of release-side lease gates are deferred.
+for admission and the runtime contract. Old in-flight jobs finish on old
+code; personal-development configuration remains supported.
 
 `provision-from-main.sh` uses the checked-out baseline's binary and configuration
 adapter; it does not preserve PR code across checkout. Bundle support depends
