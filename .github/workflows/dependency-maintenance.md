@@ -336,6 +336,8 @@ Native Dependabot remains the discovery mechanism; validated robot replacements 
 
 Select inventory entries by the exact `(group, target)` pair, never by family `group` alone: a merged older target awaiting source cleanup and a new candidate target can coexist. Pass the selected entry's exact target string unchanged, including any JSON package-target map. Published ownership markers and reusable branches remain family-scoped; only exact source PR numbers and immutable heads authorize cleanup.
 
+The trusted Go selector `"$DEPCTL_BINARY" dependabot native select-group --repository Azure/ARO-HCP --inventory "$inventory" --group "$group" --target "$target"` validates this exact selection offline and returns JSON containing `base_sha`, the complete selected `group`, and sorted unique `manifests`. It performs no network calls or writes. Both candidate validation and request preparation use that selector; do not replace it with Python filtering or read a different inventory entry when validation fails.
+
 Publish at most **one dependency family per run**, from clean current `main` at the inventory's `base_sha`; assessing a family that is already covered or cannot yield a validated candidate must not prevent assessing another eligible family. Include all native source PRs in that supported group, not unrelated packages that share files. Examples are one Velero module upgrade across workspace modules, one Spectral package/target across duplicate npm PRs, or CodeQL `init` and `analyze` references at the same immutable action release. Do not invent groups from titles or combine ecosystems. Keep npm security overrides and unrelated existing main changes intact.
 
 Follow `next_action`, not native source CI readiness:
@@ -398,7 +400,7 @@ The bridge and credential exclusions are supported by the [pinned compiler's Git
 
 Use the `native_replacement` safe-output tool only after successful sandbox validation. Its **only input** is required string `request_sha256`, identifying the complete UTF-8 JSON request in the run's agent artifact. Always construct it with the repository helper, never by hand or by copying a displayed diff into JSON.
 
-Write the complete proposed title and body to files outside the candidate checkout. The title identifies the dependency family and target; the body records source links and immutable heads and the intended upgrade. Both are required. Capture the trusted runner's absolute path from the original checkout before entering a candidate checkout: `validator=$(realpath .github/scripts/validate_native_candidate.py)`.
+Write the complete proposed title and body to files outside the candidate checkout. The title identifies the dependency family and target; the body records source links and immutable heads and the intended upgrade. Both are required. Capture the trusted runner's absolute path from the original checkout before entering a candidate checkout: `validator=$(realpath .github/scripts/validate_native_candidate.py)`. Preserve the original checkout's built binary with `export DEPCTL_BINARY=$(realpath "$DEPCTL_BINARY")`; never rebuild it from or substitute a binary inside the candidate checkout.
 
 From the prepared candidate checkout, run:
 
@@ -439,7 +441,10 @@ Prove actual outcomes rather than equating a green run with completion. After pu
 
 The trusted default-branch checkout builds `depctl` for inventory and privileged
 recovery. The native helper uses `DEPCTL_BINARY` (or `depctl` on `PATH`) for shared
-hold and current-head CI policy; it retains its separate publication lifecycle.
+hold/current-head CI policy and offline native inventory selection; it retains
+its separate Python publication lifecycle. `make verify-agentic-maintenance`
+builds a temporary trusted binary for both Python consumer suites and runs the
+Go dependency command and internal policy suites.
 
 ```bash
 "$DEPCTL_BINARY" maintenance inventory --repository "$GITHUB_REPOSITORY" --kind non-compiler

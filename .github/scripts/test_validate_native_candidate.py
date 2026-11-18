@@ -240,7 +240,9 @@ class CandidateFixture(unittest.TestCase):
         finally:
             os.chdir(previous)
 
-    def test_same_family_old_cleanup_does_not_shadow_selected_candidate_target(self):
+    def test_real_depctl_selection_does_not_shadow_candidate_with_same_family_old_cleanup(self):
+        binary = os.environ["DEPCTL_BINARY"]
+        self.assertTrue(Path(binary).is_file() and os.access(binary, os.X_OK))
         observed = json.loads(self.inventory.read_text())
         old = copy.deepcopy(self.group)
         old["target"] = self.old
@@ -253,24 +255,17 @@ class CandidateFixture(unittest.TestCase):
         request = json.loads((self.artifacts / native.REQUEST_FILE).read_text())
         self.assertEqual(request["source_prs"], [{"number": 42, "head_sha": "a" * 40}])
         self.assertEqual(self.results()["target"], self.new)
-        with self.assertRaisesRegex(ValueError, "not eligible"):
-            runner.load_group(REPO, self.inventory, self.group["group"], self.old)
-        with self.assertRaisesRegex(ValueError, "exactly one matching group/target"):
-            runner.load_group(REPO, self.inventory, self.group["group"], "unrelated")
+        self.assertEqual(self.results()["manifests"], ["api/package-lock.json", "api/package.json"])
 
-    def test_validator_rejects_ambiguous_target_and_inconsistent_source_target(self):
+    def test_validator_uses_real_depctl_to_reject_invalid_source_intent_before_consumers(self):
         observed = json.loads(self.inventory.read_text())
-        observed["groups"].append(copy.deepcopy(self.group))
+        observed["groups"][0]["sources"][0]["intents"][0]["lock_manifests"] = ["../outside"]
         self.inventory.write_text(json.dumps(observed))
-        with self.assertRaisesRegex(ValueError, "exactly one matching group/target"):
+        with self.assertRaises(ValueError):
             self.validate()
         self.assert_no_request()
-        observed["groups"].pop()
-        observed["groups"][0]["sources"][0]["target"] = self.old
-        self.inventory.write_text(json.dumps(observed))
-        with self.assertRaisesRegex(ValueError, "inconsistent inventory source group/target"):
-            self.validate()
-        self.assert_no_request()
+        self.assertEqual(self.commands, [])
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
 
     def test_prettier_success_excludes_only_proven_identical_baseline_drift(self):
         result = self.validate()
@@ -683,15 +678,6 @@ class CandidateFixture(unittest.TestCase):
         self.assert_no_request()
         self.assertIn("pull_request_target", (self.repo / ".github/workflows/agent.lock.yml").read_text())
         self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
-
-    def test_unsupported_inventory_ecosystem_fails_without_any_consumer(self):
-        document = json.loads(self.inventory.read_text())
-        document["groups"][0]["ecosystem"] = "bundler"
-        self.inventory.write_text(json.dumps(document))
-        with self.assertRaises(ValueError):
-            self.validate()
-        self.assert_no_request()
-        self.assertEqual(self.commands, [])
 
     def test_validation_evidence_cannot_overflow_existing_publication_body_bound(self):
         self.body.write_text("x" * 20000)

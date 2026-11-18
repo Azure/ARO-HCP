@@ -48,7 +48,7 @@ def replacement_output(directory, request=None, *, payload=None, nested=False):
 
 
 class RepositoryFixture(unittest.TestCase):
-    """Fake network and depctl policy boundaries; Git application stays real."""
+    """Fake network and shared hold/CI policy; native selection and Git stay real."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -83,6 +83,7 @@ class RepositoryFixture(unittest.TestCase):
         self.statuses = {}
         self.checks = {}
         self.policy = {}
+        self.selection_commands = []
         real_run = subprocess.run
 
         def run(command, **kwargs):
@@ -92,6 +93,8 @@ class RepositoryFixture(unittest.TestCase):
                     "active_holds": [], "cancellation_pending": False,
                     "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}})
                 return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
+            if command[1:4] == ["dependabot", "native", "select-group"]:
+                self.selection_commands.append(command)
             return real_run(command, **kwargs)
 
         process_patch = patch.object(native.subprocess, "run", side_effect=run)
@@ -286,7 +289,9 @@ class RepositoryFixture(unittest.TestCase):
         group = next(group for group in observed["groups"] if group.get("ecosystem") == "go")
         return inventory, group["group"], title, body
 
-    def test_prepare_request_captures_committed_staged_and_unstaged_changes_and_all_sources(self):
+    def test_prepare_request_with_real_depctl_captures_all_candidate_changes_and_sources(self):
+        binary = os.environ["DEPCTL_BINARY"]
+        self.assertTrue(Path(binary).is_file() and os.access(binary, os.X_OK))
         second = self.source(2, "internal/go.mod", manifest(NEW))
         inputs = self.prepare_inputs()
         self.write("backend/go.mod", manifest(NEW))
@@ -306,6 +311,8 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual((artifact_root / "agent" / native.REQUEST_FILE).read_bytes(), first_bytes)
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
         self.assertEqual(self.calls, [])
+        self.assertEqual(len(self.selection_commands), 2)
+        self.assertTrue(all(command[0] == binary for command in self.selection_commands))
         output = artifact_root / "agent_output.json"
         output.write_text(json.dumps({"items": [{"type": "native_replacement", **first}]}))
         request = native.read_request(output, "native_replacement")
@@ -425,29 +432,21 @@ class RepositoryFixture(unittest.TestCase):
         self.assertFalse(sentinel.exists())
         self.assertEqual(self.calls, [])
 
-    def test_prepare_request_rejects_ineligible_ambiguous_or_foreign_inventory(self):
+    def test_prepare_request_uses_real_depctl_to_reject_invalid_source_intent_before_writes(self):
         observed = native.inventory(REPO)
-        cases = []
-        for action in ("blocked", "close_superseded", "wait_for_closure", "admit"):
-            value = copy.deepcopy(observed)
-            value["groups"][0]["next_action"]["action"] = action
-            cases.append(value)
-        value = copy.deepcopy(observed)
-        value["groups"].append(copy.deepcopy(value["groups"][0]))
-        cases.append(value)
-        value = copy.deepcopy(observed)
-        value["repository"] = "foreign/repo"
-        cases.append(value)
-        value = copy.deepcopy(observed)
-        value["groups"][0]["sources"][0]["head_sha"] = False
-        cases.append(value)
+        observed["groups"][0]["sources"][0]["intents"][0]["lock_manifests"] = ["../outside"]
+        inputs = self.prepare_inputs(observed)
         self.upgrade_consumers()
-        for index, value in enumerate(cases):
-            inputs = self.prepare_inputs(value)
-            artifact_root = self.root / f"rejected-{index}"
-            with self.subTest(index=index), self.assertRaises(ValueError):
-                native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
-            self.assertFalse(artifact_root.exists())
+        artifact_root = self.root / "rejected"
+        before_index = (self.seed / ".git/index").read_bytes()
+        self.calls.clear()
+        with self.assertRaises(ValueError):
+            native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+        self.assertEqual(len(self.selection_commands), 1)
+        self.assertEqual(self.selection_commands[0][0], os.environ["DEPCTL_BINARY"])
+        self.assertFalse(artifact_root.exists())
+        self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
+        self.assertEqual(self.calls, [])
 
     def test_prepare_request_maintains_existing_group_and_rejects_empty_or_protected_diff(self):
         native.publish(REPO, self.request())
@@ -970,20 +969,6 @@ class RepositoryFixture(unittest.TestCase):
         result = native.publish(REPO, prepared)
         self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
         self.assertEqual(self.pulls[result["number"]]["head"]["ref"], self.pulls[first["number"]]["head"]["ref"])
-
-    def test_inventory_selector_rejects_duplicate_pairs_and_mismatched_source_targets(self):
-        observed = native.inventory(REPO)
-        group = observed["groups"][0]
-        for mutate in ("duplicate", "source-target", "source-family"):
-            value = copy.deepcopy(observed)
-            if mutate == "duplicate":
-                value["groups"].append(copy.deepcopy(group))
-            else:
-                field = "target" if mutate == "source-target" else "family"
-                value["groups"][0]["sources"][0][field] = "unrelated"
-            inputs = self.prepare_inputs(value)
-            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
-                native.select_inventory_group(REPO, inputs[0], group["group"], group["target"])
 
     def test_new_family_target_reuses_retained_merged_branch_with_safe_ancestry(self):
         first, request = self.next_family_upgrade()

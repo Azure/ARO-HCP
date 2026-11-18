@@ -266,6 +266,26 @@ depctl dependabot retest --repository OWNER/REPO --pull-request N --head SHA \
 Requires a current failing check URL plus a distinct comparison URL and enforces
 the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
 
+### dependabot native select-group
+
+```bash
+depctl dependabot native select-group --repository OWNER/REPO \
+  --inventory FILE --group ID --target TARGET
+```
+
+Selects exactly one eligible native dependency inventory entry by its stable
+family group and exact target. Repository, base revision, source identities,
+dependency intents and manifest paths must be consistent. Ambiguous pairs,
+mixed source targets and unsafe paths are rejected.
+
+Prints `{base_sha, group, manifests}` as JSON, preserving the selected group's
+metadata and returning sorted unique manifest paths. The command is local and
+read-only; it requires no GitHub credentials and performs no publication.
+
+Candidate validation and request preparation use this shared Go selection
+policy. Family markers, publication request shape and branch identity do not
+change when multiple target versions coexist.
+
 ### maintenance inventory
 
 ```bash

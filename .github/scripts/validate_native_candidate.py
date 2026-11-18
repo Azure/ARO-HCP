@@ -117,26 +117,6 @@ def generated_api_path(path):
             or path.startswith("api/redhatopenshift/") and path.endswith((".tsp", "/openapi.json")))
 
 
-def load_group(repo, inventory_file, group_id, target):
-    base, group = native.select_inventory_group(repo, inventory_file, group_id, target)
-    manifests = set()
-    for source in group["sources"]:
-        require(source.get("group") == group_id and source.get("ecosystem") == group["ecosystem"]
-                and source.get("family") == group["family"] and isinstance(source.get("intents"), list)
-                and bool(source["intents"]), "incomplete or inconsistent source intent group")
-        for intent in source["intents"]:
-            require(isinstance(intent, dict) and intent.get("ecosystem") == group["ecosystem"]
-                    and isinstance(intent.get("package"), str),
-                    "source intent does not belong to selected ecosystem")
-            manifests.add(native.safe_path(intent.get("manifest")))
-            locks = intent.get("lock_manifests", [])
-            require(isinstance(locks, list), "invalid source lock manifests")
-            manifests.update(native.safe_path(path) for path in locks)
-        require(any(native.upgrade_family(group["ecosystem"], intent["package"]) == group["family"]
-                    for intent in source["intents"]), "source lacks selected upgrade family")
-    return base, group, manifests
-
-
 def make_targets(text):
     # Discover explicit Make targets, never recipes or agent-supplied command text.
     return {target for match in re.finditer(r"(?m)^([A-Za-z0-9_. /-]+):(?!=)", text)
@@ -395,9 +375,10 @@ class Validator:
 
     def validate(self, repo, inventory_file, group_id, target, title_file, body_file, compiler):
         inputs = {Path(path).resolve(): Path(path).read_bytes() for path in (inventory_file, title_file, body_file)}
-        base, group, manifests = load_group(repo, inventory_file, group_id, target)
+        selected = native.native_inventory_selection(repo, inventory_file, group_id, target)
+        base, group, manifests = selected["base_sha"], selected["group"], selected["manifests"]
         self.results.update(base_sha=base, group=group_id, target=target, ecosystem=group["ecosystem"],
-                            family=group["family"], manifests=sorted(manifests))
+                            family=group["family"], manifests=manifests)
         self.save()
         require(git(self.root, "rev-parse", "--verify", base + "^{commit}") == base,
                 "inventory base commit is unavailable")
