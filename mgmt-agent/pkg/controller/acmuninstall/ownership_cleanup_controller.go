@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -275,7 +274,7 @@ func (c *OwnershipCleanupController) ensureManifestWorksOrphan(ctx context.Conte
 	logger := utils.LoggerFromContext(ctx)
 	seenManifestWorks := map[string]struct{}{}
 	for _, ownerReference := range appliedManifestWorkOwnerReferences(&ownedResource.obj) {
-		manifestWork, err := c.findManifestWork(ctx, ownerReference.Name, "")
+		manifestWork, err := c.getManifestWorkForAppliedManifestWork(ctx, ownerReference.Name)
 		if err != nil {
 			return stepResult{}, err
 		}
@@ -455,44 +454,39 @@ func (c *OwnershipCleanupController) updateOwnerReferences(ctx context.Context, 
 	return nil
 }
 
-func (c *OwnershipCleanupController) getAppliedManifestWork(ctx context.Context, appliedManifestWorkName string) (*unstructured.Unstructured, error) {
-	appliedManifestWork, err := c.dynamicClient.Resource(AppliedManifestWorksGVR).Get(ctx, appliedManifestWorkName, metav1.GetOptions{})
+func (c *OwnershipCleanupController) getAppliedManifestWork(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	appliedManifestWork, err := c.dynamicClient.Resource(AppliedManifestWorksGVR).Get(ctx, name, metav1.GetOptions{})
 	if apiGone(err) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get AppliedManifestWork %q: %w", appliedManifestWorkName, err)
+		return nil, fmt.Errorf("get AppliedManifestWork %q: %w", name, err)
 	}
 	return appliedManifestWork, nil
 }
 
-// findManifestWork locates the ManifestWork for an AppliedManifestWork ownerRef.
-// Prefer spec.manifestWorkName from the AppliedManifestWork when present;
-// otherwise match ManifestWorks whose name is a suffix of the AppliedManifestWork
-// name ({hubHash}-{manifestWorkName}).
-func (c *OwnershipCleanupController) findManifestWork(ctx context.Context, appliedManifestWorkName, manifestWorkName string) (*unstructured.Unstructured, error) {
-	manifestWorks, err := listNamespaced(ctx, c.dynamicClient, ManifestWorksGVR, metav1.NamespaceAll)
+// getManifestWorkForAppliedManifestWork loads the AppliedManifestWork and returns
+// the ManifestWork named in its spec from the local-cluster namespace.
+func (c *OwnershipCleanupController) getManifestWorkForAppliedManifestWork(ctx context.Context, appliedManifestWorkName string) (*unstructured.Unstructured, error) {
+	appliedManifestWork, err := c.getAppliedManifestWork(ctx, appliedManifestWorkName)
 	if err != nil {
 		return nil, err
 	}
-	for i := range manifestWorks {
-		manifestWork := &manifestWorks[i]
-		if len(manifestWorkName) > 0 && manifestWork.GetName() == manifestWorkName {
-			return manifestWork, nil
-		}
-		if len(manifestWorkName) == 0 && manifestWorkMatchesAMWName(appliedManifestWorkName, manifestWork.GetName()) {
-			return manifestWork, nil
-		}
+	if appliedManifestWork == nil {
+		return nil, nil
 	}
-	return nil, nil
-}
-
-func manifestWorkMatchesAMWName(appliedManifestWorkName, manifestWorkName string) bool {
+	manifestWorkName, _, _ := unstructured.NestedString(appliedManifestWork.Object, "spec", "manifestWorkName")
 	if len(manifestWorkName) == 0 {
-		return false
+		return nil, nil
 	}
-	nameSuffix := "-" + manifestWorkName
-	return strings.HasSuffix(appliedManifestWorkName, nameSuffix) && len(appliedManifestWorkName) > len(nameSuffix)
+	manifestWork, err := c.dynamicClient.Resource(ManifestWorksGVR).Namespace("local-cluster").Get(ctx, manifestWorkName, metav1.GetOptions{})
+	if apiGone(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get ManifestWork local-cluster/%s: %w", manifestWorkName, err)
+	}
+	return manifestWork, nil
 }
 
 func manifestWorkPropagationPolicy(manifestWork *unstructured.Unstructured) string {
