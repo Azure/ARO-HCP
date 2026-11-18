@@ -1,0 +1,108 @@
+rule_files:
+- hcp-upgrade-version-new-alerts-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- name: Counts distinct HCPs per region, version and management cluster
+  interval: 1m
+  input_series:
+  # mc-1: hcp-a has two new alerts and counts once; hcp-b adds a second HCP.
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-a",new_alertname="A"}
+    values: 1+0x10
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-a",new_alertname="B"}
+    values: 1+0x10
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-b",new_alertname="A"}
+    values: 1+0x10
+  # mc-2: same region and version, separate instance merged by IcM.
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-2",resource_id="hcp-c",new_alertname="A"}
+    values: 1+0x10
+  # Another exact version is a separate rollout.
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.4",cluster="mc-1",resource_id="hcp-d",new_alertname="A"}
+    values: 1+0x10
+  # Ignored: pending instances and other alert names.
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="pending",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-e",new_alertname="A"}
+    values: 1+0x10
+  - series: ALERTS{alertname="SomethingElse",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-f"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: HCPUpgradeVersionNewAlerts
+    exp_alerts:
+    - exp_labels:
+        region: westus3
+        version: 4.22.3
+        cluster: mc-1
+        component: hcp
+        severity: '4'
+      exp_annotations:
+        summary: '2 HCP(s) with new alerts after upgrade to 4.22.3 in westus3'
+        description: |-
+          2 HCP(s) on mc-1 have alerts that started after upgrading to 4.22.3 and did not fire in the 24h before the upgrade. Other management clusters in westus3 may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+          Affected HCPs and alerts (Kusto, database MonitoringEvents):
+          alertEvents
+          | where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+          | where tostring(alertContext.labels.region) == "westus3" and tostring(alertContext.labels.version) == "4.22.3"
+          | project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)
+        correlationId: HCPUpgradeVersionNewAlerts/westus3/4.22.3
+    - exp_labels:
+        region: westus3
+        version: 4.22.3
+        cluster: mc-2
+        component: hcp
+        severity: '4'
+      exp_annotations:
+        summary: '1 HCP(s) with new alerts after upgrade to 4.22.3 in westus3'
+        description: |-
+          1 HCP(s) on mc-2 have alerts that started after upgrading to 4.22.3 and did not fire in the 24h before the upgrade. Other management clusters in westus3 may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+          Affected HCPs and alerts (Kusto, database MonitoringEvents):
+          alertEvents
+          | where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+          | where tostring(alertContext.labels.region) == "westus3" and tostring(alertContext.labels.version) == "4.22.3"
+          | project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)
+        correlationId: HCPUpgradeVersionNewAlerts/westus3/4.22.3
+    - exp_labels:
+        region: westus3
+        version: 4.22.4
+        cluster: mc-1
+        component: hcp
+        severity: '4'
+      exp_annotations:
+        summary: '1 HCP(s) with new alerts after upgrade to 4.22.4 in westus3'
+        description: |-
+          1 HCP(s) on mc-1 have alerts that started after upgrading to 4.22.4 and did not fire in the 24h before the upgrade. Other management clusters in westus3 may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+          Affected HCPs and alerts (Kusto, database MonitoringEvents):
+          alertEvents
+          | where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+          | where tostring(alertContext.labels.region) == "westus3" and tostring(alertContext.labels.version) == "4.22.4"
+          | project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)
+        correlationId: HCPUpgradeVersionNewAlerts/westus3/4.22.4
+- name: Fires while one HCP is affected and clears after the last one clears
+  interval: 1m
+  input_series:
+  - series: ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing",region="westus3",version="4.22.3",cluster="mc-1",resource_id="hcp-a",new_alertname="A"}
+    values: _x2 1+0x3 stale
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: HCPUpgradeVersionNewAlerts
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: HCPUpgradeVersionNewAlerts
+    exp_alerts:
+    - exp_labels:
+        region: westus3
+        version: 4.22.3
+        cluster: mc-1
+        component: hcp
+        severity: '4'
+      exp_annotations:
+        summary: '1 HCP(s) with new alerts after upgrade to 4.22.3 in westus3'
+        description: |-
+          1 HCP(s) on mc-1 have alerts that started after upgrading to 4.22.3 and did not fire in the 24h before the upgrade. Other management clusters in westus3 may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+          Affected HCPs and alerts (Kusto, database MonitoringEvents):
+          alertEvents
+          | where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+          | where tostring(alertContext.labels.region) == "westus3" and tostring(alertContext.labels.version) == "4.22.3"
+          | project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)
+        correlationId: HCPUpgradeVersionNewAlerts/westus3/4.22.3
+  - eval_time: 7m
+    alertname: HCPUpgradeVersionNewAlerts
+    exp_alerts: []

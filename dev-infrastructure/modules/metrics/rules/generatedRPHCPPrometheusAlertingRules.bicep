@@ -10,6 +10,55 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
+resource hcpUpgradeVersionNewAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-upgrade-version-new-alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPUpgradeVersionNewAlerts'
+        enabled: true
+        labels: {
+          component: 'hcp'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'HCPUpgradeVersionNewAlerts/{{ $labels.region }}/{{ $labels.version }}'
+          description: '''{{ $value }} HCP(s) on {{ $labels.cluster }} have alerts that started after upgrading to {{ $labels.version }} and did not fire in the 24h before the upgrade. Other management clusters in {{ $labels.region }} may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+Affected HCPs and alerts (Kusto, database MonitoringEvents):
+alertEvents
+| where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+| where tostring(alertContext.labels.region) == "{{ $labels.region }}" and tostring(alertContext.labels.version) == "{{ $labels.version }}"
+| project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)'''
+          info: '''{{ $value }} HCP(s) on {{ $labels.cluster }} have alerts that started after upgrading to {{ $labels.version }} and did not fire in the 24h before the upgrade. Other management clusters in {{ $labels.region }} may be merged into this incident. Timing suggests the upgrade caused it; it does not prove it.
+Affected HCPs and alerts (Kusto, database MonitoringEvents):
+alertEvents
+| where tostring(alertContext.labels.alertname) == "HCPUpgradeNewAlert"
+| where tostring(alertContext.labels.region) == "{{ $labels.region }}" and tostring(alertContext.labels.version) == "{{ $labels.version }}"
+| project firedDateTime, resolvedDateTime, monitorCondition, hcp = tostring(alertContext.labels.resource_id), newAlert = tostring(alertContext.labels.new_alertname), cluster = tostring(alertContext.labels.cluster)'''
+          summary: '{{ $value }} HCP(s) with new alerts after upgrade to {{ $labels.version }} in {{ $labels.region }}'
+          title: '{{ $value }} HCP(s) with new alerts after upgrade to {{ $labels.version }} in {{ $labels.region }}'
+        }
+        expression: 'count by (region, version, cluster) (count by (region, version, cluster, resource_id) (ALERTS{alertname="HCPUpgradeNewAlert",alertstate="firing"})) >= 1'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-userjourney-kas-availability-monitor-rules'
   location: location

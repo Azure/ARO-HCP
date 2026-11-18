@@ -1,6 +1,9 @@
 prometheusRules:
   rulesFolders:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
+  - alerts/hcp-upgrade-new-alert-prometheusRule.yaml
+  testDependencies:
+  - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
   outputReplacements:
   - from: 'job="kube-scheduler"'
