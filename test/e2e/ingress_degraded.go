@@ -175,7 +175,7 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			const (
 				degradedDetectTimeout = 10 * time.Minute
-				degradedHoldDuration  = 2 * time.Hour
+				degradedHoldDuration  = 4 * time.Hour
 				degradedPollInterval  = 5 * time.Minute
 				heartbeatInterval     = 30 * time.Minute
 				recoverySoakDuration  = 30 * time.Minute
