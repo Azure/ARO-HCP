@@ -51,6 +51,12 @@ func writeFile(t *testing.T, name, content string) string {
 // catalogDocument renders a minimal openshift-tests-extension catalog.
 func catalogDocument(t *testing.T, priorities map[string]int) string {
 	t.Helper()
+	return catalogDocumentAt(t, priorities, 10)
+}
+
+// catalogDocumentAt renders a catalog whose single annotation points at line.
+func catalogDocumentAt(t *testing.T, priorities map[string]int, line int) string {
+	t.Helper()
 	type spec struct {
 		Name          string              `json:"name"`
 		Labels        map[string]struct{} `json:"labels"`
@@ -62,7 +68,7 @@ func catalogDocument(t *testing.T, priorities map[string]int) string {
 		if priority > 0 {
 			labels["StartPriority:"+itoa(priority)] = struct{}{}
 		}
-		specs = append(specs, spec{Name: name, Labels: labels, CodeLocations: []string{"test/e2e/cluster_test.go:10"}})
+		specs = append(specs, spec{Name: name, Labels: labels, CodeLocations: []string{"test/e2e/cluster_test.go:" + itoa(line)}})
 	}
 	document, err := json.Marshal(specs)
 	if err != nil {
