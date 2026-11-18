@@ -81,7 +81,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - update
   - patch
 - apiGroups:
@@ -222,7 +221,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - update
   - patch
 - apiGroups:
@@ -233,7 +231,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - update
   - patch
 - apiGroups:
@@ -243,7 +240,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - update
   - patch
 - apiGroups:
@@ -253,7 +249,6 @@ rules:
   verbs:
   - get
   - list
-  - watch
   - update
   - patch
 - apiGroups:
