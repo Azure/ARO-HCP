@@ -739,10 +739,6 @@ resourceGroups:
         step: output
         name: globalMSIId
     automatedRetry:
-      errorContainsAny:
-      # Retry when the step's container never starts (empty log, exit code -1).
-      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
-      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: cluster-output
@@ -841,8 +837,6 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
-      # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
-      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: istio-upgrade
@@ -1118,9 +1112,6 @@ resourceGroups:
       # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
       - "connection refused"
       - "i/o timeout"
-      # Retry when the step's container never starts (empty log, exit code -1).
-      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
-      - "Waiting to run"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output
