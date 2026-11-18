@@ -713,7 +713,7 @@ func TestDeploymentStackDesireExplicitCleanup(t *testing.T) {
 			cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = cluster.ServiceProviderProperties.DeletionTimestamp
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
+				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			})
 			desire := &azureresourcesapi.DeploymentStackDesire{CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/role-assignments")),
