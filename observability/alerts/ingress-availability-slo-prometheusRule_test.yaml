@@ -340,10 +340,13 @@ tests:
 # (total_5m >= 3, total_1h >= 10) clear almost immediately at that rate. The
 # medium tier's raised total_6h >= 300 floor does not: at 10/min it isn't
 # reached until t=30m, so the alert only starts its for:30m pending count
-# from there, firing at t=60m (tested at 65m for margin) -- not because the
-# error rate is marginal (50% is nowhere near the 3% threshold here) but
-# simply because that's how long it takes this volume of traffic to
-# accumulate 300 real samples.
+# from there, firing at t=60m -- not because the error rate is marginal (50%
+# is nowhere near the 3% threshold here) but simply because that's how long
+# it takes this volume of traffic to accumulate 300 real samples. Every
+# latency selector also carries `offset 5m` (see the recording rule's header
+# comment), so whatever happens at simulated time T is only visible to the
+# alert 5m later in wall-clock eval_time; both eval_times below include that
+# 5m on top of the usual margin.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
@@ -380,7 +383,7 @@ tests:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
   alert_rule_test:
-  - eval_time: 15m
+  - eval_time: 20m
     alertname: userJourneyIngressLatencyP99Errors1h5m
     exp_alerts:
     - exp_labels:
@@ -400,7 +403,7 @@ tests:
           Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
-  - eval_time: 65m
+  - eval_time: 70m
     alertname: userJourneyIngressLatencyP99Errors6h30m
     exp_alerts:
     - exp_labels:
@@ -616,8 +619,11 @@ tests:
 # ========================================
 # Rate 2/min, with exactly 2 slow checks occurring in the first minute and
 # none since (le="200.0" permanently lags le="+inf" by 2 from t=1 onward).
-# At t=16m: total_6h = total_30m = 32 (only 16 minutes of history exist yet,
-# same data in both windows), error_rate = 2/32 = 6.25% > 3%. The raised
+# At simulated t=16m: total_6h = total_30m = 32 (only 16 minutes of history
+# exist yet, same data in both windows), error_rate = 2/32 = 6.25% > 3%.
+# eval_time is 21m, not 16m, because every latency selector carries
+# `offset 5m` (see the recording rule's header comment) -- the assertions
+# below read the t=16m snapshot 5m later in wall-clock time. The raised
 # total_6h >= 300 floor (ARO-30462 follow-up aside, see the alert group's
 # header comment for the full rationale) is nowhere near met at 32, so the
 # alert must stay silent even though the naive ratio clears the threshold --
@@ -633,12 +639,12 @@ tests:
     values: "1+0x200"
   promql_expr_test:
   - expr: errors:ingress_canary_latency:total_6h
-    eval_time: 16m
+    eval_time: 21m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:total_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
       value: 32
   - expr: errors:ingress_canary_latency:error_rate_6h
-    eval_time: 16m
+    eval_time: 21m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
       value: 0.0625
@@ -653,19 +659,20 @@ tests:
       errors:ingress_canary_latency:total_6h >= 300
       and
       errors:ingress_canary_latency:error_rate_6h > 0.030
-    eval_time: 16m
+    eval_time: 21m
     exp_samples: []
 # ========================================
 # Test 14: Slow latency tier must not fire on a one-off blip in a thin
 # early 3d window
 # ========================================
 # Same construction as Test 13, scaled up: 2 slow checks in the first
-# minute, none since, rate 2/min. At t=150m the 6h window is still within
-# its own history span (150m < 360m), so total_6h = total_3d = 300 -- the
-# raised total_6h >= 300 short-window floor is (just barely) met, but the
-# raised total_3d >= 1000 long-window floor is nowhere close. error_rate =
-# 2/300 = 0.667% > 0.5%, so the old total_3d >= 60 floor would have let this
-# through; the new floor correctly waits for a real 3-day-scale sample.
+# minute, none since, rate 2/min. At simulated t=150m the 6h window is still
+# within its own history span (150m < 360m), so total_6h = total_3d = 300 --
+# the raised total_6h >= 300 short-window floor is (just barely) met, but
+# the raised total_3d >= 1000 long-window floor is nowhere close. error_rate
+# = 2/300 = 0.667% > 0.5%, so the old total_3d >= 60 floor would have let
+# this through; the new floor correctly waits for a real 3-day-scale sample.
+# eval_time is 155m, not 150m, for the same `offset 5m` reason as Test 13.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
@@ -676,12 +683,12 @@ tests:
     values: "1+0x200"
   promql_expr_test:
   - expr: errors:ingress_canary_latency:total_3d
-    eval_time: 150m
+    eval_time: 155m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:total_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
       value: 300
   - expr: errors:ingress_canary_latency:error_rate_3d
-    eval_time: 150m
+    eval_time: 155m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
       value: 0.006666666666666667
@@ -694,5 +701,5 @@ tests:
       errors:ingress_canary_latency:total_3d >= 1000
       and
       errors:ingress_canary_latency:error_rate_3d > 0.005
-    eval_time: 150m
+    eval_time: 155m
     exp_samples: []

@@ -165,19 +165,22 @@ tests:
   - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+1x10"
   promql_expr_test:
+  # eval_time 10m, not 5m: every latency selector carries `offset 5m` (see
+  # the recording rule's header comment), so the window evaluated here is
+  # still minutes 0-5, just read from 5m in the future.
   - expr: latency:ingress_canary:ratio
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'latency:ingress_canary:ratio{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 1
   - expr: errors:ingress_canary_latency:error_rate
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
   # Windowed (1h): 2 instances x 1 check/min x 5m = 10 total checks, all fast.
   - expr: errors:ingress_canary_latency:error_rate_1h
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
@@ -199,19 +202,20 @@ tests:
   - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+1x10"
   promql_expr_test:
+  # eval_time 10m: see Test 6's note on the latency offset.
   - expr: latency:ingress_canary:ratio
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'latency:ingress_canary:ratio{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
   - expr: errors:ingress_canary_latency:error_rate
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
   # Windowed (1h): instance .1 fast, instance .2 slow — 0.5 error rate persists.
   - expr: errors:ingress_canary_latency:error_rate_1h
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
@@ -274,18 +278,19 @@ tests:
   - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="b"}'
     values: "0+1x10"
   promql_expr_test:
+  # eval_time 10m: see Test 6's note on the latency offset.
   - expr: errors:ingress_canary_latency:total_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:total_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
       value: 5
   - expr: errors:ingress_canary_latency:fast_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:fast_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
       value: 5
   - expr: errors:ingress_canary_latency:error_rate_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
       value: 0
@@ -337,8 +342,9 @@ tests:
   - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="+inf", prometheus_replica="a"}'
     values: "0+1x10"
   promql_expr_test:
+  # eval_time 10m: see Test 6's note on the latency offset.
   - expr: latency:ingress_canary:ratio
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'latency:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
@@ -406,23 +412,72 @@ tests:
   - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="+inf", prometheus_replica="b"}'
     values: "0+10x10"
   promql_expr_test:
+  # eval_time 10m: see Test 6's note on the latency offset.
   - expr: errors:ingress_canary_latency:total_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:total_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
       value: 50
   - expr: errors:ingress_canary_latency:fast_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:fast_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
       value: 5
   - expr: errors:ingress_canary_latency:error_rate_5m
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
       value: 0.9
   - expr: latency:ingress_canary:ratio
-    eval_time: 5m
+    eval_time: 10m
     exp_samples:
     - labels: 'latency:ingress_canary:ratio{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
       value: 0.1
+# ========================================
+# Test 15: An unsettled newest bucket must not look like a 100% latency
+# error (ARO-29638 / #6965's offset-5m fix, applied here per Copilot review)
+# ========================================
+# le="+inf" grows steadily at 10/min for the whole 30m. le="200.0" matches it
+# exactly through minute 25, then stops growing for the last 5 minutes --
+# simulating the fast bucket not having caught up yet for the newest
+# scrapes, the same unsettled-ingestion-edge race fixed in
+# frontend-path-latency-prometheusRule.yaml. Querying the raw window [25,30]
+# at the live edge (no offset) sees 50 new "+inf" observations and 0 new
+# "200.0" ones, a false 100% error rate. offset 5m instead evaluates the
+# already-settled window [20,25], where both buckets grew by 50 together --
+# 0% error, matching what actually happened.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-unsettled", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-unsettled.example.io", instance="10.0.0.1:60000", le="+inf"}'
+    values: "0+10x30"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-unsettled", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-unsettled.example.io", instance="10.0.0.1:60000", le="200.0"}'
+    values: "0+10x25 250+0x5"
+  promql_expr_test:
+  # Without offset, the live edge falsely reads 100% error.
+  - expr: |
+      1 - (
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200.0"}[5m]))
+        /
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+inf"}[5m]))
+      )
+    eval_time: 30m
+    exp_samples:
+    - labels: '{_id="lat-unsettled", cluster="mgmt-1", region="uksouth"}'
+      value: 1
+  # The actual recording rule (offset 5m baked in) reads the settled window
+  # instead and correctly reports 0% error.
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="lat-unsettled", cluster="mgmt-1", region="uksouth"}'
+      value: 50
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="lat-unsettled", cluster="mgmt-1", region="uksouth"}'
+      value: 50
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="lat-unsettled", cluster="mgmt-1", region="uksouth"}'
+      value: 0

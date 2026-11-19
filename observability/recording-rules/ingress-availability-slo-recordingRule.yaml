@@ -290,6 +290,20 @@ spec:
   # 99.5% of checks within 200ms is closer to a P99 latency objective than a
   # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
   # named LatencyP99 (see ingress-availability-slo-prometheusRule.yaml).
+  #
+  # Every rate()/increase() over ingress_canary_check_duration_bucket below
+  # carries `offset 5m`, matching frontend-path-latency-prometheusRule.yaml
+  # and frontend-slo-recordingRule.yaml (ARO-29638 / #6965). A histogram's
+  # buckets are not guaranteed to all become queryable at the same instant;
+  # evaluating at the live ingestion edge can see le="+inf" already reflect a
+  # just-scraped check while le="200.0" hasn't caught up yet, making that
+  # check look like a slow one until the bucket settles. #6965 reproduced
+  # this directly (a real 460ms p99 read back as 995ms without the offset,
+  # and a stored West US 3 INT recording of 13.265s against a settled
+  # recompute of 44.6ms). offset 5m always evaluates the last settled window
+  # instead of the live edge. Availability's rules do not need this: a
+  # reachability gauge sample is a single series, not multiple bucket series
+  # that can settle at different times.
   - name: arohcp_ingress_latency_slo_recording_rules
     interval: 1m
     rules:
@@ -318,14 +332,14 @@ spec:
     - record: latency:ingress_canary:ratio
       expr: |
         sum by (_id, cluster, region) (
-          rate(ingress_canary_check_duration_bucket{le="200.0"}[5m])
+          rate(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
+            topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
         /
         sum by (_id, cluster, region) (
-          topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
+          topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
         )
     # Error rate derived from the latency SLI.
     # Instantaneous (5m rate) value only -- kept for dashboards / SLI
@@ -350,14 +364,14 @@ spec:
     - record: errors:ingress_canary_latency:total_5m
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
         )
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[5m])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
     - record: errors:ingress_canary_latency:slow_5m
@@ -370,14 +384,14 @@ spec:
     - record: errors:ingress_canary_latency:total_30m
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m])) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) by (_id, cluster, region, host, instance)
         )
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[30m])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[30m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m])) by (_id, cluster, region, host, instance)
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
     - record: errors:ingress_canary_latency:slow_30m
@@ -390,14 +404,14 @@ spec:
     - record: errors:ingress_canary_latency:total_1h
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h])) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) by (_id, cluster, region, host, instance)
         )
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[1h])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[1h] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h])) by (_id, cluster, region, host, instance)
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
     - record: errors:ingress_canary_latency:slow_1h
@@ -410,14 +424,14 @@ spec:
     - record: errors:ingress_canary_latency:total_6h
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h])) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) by (_id, cluster, region, host, instance)
         )
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[6h])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[6h] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h])) by (_id, cluster, region, host, instance)
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
     - record: errors:ingress_canary_latency:slow_6h
@@ -430,14 +444,14 @@ spec:
     - record: errors:ingress_canary_latency:total_3d
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d])) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) by (_id, cluster, region, host, instance)
         )
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[3d])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[3d] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d])) by (_id, cluster, region, host, instance)
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) by (_id, cluster, region, host, instance)
           )
         )
     - record: errors:ingress_canary_latency:slow_3d
