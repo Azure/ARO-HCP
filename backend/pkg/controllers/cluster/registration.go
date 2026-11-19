@@ -363,6 +363,7 @@ func instantiateOperationClusterCreateController(controllerContext controllercon
 		controllerContext.BackendInformers,
 		controllerContext.AzureResourcesInformers,
 		unionReadDesireLister,
+		!controllerContext.HasRealFPA,
 	), nil
 }
 

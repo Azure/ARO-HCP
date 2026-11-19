@@ -1692,6 +1692,108 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	}
 }
 
+func TestMockFPARoleAssignmentsOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	reserved := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/22222222-2222-2222-2222-222222222222"))
+	key := coreapi.RoleAssignmentKey{PrincipalID: "mock-fpa", RoleDefinitionResourceID: "/providers/microsoft.authorization/roledefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}
+
+	spcLister := func(assignments map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup: assignments,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		assignments   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus
+		desire        *azureresourcesapi.DeploymentStackDesire
+		expectedState coreapi.ProvisioningState
+		wantMsgSubstr string
+	}{
+		{
+			name:          "all reserved assignments managed under current applied spec → Succeeded",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t, reserved),
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "no mock FPA role assignments recorded yet → Provisioning",
+			assignments:   nil,
+			desire:        managedRoleAssignmentsDesire(t, reserved),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+		{
+			name:          "DeploymentStackDesire not published yet → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+		{
+			name:          "assignment not yet managed by the stack → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t), // applied, but does not manage reserved
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &clusterCreateMockFPARoleAssignmentsCheck{
+				serviceProviderClusterLister: spcLister(tt.assignments),
+				deploymentStackDesireLister:  &fakeDeploymentStackDesireLister{desire: tt.desire},
+			}
+
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+// TestMockFPARoleAssignmentsCheckRegistration verifies the mock FPA role assignments source is
+// registered only when mock FPA role assignments are enabled (no real FPA), and omitted
+// otherwise so the operation does not report a meaningless always-succeeded source.
+func TestMockFPARoleAssignmentsCheckRegistration(t *testing.T) {
+	sourceName := (&clusterCreateMockFPARoleAssignmentsCheck{}).GetSourceName()
+
+	t.Run("registered when enabled", func(t *testing.T) {
+		calcs, err := (&operationClusterCreate{mockFirstPartyApplicationRoleAssignmentsEnabled: true}).newStatusCalculators()
+		require.NoError(t, err)
+		_, ok := calcs[sourceName]
+		assert.True(t, ok, "expected the mock FPA role assignments source to be registered")
+	})
+
+	t.Run("not registered when disabled", func(t *testing.T) {
+		calcs, err := (&operationClusterCreate{mockFirstPartyApplicationRoleAssignmentsEnabled: false}).newStatusCalculators()
+		require.NoError(t, err)
+		_, ok := calcs[sourceName]
+		assert.False(t, ok, "expected the mock FPA role assignments source to be absent with a real FPA")
+	})
+}
+
 func TestDataPlaneOIDCFederationOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)

@@ -58,6 +58,10 @@ type operationClusterCreate struct {
 	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
+	// mockFirstPartyApplicationRoleAssignmentsEnabled is true when the backend runs without a
+	// real First Party Application, where the mock FPA role assignments over the managed
+	// resource group must be confirmed before creation completes. It is false with a real FPA.
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool
 }
 
 const OperationClusterCreateControllerName = "OperationClusterCreate"
@@ -85,6 +89,7 @@ func NewOperationClusterCreateController(
 	backendInformers coreinformers.BackendInformers,
 	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, activeOperationLister := backendInformers.ActiveOperations()
 	_, clusterLister := backendInformers.Clusters()
@@ -102,6 +107,7 @@ func NewOperationClusterCreateController(
 		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		notificationClient:                    notificationClient,
+		mockFirstPartyApplicationRoleAssignmentsEnabled: mockFirstPartyApplicationRoleAssignmentsEnabled,
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
@@ -123,7 +129,7 @@ func NewOperationClusterCreateController(
 // construction so the two cannot drift: a source added here is exercised by both
 // the controller and every test that builds a registry.
 func (c *operationClusterCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[struct{}], error) {
-	return operationbase.NewOperationStatusCalculators[struct{}](
+	calculators := []operationbase.OperationStatusCalculator[struct{}]{
 		&clusterCreateValidationCheck{clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateHostedClusterCheck{readDesireLister: c.readDesireLister},
 		&clusterCreateResourceCheck{clusterLister: c.clusterLister},
@@ -134,7 +140,16 @@ func (c *operationClusterCreate) newStatusCalculators() (operationbase.Operation
 		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, deploymentStackDesireLister: c.deploymentStackDesireLister},
 		&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDataPlaneOIDCFederationCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister},
-	)
+	}
+
+	// The mock FPA role assignments only exist in environments without a real FPA, so the
+	// source is registered only there. With a real FPA nothing publishes them, and an
+	// always-succeeded source would be misleading, so it is not registered at all.
+	if c.mockFirstPartyApplicationRoleAssignmentsEnabled {
+		calculators = append(calculators, &clusterCreateMockFPARoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, deploymentStackDesireLister: c.deploymentStackDesireLister})
+	}
+
+	return operationbase.NewOperationStatusCalculators[struct{}](calculators...)
 }
 
 func (c *operationClusterCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
