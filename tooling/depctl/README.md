@@ -286,6 +286,15 @@ Candidate validation and request preparation use this shared Go selection
 policy. Family markers, publication request shape and branch identity do not
 change when multiple target versions coexist.
 
+The trusted Python publisher and reconciler also call `dependabot native
+check-tree`, `check-coverage` (or `--paths-only`) and `check-admission` with JSON
+evidence on stdin. Go owns replacement scope, immutable consumer coverage and
+native admission eligibility; the Python lifecycle retains discovery parsing,
+targeted immutable tree proofs, GitHub writes and publication orchestration.
+These read-only commands accept evidence, not executable commands. They use the
+trusted default-branch binary and official release GETs through `gh`; a missing
+binary or rejected check fails closed, with no Python policy fallback.
+
 ### dependabot native validate-candidate
 
 ```bash

@@ -61,5 +61,6 @@ func newNativeCommand() *cobra.Command {
 	selectGroup.Flags().StringVar(&group, "group", "", "24-character native family group ID")
 	selectGroup.Flags().StringVar(&target, "target", "", "exact inventory target")
 	command.AddCommand(selectGroup, newNativePrepareCommand(), newNativeValidateCommand(), newNativeSandboxReadCommand())
+	command.AddCommand(newNativeCheckTreeCommand(), newNativeCheckCoverageCommand(), newNativeCheckAdmissionCommand())
 	return command
 }

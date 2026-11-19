@@ -1510,3 +1510,35 @@ func TestNativeCandidateMissingConsumerRecordsFailureAndLog(t *testing.T) {
 		t.Fatal(step)
 	}
 }
+
+func TestNativeCandidateOverflowFailsEntireRequestLifecycle(t *testing.T) {
+	f := newCandidateFixture(t)
+	original := strings.Repeat("x", 20000)
+	candidateFixtureWrite(t, filepath.Dir(f.options.BodyFile), filepath.Base(f.options.BodyFile), original)
+	candidateFixtureWrite(t, f.options.Artifacts, nativeRequestFile, "stale success")
+	if err := f.validate(); err == nil {
+		t.Fatal("published an evidence-inclusive body above the text bound")
+	}
+	f.noRequest()
+	body, err := os.ReadFile(f.options.BodyFile)
+	if err != nil || string(body) != original {
+		t.Fatalf("modified original publication body: %v", err)
+	}
+	if f.v.results["status"] != "failed" {
+		t.Fatalf("overflow did not fail validation: %#v", f.v.results)
+	}
+}
+
+func TestNativeCandidateTimeoutPreservesMachineClassification(t *testing.T) {
+	f := newCandidateFixture(t)
+	f.v.execute = func(context.Context, string, nativeCandidateCommand, string) model.ConsumerResult {
+		return model.ConsumerResult{Status: model.ConsumerFailed, ExitCode: -1, Reason: "consumer timed out", LogPath: "timeout.log"}
+	}
+	if _, err := f.v.run(context.Background(), nativeCandidateCommand{name: "timeout", argv: []string{"make", "verify"}, directory: "."}, ""); err == nil {
+		t.Fatal("accepted timed-out consumer")
+	}
+	step := f.v.steps[len(f.v.steps)-1]
+	if step["status"] != "timeout" || step["returncode"] != -1 || step["log"] != "timeout.log" {
+		t.Fatalf("lost timeout classification: %#v", step)
+	}
+}

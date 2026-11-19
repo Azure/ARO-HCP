@@ -46,7 +46,8 @@ var nativeReleaseEndpoint = regexp.MustCompile(`^repos/[A-Za-z0-9][A-Za-z0-9_.-]
 // NativeDecode rejects duplicate keys, trailing JSON and non-integer identity coercion.
 func nativeDecode(raw []byte) (any, error) {
 	check := json.NewDecoder(bytes.NewReader(raw))
-	if err := validateNativeJSON(check, 0); err != nil {
+	check.UseNumber()
+	if err := validateNativeJSONValue(check, 0, false); err != nil {
 		return nil, err
 	}
 	if _, err := check.Token(); err != io.EOF {

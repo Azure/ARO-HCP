@@ -42,6 +42,26 @@ func TestNativeSDKMetadataConstraints(t *testing.T) {
 	}
 }
 
+func TestNativeActionLockPreservesContainersAndOfficialIntent(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	before := `{"entries":{"actions/checkout@v1":{"repo":"actions/checkout","version":"v1","sha":"` + strings.Repeat("b", 40) + `"}},"containers":{"fixed":"unchanged"}}`
+	after := `{"entries":{"actions/checkout@v2":{"repo":"actions/checkout","version":"v2","sha":"` + sha + `"}},"containers":{"fixed":"unchanged"}}`
+	group := map[string]any{"family": "actions/checkout", "sources": []any{map[string]any{"intents": []any{map[string]any{"ecosystem": "actions", "package": "actions/checkout", "target": sha}}}}}
+	read := func(context.Context, string, bool, bool) (json.RawMessage, error) {
+		return json.RawMessage(`{"sha":"` + sha + `"}`), nil
+	}
+	if err := nativeActionLockChanges(context.Background(), read, before, after, group); err != nil {
+		t.Fatal(err)
+	}
+	if err := nativeActionLockChanges(context.Background(), read, before, strings.ReplaceAll(after, "unchanged", "changed"), group); err == nil {
+		t.Fatal("accepted changed containers")
+	}
+	sha = strings.Repeat("f", 40)
+	if err := nativeActionLockChanges(context.Background(), read, before, after, group); err == nil {
+		t.Fatal("accepted unofficial action release")
+	}
+}
+
 func TestNativeNPMOverrideScopesAndResolutionPreservation(t *testing.T) {
 	resolved := map[string]nativeResolved{"node_modules/parent": {Package: "parent", Version: "1.2.0"}, "node_modules/parent/node_modules/child": {Package: "child", Version: "2.3.4"}, "node_modules/child": {Package: "child", Version: "1.0.0"}}
 	manifest := `{"overrides":{"parent@^1.0.0":{"child":"^2.3.0"}}}`

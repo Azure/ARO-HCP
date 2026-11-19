@@ -133,3 +133,18 @@ func TestNativeNestedSelfOverrideRetainsPackageIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeChangesPreservesArbitraryUnchangedNPMMetadata(t *testing.T) {
+	before := `{"name":"fixture","config":{"Target":"browser","Repository":"custom","number":9007199254740993},"devDependencies":{"prettier":"3.9.9"}}`
+	after := strings.Replace(before, "3.9.9", "3.9.10", 1)
+	changes, err := nativeChanges(context.Background(), nil, "api/package.json", before, after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0]["package"] != "prettier" || changes[0]["old"] != "3.9.9" || changes[0]["target"] != "3.9.10" {
+		t.Fatalf("incorrect dependency intent: %#v", changes)
+	}
+	if _, err := nativeChanges(context.Background(), nil, "api/package.json", before, strings.Replace(after, `"browser"`, `"server"`, 1)); err == nil {
+		t.Fatal("accepted unrelated metadata mutation")
+	}
+}
