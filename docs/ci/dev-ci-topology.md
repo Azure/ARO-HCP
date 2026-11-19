@@ -63,44 +63,37 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
-- Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
-  and `arm-helper-pool.yaml` are still generated separately.
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
 ## The Current Mixed-Management Boundary
 
-The DEV MSI mock and ARM helper service-principal pools used by local E2E jobs
-are managed declaratively on the Azure side, with only the release-side consumer
-artifacts left outside the rollout.
+The DEV and INT mock identities are managed declaratively on the Azure side;
+the legacy DEV MSI mock and ARM helper service-principal pools are retired and no
+longer managed here.
 
-- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the pool end to end on the Azure side:
-  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates both
-    pooled Entra app families from `.ci.dev.mockIdentities.pool` and
-    `.ci.dev.mockIdentities.armHelperPool`. It configures no auth on the apps.
+- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the mock identities end to end on the Azure side:
+  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the
+    shared Entra apps from `.ci.<env>.mockIdentities`. It configures no auth on the apps.
   - The DEV `pin-mock-certs` and INT `pin-mock-certs-int` Shell steps run
     `tooling/entra-app-credentials` immediately after the corresponding app
     deployment. They create missing certificates and register each current
     Key Vault certificate as a pinned `keyCredential`; existing certificates and
-    policies remain untouched. The DEV step uses separate CLI invocations for
-    the named identities, MSI mock pool, and ARM helper pool.
+    policies remain untouched.
     Templatize runs these steps with the invoking OWNERS member's Azure CLI
     credentials.
   - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each
     principal's object ID via Microsoft Graph and applies the home- and
-    E2E-subscription grants. Both pools receive DEV home-subscription grants so
-    their members can be tested in personal development environments. Principal
+    E2E-subscription grants. Principal
     IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants
     require subscription Owner, they are applied on demand rather than by the
     postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
-- What remains outside the rollout:
-  - `make populate-msi-mock-pool` and `make populate-arm-helper-pool` perform live
-    Entra lookups and write the static catalogs consumed by release-side jobs.
-  - `openshift/release` still owns the Boskos inventories and lease contracts.
+- What remains outside the rollout: `openshift/release` still owns the Boskos
+  inventories and lease contracts.
 
 So the Entra objects, certificates, certificate pinning, and RBAC are
 single-sourced in the topology; the remaining spread is limited to
-release-side Boskos/catalog wiring.
+release-side Boskos wiring.
 
 ## Long-Term Direction
 
@@ -108,7 +101,7 @@ The Azure-side intended state is now in place: a single privileged rollout owns
 the app/SP, certificate, pinning, and RBAC lifecycle, driven by one source of
 truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
 
-- generate downstream consumer artifacts (the static pool catalog and the release-side Boskos inventory) from that same source instead of updating them separately
+- generate the release-side Boskos inventory from that same source instead of updating it separately
 
 ## Operator Entry Points
 
@@ -135,7 +128,6 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
 - `dev-infrastructure/Makefile`
-- `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 - [CI Identity Leasing](identity-leasing.md)
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 - [Opstool CI Platform](opstool.md)

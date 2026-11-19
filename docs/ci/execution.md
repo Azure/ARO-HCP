@@ -400,18 +400,6 @@ inspect its `LOCATION_WEIGHTS`, `LOCATION`, or
 `MULTISTAGE_PARAM_OVERRIDE_LOCATION` in the current `openshift/release`
 ci-operator config.
 
-### MSI Mock Service Principal Pool
-
-DEV local E2E also spreads ARM traffic by leasing one MSI mock service principal from a Boskos-backed pool:
-
-- each job gets a single value in `LEASED_MSI_MOCK_SP`
-- the provisioning step uses that lease to look up the mock SP's client ID, principal ID, and cert name from `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
-- personal development environments continue to use the shared non-pooled mock SP values
-
-This pool exists so concurrent DEV jobs do not all share ARM throttle budget through the same actor. It remains a separate Boskos lease by design and is not part of the slot-manager rollout.
-
-See [CI Identity Leasing](identity-leasing.md#msi-mock-service-principal-pool) for the pool setup, Boskos counts, and provisioning-time lookup path.
-
 ## EV2 Commit Pinning
 
 The connection between EV2 and Prow is established through configuration in this repository:
