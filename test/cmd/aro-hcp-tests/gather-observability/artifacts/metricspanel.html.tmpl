@@ -23,12 +23,17 @@
         .no-results .subtitle { color: #888; }
         .no-results .message { margin: 40px 0; font-size: 18px; color: #999; }
         .chart-section { margin-bottom: 10px; }
-        .series-controls { max-width: 1200px; margin: 8px auto; }
-        .series-controls button {
-            padding: 4px 10px; cursor: pointer;
-            background: #333; color: #fff; border: 1px solid #888;
+        .series-controls { width: 1200px; max-width: 100%; margin: 8px auto 16px; font-size: 13px; }
+        .series-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .series-toolbar button, .series-toolbar input[type="search"] {
+            background: #191919; color: #eee; border: 1px solid #666; border-radius: 4px; padding: 6px 10px;
         }
-        .series-controls button:focus-visible { outline: 2px solid #4E9AF1; outline-offset: 2px; }
+        .series-toolbar button { cursor: pointer; }
+        .series-toolbar button:disabled { opacity: .4; cursor: default; }
+        .series-toolbar input[type="search"] { width: 260px; max-width: 100%; box-sizing: border-box; }
+        .series-toolbar :focus-visible { outline: 2px solid #4E9AF1; outline-offset: 2px; }
+        .series-status { margin-top: 8px; color: #ccc; overflow-wrap: anywhere; }
+        .series-help { margin-top: 4px; color: #999; font-size: 12px; }
         .chart-description {
             max-width: 1200px; margin: 0 auto; padding: 4px 0 0 0;
             font-size: 13px; color: #888;
@@ -75,52 +80,95 @@
     for (var i = 0; i < items.length; i++) {
         var inst = echarts.getInstanceByDom(items[i]);
         if (!inst) continue;
-        var selection = initSelection(inst, items[i]);
         var section = items[i].closest('.chart-section');
-        if (section && section.getAttribute('data-no-slider') === 'true') continue;
         var initialThreshold = section ? parseFloat(section.getAttribute('data-min-peak-threshold')) || 0 : 0;
+        var selection = initLegend(inst, items[i]);
+        if (section && section.getAttribute('data-no-slider') === 'true') continue;
         initSlider(inst, items[i], initialThreshold, selection);
     }
 
-    function initSelection(chart, chartDom) {
+    function initLegend(chart, chartDom) {
         var option = chart.getOption();
-        var manualSelection = Object.create(null);
-        var eligible = Object.create(null);
-        var names = [];
-        (option.series || []).forEach(function(series) {
-            if (Object.prototype.hasOwnProperty.call(manualSelection, series.name)) return;
-            names.push(series.name);
-            manualSelection[series.name] = !option.legend || !option.legend[0].selected || option.legend[0].selected[series.name] !== false;
-            eligible[series.name] = true;
+        var peaks = new Map();
+        computePeaks(option.series || []).forEach(function(s) {
+            peaks.set(s.name, Math.max(peaks.get(s.name) || 0, s.peak));
         });
-        function applySelection() {
-            var selected = {};
-            names.forEach(function(name) { selected[name] = manualSelection[name] && eligible[name]; });
-            chart.setOption({legend: {selected: selected}});
-        }
-        chart.on('legendselectchanged', function(event) {
-            manualSelection[event.name] = event.selected[event.name];
+        var names = Array.from(peaks.keys());
+        var manual = Object.create(null);
+        var threshold = -Infinity;
+        names.forEach(function(name) { manual[name] = option.legend[0].selected[name] !== false; });
+
+        var controls = document.createElement('div');
+        controls.className = 'series-controls';
+        controls.innerHTML = '<div class="series-toolbar">' +
+            '<input type="search" placeholder="Search series labels…" aria-label="Search series labels">' +
+            '<button type="button" data-action="all">Select all</button>' +
+            '<button type="button" data-action="none">Deselect all</button>' +
+            '<button type="button" data-action="matches">Select matches</button>' +
+            '<label><input type="checkbox"> Selected only</label></div>' +
+            '<div class="series-status" role="status"></div>' +
+            '<div class="series-help">Search and Selected only filter the legend, not the plotted lines. Click legend labels to toggle lines; use the arrows for more labels. Lower the peak slider to reveal selected lines below the threshold.</div>';
+        controls.querySelectorAll('button, input').forEach(function(control) {
+            control.setAttribute('aria-controls', chartDom.id);
         });
-        if (names.length) {
-            var controls = document.createElement('div');
-            controls.className = 'series-controls';
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = 'Deselect all';
-            button.setAttribute('aria-controls', chartDom.id);
-            button.setAttribute('aria-label', 'Deselect all series in ' + option.title[0].text);
-            button.addEventListener('click', function() {
-                names.forEach(function(name) { manualSelection[name] = false; });
-                applySelection();
+        var deselect = controls.querySelector('[data-action="none"]');
+        deselect.setAttribute('aria-label', 'Deselect all series in ' + option.title[0].text);
+        chartDom.parentNode.insertBefore(controls, chartDom.nextSibling);
+        // go-echarts wraps plots in a flex container; controls belong below it.
+        chartDom.parentNode.style.flexDirection = 'column';
+        var search = controls.querySelector('input[type="search"]');
+        var only = controls.querySelector('input[type="checkbox"]');
+        var status = controls.querySelector('.series-status');
+        var matchesButton = controls.querySelector('[data-action="matches"]');
+
+        function matches(name) { return name.toLowerCase().includes(search.value.trim().toLowerCase()); }
+        function update(resetPage) {
+            // ECharts expects an ordinary object with hasOwnProperty.
+            var selected = {}, plotted = [], selectedNames = [];
+            var entries = [];
+            names.forEach(function(name) {
+                selected[name] = manual[name] && peaks.get(name) >= threshold;
+                if (manual[name]) selectedNames.push(name);
+                if (selected[name]) plotted.push(name);
+                if (matches(name) && (!only.checked || manual[name])) {
+                    entries.push({name: name, textStyle: {fontWeight: selected[name] ? 'bold' : 'normal'}});
+                }
             });
-            controls.appendChild(button);
-            chartDom.parentNode.insertAdjacentElement('beforebegin', controls);
+            // Keep the plotted labels on the first page, even among hundreds of
+            // inactive entries. Stable sorting preserves their original order.
+            entries.sort(function(a, b) { return Number(selected[b.name]) - Number(selected[a.name]); });
+            var legend = {
+                data: entries, selected: selected, inactiveColor: '#666', inactiveBorderColor: '#555',
+                textStyle: {color: '#fff', width: 1000, overflow: 'truncate'},
+                tooltip: {show: true}, pageTextStyle: {color: '#ccc'}, pageIconColor: '#4E9AF1'
+            };
+            if (resetPage) legend.scrollDataIndex = 0;
+            chart.setOption({legend: legend});
+            status.textContent = selectedNames.length + ' of ' + names.length + ' selected; ' + plotted.length + ' plotted' +
+                (selectedNames.length > plotted.length ? ' (' + (selectedNames.length - plotted.length) + ' hidden by peak threshold)' : '') +
+                '. ' + entries.length + ' legend matches.' +
+                (plotted.length === 1 ? ' Showing: ' + plotted[0] : '') +
+                (selectedNames.length === 0 ? ' No series selected — select a legend label or use Select all.' : '') +
+                (entries.length === 0 ? ' Clear search or turn off Selected only to see more labels.' : '');
+            matchesButton.disabled = !names.some(matches);
         }
-        return function(visibleNames) {
-            names.forEach(function(name) { eligible[name] = visibleNames.indexOf(name) !== -1; });
-            chart.setOption({legend: {data: visibleNames}});
-            applySelection();
+        controls.querySelector('[data-action="all"]').onclick = function() {
+            names.forEach(function(name) { manual[name] = true; }); update(true);
         };
+        controls.querySelector('[data-action="none"]').onclick = function() {
+            names.forEach(function(name) { manual[name] = false; }); update(true);
+        };
+        matchesButton.onclick = function() {
+            names.forEach(function(name) { if (matches(name)) manual[name] = true; }); update(true);
+        };
+        search.addEventListener('input', function() { update(true); });
+        only.addEventListener('change', function() { update(true); });
+        chart.on('legendselectchanged', function(event) {
+            manual[event.name] = event.selected[event.name];
+            update(false);
+        });
+        update(true);
+        return function(value) { threshold = value; update(true); };
     }
 
     function initSlider(chart, chartDom, initialThreshold, applySelection) {
@@ -160,6 +208,7 @@
             'width:20px;margin:0;padding:0;' +
             'cursor:ns-resize;accent-color:#F44336;opacity:0.5;z-index:10;';
         slider.title = 'Filter series by minimum peak value';
+        slider.setAttribute('aria-label', slider.title);
         chartDom.appendChild(slider);
 
         slider.addEventListener('mouseenter', function() { this.style.opacity = '0.9'; });
@@ -176,39 +225,10 @@
         info.textContent = seriesPeaks.length + '/' + seriesPeaks.length;
         chartDom.appendChild(info);
 
-        var allNames = seriesPeaks.map(function(s) { return s.name; });
-
-        function legendHeight(names) {
-            if (names.length === 0) return 40;
-            var rows = 1, rowWidth = 0;
-            for (var i = 0; i < names.length; i++) {
-                var w = names[i].length * 7 + 40;
-                if (rowWidth + w > 1200 && rowWidth > 0) { rows++; rowWidth = w; }
-                else { rowWidth += w; }
-            }
-            return Math.max(40, rows * 22);
-        }
-
         function applyThreshold() {
             var threshold = parseFloat(slider.value);
-            var visibleNames = [];
-            seriesPeaks.forEach(function(s) {
-                var show = s.peak >= threshold;
-                if (show) visibleNames.push(s.name);
-            });
-
-            info.textContent = visibleNames.length + '/' + seriesPeaks.length +
-                (threshold > yExtent[0] ? ' ≥' + formatVal(threshold) : '');
-
-            applySelection(visibleNames);
-
-            // Move legend up below the grid and shrink the container to eliminate the gap
-            var newLH = legendHeight(visibleNames);
-            var legendTop = gridRect.y + gridRect.height + 30;
-            chart.setOption({legend: {bottom: null, top: legendTop}});
-            var newHeight = legendTop + newLH + 10;
-            chartDom.style.height = newHeight + 'px';
-            chart.resize({height: newHeight});
+            info.textContent = '≥' + formatVal(threshold);
+            applySelection(threshold);
 
             var py = chart.convertToPixel({gridIndex: 0}, [0, threshold]);
             chart.setOption({
