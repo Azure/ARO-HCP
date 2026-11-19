@@ -111,23 +111,23 @@ github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/a
 ## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000 => ./tooling/utilitytypes
 ## explicit; go 1.25.7
-# github.com/Azure/ARO-Tools/config v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/config v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/config
 github.com/Azure/ARO-Tools/config/ev2config
 github.com/Azure/ARO-Tools/config/types
-# github.com/Azure/ARO-Tools/pipelines v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/pipelines v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/pipelines/graph
 github.com/Azure/ARO-Tools/pipelines/topology
 github.com/Azure/ARO-Tools/pipelines/types
-# github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/testutil
-# github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/cmdutils
-# github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/base
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean
@@ -139,35 +139,35 @@ github.com/Azure/ARO-Tools/tools/grafanactl/cmd/verify
 github.com/Azure/ARO-Tools/tools/grafanactl/config
 github.com/Azure/ARO-Tools/tools/grafanactl/internal/azure
 github.com/Azure/ARO-Tools/tools/grafanactl/internal/grafana
-# github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/helm
-# github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/istio-upgrade/pkg/istio
-# github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/kustoctl/cmd/entitygroups
 github.com/Azure/ARO-Tools/tools/kustoctl/internal/azure
-# github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261029184915-ae250b4c53dd
-## explicit; go 1.25.5
+# github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261119152653-bc31149d518c
+## explicit; go 1.25.7
 github.com/Azure/ARO-Tools/tools/prow-job-executor
 github.com/Azure/ARO-Tools/tools/prow-job-executor/internal/retry
 github.com/Azure/ARO-Tools/tools/prow-job-executor/prowjob
-# github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/registration
-# github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/secret-sync
 github.com/Azure/ARO-Tools/tools/secret-sync/config
 github.com/Azure/ARO-Tools/tools/secret-sync/populate
 github.com/Azure/ARO-Tools/tools/secret-sync/register
-# github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/stackctl/cmd/deletestack
 github.com/Azure/ARO-Tools/tools/stackctl/pkg/stack
-# github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/yamlwrap
 # github.com/Azure/azure-kusto-go v0.16.1
@@ -925,7 +925,7 @@ github.com/docker/cli/cli/config/configfile
 github.com/docker/cli/cli/config/credentials
 github.com/docker/cli/cli/config/memorystore
 github.com/docker/cli/cli/config/types
-# github.com/docker/docker-credential-helpers v0.9.3
+# github.com/docker/docker-credential-helpers v0.9.5
 ## explicit; go 1.21
 github.com/docker/docker-credential-helpers/client
 github.com/docker/docker-credential-helpers/credentials
@@ -1291,7 +1291,7 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/go-containerregistry v0.21.4
+# github.com/google/go-containerregistry v0.21.5
 ## explicit; go 1.25.0
 github.com/google/go-containerregistry/internal/and
 github.com/google/go-containerregistry/internal/compression
@@ -2207,7 +2207,7 @@ github.com/stretchr/testify/internal/difflib
 github.com/stretchr/testify/internal/spew
 github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
-# github.com/tektoncd/pipeline v1.11.1
+# github.com/tektoncd/pipeline v1.12.0
 ## explicit; go 1.25.7
 github.com/tektoncd/pipeline/internal/artifactref
 github.com/tektoncd/pipeline/pkg/apis/config

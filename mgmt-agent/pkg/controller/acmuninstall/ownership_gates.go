@@ -55,7 +55,7 @@ var (
 // while any are still owned by ACM.
 func (c *Controller) ensurePodNetworksNotACMOwned(ctx context.Context) (stepResult, error) {
 	return c.ensureResourcesNotACMOwned(ctx, "PodNetwork", func(ctx context.Context) ([]unstructured.Unstructured, error) {
-		return c.listClusterScoped(ctx, PodNetworksGVR)
+		return listClusterScoped(ctx, c.dynamicClient, PodNetworksGVR)
 	})
 }
 
@@ -63,7 +63,7 @@ func (c *Controller) ensurePodNetworksNotACMOwned(ctx context.Context) (stepResu
 // while any are still owned by ACM.
 func (c *Controller) ensurePodNetworkInstancesNotACMOwned(ctx context.Context) (stepResult, error) {
 	return c.ensureResourcesNotACMOwned(ctx, "PodNetworkInstance", func(ctx context.Context) ([]unstructured.Unstructured, error) {
-		return c.listNamespaced(ctx, PodNetworkInstancesGVR, metav1.NamespaceAll)
+		return listNamespaced(ctx, c.dynamicClient, PodNetworkInstancesGVR, metav1.NamespaceAll)
 	})
 }
 
@@ -97,117 +97,36 @@ func (c *Controller) ensureResourcesNotACMOwned(
 // namespace (<hc-namespace>-<hc-name>), are no longer ACM-owned. This is a
 // prerequisite for deleting MCE.
 func (c *Controller) ensureHostedClusterResourcesNotACMOwned(ctx context.Context) (stepResult, error) {
-	return c.ensureResourcesNotACMOwned(ctx, "HostedCluster", c.listHostedClusterOwnershipResources)
-}
-
-func (c *Controller) listHostedClusterOwnershipResources(ctx context.Context) ([]unstructured.Unstructured, error) {
-	namespacesByName, err := c.namespacesByName(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	hostedClusters, err := c.listNamespaced(ctx, HostedClustersGVR, metav1.NamespaceAll)
-	if err != nil {
-		return nil, err
-	}
-
-	hcNamespaceGVRs := []schema.GroupVersionResource{
-		NodePoolsGVR,
-		ConfigMapsGVR,
-		SecretsGVR,
-		SecretSyncsGVR,
-		SecretProviderClassesGVR,
-	}
-	resources := make([]unstructured.Unstructured, 0, len(hostedClusters))
-	for i := range hostedClusters {
-		hc := &hostedClusters[i]
-		resources = append(resources, *hc)
-
-		if ns, ok := namespacesByName[hc.GetNamespace()]; ok {
-			resources = append(resources, *ns)
-		}
-
-		nsResources, err := c.listInNamespace(ctx, hc.GetNamespace(), hcNamespaceGVRs)
-		if err != nil {
-			return nil, fmt.Errorf("list HostedCluster namespace %q: %w", hc.GetNamespace(), err)
-		}
-		resources = append(resources, nsResources...)
-
-		// HostedControlPlane namespace is always <hc-namespace>-<hc-name>.
-		hcpNSName := hc.GetNamespace() + "-" + hc.GetName()
-		if hcpNS, ok := namespacesByName[hcpNSName]; ok {
-			resources = append(resources, *hcpNS)
-		}
-	}
-	return resources, nil
-}
-
-func (c *Controller) listInNamespace(ctx context.Context, namespace string, gvrs []schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
-	resources := make([]unstructured.Unstructured, 0)
-	for _, gvr := range gvrs {
-		items, err := c.listNamespaced(ctx, gvr, namespace)
+	return c.ensureResourcesNotACMOwned(ctx, "HostedCluster", func(ctx context.Context) ([]unstructured.Unstructured, error) {
+		tracked, err := listHostedClusterOwnershipResources(ctx, c.dynamicClient)
 		if err != nil {
 			return nil, err
 		}
-		resources = append(resources, items...)
-	}
-	return resources, nil
-}
-
-func (c *Controller) namespacesByName(ctx context.Context) (map[string]*unstructured.Unstructured, error) {
-	items, err := c.listClusterScoped(ctx, schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"})
-	if err != nil {
-		return nil, err
-	}
-	byName := make(map[string]*unstructured.Unstructured, len(items))
-	for i := range items {
-		byName[items[i].GetName()] = &items[i]
-	}
-	return byName, nil
-}
-
-func (c *Controller) listClusterScoped(ctx context.Context, gvr schema.GroupVersionResource) ([]unstructured.Unstructured, error) {
-	list, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
-	if apiGone(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("list %s: %w", gvr.String(), err)
-	}
-	return list.Items, nil
-}
-
-func (c *Controller) listNamespaced(ctx context.Context, gvr schema.GroupVersionResource, namespace string) ([]unstructured.Unstructured, error) {
-	list, err := c.dynamicClient.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
-	if apiGone(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("list %s in namespace %q: %w", gvr.String(), namespace, err)
-	}
-	return list.Items, nil
+		items := make([]unstructured.Unstructured, 0, len(tracked))
+		for i := range tracked {
+			items = append(items, tracked[i].obj)
+		}
+		return items, nil
+	})
 }
 
 // ownedByACM reports whether any ownerReference is from ACM
 // (AppliedManifestWork or any open-cluster-management.io API group).
 func ownedByACM(obj metav1.Object) bool {
 	for _, ref := range obj.GetOwnerReferences() {
-		if ref.Kind == "AppliedManifestWork" {
-			return true
-		}
-		gv, err := schema.ParseGroupVersion(ref.APIVersion)
-		if err != nil {
-			continue
-		}
-		if strings.HasSuffix(gv.Group, "open-cluster-management.io") {
+		if isACMOwnerReference(ref) {
 			return true
 		}
 	}
 	return false
 }
 
+func stringsHasOCMSuffix(group string) bool {
+	return strings.HasSuffix(group, "open-cluster-management.io")
+}
+
 func objectRef(obj *unstructured.Unstructured) string {
-	if obj.GetNamespace() == "" {
+	if len(obj.GetNamespace()) == 0 {
 		return fmt.Sprintf("%s/%s", obj.GetKind(), obj.GetName())
 	}
 	return fmt.Sprintf("%s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())

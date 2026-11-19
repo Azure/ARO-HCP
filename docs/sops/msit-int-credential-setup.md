@@ -40,7 +40,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    Templatize runs the certificate step with the invoking OWNERS member's Azure
    CLI credentials. Auth is by pinned leaf **thumbprint**, not SNI. Follow the
    disruptive rotation procedure in
-   [DEV Mock Identities](../ci/dev-mock-identities.md#disruptive-certificate-rotation)
+   [DEV Mock Identities](../ci/dev-mock-identities.md#rotating-a-certificate)
    when a certificate must be replaced.
 
 1. **Update configuration**

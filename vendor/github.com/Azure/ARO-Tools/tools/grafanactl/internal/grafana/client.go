@@ -226,6 +226,108 @@ func (c *Client) ListDataSources(ctx context.Context) ([]Datasource, error) {
 	return result, nil
 }
 
+// ReconcileDatasourceEndpoints repairs managed datasource URLs without replacing
+// their identities or authentication configuration.
+func (c *Client) ReconcileDatasourceEndpoints(ctx context.Context, logger logr.Logger, workspaceEndpoints map[string]string, dryRun bool) error {
+	sources, err := c.ListDataSources(ctx)
+	if err != nil {
+		return err
+	}
+	var failures []error
+	for _, source := range sources {
+		if source.Type != "prometheus" || !strings.HasPrefix(source.Name, "Managed_Prometheus_") {
+			continue
+		}
+		name := strings.ToLower(strings.TrimPrefix(source.Name, "Managed_Prometheus_"))
+		endpoint, found := workspaceEndpoints[name]
+		if !found || strings.TrimRight(source.URL, "/") == strings.TrimRight(endpoint, "/") {
+			continue
+		}
+		sourceLogger := logger.WithValues("datasource-uid", source.UID, "workspace-name", name, "endpoint", endpoint)
+		if dryRun {
+			sourceLogger.Info("Dry run - would update datasource endpoint")
+			continue
+		}
+		if err := c.updateDatasourceEndpoint(ctx, source, endpoint); err != nil {
+			failures = append(failures, fmt.Errorf("failed to update datasource %q: %w", source.UID, err))
+			continue
+		}
+		sourceLogger.Info("Updated datasource endpoint")
+	}
+	return errors.Join(failures...)
+}
+
+func (c *Client) updateDatasourceEndpoint(ctx context.Context, source Datasource, endpoint string) error {
+	if source.UID == "" {
+		return fmt.Errorf("datasource UID is empty")
+	}
+	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)
+	defer cancel()
+	response, err := c.datasourceRequest(ctx, http.MethodGet, source.UID, nil)
+	if err != nil {
+		return err
+	}
+	var payloadFields map[string]json.RawMessage
+	if err := json.Unmarshal(response, &payloadFields); err != nil {
+		return fmt.Errorf("failed to decode datasource: %w", err)
+	}
+	var current Datasource
+	if err := json.Unmarshal(response, &current); err != nil {
+		return fmt.Errorf("failed to decode datasource identity: %w", err)
+	}
+	if current.UID != source.UID || current.Name != source.Name || current.Type != source.Type {
+		return fmt.Errorf("datasource identity changed since discovery")
+	}
+	var version int64
+	if err := json.Unmarshal(payloadFields["version"], &version); err != nil || version <= 0 {
+		return fmt.Errorf("datasource has no valid version for a concurrency-protected update")
+	}
+	// Secure values are not returned by GET. Omitting them from PUT retains
+	// Grafana's stored credentials; secureJsonFields is only presence metadata.
+	delete(payloadFields, "secureJsonFields")
+	delete(payloadFields, "secureJsonData")
+	endpointJSON, err := json.Marshal(endpoint)
+	if err != nil {
+		return err
+	}
+	payloadFields["url"] = endpointJSON
+	payload, err := json.Marshal(payloadFields)
+	if err != nil {
+		return fmt.Errorf("failed to encode datasource: %w", err)
+	}
+	_, err = c.datasourceRequest(ctx, http.MethodPut, source.UID, payload)
+	return err
+}
+
+func (c *Client) datasourceRequest(ctx context.Context, method, uid string, payload []byte) (body []byte, resultErr error) {
+	requestURL := c.apiBase.JoinPath("datasources", "uid", uid)
+	request, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	if c.token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("datasource %s request failed: %w", method, err)
+	}
+	defer func() { resultErr = errors.Join(resultErr, response.Body.Close()) }()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("datasource %s returned HTTP %d", method, response.StatusCode)
+	}
+	body, err = io.ReadAll(io.LimitReader(response.Body, grafanaDashboardMaxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read datasource response: %w", err)
+	}
+	if int64(len(body)) > grafanaDashboardMaxBytes {
+		return nil, fmt.Errorf("datasource response exceeds %d bytes", grafanaDashboardMaxBytes)
+	}
+	return body, nil
+}
+
 // DeleteDataSource removes a datasource from the Grafana instance by name.
 func (c *Client) DeleteDataSource(ctx context.Context, dataSourceName string) error {
 	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)

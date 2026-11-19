@@ -26,61 +26,12 @@ param identities array
 @minLength(1)
 param ownerIds string
 
-@description('Number of pooled MSI mock identities to create')
-param poolSize int = 0
-
-@description('Base application name for pooled identities (e.g. aro-dev-msi-mock-pool)')
-@minLength(1)
-param poolAppBaseName string
-
-@description('Number of pooled ARM helper identities to create')
-param armHelperPoolSize int = 0
-
-@description('Base application name for pooled ARM helper identities')
-@minLength(1)
-param armHelperPoolAppBaseName string = 'unused'
-
 module sharedApps '../modules/entra/app.bicep' = [
   for identity in identities: {
     name: 'mock-app-${identity.applicationName}'
     params: {
       applicationName: identity.applicationName
       uniqueName: toLower(replace(identity.applicationName, ' ', '-'))
-      ownerIds: ownerIds
-      ownerRelationshipSemantics: 'replace'
-      manageSp: true
-    }
-  }
-]
-
-// Each pool entry is its own nested deployment in the target resource group
-// (counted against the 800 per-RG deployment history limit) and its own Graph
-// app+SP create. Bound concurrency instead of fanning out all entries at once;
-// the two pools run side by side, so up to 2 x batchSize entries are in flight.
-// ARM does not start later batches once a batch has failed, so the pipeline step
-// needs automatedRetry.maximumRetryCount >= ceil(size / batchSize) + 1 to create
-// a whole pool from scratch (each new batch fails once on Graph replication lag).
-@batchSize(15)
-module poolApps '../modules/entra/app.bicep' = [
-  for i in range(0, poolSize): {
-    name: 'mock-app-pool-${i}'
-    params: {
-      applicationName: '${poolAppBaseName}-${i}'
-      uniqueName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
-      ownerIds: ownerIds
-      ownerRelationshipSemantics: 'replace'
-      manageSp: true
-    }
-  }
-]
-
-@batchSize(15)
-module armHelperPoolApps '../modules/entra/app.bicep' = [
-  for i in range(0, armHelperPoolSize): {
-    name: 'mock-app-arm-helper-pool-${i}'
-    params: {
-      applicationName: '${armHelperPoolAppBaseName}-${i}'
-      uniqueName: toLower(replace('${armHelperPoolAppBaseName}-${i}', ' ', '-'))
       ownerIds: ownerIds
       ownerRelationshipSemantics: 'replace'
       manageSp: true

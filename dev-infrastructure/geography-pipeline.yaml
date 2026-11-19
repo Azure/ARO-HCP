@@ -46,6 +46,7 @@ resourceGroups:
     - japaneast
     - swedencentral
     - eastasia
+    - westus2
   steps:
   - name: subscription-lookup
     action: ARM
@@ -87,6 +88,7 @@ resourceGroups:
     - japaneast
     - swedencentral
     - eastasia
+    - westus2
   steps:
   - name: deploy
     action: ARM
@@ -215,6 +217,7 @@ resourceGroups:
       errorContainsAny:
       - "InternalServerError"
       - "Internal server error"
+      - "Internal service error"
       - "connection refused"
       - "context deadline exceeded"
       - "missing a valid aroHCPEnvironment tag"

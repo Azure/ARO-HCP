@@ -9,7 +9,7 @@
 # - Known shared envs (dev/perf/int/stg/prod) with persist=true: skipped.
 # - Any RG with persist=true (not already matched above): delete after 15d.
 # - Default: delete any other RG after 2d.
-# Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
+# Delete rules need a parseable tags.createdAt; see docs/ci/cleanup.md and scripts/ for Azure Policy.
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:

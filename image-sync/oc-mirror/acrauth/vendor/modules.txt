@@ -1,4 +1,4 @@
-# github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20261029184915-ae250b4c53dd
+# github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/acrauth
 # github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0

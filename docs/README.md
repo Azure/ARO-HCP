@@ -89,42 +89,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 ### Testing and CI
 
 - [CI Overview](ci/README.md)
-  - Entry point for the CI documentation set
-  - Explains which CI modes exist and where to go next
-- [CI Execution](ci/execution.md)
-  - How PR validation, EV2 gating, and periodic jobs actually work
-  - Cross-tenant Azure flow for DEV, INT, STG, and PROD
-- [Dev-CI Topology](ci/dev-ci-topology.md)
-  - Standalone `dev-ci` rollout, persistent CI-supporting infrastructure, and service-group ownership
-  - Current mixed-management boundary for the DEV MSI mock SP pool and the long-term declarative direction
-- [E2E Subscription Onboarding](ci/e2e-subscription-onboarding.md)
-  - Procedure for onboarding E2E customer subscriptions across all environments (DEV, INT, STG, PROD)
-  - Covers slot catalog, Boskos, cluster-profile inventory, and `dev-ci` bootstrap RBAC updates
-- [CI Image Lifecycle](ci/image-lifecycle.md)
-  - Shared CI build root, job-local image graph, and local E2E image injection
-  - CI promotion inside OpenShift CI vs service-image mirroring to ACR
-- [CI Identity Leasing](ci/identity-leasing.md)
-  - Managed identity container pool and MSI mock SP pool deep dive
-  - Release-side lease contract, pool sizing, and troubleshooting
-- [DEV CI Monitoring and Alert Response](ci/dev-ci-monitoring.md)
-  - Canonical Slack and PagerDuty runbook for DEV CI alerts
-  - Exporter checks, durable troubleshooting paths, routing maintenance, and validation
-- [Opstool CI Platform](ci/opstool.md)
-  - Standalone cluster architecture, rollout model, shared resource wiring, and workload patterns
-- [CI EV2 Integration](ci/ev2-integration.md)
-  - How EV2 selects Prow jobs and authenticates through Gangway
-  - Commit pinning, rollout metadata, and promotion gating
-- [CI Cleanup](ci/cleanup.md)
-  - Cleanup modes: strict per-test, targeted teardown, background hygiene
-  - Design rationale and behavioral differences across environments
-- [E2E Testing in CI](ci/e2e-testing.md)
-  - How to trigger E2E jobs from PRs
-  - How to narrow test selection safely
-- [Incident-Only E2E Acknowledgement](ci/e2e-ci-kill-switch.md)
-  - Temporary acknowledgement requirement for automatic E2E
-- [CI Operations](ci/operations.md)
-  - How to trigger, inspect, troubleshoot, and change CI
-  - Tiny source-of-truth appendix for job families
+  - Entry point for the CI documentation set: what each CI mode validates, how E2E slots and their identities work, how to operate and troubleshoot CI
 - [Snapshot Gathering and Analysis](snapshot-analysis.md)
   - Using `hcpctl snapshot` to gather diagnostics and run LLM-driven root cause analysis
 

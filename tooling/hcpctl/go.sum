@@ -20,8 +20,8 @@ cloud.google.com/go/storage v1.62.1 h1:Os0G3XbUbjZumkpDUf2Y0rLoXJTCF1kU2kWUujKYX
 cloud.google.com/go/storage v1.62.1/go.mod h1:cpYz/kRVZ+UQAF1uHeea10/9ewcRbxGoGNKsS9daSXA=
 cloud.google.com/go/trace v1.11.7 h1:kDNDX8JkaAG3R2nq1lIdkb7FCSi1rCmsEtKVsty7p+U=
 cloud.google.com/go/trace v1.11.7/go.mod h1:TNn9d5V3fQVf6s4SCveVMIBS2LJUqo73GACmq/Tky0s=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd h1:xA8uBGcmaXbNxC95SVfzVyRiNsK/+Bfi/H9tgrDEykI=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:AkTVKg1qrn1qSXrE8siTuChtKLuXDsToerjcSnZ23eM=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c h1:gzCt2e73oBHQNUyqBYg/2OR8oSpw3sDFtmFxv0fkoOg=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c/go.mod h1:0sAsLmwMYWCYtSU2sVMUsp4nWZq7ZDXxwZl5u74aj74=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.3 h1:ibMvbLBn4tTc1lwgjK7+HmJQnqjmE4ml9NocYNn6FJg=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.3/go.mod h1:nVZRkSE5p7eT2k9jMWSo9Uosi/H6Lig2pxtETP+rX/U=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3 h1:qgnWTiWs1G7AqcKZegFvkJD1bmXJcaDU3uC0ELSgZ5U=

@@ -7,5 +7,6 @@ prometheusRules:
   - alerts/UserJourneyEtcdLatencyRecord-prometheusRule.yaml
   - recording-rules/ingress-availability-slo-recordingRule.yaml
   - recording-rules/node-drain-recordingRule.yaml
+  - alerts/swift-networking-recordingRule-KSM.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep

@@ -601,7 +601,7 @@ Inspect the selected suite's concurrency in
 `ARO_HCP_SUITE_PARALLELISM`, the acquired lease and `--max-concurrency` can affect
 the effective worker count. Identity-container admission is an independent
 resource ceiling, not a CPU reservation; a single spec can require multiple
-containers. See [identity leasing and capacity planning](../../docs/ci/identity-leasing.md#pool-sizing-and-subscription-constraints).
+containers. See [capacity and quotas](../../docs/ci/e2e-capacity.md#role-assignment-quota).
 
 Check live family and regional usage/limits before enabling a pool or increasing
 concurrency, and retain operational margin in both. Do not copy a subscription's
