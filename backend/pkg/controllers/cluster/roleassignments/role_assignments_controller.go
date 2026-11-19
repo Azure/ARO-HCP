@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -89,6 +90,11 @@ type clusterRoleAssignmentsSyncer struct {
 	deploymentStackDesireLister  azureresourceslisters.DeploymentStackDesireLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	azureResourcesDBClient       azureresourcescosmosstorage.AzureResourcesDBClient
+	// mockFirstPartyApplicationRoleAssignmentsEnabled is true when the backend runs without a
+	// real First Party Application. In that case the operator role assignments stack is applied
+	// by an identity whose permissions over the managed resource group come from the mock FPA
+	// role assignments, so publishing must wait until those are live. It is false with a real FPA.
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterRoleAssignmentsSyncer)(nil)
@@ -101,6 +107,7 @@ func NewClusterRoleAssignmentsController(
 	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -108,11 +115,12 @@ func NewClusterRoleAssignmentsController(
 	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 
 	syncer := &clusterRoleAssignmentsSyncer{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		subscriptionLister:           subscriptionLister,
-		deploymentStackDesireLister:  deploymentStackDesireLister,
-		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                                   clusterLister,
+		serviceProviderClusterLister:                    serviceProviderClusterLister,
+		subscriptionLister:                              subscriptionLister,
+		deploymentStackDesireLister:                     deploymentStackDesireLister,
+		resourcesDBClient:                               resourcesDBClient,
+		mockFirstPartyApplicationRoleAssignmentsEnabled: mockFirstPartyApplicationRoleAssignmentsEnabled,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -138,6 +146,13 @@ func NewClusterRoleAssignmentsController(
 		panic(err)
 	}
 	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.RoleAssignmentsDeploymentStackDesireName)
+	// Only without a real FPA is publishing gated on the mock FPA role assignments (see
+	// mockFPARoleAssignmentsConfigured). Subscribe to that desire only in that case, so this
+	// controller wakes up when the mock FPA stack's observed state flips to configured. With a real
+	// FPA the mock FPA desire never exists, so there is nothing to watch.
+	if mockFirstPartyApplicationRoleAssignmentsEnabled {
+		controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	}
 
 	return controller
 }
@@ -204,6 +219,23 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		desiredServiceProviderCluster = persisted
 	}
 
+	// Without a real First Party Application (FPA) identity, the role assignments needed by the Mock FPA identity
+	// over the Managed Resource Group are applied by the Mock FPA identity Role Assignments controllers. Until the azure
+	// deployment stack associated to those is created and successfully applied we do not publish the role assignments
+	// here, because it would fail due to a lack of permissions in the Mock FPA those grants are live. Otherwise the
+	// stack would be created before the Mock FPA identity has permissions on the managed resource group, producing
+	// authorization errors until the Mock FPA role assignments exist.
+	if s.mockFirstPartyApplicationRoleAssignmentsEnabled {
+		configured, err := s.mockFPARoleAssignmentsConfigured(ctx, key, desiredServiceProviderCluster)
+		if err != nil {
+			return err
+		}
+		if !configured {
+			logger.Info("waiting for mock FPA role assignments to be created and successfully reconciled before publishing operator role assignments")
+			return nil
+		}
+	}
+
 	// The role assignments stack is applied as the cluster's First Party Application, which
 	// needs the tenant the FPA authenticates in. Resolve it from the subscription document.
 	subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)
@@ -225,6 +257,22 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	}
 
 	return nil
+}
+
+// mockFPARoleAssignmentsConfigured reports whether the mock FPA role assignments over the
+// managed resource group are live in Azure per a current, successful reconciliation of the mock
+// FPA DeploymentStackDesire. Callers gate on the mockFirstPartyApplicationRoleAssignmentsEnabled
+// flag before calling this; it reports only the fact, not the policy. A not-yet-published desire
+// (NotFound) is treated as not configured.
+func (s *clusterRoleAssignmentsSyncer) mockFPARoleAssignmentsConfigured(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	desire, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
+	}
+	return coreapihelpers.MockFPARoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
 }
 
 // confirmedManagedResourceGroupID returns the resource ID of the managed resource group

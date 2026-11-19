@@ -269,6 +269,86 @@ func TestClusterRoleAssignmentsSyncOnceReservesIDsAndCreatesStackDesire(t *testi
 	}
 }
 
+// managedMockFPADesire builds a mock FPA role assignments DeploymentStackDesire whose currently
+// published spec was successfully applied and reports every reservedID as managed, so
+// coreapihelpers.MockFPARoleAssignmentsConfigured treats assignments reserving those IDs as live.
+func managedMockFPADesire(t *testing.T, reservedIDs ...*azcorearm.ResourceID) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	resourceID := metadataapi.Must(azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(
+		testSubscriptionID, testResourceGroupName, testClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName,
+	))
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(reservedIDs))
+	for _, id := range reservedIDs {
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{ID: ptr.To(id.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)})
+	}
+	d := &azureresourcesapi.DeploymentStackDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
+		Status: azureresourcesapi.DeploymentStackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Resources: resources}},
+		},
+	}
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(d.Spec)
+	require.NoError(t, err)
+	d.Status.ObservedSpecHash = hash
+	d.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	return d
+}
+
+func TestClusterRoleAssignmentsSyncOnceWaitsForMockFPARoleAssignments(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: testReservableStatus(keys[0]),
+	})
+
+	// Mock FPA role assignments are enabled but not yet live (no mock FPA desire published).
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+	mockAzureResourcesDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB, mockAzureResourcesDB)
+	syncer.mockFirstPartyApplicationRoleAssignmentsEnabled = true
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	assert.Nil(t, getRoleAssignmentsStackDesire(t, ctx, mockAzureResourcesDB), "operator role assignments must not be published until the mock FPA grants are live")
+	// Reservation is harmless bookkeeping and runs before the gate, so IDs are reserved even while
+	// the publish is held back - the gate is scoped to the publish, not the reservation.
+	updated := getUpdatedServiceProviderCluster(t, ctx, mockResourcesDB)
+	assert.NotNil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]].ReservedAzureResourceID, "IDs are reserved (bookkeeping) but the stack must not be published while gated")
+}
+
+func TestClusterRoleAssignmentsSyncOncePublishesOnceMockFPARoleAssignmentsConfigured(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: testReservableStatus(keys[0]),
+	})
+	// Mock FPA grant is live: the SPC records a reserved assignment and the mock FPA desire reports it managed.
+	mockReserved := metadataapi.Must(azcorearm.ParseResourceID(testManagedResourceGroupID(t).String() + "/providers/Microsoft.Authorization/roleAssignments/99999999-9999-9999-9999-999999999999"))
+	serviceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
+		{PrincipalID: "mock-fpa", RoleDefinitionResourceID: "/providers/microsoft.authorization/roledefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}: {ReservedAzureResourceID: mockReserved},
+	}
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+	mockAzureResourcesDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{managedMockFPADesire(t, mockReserved)})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB, mockAzureResourcesDB)
+	syncer.mockFirstPartyApplicationRoleAssignmentsEnabled = true
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	assert.NotNil(t, getRoleAssignmentsStackDesire(t, ctx, mockAzureResourcesDB), "operator role assignments must publish once the mock FPA grants are live")
+}
+
 func TestClusterRoleAssignmentsSyncOnceNoOpWhenSpecUnchanged(t *testing.T) {
 	t.Parallel()
 

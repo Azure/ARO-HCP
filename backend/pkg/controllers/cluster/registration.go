@@ -1162,6 +1162,7 @@ func instantiateClusterRoleAssignmentsController(controllerContext controllercon
 		controllerContext.AzureResourcesDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.AzureResourcesInformers,
+		!controllerContext.HasRealFPA,
 	), nil
 }
 
