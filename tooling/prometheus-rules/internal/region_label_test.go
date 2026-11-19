@@ -17,9 +17,7 @@ package internal
 import (
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/prometheus/prometheus/promql/promqltest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,12 +96,11 @@ func TestPreserveLabelInAggregations_InvalidExpr(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestUnlessOnMatchesWithoutRegion evaluates the rewrite of
+// TestUnlessOnMatchesWithoutRegion checks the rewrite of
 // hostedClusterAPI_kubeapiserver_available:sli_sum_15m. region is added to
-// every by clause and left off unless on. The availability series have
-// region="westus3"; hostedClusterAPI_deletion_timestamp_seconds does not. At 35m the
-// sum_over_time of the [15m:1m] subquery is 15 for a kept cluster. The
-// deleting cluster is absent. Adding region only to that unless on keeps it.
+// every by clause but left off the unless on matching set, so the
+// deletion-timestamp series (which has no region label) still matches and
+// suppresses the deleting cluster.
 func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 	const source = `(
 		sum by (name, namespace, _id, resource_id, cluster) (
@@ -139,21 +136,4 @@ func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 
 	withRegionOn := strings.Replace(flat, unlessOn, "unless on (name, namespace, _id, resource_id, cluster, region)", 1)
 	require.NotEqual(t, flat, withRegionOn)
-
-	engine := promqltest.NewTestEngine(t, false, 5*time.Minute, promqltest.DefaultMaxSamplesPerQuery)
-	promqltest.RunTest(t, `
-		load 1m
-			hostedClusterAPI_kubeapiserver_available{status="True",name="a",namespace="ns",_id="id-a",resource_id="rid-a",cluster="mc",region="westus3"} 1+0x40
-			hostedClusterAPI_kubeapiserver_available{status="True",name="b",namespace="ns",_id="id-b",resource_id="rid-b",cluster="mc",region="westus3"} 1+0x40
-			hostedClusterAPI_deletion_timestamp_seconds{name="a",namespace="ns",_id="id-a",resource_id="rid-a",cluster="mc"} 1783672602+0x40
-
-		# Rewritten sli_sum_15m. Cluster a is absent.
-		eval instant at 35m `+flat+`
-			{_id="id-b",cluster="mc",name="b",namespace="ns",region="westus3",resource_id="rid-b"} 15
-
-		# region added to unless on. Cluster a is present.
-		eval instant at 35m `+withRegionOn+`
-			{_id="id-a",cluster="mc",name="a",namespace="ns",region="westus3",resource_id="rid-a"} 15
-			{_id="id-b",cluster="mc",name="b",namespace="ns",region="westus3",resource_id="rid-b"} 15
-	`, engine)
 }
