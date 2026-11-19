@@ -1,0 +1,245 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package github
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	gh "github.com/google/go-github/v69/github"
+)
+
+// PublicationRequest describes a caller-prepared, already-pushed branch. Publish never changes Git refs.
+// HeadRepository is the exact source repository, including a fork when publishing across repositories.
+// ExpectedBase is the required base branch tip, checked read-only before and after publication.
+// Marker must be an exact standalone HTML comment owned by the caller, not a substring of another marker.
+// Existing proposals retain their readiness; newly created proposals are always drafts.
+type PublicationRequest struct {
+	HeadRepository string
+	HeadRef        string
+	ExpectedHead   string
+	BaseRef        string
+	ExpectedBase   string
+	Actor          string
+	Marker         string
+	Title          string
+	Body           string
+	ExpectedFiles  []string
+}
+
+// HasMarker matches an exact marker line, avoiding substring ownership claims.
+func hasMarker(body, marker string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		if line == marker {
+			return true
+		}
+	}
+	return false
+}
+
+// BranchHead reads one branch tip without modifying it.
+func (c *Client) branchHead(ctx context.Context, repository, ref string) (string, error) {
+	parts := strings.Split(repository, "/")
+	v, _, err := c.api.Repositories.GetBranch(ctx, parts[0], parts[1], ref, 1)
+	if err != nil {
+		return "", err
+	}
+	if !shaPattern.MatchString(v.GetCommit().GetSHA()) {
+		return "", ErrEvidenceIncomplete
+	}
+	return v.GetCommit().GetSHA(), nil
+}
+
+// PublicationHeads checks the caller's prepared branch and explicit read-only base expectation.
+func (c *Client) publicationHeads(ctx context.Context, r PublicationRequest) error {
+	head, err := c.branchHead(ctx, r.HeadRepository, r.HeadRef)
+	if err != nil {
+		return err
+	}
+	base, err := c.branchHead(ctx, c.owner+"/"+c.repo, r.BaseRef)
+	if err != nil {
+		return err
+	}
+	if head != r.ExpectedHead || base != r.ExpectedBase {
+		return ErrConflict
+	}
+	return nil
+}
+
+// OwnedPulls inventories all open proposals before selecting an exact owned identity.
+func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRequest, error) {
+	records, err := paginate(func(o *gh.ListOptions) ([]*gh.PullRequest, *gh.Response, error) {
+		return c.api.PullRequests.List(ctx, c.owner, c.repo, &gh.PullRequestListOptions{State: "open", ListOptions: *o})
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[int]bool{}
+	var owned []PullRequest
+	for _, v := range records {
+		if v == nil || v.GetNumber() <= 0 || seen[v.GetNumber()] {
+			return nil, ErrEvidenceIncomplete
+		}
+		seen[v.GetNumber()] = true
+		p, err := c.PullRequest(ctx, v.GetNumber())
+		if err != nil {
+			return nil, err
+		}
+		sameBranch := p.HeadRepo == r.HeadRepository && p.HeadRef == r.HeadRef
+		sameMarker := hasMarker(p.Body, r.Marker)
+		if !sameBranch && !sameMarker {
+			continue
+		}
+		if !sameBranch || !sameMarker || p.Author != r.Actor || p.BaseRef != r.BaseRef || p.HeadSHA != r.ExpectedHead || p.State != "open" || p.Merged {
+			return nil, ErrConflict
+		}
+		owned = append(owned, p)
+	}
+	if len(owned) > 1 {
+		return nil, ErrConflict
+	}
+	return owned, nil
+}
+
+// VerifyFiles compares every paginated PR file with the caller's exact expected path set.
+func (c *Client) verifyFiles(ctx context.Context, number int, expected []string) error {
+	files, err := paginate(func(o *gh.ListOptions) ([]*gh.CommitFile, *gh.Response, error) {
+		return c.api.PullRequests.ListFiles(ctx, c.owner, c.repo, number, o)
+	})
+	if err != nil {
+		return err
+	}
+	// GitHub caps this endpoint at 3000 files, so reaching that bound is not complete evidence.
+	if len(files) >= 3000 {
+		return ErrEvidenceIncomplete
+	}
+	want := make(map[string]bool, len(expected))
+	for _, path := range expected {
+		if path == "" || want[path] {
+			return fmt.Errorf("invalid expected files")
+		}
+		want[path] = true
+	}
+	seen := map[string]bool{}
+	for _, f := range files {
+		if f == nil || f.GetFilename() == "" || seen[f.GetFilename()] {
+			return ErrEvidenceIncomplete
+		}
+		seen[f.GetFilename()] = true
+		if !want[f.GetFilename()] {
+			return ErrConflict
+		}
+	}
+	if len(seen) != len(want) {
+		return ErrConflict
+	}
+	return nil
+}
+
+// Publish finds, creates or updates exactly one owned proposal and verifies all remote evidence.
+// Write failures are indeterminate, never automatically retried. Concurrent publishers require external serialization.
+// GitHub cannot atomically condition PR metadata writes on a head SHA; post-write races fail indeterminate.
+func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, error) {
+	receipt := Receipt{RequestedHead: r.ExpectedHead, Outcome: "not-applicable"}
+	if !repositoryPattern.MatchString(r.HeadRepository) || r.HeadRef == "" || r.BaseRef == "" || (r.HeadRepository == c.owner+"/"+c.repo && r.HeadRef == r.BaseRef) || !shaPattern.MatchString(r.ExpectedHead) || !shaPattern.MatchString(r.ExpectedBase) || r.Actor == "" || strings.TrimSpace(r.Title) == "" || !strings.HasPrefix(r.Marker, "<!-- ") || !strings.HasSuffix(r.Marker, " -->") || strings.ContainsAny(r.Marker, "\r\n") || strings.Count(r.Marker, "<!--") != 1 || strings.Count(r.Marker, "-->") != 1 || !hasMarker(r.Body, r.Marker) || len(r.ExpectedFiles) == 0 {
+		return receipt, fmt.Errorf("invalid publication request")
+	}
+	paths := map[string]bool{}
+	for _, p := range r.ExpectedFiles {
+		if p == "" || paths[p] {
+			return receipt, fmt.Errorf("invalid expected files")
+		}
+		paths[p] = true
+	}
+	actor, err := c.Actor(ctx)
+	if err != nil {
+		return receipt, err
+	}
+	if actor != r.Actor {
+		return receipt, ErrConflict
+	}
+	receipt.Author = actor
+	if err = c.publicationHeads(ctx, r); err != nil {
+		return receipt, err
+	}
+	owned, err := c.ownedPulls(ctx, r)
+	if err != nil {
+		return receipt, err
+	}
+	var prior *PullRequest
+	if len(owned) == 1 {
+		prior = &owned[0]
+		receipt.Number = prior.Number
+		if err = c.verifyFiles(ctx, prior.Number, r.ExpectedFiles); err != nil {
+			return receipt, err
+		}
+	}
+	if err = c.publicationHeads(ctx, r); err != nil {
+		return receipt, err
+	}
+	receipt.Outcome = "requested"
+	if prior == nil {
+		head := r.HeadRef
+		var headRepo *string
+		if r.HeadRepository != c.owner+"/"+c.repo {
+			parts := strings.Split(r.HeadRepository, "/")
+			head = parts[0] + ":" + r.HeadRef
+			headRepo = &parts[1]
+		}
+		p, _, writeErr := c.writer.PullRequests.Create(ctx, c.owner, c.repo, &gh.NewPullRequest{Title: &r.Title, Body: &r.Body, Head: &head, HeadRepo: headRepo, Base: &r.BaseRef, Draft: gh.Ptr(true)})
+		if writeErr != nil || p == nil || p.GetNumber() <= 0 {
+			receipt.Outcome = "indeterminate"
+			return receipt, ErrIndeterminate
+		}
+		receipt.Number = p.GetNumber()
+	} else if prior.Title != r.Title || prior.Body != r.Body {
+		_, _, writeErr := c.writer.PullRequests.Edit(ctx, c.owner, c.repo, prior.Number, &gh.PullRequest{Title: &r.Title, Body: &r.Body})
+		if writeErr != nil {
+			receipt.Outcome = "indeterminate"
+			return receipt, ErrIndeterminate
+		}
+	}
+	receipt.URL = fmt.Sprintf("https://github.com/%s/%s/pull/%d", c.owner, c.repo, receipt.Number)
+	verified, err := c.ownedPulls(ctx, r)
+	if err != nil || len(verified) != 1 || verified[0].Number != receipt.Number {
+		receipt.Outcome = "indeterminate"
+		return receipt, ErrIndeterminate
+	}
+	p := verified[0]
+	if p.Title != r.Title || p.Body != r.Body || (prior == nil && !p.Draft) || (prior != nil && p.Draft != prior.Draft) {
+		receipt.Outcome = "indeterminate"
+		return receipt, ErrIndeterminate
+	}
+	if err = c.verifyFiles(ctx, p.Number, r.ExpectedFiles); err != nil {
+		receipt.Outcome = "indeterminate"
+		return receipt, ErrIndeterminate
+	}
+	if err = c.publicationHeads(ctx, r); err != nil {
+		receipt.Outcome = "indeterminate"
+		return receipt, ErrIndeterminate
+	}
+	latest, err := c.boundPull(ctx, p.Number, r.ExpectedHead)
+	if err != nil || latest.HeadRepo != r.HeadRepository || latest.HeadRef != r.HeadRef || latest.BaseRef != r.BaseRef || latest.Author != r.Actor || latest.State != "open" || latest.Merged || latest.Title != r.Title || latest.Body != r.Body || latest.Draft != p.Draft {
+		receipt.Outcome = "indeterminate"
+		return receipt, ErrIndeterminate
+	}
+	receipt.ObservedHead = p.HeadSHA
+	receipt.HeadSHA = p.HeadSHA
+	receipt.HeadRepo = p.HeadRepo
+	receipt.Base = p.BaseRef
+	receipt.Outcome = "observed"
+	return receipt, nil
+}
