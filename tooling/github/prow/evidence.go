@@ -167,9 +167,8 @@ type ciState struct {
 	url   string
 }
 
-// Selects latest commit statuses and the source's latest check runs.
-// Tide is not CI. Unknown, missing required and pending evidence fail closed.
-func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
+// Selects current commit statuses without discarding history needed for baselines.
+func latestStatuses(snapshot github.Snapshot) (map[string]github.Status, error) {
 	latest := map[string]github.Status{}
 	seenStatuses := map[int]github.Status{}
 	for _, status := range snapshot.Statuses {
@@ -186,6 +185,15 @@ func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
 		if !ok || created.After(priorTime) || (created.Equal(priorTime) && status.ID > prior.ID) {
 			latest[status.Context] = status
 		}
+	}
+	return latest, nil
+}
+
+// Selects terminal current CI; Tide, missing required and pending evidence fail closed.
+func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
+	latest, err := latestStatuses(snapshot)
+	if err != nil {
+		return nil, err
 	}
 	states := map[string]ciState{}
 	for name, status := range latest {
@@ -245,7 +253,7 @@ func terminal(state string) (string, error) {
 	}
 }
 
-// Validates diagnosis links against a required current failure and same-job run.
+// Validates diagnosis links and retains exact current context, bucket and job targets.
 func (c *Client) retestEligible(snapshot github.Snapshot, request RetestRequest) (map[string]bool, error) {
 	states, err := c.ci(snapshot)
 	if err != nil {
@@ -263,8 +271,10 @@ func (c *Client) retestEligible(snapshot github.Snapshot, request RetestRequest)
 	matched := false
 	for _, name := range c.config.RequiredChecks {
 		state := states[name]
-		if state.state == "failure" {
-			targets[name] = true
+		if state.state == "failure" && (request.Job == "" || state.url == request.FailureURL) {
+			if run := prowRun.FindStringSubmatch(state.url); run != nil {
+				targets[name+"\x00"+run[1]+"/"+run[3]] = true
+			}
 			if state.url == request.FailureURL {
 				matched = true
 			}
@@ -272,13 +282,6 @@ func (c *Client) retestEligible(snapshot github.Snapshot, request RetestRequest)
 	}
 	if !matched {
 		return nil, errors.New("failure URL must identify a current failing required check")
-	}
-	if request.Job != "" {
-		for name := range targets {
-			if states[name].url != request.FailureURL {
-				delete(targets, name)
-			}
-		}
 	}
 	return targets, nil
 }
@@ -306,8 +309,33 @@ func runs(snapshot github.Snapshot) []runIdentity {
 	return result
 }
 
-// Finds an existing operation in this profile's one-per-head budget. Edited or
-// malformed trusted markers are errors, not permission to spend the budget again.
+// Reconstructs only the originally diagnosed context, bucket and job from trusted
+// comment metadata and exact run history. Missing historical context stays unobservable.
+func (c *Client) priorTargets(snapshot github.Snapshot, body, job string) (map[string]bool, error) {
+	failureURL := ""
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "Failure: ") {
+			if failureURL != "" {
+				return nil, errors.New("ambiguous prior failure metadata")
+			}
+			failureURL = strings.TrimPrefix(line, "Failure: ")
+		}
+	}
+	failure := prowRun.FindStringSubmatch(failureURL)
+	if failure == nil || (job != "" && failure[3] != job) {
+		return nil, errors.New("prior recovery lacks a matching canonical failure URL")
+	}
+	targets := map[string]bool{}
+	for _, run := range runs(snapshot) {
+		if run.identity == failure[1]+"/"+failure[2] && contains(c.config.RequiredChecks, run.name) {
+			targets[run.name+"\x00"+run.job] = true
+		}
+	}
+	return targets, nil
+}
+
+// Finds an existing budget operation, resolving named trigger aliases only through
+// trusted configuration. Edited or malformed metadata never permits another write.
 func (c *Client) prior(snapshot github.Snapshot, action, head string) (Result, bool, error) {
 	ordered, err := orderedComments(snapshot.Comments)
 	if err != nil {
@@ -352,11 +380,25 @@ func (c *Client) prior(snapshot github.Snapshot, action, head string) (Result, b
 		result.baseline[run.identity] = true
 	}
 	if action == "retest" {
-		command := strings.SplitN(found.Body, "\n", 2)[0]
-		for _, run := range runs(snapshot) {
-			if contains(c.config.RequiredChecks, run.name) && (command == "/retest-required" || strings.HasSuffix(run.job, "/"+strings.TrimPrefix(command, "/test "))) {
-				result.targets[run.name+"\x00"+run.job] = true
+		command := commandLine.FindAllString(found.Body, -1)[0]
+		job := ""
+		if command != "/retest-required" {
+			alias := strings.TrimPrefix(command, "/test ")
+			for canonical, configured := range c.config.JobTriggers {
+				if configured == alias {
+					if job != "" {
+						return Result{}, false, errors.New("ambiguous prior Prow trigger alias")
+					}
+					job = canonical
+				}
 			}
+			if job == "" {
+				return Result{}, false, errors.New("unknown prior Prow trigger alias")
+			}
+		}
+		result.targets, err = c.priorTargets(snapshot, found.Body, job)
+		if err != nil {
+			return Result{}, false, err
 		}
 	}
 	return result, true, nil

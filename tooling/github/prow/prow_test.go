@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +87,7 @@ func (s *source) PostComment(ctx context.Context, number int, expectedHead, key,
 }
 
 func config() prow.Config {
-	return prow.Config{Repository: "Azure/ARO-HCP", Actors: prow.Actors{Writer: "automation[bot]", RetryBots: []string{"merge[bot]"}, Controllers: []string{"prow[bot]"}}, BudgetNamespace: "dependency", RequiredChecks: []string{"ci/prow/e2e"}}
+	return prow.Config{Repository: "Azure/ARO-HCP", Actors: prow.Actors{Writer: "automation[bot]", RetryBots: []string{"merge[bot]"}, Controllers: []string{"prow[bot]"}}, BudgetNamespace: "dependency", RequiredChecks: []string{"ci/prow/e2e"}, JobTriggers: map[string]string{"e2e": "e2e"}}
 }
 
 func fixture() *source {
@@ -439,6 +440,10 @@ func TestConfigurationRequiresExplicitPolicy(t *testing.T) {
 		func(c *prow.Config) { c.RequiredChecks = nil },
 		func(c *prow.Config) { c.RequiredChecks = []string{"tide"} },
 		func(c *prow.Config) { c.RequiredChecks = []string{"ci", "ci"} },
+		func(c *prow.Config) { c.JobTriggers = map[string]string{"bad/job": "alias"} },
+		func(c *prow.Config) { c.JobTriggers = map[string]string{"e2e": "/test e2e"} },
+		func(c *prow.Config) { c.JobTriggers = map[string]string{"e2e": ""} },
+		func(c *prow.Config) { c.JobTriggers = map[string]string{"e2e": "same", "unit": "same"} },
 	} {
 		cfg := config()
 		change(&cfg)
@@ -589,5 +594,150 @@ func TestUnknownCrossAuthorCancellationDoesNotTriggerDuplicate(t *testing.T) {
 	})
 	if _, err := client(t, s).ReleaseHold(context.Background(), holdRequest()); err == nil || s.writes != 0 {
 		t.Fatalf("unknown pending cancellation triggered another: err=%v writes=%d", err, s.writes)
+	}
+}
+
+func TestNamedCanonicalJobUsesTrustedTriggerAlias(t *testing.T) {
+	const job = "pull-ci-Azure-ARO-HCP-main-api-validation"
+	s := failing()
+	request := retestRequest()
+	request.Job = job
+	request.FailureURL = strings.ReplaceAll(failureURL, "/e2e/", "/"+job+"/")
+	request.ComparisonURL = strings.ReplaceAll(comparisonURL, "/e2e/", "/"+job+"/")
+	s.snapshot.Statuses[0].Context = "ci/prow/api-validation"
+	s.snapshot.Statuses[0].TargetURL = request.FailureURL
+	cfg := config()
+	cfg.RequiredChecks = []string{"ci/prow/api-validation"}
+	cfg.JobTriggers = map[string]string{job: "api-validation"}
+	c, err := prow.New(s, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.JobTriggers[job] = "mutated-after-construction"
+	result, err := c.Retest(context.Background(), request)
+	if err != nil || result.Receipt.Outcome != "requested" || s.writes != 1 {
+		t.Fatalf("canonical job request result=%+v err=%v writes=%d", result, err, s.writes)
+	}
+	trigger := regexp.MustCompile(`(?m)^/test( | .* )api-validation,?($|\s.*)`)
+	if !trigger.MatchString(s.bodies[0]) || !strings.HasPrefix(s.bodies[0], "/test api-validation\n") {
+		t.Fatalf("command does not match configured Prow trigger: %q", s.bodies[0])
+	}
+	resumedClient := clientWithConfig(t, s, configForJob(job))
+	resumed, err := resumedClient.Retest(context.Background(), request)
+	if err != nil || resumed.Receipt.Outcome != "duplicate" || s.writes != 1 {
+		t.Fatalf("alias could not resume canonical job: result=%+v err=%v", resumed, err)
+	}
+	s.snapshot.Statuses[0].TargetURL = strings.ReplaceAll(newRunURL, "/e2e/", "/"+job+"/")
+	s.snapshot.Statuses[0].State = "pending"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	receipt, err := resumedClient.Observe(ctx, resumed, time.Millisecond)
+	if err != nil || receipt.Outcome != "observed" {
+		t.Fatalf("resumed alias did not target canonical job: receipt=%+v err=%v", receipt, err)
+	}
+}
+
+func configForJob(job string) prow.Config {
+	cfg := config()
+	cfg.RequiredChecks = []string{"ci/prow/api-validation"}
+	cfg.JobTriggers = map[string]string{job: "api-validation"}
+	return cfg
+}
+
+func clientWithConfig(t *testing.T, s *source, cfg prow.Config) *prow.Client {
+	t.Helper()
+	c, err := prow.New(s, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestNamedRetestRequiresMappingBeforeIO(t *testing.T) {
+	for _, triggers := range []map[string]string{nil, {"other": "e2e"}} {
+		s := failing()
+		cfg := config()
+		cfg.JobTriggers = triggers
+		request := retestRequest()
+		request.Job = "e2e"
+		_, err := clientWithConfig(t, s, cfg).Retest(context.Background(), request)
+		if err == nil || s.reads != 0 || s.writes != 0 {
+			t.Fatalf("missing mapping performed IO: err=%v reads=%d writes=%d", err, s.reads, s.writes)
+		}
+	}
+}
+
+func TestPriorNamedTriggerMustRemainTrusted(t *testing.T) {
+	for _, triggers := range []map[string]string{nil, {"e2e": "different-alias"}} {
+		s := failing()
+		request := retestRequest()
+		request.Job = "e2e"
+		if _, err := client(t, s).Retest(context.Background(), request); err != nil {
+			t.Fatal(err)
+		}
+		cfg := config()
+		cfg.JobTriggers = triggers
+		// A required-set retry must not bypass an unknown prior named alias.
+		_, err := clientWithConfig(t, s, cfg).Retest(context.Background(), retestRequest())
+		if err == nil || s.writes != 1 {
+			t.Fatalf("unknown prior alias accepted: err=%v writes=%d", err, s.writes)
+		}
+	}
+}
+
+func TestObservationTargetsExcludeHistoricalJobs(t *testing.T) {
+	for _, named := range []bool{false, true} {
+		for _, mode := range []string{"posted", "duplicate", "resumed", "duplicate-after-job-change", "resumed-after-job-change"} {
+			for _, observedJob := range []string{"e2e", "old-job"} {
+				t.Run(fmt.Sprintf("named=%t/%s/new=%s", named, mode, observedJob), func(t *testing.T) {
+					s := failing()
+					s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+						ID: 2, Context: "ci/prow/e2e", State: "failure", CreatedAt: "2026-11-19T11:00:00Z",
+						TargetURL: strings.ReplaceAll(strings.ReplaceAll(failureURL, "/e2e/", "/old-job/"), "/100", "/80"),
+					})
+					request := retestRequest()
+					if named {
+						request.Job = "e2e"
+					}
+					c := client(t, s)
+					result, err := c.Retest(context.Background(), request)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if strings.HasSuffix(mode, "-after-job-change") {
+						s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+							ID: 3, Context: "ci/prow/e2e", State: "pending", CreatedAt: "2026-11-19T12:01:00Z",
+							TargetURL: strings.ReplaceAll(strings.ReplaceAll(failureURL, "/e2e/", "/old-job/"), "/100", "/81"),
+						})
+					}
+					if mode != "posted" {
+						if strings.HasPrefix(mode, "resumed") {
+							c = client(t, s)
+						}
+						result, err = c.Retest(context.Background(), request)
+						if err != nil || result.Receipt.Outcome != "duplicate" {
+							t.Fatalf("duplicate result=%+v err=%v", result, err)
+						}
+					}
+					s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+						ID: 4, Context: "ci/prow/e2e", State: "pending", CreatedAt: "2026-11-19T12:02:00Z",
+						TargetURL: strings.ReplaceAll(newRunURL, "/e2e/", "/"+observedJob+"/"),
+					})
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+					defer cancel()
+					receipt, err := c.Observe(ctx, result, time.Millisecond)
+					if observedJob == "e2e" {
+						if err != nil || receipt.Outcome != "observed" {
+							t.Fatalf("new targeted run not observed: receipt=%+v err=%v", receipt, err)
+						}
+					} else if !errors.Is(err, context.DeadlineExceeded) || receipt.Outcome != "indeterminate" {
+						t.Fatalf("historical job falsely proved execution: receipt=%+v err=%v", receipt, err)
+					}
+					if s.writes != 1 {
+						t.Fatalf("observation or duplicate posted again: writes=%d", s.writes)
+					}
+				})
+			}
+		}
 	}
 }

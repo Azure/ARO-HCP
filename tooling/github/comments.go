@@ -31,8 +31,9 @@ func CommentMarker(key, head string) string {
 }
 
 // PostComment posts once after a complete trusted-author deduplication read and verifies the returned comment by ID.
+// Fresh reads require the pull to remain open, unmerged, and bound to its original author, repositories, refs, and head.
 // A failed write or readback is indeterminate: callers must reconcile before attempting another write.
-// GitHub provides no atomic head-conditioned comment write; a head move during the write is reported as indeterminate.
+// GitHub provides no atomic state- or head-conditioned comment write; a change first observed after writing is indeterminate.
 func (c *Client) PostComment(ctx context.Context, number int, expectedHead, key, body string) (Receipt, error) {
 	receipt := Receipt{Number: number, RequestedHead: expectedHead, Outcome: "not-applicable"}
 	marker := CommentMarker(key, expectedHead)
@@ -68,7 +69,7 @@ func (c *Client) PostComment(ctx context.Context, number int, expectedHead, key,
 		}
 		duplicate = v
 	}
-	if _, err = c.boundPull(ctx, number, expectedHead); err != nil {
+	if err = c.checkCommentPull(ctx, pull); err != nil {
 		return receipt, err
 	}
 	if duplicate != nil {
@@ -80,7 +81,7 @@ func (c *Client) PostComment(ctx context.Context, number int, expectedHead, key,
 		if observed == nil || observed.GetID() != duplicate.GetID() || observed.GetBody() != full || observed.GetUser().GetLogin() != actor {
 			return receipt, ErrConflict
 		}
-		if _, err = c.boundPull(ctx, number, expectedHead); err != nil {
+		if err = c.checkCommentPull(ctx, pull); err != nil {
 			return receipt, err
 		}
 		receipt.Outcome = "duplicate"
@@ -98,12 +99,25 @@ func (c *Client) PostComment(ctx context.Context, number int, expectedHead, key,
 		receipt.Outcome = "indeterminate"
 		return receipt, ErrIndeterminate
 	}
-	latest, err := c.boundPull(ctx, number, expectedHead)
-	if err != nil {
+	if err = c.checkCommentPull(ctx, pull); err != nil {
 		receipt.Outcome = "indeterminate"
 		return receipt, ErrIndeterminate
 	}
-	receipt.ObservedHead = latest.HeadSHA
 	receipt.Outcome = "observed"
 	return receipt, nil
+}
+
+// CheckCommentPull revalidates the state and original identity without implying an atomic comment-write precondition.
+func (c *Client) checkCommentPull(ctx context.Context, initial PullRequest) error {
+	p, _, err := c.api.PullRequests.Get(ctx, c.owner, c.repo, initial.Number)
+	if err != nil {
+		return err
+	}
+	if p == nil || p.Number == nil || p.GetUser().GetLogin() == "" || p.State == nil || (p.GetState() != "open" && p.GetState() != "closed") || p.Merged == nil || !shaPattern.MatchString(p.GetHead().GetSHA()) || p.GetHead().GetRef() == "" || !repositoryPattern.MatchString(p.GetHead().GetRepo().GetFullName()) || p.GetBase().GetRef() == "" || !repositoryPattern.MatchString(p.GetBase().GetRepo().GetFullName()) {
+		return ErrEvidenceIncomplete
+	}
+	if p.GetNumber() != initial.Number || p.GetState() != "open" || p.GetMerged() || p.GetUser().GetLogin() != initial.Author || p.GetHead().GetSHA() != initial.HeadSHA || p.GetHead().GetRef() != initial.HeadRef || p.GetHead().GetRepo().GetFullName() != initial.HeadRepo || p.GetBase().GetRef() != initial.BaseRef || p.GetBase().GetRepo().GetFullName() != initial.BaseRepo {
+		return ErrConflict
+	}
+	return nil
 }

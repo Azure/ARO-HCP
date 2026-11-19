@@ -56,6 +56,9 @@ type Config struct {
 	Actors          Actors
 	BudgetNamespace string
 	RequiredChecks  []string
+	// JobTriggers maps canonical Prow job names to unique trusted /test aliases.
+	// Named requests require a mapping; required-set requests do not.
+	JobTriggers map[string]string
 }
 
 // Client implements only hold release and diagnosed CI recovery; it cannot approve,
@@ -73,8 +76,9 @@ type HoldRequest struct {
 }
 
 // RetestRequest binds a diagnosis to a current failure and a distinct comparison
-// run of the same Prow job. Job optionally selects that exact job for /test;
-// otherwise /retest-required is used. All forms share one namespace/head budget.
+// run of the same canonical Prow job. Job optionally selects that canonical job;
+// Config.JobTriggers supplies its /test alias. Otherwise /retest-required is used.
+// All forms share one namespace/head budget.
 type RetestRequest struct {
 	Number        int
 	ExpectedHead  string
@@ -125,6 +129,16 @@ func New(source Source, config Config) (*Client, error) {
 		}
 		seen[name] = true
 	}
+	triggers := make(map[string]string, len(config.JobTriggers))
+	aliases := make(map[string]bool, len(config.JobTriggers))
+	for job, alias := range config.JobTriggers {
+		if !namePattern.MatchString(job) || !namePattern.MatchString(alias) || aliases[alias] {
+			return nil, errors.New("Prow jobs and trigger aliases must be valid names with unique aliases")
+		}
+		triggers[job] = alias
+		aliases[alias] = true
+	}
+	config.JobTriggers = triggers
 	config.RequiredChecks = append([]string(nil), config.RequiredChecks...)
 	config.Actors.RetryBots = append([]string(nil), config.Actors.RetryBots...)
 	config.Actors.Controllers = append([]string(nil), config.Actors.Controllers...)
@@ -169,8 +183,8 @@ func (c *Client) Retest(ctx context.Context, request RetestRequest) (Result, err
 	if err := validateRequest(request.Number, request.ExpectedHead, request.Reason); err != nil {
 		return Result{}, err
 	}
-	if request.Job != "" && !namePattern.MatchString(request.Job) {
-		return Result{}, errors.New("invalid Prow job name")
+	if request.Job != "" && (!namePattern.MatchString(request.Job) || c.config.JobTriggers[request.Job] == "") {
+		return Result{}, errors.New("named Prow job requires a trusted trigger mapping")
 	}
 	var snapshot github.Snapshot
 	var targets map[string]bool
@@ -190,7 +204,7 @@ func (c *Client) Retest(ctx context.Context, request RetestRequest) (Result, err
 	}
 	command := "/retest-required"
 	if request.Job != "" {
-		command = "/test " + request.Job
+		command = "/test " + c.config.JobTriggers[request.Job]
 	}
 	body := command + "\n\nReason: " + request.Reason + "\nFailure: " + request.FailureURL + "\nComparison: " + request.ComparisonURL
 	return c.post(ctx, request.Number, request.ExpectedHead, "retest", body, snapshot, targets)
@@ -273,15 +287,12 @@ func (c *Client) snapshot(ctx context.Context, number int, head string) (github.
 	return snapshot, nil
 }
 
-// Posts only a fixed operation and keeps its acknowledgement distinct from effect.
+// Posts a fixed operation, preserving exact eligible targets and all baseline runs.
 func (c *Client) post(ctx context.Context, number int, head, action, body string, snapshot github.Snapshot, targets map[string]bool) (Result, error) {
 	receipt, err := c.source.PostComment(ctx, number, head, c.key(action), body)
-	result := Result{Receipt: receipt, client: c, action: action, targets: map[string]bool{}, baseline: map[string]bool{}}
+	result := Result{Receipt: receipt, client: c, action: action, targets: targets, baseline: map[string]bool{}}
 	for _, run := range runs(snapshot) {
 		result.baseline[run.identity] = true
-		if targets[run.name] {
-			result.targets[run.name+"\x00"+run.job] = true
-		}
 	}
 	if err != nil {
 		result.Receipt.Number = number

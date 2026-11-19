@@ -82,13 +82,25 @@ Construct `prow.New(client, config)` with the target repository, trusted writer,
 retry bots, hold controllers, required checks and a distinct budget namespace.
 `ReleaseHold` accepts only proven bot retry-exhaustion holds whose revision belongs
 to the PR's commits and whose current CI is positive. `Retest` requires a current
-required-check failure, an independent same-job Prow run and a plain-text reason;
-it issues `/retest-required` or `/test <job>`, not arbitrary commands.
+required-check failure, a distinct same-job comparison URL and a plain-text reason.
+The caller verifies comparison artifacts and diagnosis; the library validates URL
+syntax and association, not the comparison run's existence or outcome.
+
+Named requests identify the canonical job from Prow evidence. Trusted caller
+configuration supplies `Config.JobTriggers`, a canonical-job-to-alias map with
+unique aliases, for example `pull-ci-Azure-ARO-HCP-main-api-validation` to
+`api-validation`. Named requests without a mapping are rejected. The library
+never guesses aliases by stripping prefixes, falls back to canonical names or
+accepts arbitrary command text.
+Required-set requests use `/retest-required`.
 
 A root `PostComment` receipt with `observed` means only that the comment was read
 back successfully. Prow converts that acknowledgement to `requested`. Pass the
 intact result to `Observe` with a context deadline to verify label removal or a
-new current-head run. `indeterminate` requires reconciliation, not blind retries.
+new current-head run of a currently eligible job. Historical runs form the
+already-seen baseline, not additional observation targets. Observation does not
+prove that this comment caused the run or that the run passed.
+`indeterminate` requires reconciliation, not blind retries.
 
 When adopting this API, a consumer must reconcile its existing recovery markers
 and cooldown rules before enabling writes. A new namespace is not permission to
