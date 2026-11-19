@@ -48,6 +48,8 @@ Three things have to agree: the catalog in `test/e2e-config/e2e-slots.yaml`, the
 
 **Azure resources.** `apply-pool-assets` reconciles the managed backing resources and `validate-pool-assets` checks them read-only.
 
+For recurring maintenance of an externally owned DEV subscription, use [External Subscription Management](external-subscription-management.md) instead. Its subscription-scoped command discovers all matching pools, reconciles the subscription baseline, and refuses destructive container changes. The lower-level apply commands below remain deliberate operator tools.
+
 ```bash
 make -C test apply-pool-assets    ENVIRONMENT=<dev|dev-xs|int|stg|prod> [POOL=<pool>] [SUBSCRIPTION=<display name>] [ASSET=<kind>]
 make -C test validate-pool-assets ENVIRONMENT=<dev|dev-xs|int|stg|prod> [POOL=<pool>] [SUBSCRIPTION=<display name>] [ASSET=<kind>]

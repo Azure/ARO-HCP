@@ -135,6 +135,8 @@ func TestGraphResolveReadOnly(t *testing.T) {
 		{name: "missing application", exchanges: []graphExchange{{method: "GET", path: applicationPath, status: 404, response: missing}}, wantError: "missing test object"},
 		{name: "mismatched application name", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, name, "wrong", 1)}}, wantError: "unexpected identity"},
 		{name: "missing application client ID", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, clientID, "", 1)}}, wantError: "unexpected identity"},
+		{name: "invalid application ID", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, applicationID, "not-a-uuid", 1)}}, wantError: "invalid identity IDs"},
+		{name: "invalid application client ID", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, clientID, uuid.Nil.String(), 1)}}, wantError: "invalid identity IDs"},
 		{name: "missing display name result", exchanges: []graphExchange{lookup, {method: "GET", path: "applications", response: `{"value":[]}`}}, wantError: "missing or ambiguous"},
 		{name: "different display name match", exchanges: []graphExchange{lookup, {method: "GET", path: "applications", response: fmt.Sprintf(`{"value":[{"id":%q}]}`, uuid.NewString())}}, wantError: "missing or ambiguous"},
 		{name: "ambiguous later page", exchanges: []graphExchange{lookup,
@@ -143,6 +145,7 @@ func TestGraphResolveReadOnly(t *testing.T) {
 		{name: "missing service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, status: 404, response: missing}}, wantError: "missing test object"},
 		{name: "disabled service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, response: strings.Replace(principal, "true", "false", 1)}}, wantError: "disabled or mismatched"},
 		{name: "mismatched service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, response: strings.Replace(principal, clientID, uuid.NewString(), 1)}}, wantError: "disabled or mismatched"},
+		{name: "invalid principal ID", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, response: strings.Replace(principal, principalID, "invalid", 1)}}, wantError: "invalid identity ID"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store := &azureStore{graph: graphTestClient(t, test.exchanges)}
@@ -174,10 +177,11 @@ func TestGraphResolvePartialApplyRetry(t *testing.T) {
 	store := &azureStore{graph: graphTestClient(t, []graphExchange{
 		{method: "GET", path: applicationPath, status: 404, response: missing},
 		{method: "PATCH", path: applicationPath, response: application, body: map[string]string{"@odata.type": "#microsoft.graph.application", "displayName": name, "signInAudience": "AzureADMyOrg"}},
-		matches, missingPrincipal,
+		lookup, matches, missingPrincipal,
 		{method: "PATCH", path: principalPath, status: 403, response: `{"error":{"code":"Authorization_RequestDenied","message":"injected partial failure"}}`, body: map[string]string{"@odata.type": "#microsoft.graph.servicePrincipal", "displayName": name}},
 		lookup, matches, missingPrincipal,
 		{method: "PATCH", path: principalPath, response: principal, body: map[string]string{"@odata.type": "#microsoft.graph.servicePrincipal", "displayName": name}},
+		{method: "GET", path: principalPath, response: principal},
 		lookup, matches, {method: "GET", path: principalPath, response: principal},
 	})}
 	if _, err := store.Resolve(t.Context(), name, true); err == nil || !strings.Contains(err.Error(), "injected partial failure") {

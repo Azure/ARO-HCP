@@ -41,19 +41,31 @@ import (
 const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
+	var subscriptionID string
 	pager := subscriptionClient.NewListPager(nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("list subscriptions for %q: %w", subscriptionName, err)
 		}
 		for _, sub := range page.Value {
-			if *sub.DisplayName == subscriptionName {
-				return *sub.SubscriptionID, nil
+			if sub == nil || ptr.Deref(sub.DisplayName, "") != subscriptionName {
+				continue
 			}
+			id := ptr.Deref(sub.SubscriptionID, "")
+			if id == "" {
+				return "", fmt.Errorf("subscription with name %q has no subscription ID", subscriptionName)
+			}
+			if subscriptionID != "" && !strings.EqualFold(subscriptionID, id) {
+				return "", fmt.Errorf("subscription name %q is ambiguous (%s and %s)", subscriptionName, subscriptionID, id)
+			}
+			subscriptionID = id
 		}
 	}
-	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
+	if subscriptionID == "" {
+		return "", fmt.Errorf("subscription with name %q not found", subscriptionName)
+	}
+	return subscriptionID, nil
 }
 
 // CreateResourceGroup creates a resource group

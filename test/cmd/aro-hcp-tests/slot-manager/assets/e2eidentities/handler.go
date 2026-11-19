@@ -16,7 +16,6 @@ package e2eidentities
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -29,16 +28,16 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
-	"github.com/Azure/ARO-HCP/test/e2e"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 type Handler struct {
-	poolDependencies func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
-	newPoolClients   func(subscriptionID string, credential azcore.TokenCredential) (poolClients, error)
-	newAdmitClients  func(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error)
-	cleanupWorkers   int
+	poolDependencies      func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
+	newPoolClients        func(subscriptionID string, credential azcore.TokenCredential) (poolClients, error)
+	newAdmitClients       func(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error)
+	loadExternalInventory func(context.Context, string, azcore.TokenCredential) (subscriptionInventory, error)
+	cleanupWorkers        int
 }
 
 type Option func(*Handler)
@@ -47,10 +46,11 @@ const defaultCleanupWorkers = 1
 
 func NewHandler(opts ...Option) *Handler {
 	handler := &Handler{
-		cleanupWorkers:   defaultCleanupWorkers,
-		poolDependencies: azurePoolDependencies,
-		newPoolClients:   azurePoolClients,
-		newAdmitClients:  azureAdmitClients,
+		cleanupWorkers:        defaultCleanupWorkers,
+		poolDependencies:      azurePoolDependencies,
+		newPoolClients:        azurePoolClients,
+		newAdmitClients:       azureAdmitClients,
+		loadExternalInventory: loadSubscriptionInventory,
 	}
 	for _, opt := range opts {
 		opt(handler)
@@ -104,15 +104,11 @@ func (h *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) er
 	if err != nil {
 		return err
 	}
-	template, err := e2e.TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/msi-pools.json")
+	template, err := readIdentityPoolTemplate()
 	if err != nil {
-		return fmt.Errorf("failed reading template file: %w", err)
+		return err
 	}
-	bicepTemplateMap := map[string]interface{}{}
-	if err := json.Unmarshal(template, &bicepTemplateMap); err != nil {
-		return fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
-	}
-	return applyPools(ctx, credential, pools, bicepTemplateMap, h.newPoolClients)
+	return applyPools(ctx, credential, pools, template, h.newPoolClients)
 }
 
 func (h *Handler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {

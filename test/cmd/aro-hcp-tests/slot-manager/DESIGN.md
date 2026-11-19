@@ -347,6 +347,30 @@ capacity and quota formulas.
 - `apply-pool-assets` reconciles managed backing resources.
 - `validate-pool-assets` validates declared backing resources, including
   unmanaged resources when explicitly selected.
+- `reconcile-external-subscription` checks or reconciles one explicitly selected
+  external DEV subscription across all of its catalog pools. Read-only by
+  default; `--apply` enables subscription repairs and guarded container updates.
+  Routine reconciliation separates mock subscription RBAC from privileged
+  application, owner and certificate preparation. `--prepare-identities`
+  explicitly enables initial preparation and requires `--apply`; disruptive
+  identity maintenance remains a drained operator workflow.
+
+Like `acquire` and `release`, external reconciliation binds flags to raw options.
+`Validate` produces validated options, `Complete(ctx)` resolves configuration and
+catalog into a separate completed-options value, and only that value exposes
+`Run(ctx)`. Completion does not mutate the caller's raw options.
+
+External reconciliation never dispatches infrastructure asset mutation or lease
+admission cleanup. Destructive backing-inventory changes fail before apply;
+publication, retirement and obsolete grant removal are separate operations.
+One selected credential is shared by the ARM, Microsoft Graph and Key Vault SDK
+clients. Subscription RBAC preview and apply use the same compiled, embedded
+canonical templates; Azure CLI is only an optional local authentication provider,
+not the cloud-operation implementation. Read-only Graph discovery and mock bundle
+validation are shared with ordinary asset preparation and admission, while their
+mutation and cleanup phases remain separate.
+The owner-facing Make entrypoint and privilege boundaries are documented in
+[`External Subscription Management`](../../../../docs/ci/external-subscription-management.md).
 
 All derive capacity from complete catalog demand. See
 [`docs/ci/slot-assets.md`](../../../../docs/ci/slot-assets.md#managing-slot-assets)

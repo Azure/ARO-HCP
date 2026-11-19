@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	kiota "github.com/microsoft/kiota-abstractions-go"
 	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	"github.com/microsoftgraph/msgraph-sdk-go/applicationswithuniquename"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipalswithappid"
@@ -80,49 +79,33 @@ func createIfMissing() *kiota.RequestHeaders {
 
 func (store *azureStore) Resolve(ctx context.Context, name string, apply bool) (leaseenv.MockPrincipal, error) {
 	result := leaseenv.MockPrincipal{CertificateName: name}
-	application, err := store.graph.ApplicationsWithUniqueName(&name).Get(ctx, nil)
+	application, err := graph.LookupApplication(ctx, store.graph, name, name)
 	if graph.IsNotFound(err) && apply {
 		body := models.NewApplication()
 		body.SetDisplayName(&name)
 		body.SetSignInAudience(ptr.To("AzureADMyOrg"))
-		application, err = store.graph.ApplicationsWithUniqueName(&name).Patch(ctx, body, &applicationswithuniquename.ApplicationsWithUniqueNameRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
-		if err == nil && application == nil {
-			application, err = store.graph.ApplicationsWithUniqueName(&name).Get(ctx, nil)
+		_, err = store.graph.ApplicationsWithUniqueName(&name).Patch(ctx, body, &applicationswithuniquename.ApplicationsWithUniqueNameRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
+		if err == nil {
+			application, err = graph.LookupApplication(ctx, store.graph, name, name)
 		}
 	}
 	if err != nil {
 		return result, err
 	}
-	if application == nil || ptr.Deref(application.GetId(), "") == "" || ptr.Deref(application.GetAppId(), "") == "" || ptr.Deref(application.GetDisplayName(), "") != name {
-		return result, fmt.Errorf("application uniqueName %q has unexpected identity", name)
-	}
-	first, err := store.graph.Applications().Get(ctx, &applications.ApplicationsRequestBuilderGetRequestConfiguration{QueryParameters: &applications.ApplicationsRequestBuilderGetQueryParameters{Filter: ptr.To("displayName eq '" + graph.QuoteFilterValue(name) + "'"), Select: []string{"id"}}})
-	if err != nil {
+	if err := graph.CheckApplicationDisplayName(ctx, store.graph, name, *application.GetId()); err != nil {
 		return result, err
 	}
-	matches, err := graph.CollectPages(ctx, first, func(ctx context.Context, link string) (models.ApplicationCollectionResponseable, error) {
-		return store.graph.Applications().WithUrl(link).Get(ctx, nil)
-	})
-	if err != nil {
-		return result, err
-	}
-	if len(matches) != 1 || matches[0] == nil || ptr.Deref(matches[0].GetId(), "") != *application.GetId() {
-		return result, fmt.Errorf("application displayName %q missing or ambiguous (%d matches)", name, len(matches))
-	}
-	principal, err := store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Get(ctx, nil)
+	principal, err := graph.LookupServicePrincipal(ctx, store.graph, *application.GetAppId())
 	if graph.IsNotFound(err) && apply {
 		body := models.NewServicePrincipal()
 		body.SetDisplayName(&name)
-		principal, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Patch(ctx, body, &serviceprincipalswithappid.ServicePrincipalsWithAppIdRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
-		if err == nil && principal == nil {
-			principal, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Get(ctx, nil)
+		_, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Patch(ctx, body, &serviceprincipalswithappid.ServicePrincipalsWithAppIdRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
+		if err == nil {
+			principal, err = graph.LookupServicePrincipal(ctx, store.graph, *application.GetAppId())
 		}
 	}
 	if err != nil {
 		return result, err
-	}
-	if principal == nil || ptr.Deref(principal.GetAppId(), "") != *application.GetAppId() || ptr.Deref(principal.GetId(), "") == "" || !ptr.Deref(principal.GetAccountEnabled(), false) {
-		return result, fmt.Errorf("service principal for %q is missing, disabled or mismatched", name)
 	}
 	result.ClientID = *application.GetAppId()
 	result.PrincipalID = *principal.GetId()
@@ -152,13 +135,20 @@ func (store *azureStore) Certificate(ctx context.Context, name string, apply boo
 	return validateCertificate(certificate.CER, application.GetKeyCredentials(), time.Now())
 }
 
-func validateCertificate(certificate []byte, keys []models.KeyCredentialable, now time.Time) error {
+func validatePublicCertificate(certificate []byte, now time.Time) error {
 	public, err := x509.ParseCertificate(certificate)
 	if err != nil {
 		return fmt.Errorf("invalid public certificate: %w", err)
 	}
 	if now.Before(public.NotBefore) || !now.Before(public.NotAfter) {
 		return fmt.Errorf("certificate is not currently valid; Owner must explicitly rotate it")
+	}
+	return nil
+}
+
+func validateCertificate(certificate []byte, keys []models.KeyCredentialable, now time.Time) error {
+	if err := validatePublicCertificate(certificate, now); err != nil {
+		return err
 	}
 	thumbprint := sha1.Sum(certificate)
 	if len(keys) != 1 {

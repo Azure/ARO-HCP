@@ -25,7 +25,8 @@ The CI docs explain how the system fits together and how to operate it. They are
 | `slot-assets.md` | The three slot assets and how to provision and validate them | an asset is added, removed or changes lifecycle, or the asset commands change |
 | `dev-mock-identities.md` | What each mock identity stands in for, its roles, certificates, slot mock preparation | a mock identity or its roles change, or certificate handling changes |
 | `e2e-capacity.md` | Azure limits, how to check the catalog against them, how to change capacity | the formulas, the limits or the safe-change procedure change |
-| `e2e-subscription-onboarding.md`, `external-subscription-onboarding.md` | Onboarding procedures | the steps, the owning teams or the required grants change |
+| `e2e-subscription-onboarding.md` | Onboarding ARO-HCP-managed subscriptions | the steps, the owning teams or the required grants change |
+| `external-subscription-management.md` | External subscription reconciliation, onboarding and scheduled maintenance | the reconciliation command, supported environments, safety boundaries or required grants change |
 | `dev-region-load-management.md` | Regional drain, rebalance and restore procedures | the way regions are selected or the procedure changes |
 | `e2e-testing.md`, `inplace-upgrade-presubmit.md`, `hypershift-v2-presubmit.md`, `capz-e2e.md` | How to trigger and narrow E2E runs and what the specialised presubmits do | `/test` commands, suites or the presubmit flows change |
 | `operations.md` | Inspecting runs, observability artifacts, changing CI configuration, troubleshooting | the way maintainers work with CI changes |
@@ -57,6 +58,8 @@ Wiring in this repository:
 ## Updating After A CI Change
 
 When CI configuration changes in `openshift/release`, change the source configuration there, follow that repository's regeneration flow (`make update`), and touch these docs only if the change affects behavior or navigation. A job rename or a schedule tweak usually needs at most an update to the appendix in `operations.md`.
+
+When a feature changes external-subscription prerequisites, update the shared configuration, Bicep templates or asset handlers consumed by `reconcile-external-subscription` in the same change. A new manual runbook step is not a substitute for command support. Keep recurring reconciliation non-destructive; document deliberate identity and capacity maintenance separately.
 
 ## Before Finalising A Doc Change
 

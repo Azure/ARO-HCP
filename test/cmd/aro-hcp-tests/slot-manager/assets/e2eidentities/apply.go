@@ -16,6 +16,7 @@ package e2eidentities
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/e2e"
 )
 
 const (
@@ -35,6 +37,18 @@ const (
 
 type poolClients struct {
 	stacks *armdeploymentstacks.Client
+}
+
+func readIdentityPoolTemplate() (map[string]interface{}, error) {
+	template, err := e2e.TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/msi-pools.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed reading template file: %w", err)
+	}
+	result := map[string]interface{}{}
+	if err := json.Unmarshal(template, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
+	}
+	return result, nil
 }
 
 func applyPools(ctx context.Context, credential azcore.TokenCredential, pools []identityPool, template map[string]interface{}, newClients func(string, azcore.TokenCredential) (poolClients, error)) error {

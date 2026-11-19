@@ -37,7 +37,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -149,39 +148,9 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 		return tc.azureCredentials, nil
 	}
 
-	if tc.isDevelopmentEnvironment {
-		// The development environment flag controls endpoint routing and relaxed security
-		// (talking directly to the RP frontend rather than ARM); it is intentionally decoupled
-		// from credential acquisition. When service principal env vars are present (as they are
-		// in CI), prefer a pure-Go ClientSecretCredential. AzureCLICredential.GetToken() spawns
-		// an `az` subprocess on every Azure API call, which does not scale under high test
-		// parallelism (dozens of concurrent Python processes) and leads to OOM kills. The CLI
-		// credential is only needed for genuine local `az login`-only developer runs.
-		if clientID, clientSecret, tenantID := os.Getenv("AZURE_CLIENT_ID"), os.Getenv("AZURE_CLIENT_SECRET"), os.Getenv("AZURE_TENANT_ID"); clientID != "" && clientSecret != "" && tenantID != "" {
-			azureCredentials, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed building development environment client secret credential: %w", err)
-			}
-			tc.azureCredentials = azureCredentials
-
-			return tc.azureCredentials, nil
-		}
-
-		azureCredentials, err := azidentity.NewAzureCLICredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed building development environment CLI credential: %w", err)
-		}
-		tc.azureCredentials = azureCredentials
-
-		return tc.azureCredentials, nil
-	}
-
-	// if we find a desire to use the zero-dep e2e testing everywhere, we can extend this credential creation to include
-	// other options for non-Azure endpoints.  It's worth remembering that the value-add using the same library isn't in the
-	// ten lines of creation, it's in using a common credential library for golang compatibility.
-	azureCredentials, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+	azureCredentials, err := NewAzureCredential(tc.isDevelopmentEnvironment, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed building environment credential: %w", err)
+		return nil, err
 	}
 	tc.azureCredentials = azureCredentials
 

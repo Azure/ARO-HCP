@@ -40,7 +40,15 @@ $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
 	$(call bicep_build,$<,$@)
 
-bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+# Subscription RBAC uses the canonical dev-ci templates. Track their local module
+# dependencies as well so a rebuilt operator binary never embeds stale policy.
+EXTERNAL_SUBSCRIPTION_BICEP_SOURCES := $(shell find $(TEST_DIR)../dev-infrastructure/templates $(TEST_DIR)../dev-infrastructure/modules -name '*.bicep')
+EXTERNAL_SUBSCRIPTION_BICEP_OUTPUTS := $(addprefix $(BICEP_OUTPUT_DIR)external-subscription/,ci-bot-rbac-subscription.json e2e-subscription-rbac-assignment-subscription.json)
+$(BICEP_OUTPUT_DIR)external-subscription/%.json: $(TEST_DIR)../dev-infrastructure/templates/%.bicep $(EXTERNAL_SUBSCRIPTION_BICEP_SOURCES)
+	@mkdir -p $(dir $@)
+	$(call bicep_build,$<,$@)
+
+bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) $(EXTERNAL_SUBSCRIPTION_BICEP_OUTPUTS)
 .PHONY: bicep-fixtures
 
 update-go-fixtures:
@@ -52,7 +60,7 @@ update: bicep-fixtures update-go-fixtures
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
-$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) force-go-build
+$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) $(EXTERNAL_SUBSCRIPTION_BICEP_OUTPUTS) force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
 
 PROW_JOB_EXECUTOR_SOURCES = $(shell find $(TEST_DIR) -name '*.go')
@@ -118,6 +126,19 @@ validate-pool-assets: $(ARO_HCP_TESTS)
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: validate-pool-assets
+
+# Build fresh embedded templates before reconciling an externally owned subscription.
+# Selectors are exported as data, never interpolated into shell recipe source.
+reconcile-external-subscription: override export SUBSCRIPTION_ID := $(value SUBSCRIPTION_ID)
+reconcile-external-subscription: override export APPLY := $(value APPLY)
+reconcile-external-subscription: override export PREPARE_IDENTITIES := $(value PREPARE_IDENTITIES)
+reconcile-external-subscription: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager reconcile-external-subscription \
+		--repo-root "$(abspath $(TEST_DIR)..)" \
+		--subscription-id "$${SUBSCRIPTION_ID:?SUBSCRIPTION_ID must be set to the target subscription UUID}" \
+		--apply="$${APPLY:-false}" \
+		--prepare-identities="$${PREPARE_IDENTITIES:-false}"
+.PHONY: reconcile-external-subscription
 
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \

@@ -95,6 +95,20 @@ func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot
 			return nil, err
 		}
 	}
+	bundle, err := resolveBundle(ctx, store, slot, apply)
+	if err != nil {
+		return nil, err
+	}
+	if err := store.Roles(ctx, slot.Subscriptions.E2E.ID, *bundle, apply); err != nil {
+		return nil, err
+	}
+	return bundle, nil
+}
+
+// resolveBundle is the identity and certificate core shared by lease admission,
+// pool reconciliation and external maintenance. Authorization, roles and owner
+// mutation belong to the caller.
+func resolveBundle(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
 	bundle := &leaseenv.MockIdentityBundlePayload{SlotName: slot.ResourceName, SubscriptionID: slot.Subscriptions.E2E.ID}
 	principals := []*leaseenv.MockPrincipal{&bundle.MSI, &bundle.Backend, &bundle.ClustersService}
 	for index, name := range IdentityNames(slot) {
@@ -108,10 +122,7 @@ func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot
 		*principals[index] = principal
 	}
 	if err := bundle.Validate(); err != nil {
-		return nil, err
-	}
-	if err := store.Roles(ctx, slot.Subscriptions.E2E.ID, *bundle, apply); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validate mock identities for %s: %w", slot.ResourceName, err)
 	}
 	return bundle, nil
 }

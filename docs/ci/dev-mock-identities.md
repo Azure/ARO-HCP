@@ -54,6 +54,8 @@ Apply is a privileged, operator-run action. CI admission only reads. The operato
 - **Microsoft Graph:** rights to create and manage the applications and service principals and their credentials, and to read the membership of the configured owners group. Owning the subscription grants none of this.
 - **Key Vault:** permission to read and create certificates in the shared service vault, `aro-hcp-dev-svc-kv`.
 
+For an externally owned DEV subscription, [External Subscription Management](external-subscription-management.md#identity-preparation) provides a subscription-wide preparation entrypoint with disruptive-change guards. Its routine reconciliation path repairs subscription grants without invoking the combined application, certificate and owner apply described here.
+
 The subscription must also already carry the subscription-local `dev-msi-mock-<subscription-id>` role definition. The slot code reuses that role and does not create it; it comes from the shared subscription RBAC template described [below](#how-the-shared-identities-are-set-up). Then run, per pool and one pool at a time:
 
 ```bash
