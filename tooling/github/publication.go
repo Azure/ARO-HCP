@@ -26,7 +26,7 @@ import (
 // HeadRepository is the exact source repository, including a fork when publishing across repositories.
 // ExpectedBase is the required base branch tip, checked read-only before and after publication.
 // Marker must be an exact standalone HTML comment owned by the caller, not a substring of another marker.
-// Existing proposals retain their readiness; newly created proposals are always drafts.
+// Existing proposals retain their readiness; new proposals default to drafts.
 type PublicationRequest struct {
 	HeadRepository string
 	HeadRef        string
@@ -38,6 +38,9 @@ type PublicationRequest struct {
 	Title          string
 	Body           string
 	ExpectedFiles  []string
+	// ReadyForReview explicitly opts new PRs into the caller's ready-publication policy.
+	// It never changes an existing proposal's readiness.
+	ReadyForReview bool
 }
 
 // HasMarker matches an exact marker line, avoiding substring ownership claims.
@@ -199,7 +202,7 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 			head = parts[0] + ":" + r.HeadRef
 			headRepo = &parts[1]
 		}
-		p, _, writeErr := c.writer.PullRequests.Create(ctx, c.owner, c.repo, &gh.NewPullRequest{Title: &r.Title, Body: &r.Body, Head: &head, HeadRepo: headRepo, Base: &r.BaseRef, Draft: gh.Ptr(true)})
+		p, _, writeErr := c.writer.PullRequests.Create(ctx, c.owner, c.repo, &gh.NewPullRequest{Title: &r.Title, Body: &r.Body, Head: &head, HeadRepo: headRepo, Base: &r.BaseRef, Draft: gh.Ptr(!r.ReadyForReview)})
 		if writeErr != nil || p == nil || p.GetNumber() <= 0 {
 			receipt.Outcome = "indeterminate"
 			return receipt, ErrIndeterminate
@@ -219,7 +222,7 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 		return receipt, ErrIndeterminate
 	}
 	p := verified[0]
-	if p.Title != r.Title || p.Body != r.Body || (prior == nil && !p.Draft) || (prior != nil && p.Draft != prior.Draft) {
+	if p.Title != r.Title || p.Body != r.Body || (prior == nil && p.Draft == r.ReadyForReview) || (prior != nil && p.Draft != prior.Draft) {
 		receipt.Outcome = "indeterminate"
 		return receipt, ErrIndeterminate
 	}

@@ -276,13 +276,23 @@ func TestPublicationRejectsAmbiguityAndChecksAllFiles(t *testing.T) {
 	}
 }
 
-func TestPublicationCreatesDraftAndPreservesReadiness(t *testing.T) {
-	for _, existing := range []bool{false, true} {
-		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+func TestPublicationReadinessIsExplicitAndExistingReadinessIsPreserved(t *testing.T) {
+	cases := []struct {
+		name                   string
+		existing, ready, draft bool
+	}{
+		{name: "default draft", draft: true},
+		{name: "explicit ready", ready: true},
+		{name: "existing ready", existing: true},
+		{name: "existing draft despite ready request", existing: true, ready: true, draft: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			existing := tc.existing
 			published := existing
 			writes := 0
 			p := testPull()
-			p.Draft = gh.Ptr(!existing)
+			p.Draft = gh.Ptr(tc.draft)
 			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.URL.Path == "/user":
@@ -299,7 +309,7 @@ func TestPublicationCreatesDraftAndPreservesReadiness(t *testing.T) {
 					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 						t.Error(err)
 					}
-					if !request.GetDraft() || request.GetHead() != "update" || request.GetBase() != "main" {
+					if request.GetDraft() == tc.ready || request.GetHead() != "update" || request.GetBase() != "main" {
 						t.Error("unsafe create request")
 					}
 					published = true
@@ -319,8 +329,8 @@ func TestPublicationCreatesDraftAndPreservesReadiness(t *testing.T) {
 					w.WriteHeader(404)
 				}
 			})
-			receipt, err := client.Publish(context.Background(), PublicationRequest{HeadRepository: "owner/repo", HeadRef: "update", ExpectedHead: testHead, BaseRef: "main", ExpectedBase: testBase, Actor: "robot", Marker: "<!-- owned -->", Title: "title", Body: "body\n<!-- owned -->", ExpectedFiles: []string{"expected"}})
-			if err != nil || receipt.Outcome != "observed" || receipt.Number != 7 {
+			receipt, err := client.Publish(context.Background(), PublicationRequest{HeadRepository: "owner/repo", HeadRef: "update", ExpectedHead: testHead, BaseRef: "main", ExpectedBase: testBase, Actor: "robot", Marker: "<!-- owned -->", Title: "title", Body: "body\n<!-- owned -->", ExpectedFiles: []string{"expected"}, ReadyForReview: tc.ready})
+			if err != nil || receipt.Outcome != "observed" || receipt.Number != 7 || p.GetDraft() != tc.draft {
 				t.Fatalf("%+v %v", receipt, err)
 			}
 			if existing && writes != 0 || !existing && writes != 1 {

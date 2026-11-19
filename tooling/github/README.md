@@ -53,7 +53,10 @@ tokens from environment variables, mint App tokens or expand permissions.
 Callers also own candidate validation, local commits, branch preparation, schedules
 and domain-specific eligibility decisions. Publication uses an already prepared
 remote branch at an expected commit; it never stages a dirty checkout or force
-pushes. New PRs are drafts. Updating a PR must preserve its existing readiness.
+pushes. New PRs default to drafts. Set `PublicationRequest.ReadyForReview` only
+when the caller's publication policy permits a ready PR; ARO-HCP's
+`aro-hcp-robot[bot]` policy requires that setting. Other automation needs explicit
+human authorization. Updating a PR always preserves its existing readiness.
 
 Prow callers supply trusted actors, required checks and a budget namespace. A new
 library must not give dependency maintenance, security remediation or workflow
@@ -95,6 +98,11 @@ unique aliases, for example `pull-ci-Azure-ARO-HCP-main-api-validation` to
 never guesses aliases by stripping prefixes, falls back to canonical names or
 accepts arbitrary command text.
 Required-set requests use `/retest-required`.
+
+Publication supports forks and defaults to draft creation, but Prow maintenance
+deliberately accepts only open, non-draft PRs whose head repository is the target
+repository. Publishing a PR does not automatically make it eligible for Prow
+maintenance; draft and fork consumers must retain that boundary.
 
 A root `PostComment` receipt with `observed` means only that the comment was read
 back successfully. Prow converts that acknowledgement to `requested`. Pass the
