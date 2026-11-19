@@ -133,7 +133,4 @@ func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 	const unlessOn = "unless on (name, namespace, _id, resource_id, cluster)"
 	require.Contains(t, flat, unlessOn+" (hostedClusterAPI_deletion_timestamp_seconds > 0)")
 	require.NotContains(t, flat, "unless on (name, namespace, _id, resource_id, cluster, region)")
-
-	withRegionOn := strings.Replace(flat, unlessOn, "unless on (name, namespace, _id, resource_id, cluster, region)", 1)
-	require.NotEqual(t, flat, withRegionOn)
 }
