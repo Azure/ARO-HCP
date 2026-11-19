@@ -115,13 +115,11 @@ is restricted to that local test, not the image build. Use
 `PLATFORM=linux/arm64` on an ARM host. These tests do not replace integration
 and mega-linter jobs on the CI build farm.
 
-Publication and consumption require companion changes in `openshift/release`.
-The intended output is
-`aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`, using the same
-`baseimage-generator` promotion pattern as the general CI base. The image
-definition alone does not switch existing jobs.
-See [Nested Podman Toolchain](../../docs/ci/image-lifecycle.md#nested-podman-toolchain)
-for the rollout order and producer/consumer configuration.
+The `baseimage-generator` variant in `openshift/release` builds and promotes
+this image as `aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`, and the
+main ci-operator config consumes it. See
+[Nested Podman Toolchain](../../docs/ci/image-lifecycle.md#nested-podman-toolchain)
+for how the producer and consumer fit together.
 
 ## Scripts Overview
 

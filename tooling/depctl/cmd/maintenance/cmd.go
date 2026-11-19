@@ -27,7 +27,7 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	command := &cobra.Command{
 		Use:     "maintenance",
-		Short:   "Assess owned proposals without mutating them",
+		Short:   "Assess owned proposals and guard fixed hold-recovery commands",
 		GroupID: group,
 		Args:    cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -39,6 +39,15 @@ func NewCommand(group string) (*cobra.Command, error) {
 		return nil, err
 	}
 	command.AddCommand(inspect)
+	inventory, err := newInventoryCommand()
+	if err != nil {
+		return nil, err
+	}
+	command.AddCommand(inventory)
+	for _, mode := range []string{"assess", "verify-upgrade", "release-hold", "recover-retry", "release-regenerated"} {
+		command.AddCommand(newActionCommand(mode))
+	}
+	command.AddCommand(newCompilerVersionsCommand(), newSnapshotEvidenceCommand())
 	return command, nil
 }
 
@@ -57,6 +66,37 @@ func newInspectCommand() (*cobra.Command, error) {
 		return nil, err
 	}
 	return command, nil
+}
+
+// newInventoryCommand builds the read-only owned-proposal inventory.
+func newInventoryCommand() (*cobra.Command, error) {
+	options := DefaultInventoryOptions()
+	command := &cobra.Command{
+		Use:   "inventory",
+		Short: "Assess every open proposal owned by the robot identity",
+		Args:  cli.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runInventory(cmd.Context(), cmd, options)
+		},
+	}
+	if err := BindInventoryOptions(options, command); err != nil {
+		return nil, err
+	}
+	return command, nil
+}
+
+// runInventory validates, completes and executes the inventory.
+func runInventory(ctx context.Context, cmd *cobra.Command, options *InventoryOptions) error {
+	options.out, options.err = cmd.OutOrStdout(), cmd.ErrOrStderr()
+	validated, err := options.Validate(ctx)
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
+	}
+	return completed.Run(ctx)
 }
 
 // runInspect validates, completes and executes the inspection.

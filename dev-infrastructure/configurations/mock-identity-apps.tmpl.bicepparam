@@ -16,8 +16,3 @@ param identities = [
     certDns: '{{ .ci.dev.mockIdentities.msiMock.certDns }}'
   }
 ]
-
-param poolSize = {{ .ci.dev.mockIdentities.pool.size }}
-param poolAppBaseName = '{{ .ci.dev.mockIdentities.pool.appBaseName }}'
-param armHelperPoolSize = {{ .ci.dev.mockIdentities.armHelperPool.size }}
-param armHelperPoolAppBaseName = '{{ .ci.dev.mockIdentities.armHelperPool.appBaseName }}'

@@ -1,82 +1,35 @@
 # CI Operations
 
-This document is the operator and maintainer view of ARO HCP CI. Use it when you need to inspect a failing run, change the underlying CI configuration, or troubleshoot.
+This is the operator and maintainer view of ARO HCP CI: how to look at a run that failed, how to change the CI configuration, and where to start when something is wrong.
 
-For DEV CI PagerDuty and Slack alerts, start with [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md). For the execution model and cross-tenant request flow, start with [CI Execution](execution.md). For contributor-facing E2E usage including how to trigger jobs, see [E2E Testing In CI](e2e-testing.md).
-
-For a DEV regional provision-health incident, use
-[DEV CI Regional Load Management](dev-region-failover.md).
+For DEV CI PagerDuty and Slack alerts, start with [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md); for a regional provision-health incident, use [DEV CI Regional Load Management](dev-region-load-management.md). The execution model and cross-tenant request flow are in [CI Execution](execution.md), and contributor-facing usage, including how to trigger jobs, is in [E2E Testing In CI](e2e-testing.md).
 
 ## Inspecting Runs
 
-The normal observation path is:
+Start from the PR's **Checks** tab, open the job in the [Prow dashboard](https://prow.ci.openshift.org/?repo=Azure%2FARO-HCP), and read the logs and artifacts of the failing step. Then work out which target environment and execution mode the job ran in, because that decides what the job could realistically have caught (see [CI Execution](execution.md)). The Prow job history shows whether the failure is new, and build-farm-side failures and repeated infrastructure problems are discussed in [`#forum-ocp-testplatform`](https://redhat.enterprise.slack.com/archives/CBN38N3MW).
 
-1. check the PR's **Checks** tab for presubmit status
-2. open the job run in the [Prow dashboard](https://prow.ci.openshift.org/?repo=Azure%2FARO-HCP)
-3. inspect logs and artifacts for the failing step
-4. correlate the failure with the target environment and execution mode
-
-Useful signals include:
-
-- job history in the Prow dashboard
-- artifacts from the `aro-hcp-tests` run
-- GitHub checks status on the PR
-- Slack notifications in [`#forum-ocp-testplatform`](https://redhat.enterprise.slack.com/archives/CBN38N3MW) for build-farm-side failures and repeated issues
+Jobs that lease a slot publish `aro-hcp-slot-state.yaml` as an artifact, recording the region, slot, and assets the run was given. It is the first place to look when a failure might depend on which slot or subscription the job landed on.
 
 ### Post-Job Observability Artifacts
 
-For DEV E2E runs, open the artifacts for the
-`aro-hcp-gather-observability` post-step before looking for a separate Grafana
-dashboard. The step runs before environment deletion and queries only the
-run's bounded time window from the regional Azure Monitor workspaces.
+DEV E2E runs end with an `aro-hcp-gather-observability` post step that runs before the environment is deleted. It queries the run's time window from the regional Azure Monitor workspaces and uploads the results, so you can see what the cluster was doing during the failure after it no longer exists. Open its artifacts before hunting for a Grafana dashboard. The step is implemented in `test/cmd/aro-hcp-tests/gather-observability`, and its query catalog is [`queries.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/queries.yaml); the chart descriptions and copyable PromQL in the report are the source of truth for what each signal means. The step also gathers an Azure Monitor workspace platform view, described in [AMW Platform Observability](amw-platform-observability.md).
 
-- `observability-summary.html` contains fired-alert details and the selected
-  Frontend, Backend, Fleet, Maestro, service-container, and management-cluster
-  charts. Use the service-workload charts to identify the highest CPU and
-  memory consumers and the running pod count during the failure window, then
-  correlate their cluster, namespace, pod, and container labels with the test
-  logs.
-- `alerts.json` contains the alert data used by the summary.
-- `alert-diagnostics.json` contains the versioned, deduplicated query results
-  behind each alert card's **Metric history** pane. Its `alerts` array follows
-  the same order as `alerts.json`; chart queries reference the shared `queries`
-  array by index.
-- `utilization.json` contains the versioned data behind the summary's Utilization
-  and Resource History tabs, including minute-by-minute node resources,
-  selected peak minutes, node capacity, workload demand, and
-  completeness warnings. It can be rendered again without Azure access.
-- `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
+The artifacts are:
 
-Known alert firings can be temporarily excluded from this CI gate in
-[`knownIssues.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/known-issues/knownIssues.yaml).
-Each entry requires a reason and an alert name; optional label patterns narrow
-the match. An optional `expiresAfter: "YYYY-MM-DD"` date timebombs that exception.
-It applies through the named UTC date. From 00:00 UTC on the following day, a
-matching firing is unexpected again and fails the observability step. Entries
-without `expiresAfter` keep their current behavior. If the alert no longer fires,
-an expired entry does not itself fail CI. Remove resolved entries rather than
-extending their dates; review still-active issues before renewing an expiry.
-This classification only affects CI results and artifacts, not Azure Monitor
-alert firing or notification routing.
+- `observability-summary.html`, the report itself, with fired-alert details and charts for the Frontend, Backend, Fleet, Maestro, service containers, and management clusters. It needs no Azure credentials to view, though charts load ECharts from a CDN; expressions and diagnostics stay readable without it.
+- `alerts.json` and `alert-diagnostics.json`, the alert data and the query results behind each alert's metric history.
+- `utilization.json`, the data behind the Utilization and Resource History tabs.
+- `junit_alerts.xml`, which reports unexpected fired alerts to Prow as test failures.
 
-Tabs and artifact writes are attempted independently. An unavailable alert API,
-workspace, or chart does not suppress unrelated output. Incomplete alert
-collection still fails the step and produces an explicit JUnit failure; it does
-not produce passing assertions that no alerts fired. Individual chart queries
-and utilization collection remain informational, with failures shown in their
-tabs. Artifact-writing failures still fail the step after other writes are
-attempted.
+The uploaded report keeps the selected chart samples after the ephemeral environment is gone, for as long as OpenShift CI retains artifacts. It is not a raw metrics store for comparing runs. Each tab and artifact is collected independently, so an unavailable workspace or chart does not suppress the rest. If alert collection itself is incomplete, the step fails with an explicit JUnit failure rather than reporting that no alerts fired.
 
-The uploaded summary preserves the selected chart samples after the ephemeral
-environment is deleted, subject to OpenShift CI artifact retention. It is not a
-raw cross-run metrics store. The chart descriptions and copyable PromQL are the
-source of truth for interpreting each signal; the maintained query catalog is
-[`queries.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/queries.yaml).
+#### Known alert firings
 
-### Alert Metric History
+An alert that fires in CI but is understood and tolerated can be excluded from the gate in [`knownIssues.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/known-issues/knownIssues.yaml). Each entry needs an alert name and a reason, and optional label patterns narrow the match. An optional `expiresAfter: "YYYY-MM-DD"` turns the exception into a timebomb: it applies through that UTC date, and from the next day a matching firing fails the step again. When the underlying issue is fixed, delete the entry instead of extending the date, and review whether the issue is really still open before renewing one. This only changes how CI classifies the alert; Azure Monitor firing and notification routing are unaffected.
 
-Synthetic-data examples of the alert card before metric history, the expanded
-desktop pane, and the mobile pane:
+#### Alert metric history
+
+Every alert in the report, including known issues, has an expandable **Metric history** pane showing the signal the alert evaluates, across all matching series rather than only the ones that fired. It is collected automatically for PromQL alerts.
 
 ![Alert card before metric history](images/alert-metric-history-before.png)
 
@@ -84,243 +37,96 @@ desktop pane, and the mobile pane:
 
 ![Alert metric history on mobile](images/alert-metric-history-after-mobile.png)
 
-Every displayed alert, including known issues and alerts that do not fail JUnit,
-has an expandable **Metric history** pane. Collection is automatic. For PromQL
-alerts, it graphs the evaluated signal with outer thresholds removed, across all
-matching series, not just those that fired. Rates, aggregation, lookbacks,
-offsets, recording rules, internal guards, and supported exclusions are preserved.
-Compound conditions have separate charts; vector comparisons show both operands.
-The original expression and the actual queried expressions remain visible.
+Some things to keep in mind when reading it. The shaded band is the firing interval Azure recorded for that alert card, not a threshold crossing inferred from the data, and not a claim that every plotted series fired. Missing samples are gaps, not zeros. The graph is a historical query rather than a replay of the alert's evaluations, so ingestion delay and later rule changes can make it differ slightly from what fired. An expression the extractor cannot take apart safely is queried unchanged and labelled as fallback output, and alerts without PromQL, empty results, and query errors get an explanation instead of disappearing. All returned series are kept, so alerts over high-cardinality labels can produce large pages.
 
-Shading indicates that card's **recorded Azure firing interval**, not an inferred
-threshold crossing and not a claim that every plotted series fired. Unresolved
-alerts extend to the collected endpoint. Unknown or inconsistent timestamps are
-identified rather than guessed. Threshold lines are shown when extraction finds
-finite scalar thresholds. Missing samples remain gaps, not zeros.
-
-The graph spans the existing test/report window, including the cleanup allowance,
-capped at diagnostic collection start. Its step matches the currently deployed
-rule group's evaluation interval when name, expression, and available group ID
-match unambiguously; otherwise it uses one minute with a warning. This is a
-historical query, not an exact replay of alert evaluations: timing alignment,
-ingestion delays, and subsequent rule changes can affect correspondence.
-
-Expressions that cannot be safely extracted are queried unchanged and explicitly
-labeled as fallback output. Alerts without PromQL, unavailable workspaces, query
-errors, and empty results get explanations instead of disappearing. Query errors
-do not alter JUnit classification. Collection runs after the existing collectors
-with a ten-minute budget, two concurrent requests, and 30-second request timeouts;
-completed results survive cancellation. Artifact-writing failures remain fatal.
-
-Samples are embedded in the HTML, so viewing them requires no Azure credentials.
-Chart rendering uses the existing ECharts CDN; expressions and diagnostic messages
-remain available if that asset cannot load. All returned series are retained, so
-high-cardinality alerts can produce large artifacts and expensive charts.
-
-The extractor and repository-wide golden fixture live in
-[`test/util/alertdiagnostics`](../../test/util/alertdiagnostics). To review changes
-to all authored and committed generated alert expressions, run from `test/`:
+If you change alert expressions, the extractor and its repository-wide golden fixture live in [`test/util/alertdiagnostics`](../../test/util/alertdiagnostics). Regenerate the fixture from `test/`, review the diff by reading the extracted signals, and then run the tests:
 
 ```sh
 UPDATE=1 go test ./util/alertdiagnostics -run '^TestRepositoryCorpus$' -count=1
 go test ./util/alertdiagnostics ./cmd/aro-hcp-tests/gather-observability
 ```
 
-Review the fixture diff before accepting it: syntactic validity alone does not
-prove that an extracted signal explains the alert correctly.
+Syntactic validity does not prove that an extracted signal explains its alert, which is why the diff needs a human.
 
-### Utilization Snapshots
+#### Utilization and resource history
 
-The Utilization tab helps assess whether underlay node SKUs are oversized and
-which workloads consume them. It is evidence for a human sizing decision, not a
-recommendation to remove capacity or change requests.
-
-Synthetic-data desktop and mobile previews:
+The Utilization tab shows how much of the underlay nodes' CPU and memory is actually used and by which workloads. It exists to support a human decision about whether node SKUs are oversized; it is evidence, not a recommendation to remove capacity.
 
 ![Node capacity treemap with explicitly unused and unknown capacity](images/utilization-desktop.png)
 
 ![Mobile cluster utilization summaries](images/utilization-mobile.png)
 
-The collector searches from the earliest test start through the existing cleanup
-allowance (45 minutes after the latest recorded test finish), capped at collection
-start. It evaluates whole-node CPU and memory utilization at UTC minute boundaries,
-using two-minute CPU rates and one-minute memory averages. CPU counts non-idle
-modes, including iowait and steal, without double-counting guest time. Memory usage
-is total minus available memory. The denominators are historical capacity, not
-the nodes present when collection runs.
+The report picks a handful of snapshots across the run: each cluster's CPU and memory peak minute, plus the overall CPU and memory peaks weighted by capacity. Every snapshot shows all clusters at that same instant, so these are not independent per-node or per-pool peaks. In the treemap each node's area is proportional to its physical capacity, and unused or unknown capacity is shown explicitly. Collection covers the underlay clusters the regional workspace advertises, not customer worker clusters. DEV CI workspaces belong to a single job, but in shared environments the numbers show regional load during the test interval, not load caused by this run.
 
-Each cluster contributes its CPU and memory peak minute. Two additional selections
-find overall CPU and memory utilization, weighted by capacity across all expected
-clusters. Coincident minutes are deduplicated and retain all selection reasons;
-ties select the earliest minute. Three clusters therefore produce at most eight
-snapshots. Every snapshot shows all clusters at the same instant. These are not
-independently selected node or pool peaks.
-
-Collection covers all underlay clusters advertised by the regional workspace's
-`underlay_clusters{source="bicep"}` inventory, including all pools and namespaces,
-but not customer worker clusters. DEV CI workspaces are job-specific. In shared
-environments, the report measures regional load during the test interval; it does
-not attribute all that load to this test run. Missing inventory prevents peak
-selection; incomplete node coverage excludes the affected minute from ranking.
-The overall peak requires complete coverage across expected clusters.
-
-The capacity treemap gives each node an area proportional to its physical CPU or
-memory capacity. It explicitly shows unused CPU, available memory, or unknown
-usage. Filters dim nodes without resizing their capacity or relabeling hidden
-workloads as unused space. Select a node to inspect its workloads, or use the
-accessible node table. Workload details group HCP components across namespaces,
-then expose exact owning workloads and container-name aggregates. Unscheduled
-requests are a separate demand bucket, never assigned to a guessed pool.
-
-Container CPU and memory working set do not exactly reconcile with whole-node
-load. Requests are declared ordinary-container sums, not scheduler-effective
-reservations including init-container rules and overhead. Finite limit sums and
-unlimited-instance counts are separate. Missing measurements are unknown, not
-zero. Ownership, placement, and pod incarnation must match before usage is
-attributed; ambiguous or stale samples are excluded with warnings. SKU and pool
-labels require the updated OSS kube-state-metrics deployment; older samples show
-unknown enrichment rather than guessed values.
-
-The collector runs automatically with a ten-minute budget and at most two
-concurrent Prometheus requests. It fetches node history first, then request
-history in 30-minute batches, then workload details only for selected peak
-minutes. Timeout preserves collected history and selected snapshots with
-explicitly incomplete details. The JSON contains normalized aggregates, not raw
-Prometheus responses, full-run workload history, or individual pod records.
-
-### Resource History
-
-Synthetic-data desktop and mobile previews:
+The Resource History tab keeps every evaluated minute instead of only the peaks, for the fleet or a chosen cluster, pool, or node, and plots CPU, memory, and SWIFT-NIC capacity against usage and assigned requests.
 
 ![Minute resource history with linked charts and scope selectors](images/resource-history-desktop.png)
 
 ![Resource history on mobile](images/resource-history-mobile.png)
 
-The Resource History tab retains every evaluated minute, not just peak samples.
-Select the fleet, a cluster, pool, or historical node to inspect CPU, memory,
-and SWIFT-NIC resources. The three charts share time zoom, not hover. Hovering
-a complete line shows its timestamp and value; legends remain visible. Partial
-requests have visible point markers and a tooltip explaining their coverage.
-Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
-default; percentage mode divides aggregate quantities by aggregate capacity.
-Pool membership and node placement are evaluated at each sample, including
-nodes deleted before collection. Unknown pool labels are not inferred from names.
+Requests here are sums of declared container requests, not the scheduler's effective reservations, so they say nothing certain about whether new pods would fit, and container working set does not reconcile exactly with whole-node load. Anything the collector could not measure is shown as a gap or flagged as unknown, never filled with zero or interpolated. Where request totals are incomplete the chart draws a separate dashed "Partial requests (lower bound)" series instead of discarding what was observed. Warnings about incomplete data appear in a collapsed **Data quality** section.
 
-CPU and memory plot capacity, allocatable, whole-node usage, and assigned
-regular-container requests. Both capacity lines use Kubernetes node resources;
-in particular, history memory capacity differs from the peak view's node-exporter
-MemTotal denominator. Usage still uses the same two-minute CPU rates and
-one-minute averages of host total-minus-available memory as the peak view.
-Requests combine the services and HCP workspaces without counting replicas
-twice. Empty HCP results are legitimate when both workspace queries succeed
-and the shared KSM collector has inventory evidence in the services workspace.
-
-SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,
-not measured NIC usage or traffic. Missing or non-applicable capacity remains
-a gap rather than zero. Requests exclude
-init-container reservations, pod overhead and unassigned demand; spec-backed
-container inventory can also miss unobserved containers. These are not exact
-scheduler reservations or a guarantee that new pods will fit. NotReady and
-cordoned nodes remain included, and shared environments show regional load
-during the run, not load attributable exclusively to that run.
-
-Incomplete request totals retain safely placed observations in a separate orange,
-dashed **Partial requests (lower bound)** series. It combines complete node totals
-with partial node sums without double counting. Conflicts with known candidate
-nodes affect only those nodes; unbounded placement or failed workspace coverage
-makes the cluster partial rather than discarding its known demand. Selecting an
-unaffected node or pool still shows complete requests. Missing observations are
-not zero, and ambiguous or potentially terminal pod contributions are excluded.
-The additive `partialRequests` JSON field retains these sums for replay. Older
-artifacts that discarded partial sums cannot recover them merely by re-rendering.
-
-Other incomplete measurements create gaps in the affected aggregate line. Known
-absolute usage can still be shown when capacity is unavailable, but percentage
-mode requires a complete positive capacity denominator. Saved JSON retains
-collection diagnostics, shown in a collapsed **Data quality** section with scoped
-warnings and inclusive minute intervals. The collector cannot detect nodes or
-pods absent from every input metric. There is no interpolation, silent partial
-summation, or zero-filling. The charts require the ECharts CDN.
-
-To iterate on the UI with an existing artifact:
+To iterate on the UI against saved data, render an existing `utilization.json` locally without Azure access:
 
 ```bash
 ./test/aro-hcp-tests gather-observability render-utilization \
   --input utilization.json --output /tmp/utilization-preview
 ```
 
-This writes `utilization-summary.html` and `resource-history-summary.html` using
-the same renderers as the live tabs. Older JSON without history still renders
-peak snapshots, with "History not recorded" in the history output.
-No rendered configuration or Azure credentials are needed. Unsupported schema
-versions and invalid inputs are rejected. Charts use the existing ECharts CDN;
-the separate peak view retains its summary tables without that asset. The synthetic
-fixture at `test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-synthetic.json`
-can also be used as input for local UI testing.
-For history previews, use
-`test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-history-synthetic.json`.
+This writes `utilization-summary.html` and `resource-history-summary.html`. The synthetic fixtures `utilization-synthetic.json` and `utilization-history-synthetic.json` in `test/cmd/aro-hcp-tests/gather-observability/testdata/` work as input if you have no real artifact at hand.
 
 ## Modifying CI Configuration
 
-ARO HCP Prow job definitions are maintained in `openshift/release`, not in this repository. The generated job manifests under `ci-operator/jobs/Azure/ARO-HCP/` are outputs and should not be edited directly.
+ARO HCP Prow job definitions live in `openshift/release`, not in this repository. Under `ci-operator/config/Azure/ARO-HCP/` are the ci-operator configs, and the step registry is under `ci-operator/step-registry/aro-hcp/`. The Prow job manifests under `ci-operator/jobs/Azure/ARO-HCP/` are generated from the configs and must not be edited by hand; after changing a config, run `make update` in the release repo so the generated files stay in sync.
 
-When you change CI configuration in `openshift/release`, follow the release-repo regeneration workflow rather than hand-editing generated YAML. In practice that means using the repo's documented `make update` flow so ci-operator config, Prow jobs, and related generated artifacts stay in sync.
+Two things on the ARO HCP side have to move together with job names. `config/config.msft.clouds-overlay.yaml` maps public-cloud environments to the `prowJobName` of their EV2 gating job, and `test/e2e-pipeline.yaml` passes `PROW_JOB_NAME` into EV2 gating. Renaming a job on one side only leaves the rollout path pointing at a job that no longer exists, even though each YAML file still looks valid on its own. See [CI EV2 Integration](ev2-integration.md) for how that gating works and [CI Image Lifecycle](image-lifecycle.md) for the image build jobs.
 
-Also keep the ARO HCP-side wiring in mind:
-
-- `config/config.msft.clouds-overlay.yaml` maps public-cloud environments to `prowJobName`
-- `test/e2e-pipeline.yaml` passes `PROW_JOB_NAME` to EV2 gating
-
-If one side changes without the other, the rollout path can drift even when the individual YAML files still look valid.
-
-For the full list of ci-operator config files and step-registry components, see the "Where To Look" sections in [CI Image Lifecycle](image-lifecycle.md#where-to-look), [CI Identity Leasing](identity-leasing.md#where-to-look), and [CI EV2 Integration](ev2-integration.md#where-to-look).
+Changes to the slots and subscriptions that E2E jobs run against are not made in `openshift/release`. To add or change slot assets and their catalog entries, see [Managing Slot Assets](slot-assets.md#managing-slot-assets); to change how many concurrent runs a subscription can support, see [Changing Capacity](e2e-capacity.md#changing-capacity).
 
 ## Troubleshooting
 
-### Job Stuck Pending
+### Job stuck pending
 
-- check for general OpenShift CI load or incidents first
-- verify the job is landing on the expected build-farm cluster
-- if the problem is widespread or unrelated to ARO HCP configuration, escalate through the OpenShift CI team
+Check for general OpenShift CI load or incidents first, and confirm the job landed on the build-farm cluster you expect. If the problem is widespread or unrelated to ARO HCP configuration, escalate to the OpenShift CI team.
 
-### Test Failures In E2E Jobs
+If the job is running but sitting in its first step, it may be waiting for a slot. Jobs that lease slots wait for capacity when every candidate pool is exhausted; how acquisition, waiting, and failure behave is described in [Acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release), and the `aro-hcp-lease-acquire` log shows what it is waiting on. A slot that is admitted but then fails is covered in [When Admission Fails](slot-assets.md#when-admission-fails).
 
-- first identify which execution mode failed: DEV PR, higher-environment PR, EV2 gating, or periodic
-- confirm whether the failure looks like product behavior, environment drift, lease exhaustion, or test flake
-- use [CI Execution](execution.md) to confirm what that specific job could realistically validate
+### Test failures in E2E jobs
 
-### Cleanup Failures
+First identify which execution mode failed (DEV PR, higher-environment PR, EV2 gating, or periodic), then decide whether the failure looks like product behaviour, environment drift, slot exhaustion, or a flaky test. [CI Execution](execution.md) says what each job could realistically validate, which often settles the first question.
 
-- distinguish strict per-test cleanup from periodic cleanup before interpreting the signal
-- review [CI Cleanup](cleanup.md) to understand whether the failure is supposed to fail loudly or be best-effort
-- check for deletion locks, deny assignments, or missing owner components before assuming the cleanup code is wrong
+### Cleanup failures
 
-### Getting Help
+First separate strict per-test cleanup, where a failure is meant to be loud, from periodic cleanup, where it is best-effort; [CI Cleanup](cleanup.md) explains the difference. Before concluding the cleanup code is wrong, check for deny assignments on managed resource groups, resource locks, and an RP or other owner that is missing.
 
-- build-farm or Prow infrastructure issues: [#forum-ocp-testplatform](https://redhat.enterprise.slack.com/archives/CBN38N3MW)
-- ARO HCP-specific test failures: work through the ARO HCP development or SRE owners for the affected component
-- CI config changes: submit a PR to `openshift/release` and involve the OpenShift CI reviewers as needed
+### Getting help
+
+- Build-farm or Prow infrastructure issues: [`#forum-ocp-testplatform`](https://redhat.enterprise.slack.com/archives/CBN38N3MW).
+- ARO HCP test failures: the development or SRE owners of the affected component.
+- CI configuration changes: a PR to `openshift/release`, with the OpenShift CI reviewers involved as needed.
 
 ## Key Job Families And Source Of Truth
 
-- **PR build and simulation**: `pull-ci-Azure-ARO-HCP-main-images`, `pull-ci-Azure-ARO-HCP-main-frontend-simulation` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`
-- **DEV PR E2E**: `pull-ci-Azure-ARO-HCP-main-e2e-parallel` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml` and `ci-operator/step-registry/aro-hcp/local-e2e/`
-- **Higher-environment PR E2E**: `integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`
-- **Postsubmit image promotion and CD**: `branch-ci-Azure-ARO-HCP-main-images`, `branch-ci-Azure-ARO-HCP-main-images-push-postsubmit` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`
-- **Postsubmit CI base image**: `branch-ci-Azure-ARO-HCP-main-baseimage-generator-images` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml`
-- **Postsubmit global infra**: `branch-ci-Azure-ARO-HCP-main-global-pipeline-postsubmit` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml` (runs on changes to `config/config.yaml`, `observability/observability.yaml`, or `dev-infrastructure/`)
-- **EV2 gating E2E**: `branch-ci-Azure-ARO-HCP-main-e2e-*` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
-- **Periodic cleanup**: `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-*` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
-- **Periodic E2E**: `periodic-ci-Azure-ARO-HCP-main-periodic-*-e2e-parallel` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`
-- **Image-updater tooling**: `periodic-ci-Azure-ARO-HCP-main-image-updater-*` -> `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__image-updater.yaml`
+All configs are under `ci-operator/config/Azure/ARO-HCP/` in `openshift/release`. The file name suffix after `Azure-ARO-HCP-main` is the variant, and it appears in the Prow job name. This list is only an orientation aid; the configs are authoritative.
+
+| Family | Job names | Config |
+| --- | --- | --- |
+| PR checks and image builds | `pull-ci-Azure-ARO-HCP-main-{images,test-unit,lint,verify,...}` | `Azure-ARO-HCP-main.yaml` |
+| DEV PR E2E | `pull-ci-Azure-ARO-HCP-main-e2e-parallel*` (workflows `aro-hcp-local-e2e`, `aro-hcp-local-e2e-upgrade`) | `Azure-ARO-HCP-main.yaml` |
+| Higher-environment PR E2E | `pull-ci-Azure-ARO-HCP-main-{integration,stage,prod}-e2e-parallel*` (workflow `aro-hcp-persistent-e2e`) | `Azure-ARO-HCP-main.yaml` |
+| Postsubmit image promotion, global and dev-ci infrastructure | `branch-ci-Azure-ARO-HCP-main-{images,images-push-postsubmit,ci-images-push-postsubmit,global-pipeline-postsubmit,dev-ci-pipeline-postsubmit}` | `Azure-ARO-HCP-main.yaml` |
+| CI base images | `*-baseimage-generator-*` | `Azure-ARO-HCP-main__baseimage-generator.yaml` |
+| EV2 gating E2E | `branch-ci-Azure-ARO-HCP-main-e2e-*` | `Azure-ARO-HCP-main__e2e.yaml` |
+| Periodic E2E | `periodic-ci-Azure-ARO-HCP-main-periodic-*` | `Azure-ARO-HCP-main__periodic.yaml` |
+| Periodic cleanup | `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-*` | `Azure-ARO-HCP-main__periodic-cleanup.yaml` |
+| Periodic provision health checks | `periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-*` | `Azure-ARO-HCP-main__periodic-healthcheck.yaml` |
+| Image updater | `periodic-ci-Azure-ARO-HCP-main-image-updater-*` | `Azure-ARO-HCP-main__image-updater.yaml` |
 
 ## See Also
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [CI Image Lifecycle](image-lifecycle.md)
-- [CI Identity Leasing](identity-leasing.md)
-- [CI EV2 Integration](ev2-integration.md)
 - [CI Cleanup](cleanup.md)
-- [DEV CI Regional Load Management](dev-region-failover.md)
+- [CI Image Lifecycle](image-lifecycle.md)
+- [CI EV2 Integration](ev2-integration.md)
 - [E2E Testing In CI](e2e-testing.md)

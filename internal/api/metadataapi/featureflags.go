@@ -141,4 +141,9 @@ const (
 	// Only honored when ExperimentalReleaseFeatures is registered. The value must
 	// be a valid Go duration of at least one minute, set on PUT/PATCH for use by DELETE.
 	TagNodePoolMaxDeletionDuration = ExperimentalNodePoolTagPrefix + "max-deletion-duration"
+
+	// TagNodePoolValidateDiskEncryptionSetPermissions opts a node pool into the
+	// Reader-on-DiskEncryptionSet permission validation when the
+	// ExperimentalReleaseFeatures AFEC is registered. The value must be "true".
+	TagNodePoolValidateDiskEncryptionSetPermissions = ExperimentalNodePoolTagPrefix + "validate-disk-encryption-set-permissions"
 )

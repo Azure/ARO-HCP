@@ -68339,6 +68339,48 @@ webhooks:
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
 ---
+# Source: hcp-prometheus/templates/azure-cns.podmonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: azure-cns
+  name: azure-cns
+  namespace: kube-system
+spec:
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+---
+# Source: hcp-prometheus/templates/konnectivity-server.podmonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: konnectivity-server
+  name: konnectivity-server
+  namespace: 'prometheus'
+spec:
+  podMetricsEndpoints:
+  - port: konnect-health
+    path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      app: kube-apiserver
+---
 # Source: hcp-prometheus/templates/prometheus.podmonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -68482,6 +68524,19 @@ spec:
         replacement: 'velero_${1}'
       - sourceLabels: [__name__]
         regex: 'velero_.+'
+        targetLabel: namespace
+        replacement: 'velero'
+      # TRANSITION — REVERT ME (ARO-30517). The Velero KSM ServiceMonitor
+      # (values-mgmt.yaml) rewrites namespace to ocm-* so these series route to
+      # the HCP workspace, which the ocm-* drop rule below would otherwise also
+      # drop from services. Reset their namespace back to "velero" so a
+      # services-workspace copy survives while the HCP-workspace dashboards are
+      # validated. Unlike the PodMonitor series above, KSM series are not renamed,
+      # so matching is by their veleroBackup_/veleroDeleteBackupRequest_/
+      # veleroSchedule_ prefixes. Remove once validated, together with the block
+      # above.
+      - sourceLabels: [__name__]
+        regex: '(veleroBackup|veleroDeleteBackupRequest|veleroSchedule)_.+'
         targetLabel: namespace
         replacement: 'velero'
       - sourceLabels: [namespace]

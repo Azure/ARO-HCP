@@ -24,17 +24,18 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/query"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/citables"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 func TestSchemaRequiresSourceAndCorrectTypes(t *testing.T) {
-	var columns []schemaColumn
-	for table, names := range requiredSchema {
+	var columns []citables.Column
+	for table, names := range citables.Required {
 		for name, kind := range names {
-			columns = append(columns, schemaColumn{table, name, kind})
+			columns = append(columns, citables.Column{TableName: table, ColumnName: name, ColumnType: kind})
 		}
 	}
-	if err := validateSchema(columns); err != nil {
+	if err := citables.Validate(columns); err != nil {
 		t.Fatal(err)
 	}
 	for i, column := range columns {
@@ -42,12 +43,12 @@ func TestSchemaRequiresSourceAndCorrectTypes(t *testing.T) {
 			continue
 		}
 		columns[i].ColumnType = "dynamic"
-		err := validateSchema(columns)
-		if err == nil || !strings.Contains(err.Error(), "ciTestResults.source:string") || !strings.Contains(err.Error(), "#7875") {
+		err := citables.Validate(columns)
+		if err == nil || !strings.Contains(err.Error(), "ciTestResults.source:string") || !strings.Contains(err.Error(), "deploy") {
 			t.Fatalf("missing actionable source prerequisite: %v", err)
 		}
 		columns = append(columns[:i], columns[i+1:]...)
-		if err := validateSchema(columns); err == nil {
+		if err := citables.Validate(columns); err == nil {
 			t.Fatal("accepted missing source column")
 		}
 		break
@@ -162,7 +163,7 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 						t.Error("schema was not queried first")
 					}
 					var rows [][]any
-					for table, columns := range requiredSchema {
+					for table, columns := range citables.Required {
 						for name, kind := range columns {
 							rows = append(rows, []any{table, name, kind})
 						}

@@ -183,6 +183,44 @@ func instantiateAzureNodePoolVMQuotaValidationController(controllerContext contr
 	), nil
 }
 
+func registerAzureNodePoolEncryptionAtHostValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolEncryptionAtHostValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolEncryptionAtHostValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolEncryptionAtHostValidationControllerName,
+		validationutils.NewAzureNodePoolEncryptionAtHostValidation(controllerContext.VirtualMachineResourceSKUsCachedReaderController, controllerContext.FPAClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
+func registerAzureNodePoolAvailabilityZoneValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolAvailabilityZoneValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolAvailabilityZoneValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolAvailabilityZoneValidationControllerName,
+		validationutils.NewAzureNodePoolAvailabilityZoneValidation(controllerContext.VirtualMachineResourceSKUsCachedReaderController),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
 func registerNodePoolNSGBasedRequiredConnectivityValidationController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -195,6 +233,29 @@ func instantiateNodePoolNSGBasedRequiredConnectivityValidationController(control
 	return nodepoolvalidation.NewNamedNodePoolValidationController(
 		nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName,
 		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
+func registerAzureNodePoolDiskEncryptionSetPermissionsValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolDiskEncryptionSetPermissionsValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolDiskEncryptionSetPermissionsValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidationControllerName,
+		validationutils.NewAzureNodePoolDiskEncryptionSetPermissionsValidation(
+			controllerContext.CheckAccessV2ClientBuilder,
+			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+			controllerContext.CloudEnvironment.CheckAccessV2Scope(),
+		),
 		controllerContext.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		controllerContext.BackendInformers,
@@ -381,7 +442,10 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(nodepoolstatus.NodePoolRequirementsValidAggregatorControllerName)] = registerNodePoolRequirementsValidAggregatorController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName)] = registerAzureVMSizeSupportsEphemeralOSDiskValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolVMQuotaValidationControllerName)] = registerAzureNodePoolVMQuotaValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolEncryptionAtHostValidationControllerName)] = registerAzureNodePoolEncryptionAtHostValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolAvailabilityZoneValidationControllerName)] = registerAzureNodePoolAvailabilityZoneValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName)] = registerNodePoolNSGBasedRequiredConnectivityValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidationControllerName)] = registerAzureNodePoolDiskEncryptionSetPermissionsValidationController()
 	registry[strings.ToLower(nodepoolversion.NodepoolVersionControllerName)] = registerNodePoolVersionController()
 	registry[strings.ToLower(nodepoolversion.NodePoolActiveVersionsControllerName)] = registerNodePoolActiveVersionController()
 	registry[strings.ToLower(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName)] = registerCreateNodePoolScopedReadDesiresController()

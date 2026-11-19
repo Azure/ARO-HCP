@@ -52,7 +52,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.AzureResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -69,7 +69,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.AzureResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -109,7 +109,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				document, err := crud.Get(ctx, resourceID)
 				require.NoError(t, err)
 				fakeClock := clocktesting.NewFakePassiveClock(time.Unix(int64(document.CosmosTimestamp), 0).Add(time.Hour))
-				orphanController := mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister)
+				orphanController := mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.AzureResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister)
 				t.Run("newer_than_grace_kept", func(t *testing.T) {
 					require.NoError(t, orphanController.SyncOnce(ctx, subscriptionResourceID.SubscriptionID))
 					_, err := crud.Get(ctx, resourceID)
@@ -149,7 +149,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.AzureResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {

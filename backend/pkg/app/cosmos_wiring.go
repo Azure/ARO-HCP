@@ -19,6 +19,7 @@ import (
 	"maps"
 	"sync"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -40,14 +41,14 @@ type StorageFactory interface {
 	BillingStorageClient(controllerName string) billingcosmosstorage.BillingDBClient
 	FleetStorageClient(controllerName string) fleetcosmosstorage.FleetDBClient
 	KubeApplierStorageClients(controllerName string) kubeappliercosmosstorage.KubeApplierDBClients
+	AzureResourcesStorageClient(controllerName string) azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 type StorageFactoryOptions struct {
-	ResourcesRUsPerSecond float64
-	BillingRUsPerSecond   float64
-	FleetRUsPerSecond     float64
-	// KubeApplierRUsPerSecond applies independently to each MC container.
-	KubeApplierRUsPerSecond float64
+	ResourcesRUsPerSecond      float64
+	BillingRUsPerSecond        float64
+	FleetRUsPerSecond          float64
+	AzureResourcesRUsPerSecond float64
 	// KubeApplierUtilization overrides Utilization for MC containers so the
 	// backend and kube-applier binary can reserve separate shares.
 	KubeApplierUtilization float64
@@ -60,10 +61,11 @@ type StorageFactoryOptions struct {
 }
 
 type controllerStorageClients struct {
-	resources   corecosmosstorage.ResourcesDBClient
-	billing     billingcosmosstorage.BillingDBClient
-	fleet       fleetcosmosstorage.FleetDBClient
-	kubeApplier kubeappliercosmosstorage.KubeApplierDBClients
+	resources      corecosmosstorage.ResourcesDBClient
+	billing        billingcosmosstorage.BillingDBClient
+	fleet          fleetcosmosstorage.FleetDBClient
+	kubeApplier    kubeappliercosmosstorage.KubeApplierDBClients
+	azureResources azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 type cosmosStorageFactory struct {
@@ -129,6 +131,7 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		{"Resources", options.ResourcesRUsPerSecond},
 		{"Billing", options.BillingRUsPerSecond},
 		{"Fleet", options.FleetRUsPerSecond},
+		{"AzureResources", options.AzureResourcesRUsPerSecond},
 	} {
 		containerOptions := commonOptions
 		containerOptions.TotalRUsPerSecond = allocation.rus
@@ -139,14 +142,8 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		limitsByContainer[allocation.container] = limits
 	}
 	kubeApplierOptions := commonOptions
-	kubeApplierOptions.TotalRUsPerSecond = options.KubeApplierRUsPerSecond
 	if options.KubeApplierUtilization != 0 {
 		kubeApplierOptions.Utilization = options.KubeApplierUtilization
-	}
-	// Validate before controllers start; actual MC container names are resolved
-	// lazily from Fleet, and each gets its own ControllerRateLimits instance.
-	if _, err := cosmosratelimit.NewControllerRateLimits(kubeApplierOptions); err != nil {
-		return nil, fmt.Errorf("invalid kube-applier rate limits: %w", err)
 	}
 	factory := &cosmosStorageFactory{
 		rateLimits: limitsByContainer, kubeApplierRateLimitOptions: kubeApplierOptions,
@@ -164,19 +161,38 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 	return factory, nil
 }
 
-// tokenBucket retains one budget per physical container and controller. The
-// three fixed containers are preconfigured; MC containers use the kube-applier
-// allocation and are registered when their names become known.
+// tokenBucket returns the preconfigured budget for a fixed container and controller.
 func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string) (*cosmosratelimit.TokenBucket, error) {
 	if bucket, found := f.unlimitedBuckets[controllerName]; found {
 		return bucket, nil
 	}
 	f.rateLimitsMu.Lock()
+	limits, found := f.rateLimits[containerName]
+	f.rateLimitsMu.Unlock()
+	if !found {
+		return nil, fmt.Errorf("cosmos container %q has no configured budget", containerName)
+	}
+	return limits.ForController(controllerName)
+}
+
+// kubeApplierTokenBucket creates each MC container's budget on first use,
+// using its registered throughput and the backend's kube-applier allocation.
+// Subsequent lookups reuse the budget, preserving accumulated debt.
+func (f *cosmosStorageFactory) kubeApplierTokenBucket(containerName string, maxScale int32, controllerName string) (*cosmosratelimit.TokenBucket, error) {
+	if bucket, found := f.unlimitedBuckets[controllerName]; found {
+		return bucket, nil
+	}
+	if maxScale <= 0 {
+		return nil, fmt.Errorf("kube-applier container %q requires positive registered KubeApplierCosmosContainerMaxScale, got %d; rerun management cluster registration", containerName, maxScale)
+	}
+	f.rateLimitsMu.Lock()
 	defer f.rateLimitsMu.Unlock()
 	limits, found := f.rateLimits[containerName]
 	if !found {
+		options := f.kubeApplierRateLimitOptions
+		options.TotalRUsPerSecond = float64(maxScale)
 		var err error
-		limits, err = cosmosratelimit.NewControllerRateLimits(f.kubeApplierRateLimitOptions)
+		limits, err = cosmosratelimit.NewControllerRateLimits(options)
 		if err != nil {
 			return nil, err
 		}
@@ -211,11 +227,20 @@ func (f *cosmosStorageFactory) newControllerClients(name string) (*controllerSto
 		return nil, err
 	}
 	kubeApplier := kubeappliercosmosstorage.NewKubeApplierDBClients(f.cosmosURL, f.databaseName, f.clientOptions,
-		func(containerName string) (*cosmosratelimit.TokenBucket, error) {
-			return f.tokenBucket(containerName, name)
+		func(containerName string, maxScale int32) (*cosmosratelimit.TokenBucket, error) {
+			return f.kubeApplierTokenBucket(containerName, maxScale, name)
 		},
-		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleet))
-	return &controllerStorageClients{resources: resources, billing: billing, fleet: fleet, kubeApplier: kubeApplier}, nil
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleet),
+	)
+	azureResourcesBucket, err := f.tokenBucket("AzureResources", name)
+	if err != nil {
+		return nil, err
+	}
+	azureResources, err := azureresourcescosmosstorage.NewAzureResourcesDBClient(f.cosmosURL, f.databaseName, f.clientOptions, azureResourcesBucket)
+	if err != nil {
+		return nil, err
+	}
+	return &controllerStorageClients{resources: resources, billing: billing, fleet: fleet, kubeApplier: kubeApplier, azureResources: azureResources}, nil
 }
 
 func (f *cosmosStorageFactory) forController(name string) *controllerStorageClients {
@@ -237,4 +262,7 @@ func (f *cosmosStorageFactory) FleetStorageClient(name string) fleetcosmosstorag
 }
 func (f *cosmosStorageFactory) KubeApplierStorageClients(name string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return f.forController(name).kubeApplier
+}
+func (f *cosmosStorageFactory) AzureResourcesStorageClient(name string) azureresourcescosmosstorage.AzureResourcesDBClient {
+	return f.forController(name).azureResources
 }

@@ -2,33 +2,83 @@ name: "Rollout Status Comment"
 # Post a link to the rollout status page once a PR is merged, so the author and
 # reviewers can track the change through the release pipeline without hand-building
 # the URL.
+#
+# This runs on the push that lands the merge commit, not on the pull request. A
+# pull_request run from a fork gets a read-only token and cannot comment, and the
+# token write access comes from the repository context a push event runs in.
 on:
-  pull_request_target:
-    types: [closed]
+  push:
     branches: [main]
 permissions:
   pull-requests: write
 jobs:
   comment:
-    # Only merged PRs - a closed-without-merge PR never rolls out.
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Host and path of the rollout status app. Only the query string is per-PR, so
     # host+path live here as one value to repoint environments (int/prod) in one place.
     env:
       ROLLOUT_STATUS_BASE_URL: https://releases.dev.aro.azure-test.net/releases/versions
+      # Hidden in the rendered comment; identifies the comment this workflow owns.
+      MARKER: "<!-- rollout-status-comment -->"
     steps:
     - name: Post rollout status link
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         script: |
-          const pr = context.payload.pull_request.number;
+          const marker = process.env.MARKER;
           const repo = context.repo.repo.toLowerCase();
-          const url = `${process.env.ROLLOUT_STATUS_BASE_URL}?mode=pr&repo=${repo}&pr=${pr}`;
 
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: pr,
-            body: `[Track rollout status](${url})`,
-          });
+          // Every commit that reaches main arrives through a merge commit, and the
+          // merge commit names its pull request. The trailing-number form covers a
+          // squash merge, which this repository does not allow today.
+          const numbers = new Set();
+          for (const { message } of context.payload.commits ?? []) {
+            const subject = message.split('\n', 1)[0];
+            const match = subject.match(/^Merge pull request #(\d+) from /) ||
+              subject.match(/\(#(\d+)\)$/);
+            if (match) {
+              numbers.add(Number(match[1]));
+            }
+          }
+
+          for (const issue_number of numbers) {
+            // A merged pull request is the only thing that rolls out, so ignore any
+            // number that came from a commit which is not one.
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issue_number,
+            });
+            if (!pr.merged_at || pr.base.ref !== 'main') {
+              continue;
+            }
+
+            // A re-run of this workflow must not stack a second comment on the PR.
+            // Page the whole thread: a busy PR can push the marker past one page.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            if (comments.some((comment) => comment.body?.includes(marker))) {
+              continue;
+            }
+
+            const url = `${process.env.ROLLOUT_STATUS_BASE_URL}?mode=pr&repo=${repo}&pr=${issue_number}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body: [
+                '### 🚀 Rollout Status',
+                '',
+                'This PR has merged and is now rolling out through the release pipeline.',
+                '',
+                `**[→ Track rollout status](${url})**`,
+                '',
+                marker,
+              ].join('\n'),
+            });
+          }

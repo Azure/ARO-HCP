@@ -528,37 +528,24 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'userJourneyNodePoolStuckOperation'
+        alert: 'userJourneyNodePoolCreateStuckOperation'
         enabled: true
         labels: {
           component: 'slo'
           severity: '4'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
-          description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          correlationId: 'userJourneyNodePoolCreateStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+          description: 'Node pool create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Node pool create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          summary: '{{ $labels.cluster }}: Node Pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
         }
-        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_nodepool_saturation_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
       {
         actions: [
           for g in actionGroups: {
@@ -569,22 +556,50 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyNodePoolSaturationQueueDepth'
+        alert: 'userJourneyNodePoolUpdateStuckOperation'
         enabled: true
         labels: {
           component: 'slo'
           severity: '4'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
-          description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-          info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          correlationId: 'userJourneyNodePoolUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+          description: 'Node pool update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Node pool update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
-          title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
+          summary: '{{ $labels.cluster }}: Node Pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
         }
-        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
-        for: 'PT5M'
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyNodePoolDeleteStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyNodePoolDeleteStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+          description: 'Node pool delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Node pool delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool delete for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool delete for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
@@ -610,24 +625,23 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'userJourneyNodePoolErrors1h5m'
+        alert: 'userJourneyNodePoolErrors1h'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '1h'
           severity: '4'
-          short_window: '5m'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
-          info: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          correlationId: 'userJourneyNodePoolErrors1h/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
-          title: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72'
+        expression: 'errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -641,24 +655,24 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'userJourneyNodePoolErrors6h30m'
+        alert: 'userJourneyNodePoolErrors6h1h'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
           severity: '4'
-          short_window: '30m'
+          short_window: '1h'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
-          info: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          correlationId: 'userJourneyNodePoolErrors6h1h/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3'
+        expression: 'errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -681,14 +695,14 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
-          info: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
-          title: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
         }
-        expression: 'errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05'
+        expression: 'errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -708,18 +722,18 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           component: 'slo'
           long_window: '6h'
           severity: '4'
-          short_window: '30m'
+          short_window: '1h'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}'
-          description: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
-          info: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 15% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
-          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15'
+        expression: 'errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1430,325 +1444,6 @@ Management Cluster: {{ $labels.cluster }}
         expression: 'hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_backup_slo_availability_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupAvailability6Hourly'
-        enabled: true
-        labels: {
-          cadence: '6-hourly'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupAvailability6Hourly/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero 6-hourly backup in over 13 hours (2x the 6h cadence + 1h grace). This is the primary restore-point freshness signal. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero 6-hourly backup in over 13 hours (2x the 6h cadence + 1h grace). This is the primary restore-point freshness signal. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful 6-hourly backup in over 13h on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful 6-hourly backup in over 13h on {{ $labels.cluster }}'
-        }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupAvailabilityDaily'
-        enabled: true
-        labels: {
-          cadence: 'daily'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupAvailabilityDaily/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero daily backup in over 49 hours (2x the 24h cadence + 1h grace). Daily backups carry longer retention than 6-hourly; a gap here is a separate restore-point loss even if 6-hourly is healthy. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero daily backup in over 49 hours (2x the 24h cadence + 1h grace). Daily backups carry longer retention than 6-hourly; a gap here is a separate restore-point loss even if 6-hourly is healthy. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful daily backup in over 49h on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful daily backup in over 49h on {{ $labels.cluster }}'
-        }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupAvailabilityWeekly'
-        enabled: true
-        labels: {
-          cadence: 'weekly'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupAvailabilityWeekly/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero weekly backup in over 337 hours (2x the 7d cadence + 1h grace). Weekly backups carry the longest retention; a gap here is a separate restore-point loss even if 6-hourly/daily are healthy. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has had no successful Velero weekly backup in over 337 hours (2x the 7d cadence + 1h grace). Weekly backups carry the longest retention; a gap here is a separate restore-point loss even if 6-hourly/daily are healthy. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further (ARO-29949).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful weekly backup in over 337h on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful weekly backup in over 337h on {{ $labels.cluster }}'
-        }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600'
-        for: 'PT1H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupNeverSucceeded6Hourly'
-        enabled: true
-        labels: {
-          cadence: '6-hourly'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupNeverSucceeded6Hourly/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a 6-hourly schedule status without a successful backup timestamp for 12h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a 6-hourly schedule status without a successful backup timestamp for 12h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful backup timestamp after 12h of observed 6-hourly schedule status on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful backup timestamp after 12h of observed 6-hourly schedule status on {{ $labels.cluster }}'
-        }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupNeverSucceededDaily'
-        enabled: true
-        labels: {
-          cadence: 'daily'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupNeverSucceededDaily/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a daily schedule status without a successful backup timestamp for 48h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a daily schedule status without a successful backup timestamp for 48h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful backup timestamp after 48h of observed daily schedule status on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful backup timestamp after 48h of observed daily schedule status on {{ $labels.cluster }}'
-        }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupNeverSucceededWeekly'
-        enabled: true
-        labels: {
-          cadence: 'weekly'
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupNeverSucceededWeekly/{{ $labels.cluster }}'
-          description: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a weekly schedule status without a successful backup timestamp for 336h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          info: 'At least one HostedCluster namespace on management cluster {{ $labels.cluster }} has reported a weekly schedule status without a successful backup timestamp for 336h. Check initial backup failures, metric resets, and schedule pause state. This signal requires an observed schedule status; it cannot detect a schedule that was never delivered. One alert fires per management cluster regardless of how many HostedClusters are affected - use the Velero dashboard\'s "Hours Since Last Backup" and "Backup Schedule Last Status" panels to identify which schedule(s).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one HostedCluster has no successful backup timestamp after 336h of observed weekly schedule status on {{ $labels.cluster }}'
-          title: 'at least one HostedCluster has no successful backup timestamp after 336h of observed weekly schedule status on {{ $labels.cluster }}'
-        }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0'
-        for: 'PT1H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_backup_slo_error_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupErrors'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupErrors/{{ $labels.cluster }}'
-          description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary (99.5% success budget), sustained over a 6h window for 30m.'
-          info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary (99.5% success budget), sustained over a 6h window for 30m.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'Velero backup failure rate above SLO (>0.5%) on {{ $labels.cluster }}'
-          title: 'Velero backup failure rate above SLO (>0.5%) on {{ $labels.cluster }}'
-        }
-        expression: '((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_backup_slo_latency_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupLatency'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '3'
-          slo: 'backup-latency'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupLatency/{{ $labels.cluster }}'
-          description: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes over a 6h window, sustained for 15m (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts). Same recurring-cadence scope and >=5 completed-backup volume floor as userJourneyBackupErrors, so a single slow backup can\'t swing the p99 on its own.'
-          info: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes over a 6h window, sustained for 15m (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts). Same recurring-cadence scope and >=5 completed-backup volume floor as userJourneyBackupErrors, so a single slow backup can\'t swing the p99 on its own.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'Velero backup p99 duration above SLO (>20m) on {{ $labels.cluster }}'
-          title: 'Velero backup p99 duration above SLO (>20m) on {{ $labels.cluster }}'
-        }
-        expression: '(histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_backup_slo_traffic_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyBackupTraffic'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'backup-traffic'
-        }
-        annotations: {
-          correlationId: 'userJourneyBackupTraffic/{{ $labels.cluster }}'
-          description: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 12h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
-          info: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 12h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'Velero backup attempts collapsed below 10% of 1d baseline on {{ $labels.cluster }}'
-          title: 'Velero backup attempts collapsed below 10% of 1d baseline on {{ $labels.cluster }}'
-        }
-        expression: '(avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0'
-        for: 'PT1H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [

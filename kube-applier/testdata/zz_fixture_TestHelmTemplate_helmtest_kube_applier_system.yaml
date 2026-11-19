@@ -312,6 +312,7 @@ spec:
         - --cosmos-name=arohcpdev-rp-usw3
         - --cosmos-url=__cosmosDBDocumentEndpoint__
         - --cosmos-container=Manifests-MC-1
+        - --cosmos-container-max-scale=19000
         - --namespace=kube-applier
         imagePullPolicy: Always
         env:

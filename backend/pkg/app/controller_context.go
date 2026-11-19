@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -32,11 +33,13 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 	billing := b.options.StorageFactory.BillingStorageClient(BackendInformersStorageName)
 	fleet := b.options.StorageFactory.FleetStorageClient(FleetInformersStorageName)
 	kubeApplier := b.options.StorageFactory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName)
+	azureResources := b.options.StorageFactory.AzureResourcesStorageClient(BackendInformersStorageName)
 	backendInformers := coreinformers.NewBackendInformers(ctx,
 		resources.ResourcesGlobalListers(),
 		resources,
 		billing.BillingGlobalListers(),
 	)
+	azureResourcesInformers := azureresourcesinformers.NewAzureResourcesInformers(ctx, azureResources.GlobalListers(), azureResources)
 	fleetInformers := fleetinformers.NewFleetInformers(ctx, fleet.GlobalListers(), fleet)
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 	unionKubeApplierInformersController := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
@@ -70,11 +73,14 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
 		ClusterOIDCIssuerBaseURL:                            b.options.ClusterOIDCIssuerBaseURL,
+		InsecureARMPermissionsManagerClientBuilder:          b.options.InsecureARMPermissionsManagerClientBuilder,
+		MockFirstPartyApplicationPrincipalID:                b.options.MockFirstPartyApplicationPrincipalID,
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,
 		OrphanedMRGCleanupConfig:                            b.options.OrphanedMRGCleanupConfig,
 		BackendInformers:                                    backendInformers,
 		FleetInformers:                                      fleetInformers,
+		AzureResourcesInformers:                             azureResourcesInformers,
 		UnionKubeApplierInformers:                           unionKubeApplierInformers,
 		UnionKubeApplierInformersController:                 unionKubeApplierInformersController,
 		VirtualMachineResourceSKUsCachedReaderController:    virtualMachineResourceSKUsCachedReaderController,

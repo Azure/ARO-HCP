@@ -78,6 +78,14 @@ apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-asset
 apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-assets: override export POOL := $(value POOL)
 apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-assets: override export SUBSCRIPTION := $(value SUBSCRIPTION)
 
+# The mock_identities asset enforces the authoritative Entra owner list used by the
+# dev-ci pipeline (entraAppOwnerIds, which mirrors the aro-hcp-owners group) on every
+# application and service principal it manages.
+MOCK_IDENTITY_CONFIG ?= $(abspath $(TEST_DIR)../config/config-dev-ci.yaml)
+YQ ?= yq
+apply-pool-assets validate-pool-assets: export ENTRA_APP_OWNER_IDS ?= $(if $(if $(findstring mock_identities,$(ASSET)),,$(ASSET)),,$(shell $(YQ) -er '.clouds.dev.defaults.entraAppOwnerIds | select(tag == "!!str")' "$(MOCK_IDENTITY_CONFIG)"))
+apply-pool-assets validate-pool-assets: export ENTRA_APP_OWNERS_GROUP_ID ?= $(if $(if $(findstring mock_identities,$(ASSET)),,$(ASSET)),,$(shell $(YQ) -er '.clouds.dev.defaults.entraAppOwnersGroupId | select(tag == "!!str")' "$(MOCK_IDENTITY_CONFIG)"))
+
 apply-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
 		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \

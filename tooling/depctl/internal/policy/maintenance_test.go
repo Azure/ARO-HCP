@@ -167,12 +167,9 @@ func TestCIEvidenceRequiresPositiveCurrentHeadResults(t *testing.T) {
 	if len(evidence.Positive) != 0 {
 		t.Fatalf("old or neutral results must not be positive: %v", evidence.Positive)
 	}
-	for _, blocked := range evidence.Blocked {
-		if blocked.Name == "ci/prow/e2e-parallel" && !blocked.Pending && blocked.State == "skipped" {
-			return
-		}
+	if len(evidence.Blocked) != 1 || evidence.Blocked[0].Name != "ci/prow/unit" || !evidence.Blocked[0].Pending {
+		t.Fatalf("pending status must block while skipped checks are non-positive: %+v", evidence.Blocked)
 	}
-	t.Fatalf("a skipped required check must be reported as blocked: %+v", evidence.Blocked)
 }
 
 func TestCIEvidenceRejectsForeignHeadCheck(t *testing.T) {

@@ -317,3 +317,67 @@ resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRul
     ]
   }
 }
+
+resource arohcpSwiftNetworkingSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'swift_router_replicas:available'
+        expression: 'sum by (cluster, region) (max by (cluster, namespace, deployment, region) (kube_deployment_status_replicas_available{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}) - clamp_min(max by (cluster, namespace, deployment, region) (kube_deployment_status_replicas_available{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}) - max by (cluster, namespace, deployment, region) (kube_deployment_spec_replicas{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}), 0))'
+      }
+      {
+        record: 'swift_router_replicas:configured'
+        expression: 'sum by (cluster, region) (max by (cluster, namespace, deployment, region) (kube_deployment_spec_replicas{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}))'
+      }
+      {
+        record: 'swift_router_replicas:unavailable_sustained'
+        expression: 'sum by (cluster, region) (min_over_time(clamp_min(max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}) - max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}), 0)[11m:1m]) and on (cluster, namespace) (count_over_time((clamp_min(max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}) - max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="router",job="kube-state-metrics",namespace=~"ocm-.*"}), 0) > 0)[11m:1m]) >= 11)) or on (cluster) (0 * swift_router_replicas:configured)'
+      }
+      {
+        record: 'swift_router_capacity:degraded'
+        expression: '(swift_router_replicas:unavailable_sustained > bool 0) and on (cluster) (swift_router_replicas:configured > 0)'
+      }
+      {
+        record: 'router:startup_latency:seconds'
+        expression: '(time() - max by (cluster, namespace, pod, region) (kube_pod_created{job="kube-state-metrics",namespace=~"ocm-.*"})) * on (cluster, namespace, pod, region) max by (cluster, namespace, pod, region) (kube_pod_owner{job="kube-state-metrics",owner_kind="ReplicaSet",owner_name=~"router-.*"}) * on (cluster, namespace, pod, region) (max by (cluster, namespace, pod, region) (kube_pod_status_phase{job="kube-state-metrics",phase="Pending"}) == 1)'
+      }
+      {
+        record: 'router:startup_latency:p99'
+        expression: 'quantile by (cluster, namespace, region) (0.99, router:startup_latency:seconds)'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftKonnectivityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_konnectivity_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'konnectivity:stream_errors:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max by (cluster, namespace, region, pod, segment, code, packet_type) (rate(konnectivity_network_proxy_server_stream_errors_total[5m])))'
+      }
+      {
+        record: 'konnectivity:stream_error_rate:5m'
+        expression: '(sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_errors_total[5m]))) or on (cluster, namespace, region) (0 * sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total[5m]))))) / sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total[5m])))'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:5m'
+        expression: '(sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_dial_failure_count[5m]))) or on (cluster, namespace, region) (0 * sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total{packet_type="DIAL_RSP",segment="from_agent"}[5m]))))) / ((sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_dial_failure_count[5m]))) or on (cluster, namespace, region) (0 * sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total{packet_type="DIAL_RSP",segment="from_agent"}[5m]))))) + (sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total{packet_type="DIAL_RSP",segment="from_agent"}[5m]))) or on (cluster, namespace, region) (0 * sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_dial_failure_count[5m]))))))'
+      }
+    ]
+  }
+}

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Trusted, fixed-command publication and reconciliation for native Dependabot PRs.
 
-The agent supplies patches, never shell commands. No repository program is run in
-this credentialed process. Native Dependabot is deliberately not a robot-owned
-PR kind in agentic_pr_maintenance.
+The agent supplies patches, never shell commands. No candidate repository program
+is run in this credentialed process. Native Dependabot uses depctl for shared
+hold and current-head CI policy, with its own publication lifecycle.
 """
 
 import base64
@@ -18,14 +18,14 @@ import sys
 import tempfile
 from urllib.parse import quote
 
-import agentic_pr_maintenance as maintenance
-from dependabot_guard import lock_versions
 
 NATIVE = "dependabot[bot]"
-ROBOT = maintenance.ROBOT
+ROBOT = "aro-hcp-robot[bot]"
 LABEL = "agentic-dependency-upgrade"
 MARKER = "native-dependabot-maintenance:"
-SHA = maintenance.SHA
+SHA = re.compile(r"[0-9a-f]{40}")
+HOLD_LABEL = "do-not-merge/hold"
+RECOVERY_MARKER = "gh-aw-recompile:recovery:"
 ACTIONS = {"admit", "recover-retry", "release-hold", "close-superseded"}
 VENDORS = ("vendor/", "image-sync/oc-mirror/acrauth/vendor/")
 MAX_PATCH = 16 * 1024 * 1024
@@ -34,6 +34,42 @@ MAX_PATCH = 16 * 1024 * 1024
 MAX_REQUEST = 6 * MAX_PATCH + 256 * 1024
 REQUEST_FILE = "native-replacement-request.json"
 DETECTION_PATCH = "aw-native-replacement.patch"
+
+
+
+def lock_versions(document):
+    """Read resolved package identities from npm lockfile versions 1 through 3."""
+    result = {}
+    if not isinstance(document, dict) or document.get("lockfileVersion") not in (1, 2, 3):
+        raise ValueError("unsupported npm lockfile format")
+    if document["lockfileVersion"] in (2, 3):
+        packages = document.get("packages")
+        if not isinstance(packages, dict):
+            raise ValueError("npm lockfile packages are unavailable")
+        for path, entry in packages.items():
+            if not path:
+                continue
+            if not isinstance(entry, dict) or "node_modules/" not in path:
+                raise ValueError("cannot identify npm lockfile package")
+            package = path.rsplit("node_modules/", 1)[1]
+            if entry.get("link") is True:
+                raise ValueError("npm workspace link requires conservative deferral")
+            if not isinstance(entry.get("version"), str):
+                raise ValueError("npm resolved version is unavailable")
+            result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+    else:
+        def visit(dependencies, parent=""):
+            if not isinstance(dependencies, dict):
+                raise ValueError("invalid npm lockfile dependencies")
+            for package, entry in dependencies.items():
+                if not isinstance(entry, dict) or not isinstance(entry.get("version"), str):
+                    raise ValueError("npm resolved version is unavailable")
+                path = parent + "node_modules/" + package
+                result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+                visit(entry.get("dependencies", {}), path + "/")
+        visit(document.get("dependencies", {}))
+    return result
+
 
 
 def require(condition, message):
@@ -76,8 +112,30 @@ def unique(items, field):
     return items
 
 
+def validate_target(repo, number, expected_head):
+    require(isinstance(repo, str) and re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*", repo),
+        "repository must be OWNER/REPO")
+    require(not isinstance(number, bool) and re.fullmatch(r"[1-9][0-9]*", str(number)),
+            "pull request number must be a positive integer")
+    require(isinstance(expected_head, str) and SHA.fullmatch(expected_head),
+            "expected head must be a full lowercase commit SHA")
+    return int(number)
+
+
+def snapshot_evidence(comments, commits, hold_events, statuses, checks, head):
+    """Evaluate shared hold and CI policy with the trusted depctl binary."""
+    result = subprocess.run(
+        [os.environ.get("DEPCTL_BINARY", "depctl"), "maintenance", "snapshot-evidence"],
+        input=json.dumps({"comments": comments, "commits": commits, "hold_events": hold_events,
+                          "statuses": statuses, "checks": checks, "head": head}),
+        capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
 def validate_repo(repo):
-    maintenance.validate_target(repo, 1, "0" * 40)
+    validate_target(repo, 1, "0" * 40)
 
 
 def identity(pull, repo, author, *, merged=False):
@@ -114,7 +172,7 @@ def pull_detail(repo, number):
 
 
 def snapshot(repo, number, sha, *, author=NATIVE, merged=False):
-    maintenance.validate_target(repo, number, sha)
+    validate_target(repo, number, sha)
     pull = identity(pull_detail(repo, number), repo, author, merged=merged)
     require(pull["head"]["sha"] == sha, "stale source head")
     commits = unique(rows(f"repos/{repo}/pulls/{number}/commits?per_page=100"), "sha")
@@ -143,17 +201,20 @@ def snapshot(repo, number, sha, *, author=NATIVE, merged=False):
     require(len(checks) == check_pages[0]["total_count"], "truncated check-run evidence")
     latest = pull_detail(repo, number)
     require(latest == pull, "pull request changed during snapshot")
-    holds, cancellation_pending = maintenance.active_holds(comments, {row["sha"] for row in commits})
     hold_events = [event for event in events if event.get("event") in ("labeled", "unlabeled")
-                   and event.get("label", {}).get("name") == maintenance.HOLD_LABEL]
-    held = maintenance.HOLD_LABEL in {label["name"] for label in pull["labels"]}
-    trusted = maintenance.trusted_hold_label(hold_events)
+                   and event.get("label", {}).get("name") == HOLD_LABEL]
+    evidence = snapshot_evidence(comments, [row["sha"] for row in commits],
+                                 hold_events, statuses, checks, sha)
+    holds = evidence["active_holds"]
+    cancellation_pending = evidence["cancellation_pending"]
+    held = HOLD_LABEL in {label["name"] for label in pull["labels"]}
+    trusted = evidence["trusted_hold_label"]
     blocked_holds = (any(hold["kind"] != "retry-exhaustion" for hold in holds)
                      or held and (not trusted or not holds and not cancellation_pending))
     return {"pull": pull, "files": files, "comments": comments, "holds": holds,
             "held": held, "cancellation_pending": cancellation_pending,
             "blocked_holds": bool(blocked_holds),
-            "ci": maintenance.ci_evidence(statuses, checks, sha)}
+            "ci": evidence["ci"]}
 
 
 def content(repo, sha, path):
@@ -494,7 +555,7 @@ def validate_sources(sources):
     for source in sources:
         require(isinstance(source, dict) and set(source) == {"number", "head_sha"}, "invalid source schema")
         require(type(source["number"]) is int, "source number must be integer")
-        maintenance.validate_target("Azure/ARO-HCP", source["number"], source["head_sha"])
+        validate_target("Azure/ARO-HCP", source["number"], source["head_sha"])
         require(source["number"] not in numbers, "duplicate source PR")
         numbers.add(source["number"])
     require(sources == sorted(sources, key=lambda row: row["number"]), "source PRs must be sorted")
@@ -1283,34 +1344,31 @@ def validate_replacement_request(request):
             and set(request) == {"source_prs", "expected_base_sha", "patch", "title", "body"},
             "invalid replacement schema")
     validate_sources(request["source_prs"])
-    maintenance.validate_target("Azure/ARO-HCP", 1, request["expected_base_sha"])
+    validate_target("Azure/ARO-HCP", 1, request["expected_base_sha"])
     safe_text(request["title"], title=True)
     safe_text(request["body"])
     return patch_paths(request["patch"])
 
 
-def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, cwd=None):
+def native_inventory_selection(repo, inventory_file, group_id, target):
+    """Read the offline selection from the trusted Go binary without Python policy."""
+    try:
+        result = subprocess.run(
+            [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", "select-group",
+             "--repository", repo, "--inventory", str(inventory_file),
+             "--group", group_id, "--target", target],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError(error.stderr.strip() or "native inventory selection failed") from error
+    return json.loads(result.stdout)
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
     """Build the offline request artifact after the candidate validator succeeds."""
-    validate_repo(repo)
-    observed = replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
-    require(isinstance(observed, dict) and observed.get("repository") == repo
-            and isinstance(observed.get("groups"), list), "inventory repository or groups are invalid")
-    base = observed.get("base_sha")
-    maintenance.validate_target(repo, 1, base)
-    require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
-    require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
-    matching = [group for group in observed["groups"] if group.get("group") == group_id]
-    require(len(matching) == 1, "inventory must contain exactly one matching group")
-    group = matching[0]
-    require(isinstance(group.get("next_action"), dict)
-            and group["next_action"].get("action") in ("prepare_replacement", "maintain_replacement")
-            and group.get("blockers") == [], "inventory group is not eligible for replacement")
-    require(group.get("ecosystem") in ("go", "npm", "actions") and isinstance(group.get("family"), str)
-            and group["family"] and isinstance(group.get("sources"), list), "invalid inventory group shape")
-    require(all(isinstance(source, dict) and "number" in source and "head_sha" in source
-                for source in group["sources"]), "invalid inventory source identities")
+    selected = native_inventory_selection(repo, inventory_file, group_id, target)
+    base, group = selected["base_sha"], selected["group"]
     sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
-    validate_sources(sources)
     root = git(cwd, "rev-parse", "--show-toplevel")
     require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
     # Diff must not execute worktree-supplied diff/textconv or clean/process
@@ -1435,7 +1493,7 @@ def publish(repo, request):
     paths = validate_replacement_request(request)
     title = safe_text(request["title"], title=True)
     validate_repo(repo)
-    maintenance.validate_target(repo, 1, request["expected_base_sha"])
+    validate_target(repo, 1, request["expected_base_sha"])
     base = request["expected_base_sha"]
     require(main_sha(repo) == base, "main moved")
     group = sources_group(repo, request["source_prs"])
@@ -1571,7 +1629,7 @@ def publish(repo, request):
 def recovery_body(snap, sha, evidence):
     require(isinstance(evidence, str) and 40 <= len(evidence) <= 4000, "diagnosed recovery evidence required")
     require(not re.search(r"^\s*/", evidence, re.MULTILINE) and MARKER not in evidence
-            and maintenance.RECOVERY_MARKER not in evidence and not re.search(r"@[A-Za-z0-9]", evidence),
+            and RECOVERY_MARKER not in evidence and not re.search(r"@[A-Za-z0-9]", evidence),
             "recovery evidence contains commands, mentions or markers")
     links = {url.rstrip(".;,") for url in re.findall(r"https://[^\s)<>]+", evidence)}
     failed = {item["url"] for item in snap["ci"]["blocked"] if item["url"]}
@@ -1592,7 +1650,7 @@ def reconcile(repo, request):
     require(set(request) <= {"number", "expected_head_sha", "action", "evidence", "replacement_pr"}
             and {"number", "expected_head_sha", "action"} <= set(request), "invalid action schema")
     number, sha, action = request["number"], request["expected_head_sha"], request["action"]
-    maintenance.validate_target(repo, number, sha)
+    validate_target(repo, number, sha)
     require(type(number) is int and action in ACTIONS, "unsupported native action")
     if action == "close-superseded":
         require(type(request.get("replacement_pr")) is int and request["replacement_pr"] > 0

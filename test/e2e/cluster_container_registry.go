@@ -436,7 +436,7 @@ var _ = Describe("Customer", func() {
 		labels.CreateCluster,
 		labels.Slow,
 		labels.MIContainers(1),
-		labels.StartPriority(60),
+		labels.StartPriority(70),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "acr-pull"

@@ -30,6 +30,8 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
@@ -48,8 +50,7 @@ type BackendRootCmdFlags struct {
 	Kubeconfig                                                                                    string
 	K8sNamespace                                                                                  string
 	AzureLocation                                                                                 string
-	AzureCosmosDBName                                                                             string
-	AzureCosmosDBURL                                                                              string
+	CosmosAccountResourceID                                                                       string
 	ClustersServiceURL                                                                            string
 	ClustersServiceTLSInsecure                                                                    bool
 	MetricsServerListenAddress                                                                    string
@@ -60,6 +61,7 @@ type BackendRootCmdFlags struct {
 	InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath                               string
 	InsecureAzureARMPermissionsManagerIdentityClientID                                            string
 	InsecureAzureARMPermissionsManagerIdentityTenantID                                            string
+	InsecureAzureMockFirstPartyApplicationPrincipalID                                             string
 	LogVerbosity                                                                                  int
 	MaestroSourceEnvironmentIdentifier                                                            string
 	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
@@ -82,8 +84,7 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.Kubeconfig, "kubeconfig", f.Kubeconfig, "Absolute path to the kubeconfig file")
 	cmd.Flags().StringVar(&f.K8sNamespace, "namespace", f.K8sNamespace, "Kubernetes namespace")
 	cmd.Flags().StringVar(&f.AzureLocation, "location", f.AzureLocation, "Azure location")
-	cmd.Flags().StringVar(&f.AzureCosmosDBName, "cosmos-name", f.AzureCosmosDBName, "Cosmos database name")
-	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL")
+	cmd.Flags().StringVar(&f.CosmosAccountResourceID, "cosmos-account-resource-id", f.CosmosAccountResourceID, "Cosmos database account ARM resource ID")
 	cmd.Flags().StringVar(&f.ClustersServiceURL, "clusters-service-url", f.ClustersServiceURL, "URL of the OCM API gateway")
 	cmd.Flags().BoolVar(&f.ClustersServiceTLSInsecure, "insecure", f.ClustersServiceTLSInsecure, "Skip validating TLS for clusters-service")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress, "Address on which to expose metrics")
@@ -125,7 +126,7 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"--insecure-azure-managed-identity-mock-client-id (or --insecure-azure-managed-identity-mock-client-id-path), "+
 			"--insecure-azure-managed-identity-mock-principal-id (or --insecure-azure-managed-identity-mock-principal-id-path), --insecure-azure-managed-identity-mock-tenant-id, "+
 			"--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path, --insecure-azure-arm-permissions-manager-identity-client-id, "+
-			"--insecure-azure-arm-permissions-manager-identity-tenant-id flags must also be set.",
+			"--insecure-azure-arm-permissions-manager-identity-tenant-id, --insecure-azure-mock-first-party-application-principal-id flags must also be set.",
 	)
 
 	cmd.Flags().StringVar(
@@ -229,6 +230,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	)
 
 	cmd.Flags().StringVar(
+		&f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		"insecure-azure-mock-first-party-application-principal-id",
+		f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		"The principal id of the mock First Party Application (FPA) service principal that the ARM Permissions Manager identity grants the Owner role over each cluster's managed resource group. "+
+			"It is only used when a real FPA is not available. When set, it must be set in combination with the ARM Permissions Manager identity flags.",
+	)
+
+	cmd.Flags().StringVar(
 		&f.AzureClusterScopedIdentitiesRoleSetName,
 		"azure-cluster-scoped-identities-role-set-name",
 		f.AzureClusterScopedIdentitiesRoleSetName,
@@ -248,7 +257,6 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
 	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
 
-	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
 func (f *BackendRootCmdFlags) validate() error {
@@ -260,12 +268,8 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--clusters-service-url is required"))
 	}
 
-	if len(f.AzureCosmosDBName) == 0 {
-		return utils.TrackError(fmt.Errorf("--cosmos-name is required"))
-	}
-
-	if len(f.AzureCosmosDBURL) == 0 {
-		return utils.TrackError(fmt.Errorf("--cosmos-url is required"))
+	if _, err := ParseCosmosAccountResourceID(f.CosmosAccountResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("--cosmos-account-resource-id: %w", err))
 	}
 
 	if len(f.K8sNamespace) == 0 {
@@ -313,6 +317,9 @@ func (f *BackendRootCmdFlags) validate() error {
 		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must be set"))
 		}
+		if len(f.InsecureAzureMockFirstPartyApplicationPrincipalID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-mock-first-party-application-principal-id must be set"))
+		}
 	} else { // Otherwise we also validate that none of the azure managed identity mock identity nor the ARM Permissions Manager identity related flags are set in that case.
 		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must not be set"))
@@ -340,6 +347,9 @@ func (f *BackendRootCmdFlags) validate() error {
 		}
 		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must not be set"))
+		}
+		if len(f.InsecureAzureMockFirstPartyApplicationPrincipalID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-mock-first-party-application-principal-id must not be set"))
 		}
 	}
 
@@ -456,7 +466,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
-	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	defaultAzureCredential, err := newBackendDefaultAzureCredential(azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
+	}
+	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig, defaultAzureCredential)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
 	}
@@ -469,6 +483,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
 	var hardcodedIdentity *azureclient.HardcodedIdentity
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
+	var insecureARMPermissionsManagerClientBuilder azureclient.InsecureARMPermissionsManagerClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
 		// In ARO-HCP environments where we have a real FPA, we use the FPA identity to create the FPA MI dataplane client builder
 		fpaMIDataplaneClientBuilder = azureclient.NewFPAMIDataplaneClientBuilder(
@@ -503,6 +518,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureARMPermissionsManagerIdentityTokenCredentialRetriever,
 			azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		)
+
+		// Without a real FPA, the ARM Permissions Manager identity is also used to
+		// manage the deployment stack that grants the mock FPA principal Owner over
+		// each cluster's managed resource group (MockFPARoleAssignments).
+		insecureARMPermissionsManagerClientBuilder = azureclient.NewInsecureARMPermissionsManagerClientBuilder(
+			azureARMPermissionsManagerIdentityTokenCredentialRetriever,
+			azureConfig.CloudEnvironment.ARMClientOptions(),
 		)
 
 		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
@@ -543,8 +566,23 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		HasRealFPA:               !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
 		OrphanedMRGCleanupConfig: orphanedMRGCleanupConfig,
 	}
-	storageFactory, err := app.NewStorageFactory(f.AzureCosmosDBURL, f.AzureCosmosDBName, cosmosclient.Options{ClientOptions: azCoreClientOptions},
-		app.BackendStorageFactoryOptions(storageControllerContext))
+	cosmosAccountResourceID, err := azcorearm.ParseResourceID(f.CosmosAccountResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	cosmosAccountDiscoverer, err := NewCosmosAccountDiscoverer(cosmosAccountResourceID, defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	discoveredAccount, err := cosmosAccountDiscoverer.Discover(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	storageOptions, err := discoverStorageFactoryOptions(ctx, discoveredAccount, storageControllerContext)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	storageFactory, err := app.NewStorageFactory(discoveredAccount.Endpoint, discoveredAccount.DatabaseName, cosmosclient.Options{ClientOptions: azCoreClientOptions}, storageOptions)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
@@ -587,14 +625,16 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		HardcodedIdentity:                  hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
-		SMIClientBuilder:              smiClientBuilder,
-		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		CloudEnvironment:              azureConfig.CloudEnvironment,
-		MetricsRegisterer:             legacyregistry.Registerer(),
-		MetricsGatherer:               legacyregistry.DefaultGatherer,
-		OrphanedMRGCleanupConfig:      orphanedMRGCleanupConfig,
-		ClusterOIDCIssuerBaseURL:      azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
+		SMIClientBuilder:                           smiClientBuilder,
+		CheckAccessV2ClientBuilder:                 checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
+		CloudEnvironment:                           azureConfig.CloudEnvironment,
+		MetricsRegisterer:                          legacyregistry.Registerer(),
+		MetricsGatherer:                            legacyregistry.DefaultGatherer,
+		OrphanedMRGCleanupConfig:                   orphanedMRGCleanupConfig,
+		ClusterOIDCIssuerBaseURL:                   azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
+		InsecureARMPermissionsManagerClientBuilder: insecureARMPermissionsManagerClientBuilder,
+		MockFirstPartyApplicationPrincipalID:       f.InsecureAzureMockFirstPartyApplicationPrincipalID,
 	}
 
 	return backendOptions, nil
@@ -605,8 +645,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		Kubeconfig:                 "",
 		K8sNamespace:               os.Getenv("NAMESPACE"),
 		AzureLocation:              os.Getenv("LOCATION"),
-		AzureCosmosDBName:          os.Getenv("DB_NAME"),
-		AzureCosmosDBURL:           os.Getenv("DB_URL"),
+		CosmosAccountResourceID:    os.Getenv("COSMOS_ACCOUNT_RESOURCE_ID"),
 		ClustersServiceTLSInsecure: false,
 		MetricsServerListenAddress: ":8081",
 		HealthzServerListenAddress: ":8083",
@@ -639,7 +678,7 @@ func NewCmdRoot() *cobra.Command {
 	communicates with Clusters Service and CosmosDB.
 
 	# Run ARO HCP Backend locally to connect to a local Clusters Service at http://localhost:8000
-	%s --cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} --location ${LOCATION} \
+	%s --cosmos-account-resource-id ${COSMOS_ACCOUNT_RESOURCE_ID} --location ${LOCATION} \
 		--clusters-service-url "http://localhost:8000"
 `, processName),
 		RunE: func(cmd *cobra.Command, args []string) error {

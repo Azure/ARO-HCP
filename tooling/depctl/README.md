@@ -3,12 +3,13 @@
 `depctl` prepares, validates and investigates ARO-HCP dependency and tool
 updates locally. It runs the repository's own generators and consumers against an
 isolated candidate, so a broken bump is caught before a pull request exists.
-It does not publish: no command in this build pushes, opens a pull request,
-comments or changes scheduling.
+Candidate preparation does not publish branches or pull requests. Explicit
+`maintenance` commands can post fixed, guarded recovery comments using the
+workflow's scoped credentials; they never approve or merge a PR.
 
-This build implements the **tools** profile. Publication, hold recovery, retest
-and scheduling require an authorized execution integration; the engine refuses
-to publish without an injected writer and the CLI never constructs one.
+This build implements the **tools** profile and shared maintenance policy.
+General proposal publication and scheduling require an authorized execution
+integration; the engine refuses to publish without an injected writer.
 
 ## The problem
 
@@ -33,15 +34,16 @@ packaging and read-only failure investigation.
 | Observe and diagnose | `maintenance inspect`, `evidence prow` | hold and CI evidence, retrieved run artifacts, one diagnosis |
 | Exercise without publication | `run --mode simulate` | a full lifecycle against fixture repositories and fake services |
 
-Publication, CI observation, maintenance actions and continuation exist in the
-engine but are reachable only with injected adapters; that separation is
-described in [docs/design.md](docs/design.md).
+General publication and continuation require injected engine adapters. The
+explicit maintenance CLI exposes only bounded comment actions, described below.
 
 ## Commands
 
 Commands that produce a record print it on stdout, or write it to `--output`;
-diagnostics go to stderr. A record is `schemaVersion: depctl/v1`. `guard`
-rewrites the safe-output artifact in place, `version` prints provenance text, and
+diagnostics go to stderr. Lifecycle records use `schemaVersion: depctl/v1`.
+Maintenance assessment, inventory, compiler provenance and snapshot-evidence
+commands emit the JSON shapes consumed by the workflows. `guard` rewrites the
+safe-output artifact in place, `version` prints provenance text, and
 `run --mode simulate` prints its scenario report.
 
 ### inventory
@@ -215,6 +217,121 @@ depctl maintenance inspect --repository Azure/ARO-HCP --pr 7892 \
 A human or unexplained hold, a consumed per-head recovery budget, a failing or
 pending current head, or missing evidence keeps the decision blocked.
 
+### dependabot inventory
+
+```bash
+depctl dependabot inventory --repository OWNER/REPO [--output FILE]
+```
+
+Lists the open security remediation proposals owned by `aro-hcp-robot[bot]`: label
+`agentic-dependabot`, or a `fix(deps): ` title carrying the remediation workflow
+marker, targeting `main` from the same repository. It prints the identity array the
+remediation workflow reads (`number`, `title`, `body`, `head`, `head_repo`, `base`,
+`sha`, `draft`, `author`, `labels`). Duplicate numbers and incomplete or foreign
+head/base identity fail the command.
+
+```bash
+depctl dependabot inventory --repository Azure/ARO-HCP --output open-pull-requests.base.json
+```
+
+The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
+
+### dependabot guard
+
+```bash
+depctl dependabot guard --repository OWNER/REPO --agent-output FILE
+```
+
+Validates every `create_pull_request` proposal, drops entries that omitted the
+structured `data` argument, defers families already covered by an open owned
+security PR, and serializes same-batch manifest conflicts. It rewrites the agent
+output in place and emits an explicit `noop` when nothing remains.
+
+### dependabot validate
+
+```bash
+depctl dependabot validate PROPOSAL.json
+```
+
+Runs the same metadata preflight used before publication and prints the canonical
+proposal with its derived title.
+
+### dependabot retest
+
+```bash
+depctl dependabot retest --repository OWNER/REPO --pull-request N --head SHA \
+  --evidence "failed-url compared-with green-url"
+```
+
+Requires a current failing check URL plus a distinct comparison URL and enforces
+the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
+
+### dependabot native select-group
+
+```bash
+depctl dependabot native select-group --repository OWNER/REPO \
+  --inventory FILE --group ID --target TARGET
+```
+
+Selects exactly one eligible native dependency inventory entry by its stable
+family group and exact target. Repository, base revision, source identities,
+dependency intents and manifest paths must be consistent. Ambiguous pairs,
+mixed source targets and unsafe paths are rejected.
+
+Prints `{base_sha, group, manifests}` as JSON, preserving the selected group's
+metadata and returning sorted unique manifest paths. The command is local and
+read-only; it requires no GitHub credentials and performs no publication.
+
+Candidate validation and request preparation use this shared Go selection
+policy. Family markers, publication request shape and branch identity do not
+change when multiple target versions coexist.
+
+### maintenance inventory
+
+```bash
+depctl maintenance inventory --repository OWNER/REPO [--kind KIND] [--output FILE]
+```
+
+Assesses every open proposal owned by `aro-hcp-robot[bot]` with the same
+maintenance policy as `maintenance inspect`, and prints the array the
+maintenance workflow reads: `pull_request`, `expected_head`, `head`, `kind`,
+`held`, `active_holds`, `ci`, `release_status`, `can_release_hold`,
+`can_recover_retry`, `can_refresh_upgrade`, the blockers and the recovery marker.
+An assessment failure fails the command instead of returning an empty array.
+
+```bash
+depctl maintenance inventory --repository Azure/ARO-HCP --output inventory.json
+```
+
+The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
+
+`--kind upgrade` restricts discovery and recovery to compiler PRs;
+`non-compiler` selects dependency and tool PRs. `dependency` and `tool` are also
+supported. Filtering happens before fetching complete evidence.
+
+### maintenance recovery
+
+```bash
+depctl maintenance assess --repository OWNER/REPO --number N --head SHA [--kind KIND]
+depctl maintenance release-hold --repository OWNER/REPO --number N --head SHA --kind KIND
+depctl maintenance recover-retry --repository OWNER/REPO --number N --head SHA \
+  --kind KIND --evidence "diagnosed cause with failed and comparison run URLs"
+depctl maintenance verify-upgrade --repository OWNER/REPO --number N --head SHA
+depctl maintenance release-regenerated --repository OWNER/REPO --number N \
+  --head SHA --previous-head SHA
+depctl maintenance compiler-versions --ref HEAD
+```
+
+Recovery re-fetches complete evidence immediately before the fixed comment.
+Ownership, scope, head, hold provenance, current-head CI and permanent recovery
+markers must still authorize the action. Human and unexplained holds are never
+cancelled. Compiler regeneration also requires compiler provenance changes,
+ancestry and compiler-owned file scope.
+
+`maintenance snapshot-evidence` reads a complete hold/CI snapshot on stdin and
+returns the shared policy assessment without network access or mutation. Native
+dependency maintenance uses this command rather than a separate policy engine.
+
 ### evidence prow
 
 ```bash
@@ -256,6 +373,11 @@ prints the same as JSON. `--verbosity` (global) sets the log level.
 | `run --mode prepare` | the source checkout, optionally upstream releases | candidate, logs, records, journal |
 | `run --mode simulate` | a fixture repository | a scratch directory under `--work-dir` |
 | `maintenance inspect` | `gh api` and public Prow artifacts | evidence files, journal, `--output` |
+| `maintenance inventory` | open owned proposals and their evidence | nothing, or `--output` |
+| `dependabot inventory` | open owned security proposals | nothing, or `--output` |
+| `dependabot guard` | rewrite agent proposals in place | the agent output file |
+| `dependabot validate` | one proposal preflight | nothing |
+| `dependabot retest` | verify retest evidence | nothing |
 | `evidence prow` | the public Prow bucket | artifacts and a manifest in `--output-dir` |
 | `version` | build metadata | nothing |
 
@@ -268,8 +390,9 @@ outside the repository unless you name a directory yourself.
 Offline discovery needs `bash` for the CI tool mapping and `go` for the bingo
 module metadata. Candidate preparation and the tools consumers need the tools the
 repository already uses: `bingo`, `make`, `go`, `jq`, and `bicep` for a Bicep
-candidate. `maintenance inspect` needs an authenticated `gh`; `guard` needs
-`GH_TOKEN` or `GITHUB_TOKEN` for the REST API.
+candidate. `maintenance inspect` needs an authenticated `gh`; `guard` and
+`maintenance inventory` and `dependabot inventory` need `GH_TOKEN` or `GITHUB_TOKEN`
+for the REST API.
 
 ## Exit codes
 

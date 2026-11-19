@@ -176,7 +176,7 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					operations := &corelistertesting.SliceActiveOperationLister{Operations: []*coreapi.Operation{cachedOperation}}
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
-						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs}
+						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, subscriptionLister: &corelistertesting.SliceSubscriptionLister{}, serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{}, readDesireLister: reads, clusterServiceClient: cs}
 						controller.statusCalculators, err = controller.newStatusCalculators()
 						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())

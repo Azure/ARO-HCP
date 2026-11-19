@@ -42,6 +42,9 @@ const (
 	NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName = "NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidation"
 	NodePoolValidationAzureNodePoolVMQuotaValidationControllerName                      = "NodePoolValidationAzureNodePoolVMQuotaValidation"
 	NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName        = "NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidation"
+	NodePoolValidationAzureNodePoolEncryptionAtHostValidationControllerName             = "NodePoolValidationAzureNodePoolEncryptionAtHostValidation"
+	NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidationControllerName = "NodePoolValidationAzureNodePoolDiskEncryptionSetPermissionsValidation"
+	NodePoolValidationAzureNodePoolAvailabilityZoneValidationControllerName             = "NodePoolValidationAzureNodePoolAvailabilityZoneValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
 	consecutiveUnknownCountsCacheCapacity = 50000
 

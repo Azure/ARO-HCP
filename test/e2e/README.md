@@ -419,6 +419,45 @@ the first wave is made of the longest measured specs instead of file order.
 `./test/aro-hcp-tests list tests --suite <suite> --output names` prints the
 resulting queue order, so a priority change is reviewable before it runs in CI.
 
+#### Start-priority scores
+
+`priorities` reviews environment-normalized scores from CI telemetry for a fixed
+window. It reports proposed bands without running tests or editing sources:
+
+```bash
+# Review the scores for the last 30 days.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --output table
+
+# Save the exact input and replay it later without Azure credentials.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --save-input observations.json
+./test/aro-hcp-tests priorities --input observations.json --output json
+```
+
+`priorities` reads `ciJobOutcomes`, `ciProcessedJobs`, `ciTestResults` and
+`ciTestNames` from the `ServiceLogs` database. Only successful, processed runs
+and passed `e2e` results contribute: each spec's mean in an environment is
+divided by that environment's median, the best ratio is multiplied by the pooled
+global median, and the result in minutes selects a band. A spec needs at least
+three distinct builds in an environment before it may propose anything, so
+skips, failures and unprocessed runs never masquerade as zero-duration tests.
+
+The table includes nonzero exclusion counts. Scored rows show contributing
+builds and environments; insufficient rows show the eligible evidence available.
+A missing or conflicting test name prevents a proposal, but valid durations
+still contribute to the normalization medians.
+
+`refresh-priorities` maps those proposals onto the exact `labels.StartPriority`
+call that declares them:
+
+```bash
+./test/aro-hcp-tests refresh-priorities --report report.json --catalog before.json --repo .
+```
+
+The catalog comes from `./test/aro-hcp-tests list tests --output json` in the
+checkout being edited. Without `--write` the command only previews the plan, and
+a single unmappable or stale proposal aborts the whole batch before any write.
+`--verify-catalog` checks a rebuilt catalog against the same plan.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
@@ -562,7 +601,7 @@ Inspect the selected suite's concurrency in
 `ARO_HCP_SUITE_PARALLELISM`, the acquired lease and `--max-concurrency` can affect
 the effective worker count. Identity-container admission is an independent
 resource ceiling, not a CPU reservation; a single spec can require multiple
-containers. See [identity leasing and capacity planning](../../docs/ci/identity-leasing.md#pool-sizing-and-subscription-constraints).
+containers. See [capacity and quotas](../../docs/ci/e2e-capacity.md#role-assignment-quota).
 
 Check live family and regional usage/limits before enabling a pool or increasing
 concurrency, and retain operational margin in both. Do not copy a subscription's

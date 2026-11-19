@@ -83,7 +83,7 @@ verify-generate: generate
 
 generate-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go internal/api/azureresourcesapi/zz_generated.deepcopy.go
 .PHONY: generate-deepcopy
 
 deepcopy: generate-deepcopy
@@ -124,9 +124,12 @@ verify-tool-automation: $(JQ)
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
-	python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'
-	python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
-	python3 -m unittest discover -s .github/scripts -p 'test_fetch_prow_logs.py'
+	go test -C tooling/depctl -timeout 600s ./cmd/maintenance ./cmd/dependabot/... ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi
+	@set -e; directory=$$(mktemp -d); trap 'rm -rf "$$directory"' EXIT; \
+		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"; \
+		export DEPCTL_BINARY="$$directory/depctl"; \
+		python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'; \
+		python3 -m unittest discover -s .github/scripts -p 'test_validate_native_candidate.py'
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format

@@ -1,8 +1,10 @@
 # E2E Cost Reports
 
-Small CLIs collect Azure-reported amortized costs for an ARO HCP
-`pull-ci-Azure-ARO-HCP-main-e2e-parallel` PR job and render an offline HTML report.
-Collection and rendering are separate so UI changes need no Azure refetch.
+Small CLIs collect Azure-reported amortized costs for public ARO HCP
+`pull-ci-Azure-ARO-HCP-main-e2e-parallel` and
+`pull-ci-Azure-ARO-HCP-main-e2e-parallel-inplace-upgrade` PR jobs and render an
+offline HTML report. Collection and rendering are separate so UI changes need
+no Azure refetch.
 
 ## Usage
 
@@ -22,6 +24,17 @@ AZURE_CONFIG_DIR="$HOME/.azure-redhat" ./e2e-cost-gather \
 # Run even when gather returned a nonzero status: the snapshot includes errors.
 ./e2e-cost-render --input run-data.json --output cost-summary.html
 ```
+
+For an in-place upgrade run, pass its job URL to the same collector:
+
+```bash
+go run ./cmd/e2e-cost-gather \
+  --job https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/Azure_ARO-HCP/7801/pull-ci-Azure-ARO-HCP-main-e2e-parallel-inplace-upgrade/2117941824587829248 \
+  --output upgrade-run-data.json
+```
+
+Equivalent `https://storage.googleapis.com/test-platform-results-public/...`
+and `gs://test-platform-results-public/...` run URLs are also accepted.
 
 The collector uses existing Azure CLI credentials (`az login`) and honors
 `AZURE_CONFIG_DIR`. It does not change the CLI's default subscription. The account
@@ -159,6 +172,15 @@ Inputs come from the run's provisioning configuration, deployment timing, origin
 test timing, JSON test logs, deployment dumps, OpenShift Infrastructure objects,
 and targeted backend snapshots. Artifacts may contain gzip regardless of extension.
 Directory presence or an arbitrary resource reference alone does not prove ownership.
+
+Discovery selects the artifact layout from the validated job variant:
+standard runs use `aro-hcp-provision-environment` and `aro-hcp-test-local`;
+in-place upgrade runs use `aro-hcp-provision-from-main` and
+`aro-hcp-test-local-upgrade`. Test evidence and backend snapshots stay scoped
+to that variant's artifact directory; gathered timing copies do not replace
+original test timing. The infrastructure interval begins with the selected
+provisioning step and ends with final environment deprovisioning, including
+baseline provisioning in upgrade-run hourly costs.
 
 When infrastructure subscription UUIDs are missing or redacted, the collector
 queries historical `kubeAudit.resourceId` values in the Kusto endpoint and database

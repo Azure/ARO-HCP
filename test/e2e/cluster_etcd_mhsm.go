@@ -51,7 +51,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 		labels.Slow,
 		labels.CreateCluster,
 		labels.MIContainers(1),
-		labels.StartPriority(80),
+		labels.StartPriority(70),
 		func(ctx context.Context) {
 			const customerClusterName = "etcd-mhsm"
 
@@ -261,8 +261,10 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// live Managed Identities Data Plane (stage/prod). In dev/CI that dataplane is mocked, so every
 			// operator (including the KMS plugin) authenticates as the MSI mock service principal instead;
 			// there we must also grant that principal (MI_MOCK_PRINCIPAL_ID) or the encrypt call gets 403.
+			miMockPrincipalID, err := framework.MIMockPrincipalID()
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve MSI mock principal for MHSM roles")
 			grantMHSMCryptoUser(kmsIdentityPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
-			if miMockPrincipalID := framework.MIMockPrincipalID(); miMockPrincipalID != "" {
+			if miMockPrincipalID != "" {
 				grantMHSMCryptoUser(miMockPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
 			}
 

@@ -8,6 +8,7 @@ require (
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.4
 	github.com/spf13/cobra v1.10.2
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -25,6 +26,7 @@ require (
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect

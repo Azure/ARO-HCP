@@ -1,0 +1,287 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "06-output-evaluation/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:12.9376883Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:12.9376883Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "output-evaluation"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [],
+            "outputs": {
+              "invalid": {
+                "type": "string",
+                "value": "[parameters('notDeclared')]"
+              }
+            }
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "6aa45c21dae2a4fc1112c2bbb4778e82f8d737f87eb9780bf382211efd16a2ca"
+    },
+    {
+      "case": "06-output-evaluation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:12.9376883Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:12.9376883Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "output-evaluation"
+      }
+    },
+    {
+      "case": "06-output-evaluation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "deploymentId": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "updatingDenyAssignments",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "DeploymentOutputEvaluationFailed",
+                "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+                "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details.",
+                "details": []
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:12.9376883Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:12.9376883Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "output-evaluation"
+      }
+    },
+    {
+      "case": "06-output-evaluation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "deploymentId": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+          "duration": "PT13.228629S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "DeploymentOutputEvaluationFailed",
+                "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+                "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details.",
+                "details": []
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:12.9376883Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:12.9376883Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/output-evaluation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "output-evaluation"
+      }
+    },
+    {
+      "case": "06-output-evaluation/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "DeploymentOutputEvaluationFailed",
+              "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+              "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details.",
+              "details": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "06-output-evaluation/deployment-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+        "name": "output-evaluation-GENERATED_SUFFIX",
+        "type": "Microsoft.Resources/deployments",
+        "properties": {
+          "templateHash": "6284776017960194428",
+          "mode": "Incremental",
+          "provisioningState": "Failed",
+          "timestamp": "2026-10-14T23:27:15.2986667Z",
+          "duration": "PT0.4069361S",
+          "correlationId": "REDACTED_UUID",
+          "providers": [],
+          "dependencies": [],
+          "error": {
+            "code": "DeploymentOutputEvaluationFailed",
+            "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/output-evaluation-GENERATED_SUFFIX",
+            "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details.",
+            "details": [
+              {
+                "code": "DeploymentOutputEvaluationFailed",
+                "target": "invalid",
+                "message": "The template output 'invalid' is not valid: The template parameter 'notDeclared' is not found. Please see https://aka.ms/arm-syntax-parameters for usage details.."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

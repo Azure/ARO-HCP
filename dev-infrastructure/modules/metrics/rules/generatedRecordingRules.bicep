@@ -665,10 +665,6 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
-        record: 'sli:frontend_http:good:rate5m'
-        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
-      }
-      {
         record: 'errors:frontend_http:error_rate:rate5m'
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
@@ -685,8 +681,12 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
       }
       {
-        record: 'sli:frontend_http:availability:rate_avg_30d'
-        expression: '(avg_over_time(sli:frontend_http:good:rate5m[30d:5m]) / avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0'
+        record: 'errors:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time((errors:frontend_http:error_rate:rate5m * traffic:frontend_http:request_rate:rate5m)[30d:5m])'
+      }
+      {
+        record: 'traffic:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])'
       }
       {
         record: 'sli:frontend:ready:ratio5m'
@@ -747,6 +747,42 @@ resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/
       {
         record: 'certificate:keyvault_certificate:collector_fresh'
         expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) <= bool 3600) * on (cluster, environment, region, key_vault) max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > bool 0'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:ip_assignment_latency:p99'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(ip_assignment_latency_seconds_bucket{cluster=~".*-mgmt(-[0-9]+)?$"}[5m]))))'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:daemonset_availability:ratio'
+        expression: 'max by (cluster, namespace, daemonset, job, region) (kube_daemonset_status_number_ready{cluster=~".*-mgmt(-[0-9]+)?$",daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}) / clamp_min(max by (cluster, namespace, daemonset, job, region) (kube_daemonset_status_desired_number_scheduled{cluster=~".*-mgmt(-[0-9]+)?$",daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}), 1)'
       }
     ]
   }

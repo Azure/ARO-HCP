@@ -104,8 +104,8 @@ class CandidateFixture(unittest.TestCase):
                         "target": self.new, "manifest": "api/package.json", "direct": True,
                         "key": ["devDependencies", self.package], "lock_manifests": ["api/package-lock.json"]}]
         source = {"number": 42, "head_sha": "a" * 40, "group": group_id,
-                  "ecosystem": ecosystem, "family": family, "intents": intents}
-        self.group = {"group": group_id, "ecosystem": ecosystem, "family": family,
+                  "ecosystem": ecosystem, "family": family, "target": self.new, "intents": intents}
+        self.group = {"group": group_id, "ecosystem": ecosystem, "family": family, "target": self.new,
                       "sources": [source], "blockers": [], "next_action": {"action": "prepare_replacement"}}
         self.inventory.write_text(json.dumps({"repository": REPO, "base_sha": self.base, "groups": [self.group]}))
         return group_id
@@ -223,7 +223,7 @@ class CandidateFixture(unittest.TestCase):
 
     def validate(self, **kwargs):
         return runner.validate_candidate(REPO, self.inventory, self.group["group"], self.title,
-                                         self.body, self.artifacts, cwd=self.repo, **kwargs)
+                                         self.body, self.artifacts, target=self.group["target"], cwd=self.repo, **kwargs)
 
     def assert_no_request(self):
         self.assertFalse((self.artifacts / native.REQUEST_FILE).exists())
@@ -239,6 +239,33 @@ class CandidateFixture(unittest.TestCase):
             yield
         finally:
             os.chdir(previous)
+
+    def test_real_depctl_selection_does_not_shadow_candidate_with_same_family_old_cleanup(self):
+        binary = os.environ["DEPCTL_BINARY"]
+        self.assertTrue(Path(binary).is_file() and os.access(binary, os.X_OK))
+        observed = json.loads(self.inventory.read_text())
+        old = copy.deepcopy(self.group)
+        old["target"] = self.old
+        old["sources"][0].update(number=41, target=self.old)
+        old["next_action"] = {"action": "close_superseded", "replacement_pr": 100,
+                              "source_prs": [{"number": 41, "head_sha": "a" * 40}]}
+        observed["groups"].insert(0, old)
+        self.inventory.write_text(json.dumps(observed))
+        self.validate()
+        request = json.loads((self.artifacts / native.REQUEST_FILE).read_text())
+        self.assertEqual(request["source_prs"], [{"number": 42, "head_sha": "a" * 40}])
+        self.assertEqual(self.results()["target"], self.new)
+        self.assertEqual(self.results()["manifests"], ["api/package-lock.json", "api/package.json"])
+
+    def test_validator_uses_real_depctl_to_reject_invalid_source_intent_before_consumers(self):
+        observed = json.loads(self.inventory.read_text())
+        observed["groups"][0]["sources"][0]["intents"][0]["lock_manifests"] = ["../outside"]
+        self.inventory.write_text(json.dumps(observed))
+        with self.assertRaises(ValueError):
+            self.validate()
+        self.assert_no_request()
+        self.assertEqual(self.commands, [])
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
 
     def test_prettier_success_excludes_only_proven_identical_baseline_drift(self):
         result = self.validate()
@@ -280,7 +307,7 @@ class CandidateFixture(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with self.in_repo(), redirect_stdout(stdout), redirect_stderr(stderr):
             code = runner.main([REPO, str(self.inventory), self.group["group"], str(self.title),
-                                str(self.body), str(self.artifacts)])
+                                str(self.body), str(self.artifacts), "--target", self.group["target"]])
         self.assertEqual(code, 1)
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("swagger exited 17", stderr.getvalue())
@@ -294,7 +321,7 @@ class CandidateFixture(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with self.in_repo(), redirect_stdout(stdout), redirect_stderr(stderr):
             code = runner.main([REPO, str(self.inventory), self.group["group"], str(self.title),
-                                str(self.body), str(self.artifacts)])
+                                str(self.body), str(self.artifacts), "--target", self.group["target"]])
         self.assertEqual(code, 0)
         self.assertEqual(set(json.loads(stdout.getvalue())), {"request_sha256"})
         self.assertEqual(stderr.getvalue(), "")
@@ -651,15 +678,6 @@ class CandidateFixture(unittest.TestCase):
         self.assert_no_request()
         self.assertIn("pull_request_target", (self.repo / ".github/workflows/agent.lock.yml").read_text())
         self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
-
-    def test_unsupported_inventory_ecosystem_fails_without_any_consumer(self):
-        document = json.loads(self.inventory.read_text())
-        document["groups"][0]["ecosystem"] = "bundler"
-        self.inventory.write_text(json.dumps(document))
-        with self.assertRaisesRegex(ValueError, "unsupported inventory ecosystem"):
-            self.validate()
-        self.assert_no_request()
-        self.assertEqual(self.commands, [])
 
     def test_validation_evidence_cannot_overflow_existing_publication_body_bound(self):
         self.body.write_text("x" * 20000)
