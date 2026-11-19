@@ -54,7 +54,6 @@ Customer should be able to create an HCP cluster and manage pull secrets
 Customer should create an HCP cluster and validate TLS certificates
 Nodepool OS Disk Encryption should successfully provision a nodepool with a disk encryption set when the Reader role is added after creation
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
-Nodepool OS Disk Encryption should create a nodepool with customer-managed disk encryption via DES
 Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
 Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation

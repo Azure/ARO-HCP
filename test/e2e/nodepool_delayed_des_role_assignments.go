@@ -47,7 +47,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Negative,
-		labels.AroRpApiCompatible,
+		labels.StageAndProdOnly,
 		labels.MIContainers(1),
 		labels.StartPriority(40),
 		func(ctx context.Context) {
@@ -67,12 +67,6 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			)
 
 			tc := framework.NewTestContext()
-
-			miMockPrincipalID, err := framework.MIMockPrincipalID()
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve MSI mock principal configuration")
-			if miMockPrincipalID != "" {
-				Skip("mock managed-identity principal already has subscription-wide Reader access to disk encryption sets, so the missing-Reader condition cannot be reproduced")
-			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -274,10 +268,12 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
 
-			By("verifying cluster health and node readiness")
+			By("verifying cluster health, node readiness, and VM OS disk encryption")
+			computeFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
 				verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)),
 				verifiers.VerifyNodesReady(),
+				verifiers.VerifyVMOSDiskCustomerEncryption(computeFactory, managedResourceGroupName, customerNodePoolName, desResourceID),
 			)
 			Expect(err).NotTo(HaveOccurred(), "cluster verification failed")
 		})
