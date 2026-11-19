@@ -24,11 +24,7 @@ The most common misunderstanding is to assume every E2E job validates the same t
 
 ### CodeQL Analysis
 
-The [CodeQL workflow](../../.github/workflows/codeql-analysis.yml) runs in GitHub Actions and manually builds the Go workspace under the CodeQL extractor. Seven Go shards use separate analysis categories: shard 6 builds only `test/`, while shards 0 through 5 build the remaining modules. Workspace discovery follows `go.work`; the round-robin fallback excludes shard 6 to preserve test-module isolation.
-
-Each Go job adds a 10 GiB swapfile for transient memory spikes. The build step sets `GOMAXPROCS=2` to reduce runtime and package-build concurrency and `GOGC=50` to reduce extractor heap headroom. These controls preserve the selected packages and keep build failures visible; swap is additional headroom, not a replacement for reducing memory demand.
-
-When investigating memory pressure, distinguish the traced build from query analysis and record peak RAM, swap usage, source revision, and tool versions. Exit 143 indicates termination by SIGTERM, but does not alone prove an OOM kill.
+The [CodeQL workflow](../../.github/workflows/codeql-analysis.yml) runs in GitHub Actions and builds the Go workspace by hand so the extractor can trace it. Go modules, discovered from `go.work`, are spread over seven shards that upload separate analysis categories; the `test/` module gets a shard of its own so it stays isolated from the rest. Python runs once. The Go builds are memory-hungry, so each job adds swap and limits build parallelism. Treat both as headroom, not a fix: if a shard is killed, record its peak memory, swap use and source revision before changing the partition, and remember that exit code 143 means SIGTERM, which does not by itself prove an OOM kill. When you change the partition, check that every module is assigned to exactly one shard.
 
 ### PR Validation In DEV
 
@@ -63,16 +59,7 @@ These runs are also lighter from an image perspective. They usually need the tes
 
 ### EV2 Gating Jobs
 
-EV2 gating uses postsubmit-style Prow jobs that are triggered programmatically through Gangway. These jobs exist to trigger rollout validation against the exact commit being promoted through Microsoft environments.
-
-The important properties are:
-
-- the job name is selected from `config/config.msft.clouds-overlay.yaml`
-- `test/e2e-pipeline.yaml` passes that job name into the EV2 pipeline as `PROW_JOB_NAME`
-- the `prow-job-executor` extracts the ARO-HCP commit SHA from `EV2_ROLLOUT_VERSION` and triggers the job with `--base-sha`
-- promotion can be gated when `gatePromotion: true` is configured for that environment
-
-In other words, EV2 gating is not "just another periodic." It is rollout validation with commit pinning.
+EV2 gating uses postsubmit-style Prow jobs that EV2 triggers through Gangway when a rollout reaches an environment. The job runs against the exact commit being rolled out rather than `HEAD`, and when `gatePromotion` is enabled for the environment, a failure stops the rollout from being promoted. That commit pinning is what separates gating from a periodic job. The wiring from rollout to job, including how to identify a gating run afterwards, is in [CI EV2 Integration](ev2-integration.md).
 
 ### Periodic Jobs
 
@@ -319,22 +306,13 @@ For tests that create HCP clusters, the RP creates the cluster resource back int
 
 ### Run Cost Attribution
 
-In DEV, a Prow job that opts in tags the resource groups it creates with `jobID.aro-hcp-ci.redhat.com=<BUILD_ID>`. Cost Management tag inheritance on the E2E subscriptions then applies that tag to the usage records of everything inside those groups, so one filter shows a job's spend across subscriptions:
+In DEV, a job can opt in to tagging everything it creates with its Prow build ID (`jobID.aro-hcp-ci.redhat.com`) so that Cost Management can show what one job cost across all the subscriptions it touched. Cost Management tag inheritance on the E2E subscriptions copies the tag from resource groups onto the usage records of their contents. A job opts in by setting `RUN_COST_TAG_VALUE` in its `openshift/release` configuration; the literal value `BUILD_ID` resolves to the job's build ID.
 
-- opting in means setting `RUN_COST_TAG_VALUE` in the job's openshift/release configuration; the literal `BUILD_ID` resolves to this job's Prow build ID (ci-operator configuration cannot expand `$(BUILD_ID)` itself). Jobs that do not set the variable are never tagged
-- the config override generator (`aro-hcp-tests infra build-config-override`, sourced through `hack/ci/build-config-override.sh`) adds the tag to the service and management AKS cluster tags, replacing the tag defaults ci00/ci01 otherwise inherit from `config/config.yaml`; AKS copies them onto each node resource group
-- `hack/ci/provision-environment.sh` resolves the same `RUN_COST_TAG_VALUE` and passes `--resource-group-tags` to templatize, which applies the tags to the resource groups the run creates or reuses
-- the E2E framework tags each test resource group at creation
-
-HCP clusters' RP-managed resource groups are not tagged: the RP creates them without tags, so their worker spend is not yet attributed to a job.
-
-Shared resources such as the leased identity pools, global Key Vault, and registries are never tagged with a job ID.
-
-The deprovision step also uses the tag to find an aborted job's test resource groups (`cleanup resource-groups --job-id`).
+The tag lands on the AKS clusters (through the config override generator), on the resource groups the provisioning step creates, and on each test's resource group. The deprovision step also uses it to find the resource groups of an aborted job. Two things are never attributed: the RP-managed resource groups of hosted clusters, because the RP creates them without tags, and shared resources such as the identity fleets, the global Key Vault and the registries.
 
 ### Experimental Configuration Overrides
 
-A job can change any configuration key for one run without a dedicated change in this repository. Set `RAW_CONFIG_OVERRIDES` in the job's openshift/release configuration (the `aro-hcp-provision-environment` step declares it) to one `path.to.key=value` entry per line:
+A job can change any configuration key for a single run without a change in this repository. Set `RAW_CONFIG_OVERRIDES` in the job's `openshift/release` configuration (the `aro-hcp-provision-environment` step declares it), one `path.to.key=value` entry per line:
 
 ```yaml
 env:
@@ -343,15 +321,9 @@ env:
     clouds.dev.environments.ci00.regions.westus3.mgmt.aks.userAgentPool.maxCount=4
 ```
 
-The step wrapper, `hack/ci/provision-environment.sh` and the generator live in this repository, so an experiment never needs to merge: open an openshift/release PR that sets the variable on a job and run `/pj-rehearse` on it.
+Paths are rooted at the override document, which has the shape of `config/config.yaml`, and values are parsed as YAML. Overrides are applied after everything the generator produces, so they win, but a more specific entry in `config/config.yaml` such as one under `regions.<region>` still beats the same key under `defaults`; override that location when you need to. Two entries that touch the same key fail rather than depending on order, and a misspelled key fails schema validation during provisioning instead of being ignored. The applied entries are echoed to the log and the resolved `config.yaml` is kept in the job artifacts, so never put a secret in an override.
 
-- the path is rooted at the override document, which has the shape of `config/config.yaml`. The author picks the overlay that must win: an entry under `regions.<region>` in `config/config.yaml` beats the same key under `defaults`, so override that region entry instead (or as well)
-- the value is YAML: `3` is an integer, `true` a boolean, `"3"` a string, and `[a, b]` or `{x: 1}` are collections. Only the first `=` separates path from value, so values may contain `=`. Quote values containing `: ` or ` #`
-- entries replace the value at exactly that key, after, and over, every generated value and the Hypershift overlay; sibling generated keys are kept (for example the healthcheck `minCount`). `null` clears a key
-- two entries that set the same key, or a key inside another entry's value, fail instead of depending on order
-- the resolved configuration is schema-validated downstream, so a misspelled key (for example `vmSizee`) fails the provision with `additional properties ... not allowed` instead of being ignored
-- applied entries are echoed on stderr and the resolved `config.yaml` lands in the job artifacts. Values are logged verbatim, so never use this for secrets
-- `aro-hcp-tests infra build-config-override --raw-config-override path=value` (repeatable) does the same locally and is combined with the environment variable
+Because the step wrapper, `hack/ci/provision-environment.sh` and the generator all live in this repository, an experiment never needs to merge: open an `openshift/release` PR that sets the variable on a job and run `/pj-rehearse`. `aro-hcp-tests infra build-config-override --raw-config-override path=value` does the same locally.
 
 ### Cleanup Handoff
 
@@ -363,62 +335,26 @@ Once a test has created resources, cleanup responsibility moves into one of thre
 
 See [CI Cleanup](cleanup.md) for the cleanup model and why these modes intentionally do not behave the same way.
 
-## Identity And Lease Mechanisms
+## Slots And Identities
 
-### Managed Identity Container Pool
+E2E jobs acquire their environment from `slot-manager`. DEV `e2e-parallel` runs use the `aro-hcp-local-e2e` workflow, whose first pre-step acquires a slot before the environment is provisioned. INT, STG and PROD jobs, whether presubmit, EV2 gating or periodic, use `aro-hcp-persistent-e2e`, which acquires a slot and writes configuration but provisions nothing. In both, the acquire step selects a pool from the [slot catalog](../../test/e2e-config/e2e-slots.yaml), picks the region, and publishes a runtime contract that the later steps read; the post-steps release the slot. Region selection is driven by the job's `LOCATION_WEIGHTS`, `LOCATION`, `MULTISTAGE_PARAM_OVERRIDE_LOCATION` and `ALLOWED_SUBSCRIPTIONS` settings, which are best read from the current `openshift/release` configuration rather than from prose.
 
-The E2E suites use a managed identity pool backed by Boskos leases so that CI does not need to recreate the full set of Azure managed identities for every spec.
+Where to read further:
 
-The core behavior is:
-
-- `POOLED_IDENTITIES=true` enables pooled mode, which is the default in CI
-- `POOLED_IDENTITIES=false` uses direct per-cluster identity creation and is mainly for local or ad-hoc runs
-- `LEASED_MSI_CONTAINERS` carries a space-separated list of leased identity-container resource groups for the job
-- the test framework stores those leases in a shared YAML state file and moves each container through `free -> assigned -> busy -> free`
-- parallel Ginkgo workers coordinate through that shared file and a lock file, so identity usage stays consistent across processes
-
-Operationally, the important point is that pooled identities are a CI scaling primitive. They are not just an implementation detail inside the test binary.
-
-See [CI Identity Leasing](identity-leasing.md) for the full lease lifecycle, state-file coordination model, pool-sizing assumptions, and failure modes.
-
-### Prow, Ci-Operator, And Boskos
-
-The Boskos resource types that back those identity containers are defined in `openshift/release` by `core-services/prow/02_config/generate-boskos.py`.
-
-ARO HCP uses slot-manager to acquire identity containers in both workflows:
-
-- DEV `e2e-parallel` uses the `aro-hcp-local-e2e` workflow, whose `aro-hcp-lease-acquire` step calls `slot-manager acquire`
-- higher-environment presubmit, EV2-gating, and periodic jobs use `aro-hcp-persistent-e2e`, which also calls `slot-manager acquire`
-
-Slot-manager resolves a slot from the catalog, exports `SELECTED_LOCATION`,
-`CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and hands the leased
-identity-container set to the test framework.
-
-This document intentionally does not freeze current runtime weights or pinned
-regions in prose. If you need the live region-selection policy for a job,
-inspect its `LOCATION_WEIGHTS`, `LOCATION`, or
-`MULTISTAGE_PARAM_OVERRIDE_LOCATION` in the current `openshift/release`
-ci-operator config.
+- The [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md) specifies the catalog, the acquire and release lifecycle, and the runtime contract.
+- [E2E Slot Assets](slot-assets.md) explains the identities each slot comes with and why the test framework reuses managed identities instead of creating them per cluster.
+- [DEV Mock Identities](dev-mock-identities.md) explains the service principals that replace the first-party application in DEV.
+- [E2E Capacity And Quotas](e2e-capacity.md) explains how slot and container counts relate to Azure limits.
 
 ## EV2 Commit Pinning
 
-The connection between EV2 and Prow is established through configuration in this repository:
-
-- `config/config.msft.clouds-overlay.yaml` selects the environment-specific `prowJobName`
-- `test/e2e-pipeline.yaml` passes that value to the EV2 pipeline as `PROW_JOB_NAME`
-- `prow-job-executor` extracts the commit SHA from `EV2_ROLLOUT_VERSION` and triggers the job with `--base-sha`
-
-That commit pinning is the key distinction between EV2 gating and periodic E2E. A periodic job always tests `HEAD`; an EV2-triggered job tests the exact revision being rolled out.
-
-See [CI EV2 Integration](ev2-integration.md) for the full EV2-to-Prow wiring, Gangway auth path, `__e2e` job variant, rollout metadata, and promotion-gating model.
-
-For how to identify a specific EV2-triggered run after it has started, see [CI EV2 Integration](ev2-integration.md#identifying-rollouts-from-prow-metadata).
+The connection between EV2 and Prow is configured in this repository: `config/config.msft.clouds-overlay.yaml` selects the `prowJobName` for each environment, and `test/e2e-pipeline.yaml` passes it to the EV2 pipeline. The job is then triggered against the rollout's commit rather than `HEAD`, which is the key difference between EV2 gating and a periodic E2E. [CI EV2 Integration](ev2-integration.md) covers the full path, including Gangway authentication and how to identify a specific run.
 
 ## See Also
 
 - [CI Overview](README.md)
 - [CI Image Lifecycle](image-lifecycle.md)
-- [CI Identity Leasing](identity-leasing.md)
+- [E2E Slot Assets](slot-assets.md)
 - [CI EV2 Integration](ev2-integration.md)
 - [CI Cleanup](cleanup.md)
 - [E2E Testing In CI](e2e-testing.md)

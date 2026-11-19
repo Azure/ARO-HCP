@@ -1,8 +1,8 @@
 # ARO HCP CI Daily Digest — Task Instructions
 
-> This file is read by the Chai Bot scheduled task at runtime.
-> Internal configuration (Slack channels, Jira projects, notification groups) is provided
-> by the task configuration in the Chai Bot repo and should NOT be duplicated here.
+> These are runtime instructions for the Chai Bot scheduled task, which reads this file from the repository by path, so keep the path stable. They are written for an automated agent rather than as a human guide. Slack channels, Jira projects and notification groups come from the task configuration in the Chai Bot repo and must not be duplicated here.
+
+The digest reviews the scheduled E2E jobs against Stage and Prod. The jobs are defined in the [periodic ci-operator config](https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml); update the lists below when jobs there are added, renamed or removed.
 
 ## Jobs to Monitor
 

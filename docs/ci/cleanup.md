@@ -1,14 +1,8 @@
 # CI Cleanup
 
-ARO HCP has three cleanup modes, and they are intentionally different:
+ARO HCP CI cleans up after itself in three different ways, and they differ on purpose. A cleanup that is right for a test, where a leak is a finding, is the wrong one for a background janitor that has to keep going no matter what it trips over. A cleanup that is right for tearing down a throwaway DEV environment is not what we want in public cloud, where the RP owns the lifecycle of what it created.
 
-1. strict per-test cleanup in the E2E framework
-2. targeted environment teardown for personal dev and DEV CI
-3. background hygiene from periodic cleanup jobs
-
-The differences are deliberate. A cleanup path that is correct for a test is not always the right one for a background janitor job, and a path that is good for DEV teardown is not always the one we want in public cloud.
-
-For the surrounding execution model, see [CI Execution](execution.md). For the operator view of the jobs that run these paths, see [CI Operations](operations.md).
+For how the jobs that run these paths fit into CI, see [CI Execution](execution.md). For finding and inspecting the jobs, see [CI Operations](operations.md).
 
 ## The Three Cleanup Modes
 
@@ -22,32 +16,14 @@ flowchart LR
     testEnd(("e2e test<br/>finishes")) --> e2eCleanup["Per-test cleanup<br/><i>e2e framework</i>"]
     e2eCleanup --> rpDelete["Delete cluster via RP"]
     rpDelete --> waitRg["Wait for managed RGs<br/>to disappear"]
-    waitRg --> leftovers["Clean test-owned leftovers<br/>(customer RG, app regs,<br/>leased identities)"]
+    waitRg --> leftovers["Clean test-owned leftovers<br/>(customer RG, app regs,<br/>slot assets)"]
 ```
 
-This runs after each E2E test.
+The E2E framework runs this after every test. It deletes the HCP clusters through the RP, waits for their managed resource groups to disappear, and then removes what the test itself owns: the customer resource group, the app registrations and service principals it created, and finally returns the identity containers the test borrowed, after cleaning them, to the job's own scheduler so that later specs can reuse them. That last step happens even when `ARO_E2E_SKIP_CLEANUP` is set. It neither deletes the persistent slot assets nor releases the Boskos slot, which stays with the job until the workflow's lease-release post step (see [Acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)), so no other job can acquire the slot when an individual test finishes. It also purges the soft-deleted Key Vaults and Managed HSMs that deleting the customer resource group leaves behind, because their names are derived from the resource group and a later run would otherwise collide with them.
 
-Its job is to clean up what the test created and to fail loudly if cleanup is broken. That is why this path is strict: leaking resources after a test usually means either the product did not delete something correctly or the test created something it did not own properly.
+This path is strict because a leak here is a finding. If something survives a test, either the product did not delete what it created or the test created something outside the framework's ownership, and both are worth failing on.
 
-In the normal public-cloud flow, test cleanup:
-
-1. deletes HCP clusters through the RP
-2. waits for managed resource groups to disappear
-3. finishes cleaning up test-owned leftovers such as the customer resource group, app registrations, and leased identities
-
-When the tests use app-only CI credentials, test-created app registrations are
-permanently removed rather than left in Entra's deleted-items container. The
-framework records both the application object ID and the associated
-service-principal object ID. It soft-deletes and purges the service principal
-first, then does the same for the application. If a purge fails, cleanup
-restores that object so a later run can rediscover and retry it. Purging only
-the application is insufficient because its service principal remains
-independently recoverable and continues consuming directory quota. Local runs
-using delegated user credentials retain the standard soft-delete behavior
-because permanent deletion requires elevated directory permissions that
-ordinary application owners may not have.
-
-This path is not just background hygiene. Cleanup failures are treated as test signal.
+Two details are worth knowing. When the tests run with app-only CI credentials, app registrations are permanently purged rather than left in Entra's deleted-items container, and the service principal is purged before the application: the service principal stays independently recoverable and keeps counting against directory quota if only the application is purged. Local runs with delegated user credentials keep the normal soft-delete, since purging needs permissions an ordinary app owner may not have. The second detail is a known gap. When the RP leaves a managed resource group behind after its cluster is gone, the group's system-protected deny assignment blocks everyone except the RP's first-party principals from deleting it. Cleanup recognises that case, logs it for RP-side remediation (AROSLSRE-1591), and still deletes the customer resource group instead of burning its timeout waiting.
 
 ### Targeted environment teardown
 
@@ -56,138 +32,18 @@ This path is not just background hygiene. Cleanup failures are treated as test s
 title: "TOLERANT - topology-driven"
 ---
 flowchart LR
-    devDelete(("make clean /<br/>CI deprovision")) --> topoCleanup["Environment teardown<br/><i>templatize cleanup</i>"]
+    devDelete(("make cleanup-entrypoint/... /<br/>CI deprovision")) --> topoCleanup["Environment teardown<br/><i>templatize cleanup</i>"]
     topoCleanup --> deriveTargets["Derive target RGs<br/>from topology"]
     deriveTargets --> asyncDelete["Delete RGs<br/>(async, best-effort)"]
 ```
 
-This is the cleanup path used when we explicitly tear down a known environment, most commonly:
+This is the path for tearing down a known environment: personal-dev cleanup (see [Personal Dev](../personal-dev.md)) and the `aro-hcp-deprovision-environment` post step of the DEV E2E jobs. `templatize entrypoint cleanup` reads the topology, selects the resource groups that belong to the chosen entrypoint or service group, and deletes them. It does not try to prove that cluster deletion worked; it only needs the environment to start going away, so it works from a known target set, tolerates asynchronous deletion, and the CI step does not wait for completion. Regional teardown deliberately leaves the `global` resource group alone, since that holds long-lived services and shared credentials.
 
-- personal-dev cleanup
-- DEV E2E CI deprovision
+The Makefile targets default to `CLEANUP_DRY_RUN=true`, so a manual `make cleanup-entrypoint/<entrypoint>` only prints what it would delete until you pass `CLEANUP_DRY_RUN=false`.
 
-Its job is not to validate cluster deletion correctness. Its job is to remove a known set of environment resource groups derived from topology.
-
-Because of that, it is more tolerant than per-test cleanup:
-
-- it works from a known target set instead of scanning broadly
-- it is comfortable with async deletion
-- it favors getting the environment moving toward deletion over proving that every step completed synchronously
+DEV E2E jobs also run a best-effort `aro-hcp-deprovision-tracked-resource-groups` post step, which complements this teardown by removing the resource groups the test step created. It deletes the groups the tests recorded as they went, plus every group carrying the run's `jobID.aro-hcp-ci.redhat.com` tag (the Prow `BUILD_ID`), so groups leaked by an aborted test step are still caught. The step defaults to the `no-rp` workflow described below and refuses it for INT, STG, and PROD, whose jobs set `standard`. Its purpose is to keep role-assignment pressure down between the end of a job and the next periodic sweep.
 
 ### Background hygiene
-
-#### Disposable service certificates
-
-CI service certificates live in the shared `aro-hcp-dev-svc-kv` vault, in the
-`global` resource group. Regional `templatize` teardown deliberately excludes
-that group because it contains long-lived services and shared credentials. Do not
-enable global resource-group deletion to clean up individual certificates.
-
-For new `dev/ci00`, `dev/ci01` and `dev/ci02` runs, `templatize` uses an explicit
-`EmailContacts` lifetime action instead of `AutoRenew` for job-named frontend,
-admin API, sessiongate, and Maestro server certificates in that shared vault.
-Validity remains six months. Changing only this lifetime action updates an
-existing CI certificate policy without issuing another version. Persistent
-environments, public cloud, shared identities, and other vaults retain their
-existing renewal behavior.
-
-Manual certificate sweeps use the policy in
-`tooling/cleanup-sweeper/certificates.policy.yaml`. Start with a dry run:
-
-```bash
-AZURE_TOKEN_CREDENTIALS=dev \
-  go run ./tooling/cleanup-sweeper --workflow=certificates \
-    --dry-run=true --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
-    --options=certificates.max-deletions=1000 \
-    --options=certificates.max-purges=1000 \
-    --parallelism=2 --timeout=30m
-```
-
-To apply the current policy after reviewing the dry-run output:
-
-```bash
-AZURE_TOKEN_CREDENTIALS=dev \
-  go run ./tooling/cleanup-sweeper --workflow=certificates \
-    --dry-run=false --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
-    --options=certificates.max-deletions=1000 \
-    --options=certificates.max-purges=1000 \
-    --parallelism=2 --timeout=30m
-```
-
-The `certificates` workflow requires `--policy`. Like every workflow it applies
-changes unless `--dry-run=true` is passed, so always start with a dry run.
-Workflow-specific settings are passed as `--options=<workflow>.<key>=<value>`;
-for this workflow they are `delete-active`, `purge-deleted`, `max-deletions` and
-`max-purges`, and `cleanup-sweeper --help` lists the options of every workflow.
-It has no subscription or resource-group settings: the policy's `vaultURL` is
-the only vault it touches, and nothing overrides it. (The former
-`--subscription-id`, `--resource-group` and `--wait` flags still work for the
-other workflows as deprecated aliases of `--options=<workflow>.subscription-id`,
-`.resource-group` and `.wait`.) Policy rules are
-first-match-wins; unmatched certificates are retained. Delete eligibility also
-requires that no tag listed in the policy's mandatory `protectedTags` is present
-(`persist: "true"` in the shipped policy) and that both latest-version
-timestamps are older than the rule's retention.
-
-Apply revalidates certificate metadata immediately before deletion. Rules with
-owner-resource-group guards require a fresh inventory across the subscriptions
-listed in `ownerInventory.subscriptions`. They are named by display name and
-resolved to IDs at run time, which keeps subscription IDs out of the repository;
-a name that is unknown or ambiguous aborts the run before any change. The
-workflow emits structured candidate and summary logs. Pass `--parallelism=2`
-(the root default is four) to limit Key Vault and Resource Manager throttling,
-and `--timeout` to bound the run (30 minutes when unset for this workflow).
-
-Certificate metadata access is required for discovery. Apply also requires
-certificate delete and purge permissions for the enabled actions. No Graph
-credential or private-key/secret reads are required.
-
-Candidate discovery follows the first matching rule in
-`tooling/cleanup-sweeper/certificates.policy.yaml`; unmatched certificates are
-retained. Certificates carrying a `protectedTags` tag are never selected by any
-rule (the list is mandatory; tag keys and values compare case-insensitively),
-and all delete rules require both latest-version creation and update timestamps
-older than the configured retention. The owner
-guard is mandatory: every delete rule must set `ownerResourceGroupAbsent: true`
-(with a named `ownerCaptureGroup`), which requires no matching resource group in
-any owner inventory subscription, or explicitly opt out with
-`allowWithoutOwnerGuard: true`. The captured owner must be a single token: the
-owner inventory splits resource group names on every character that is not a
-letter or digit, so a capture such as `west-us3` could never be found and the
-certificate is retained instead. Name patterns must match the whole name, which
-validation enforces for every alternative (`^a$|^b$` is accepted, `^a|b$` is
-not). The policy file is parsed strictly, so a misspelled key fails instead of
-silently dropping a safeguard, and protected tag keys that differ only in case
-are rejected as ambiguous. Job placeholder
-and fixture certificates (`j0000000`-`j0000099`, `j7654321`) are protected by
-the first rule of the policy file, which is a `skip` rule; keep it first when
-editing. Incomplete owner inventory or uncertain certificate metadata favors
-retention.
-
-The sweeper continues paging through Key Vault inventory until mutation budgets
-are filled or the inventory is exhausted. `max-deletions` bounds active
-certificate mutations, not metadata inspection; each deleted active certificate
-is purged immediately when purging is enabled. `max-purges` independently
-bounds the previously deleted certificates (tombstones) purged, so a run can
-purge up to `max-deletions + max-purges` certificates. Tombstones are
-selected by the same rules and protected tags but are not subject to retention
-or the owner guard: the certificate is already deleted, and a lingering
-tombstone only blocks reuse of its name. Ineligible objects do not consume
-either budget. The overall timeout
-limits discovery and apply runtime. The workflow emits structured candidate and summary
-logs.
-
-Active certificates are deleted as complete certificate objects, including all
-versions and their policy; backing certificate material can become unavailable.
-Apply revalidates certificate metadata immediately before deletion. When the
-policy uses owner-resource-group guards, owner inventory is refreshed before
-apply and must be no more than 30 seconds old.
-
-The command never issues separate key or secret delete calls. Failures are
-reported at the end. Azure does not provide an atomic owner-check/certificate-
-delete operation, so concurrent resource-group creation remains a race; age
-checks, metadata revalidation, owner guards, and protected tags reduce that risk.
-Unit tests do not perform certificate mutations.
 
 ```mermaid
 ---
@@ -198,266 +54,93 @@ flowchart LR
     periodicCleanup --> expiredRg["Expired test RGs"]
     periodicCleanup --> expiredApp["Expired app registrations"]
     periodicCleanup --> kustoCleanup["Kusto role assignments"]
+    periodicCleanup --> certs["Expired CI certificates"]
     periodicCleanup --> sweeperRg["cleanup-sweeper<br/>rg-ordered"]
     periodicCleanup --> sweeperShared["cleanup-sweeper<br/>shared-leftovers"]
 ```
 
-This is the periodic cleanup layer defined in:
+Periodic jobs keep the shared subscriptions healthy over time. They are not trying to prove that any single test or delete behaved correctly; they pick up whatever earlier paths missed, and anything one run skips is retried by the next. All of them are defined in `Azure-ARO-HCP-main__periodic-cleanup.yaml` in [`openshift/release`](https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml), and they cover:
 
-- `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
+- expired test resource groups, one job per customer subscription (`test/aro-hcp-tests cleanup resource-groups --expired`, driven by the `deleteAfter.aro-hcp-ci.redhat.com` tag the framework puts on the groups it creates);
+- expired E2E app registrations and their service principals, per tenant (`cleanup app-registrations`);
+- Kusto role assignments (`cleanup kusto-role-assignments`);
+- expired CI service certificates in the shared DEV key vault (`cleanup-sweeper --workflow=certificates`);
+- `cleanup-sweeper`'s `rg-ordered` workflow, a policy-driven resource-group sweep;
+- `cleanup-sweeper`'s `shared-leftovers` workflow, run per environment.
 
-Its job is to keep subscriptions healthy over time, not to prove that a single test or delete operation behaved perfectly.
-
-Today that periodic layer includes:
-
-- expired test resource-group cleanup
-- expired app-registration and service-principal cleanup, including permanent deletion
-- Kusto role-assignment cleanup
-- `cleanup-sweeper` jobs for policy-driven resource-group cleanup and shared leftovers
-
-The `cleanup-sweeper` `shared-leftovers` workflow runs per environment. Alongside the DEV shared subscriptions it now runs hourly against the INT, STG, and PROD e2e/customer subscriptions (`sweeper-shared-leftovers-{dev,int,stg,prod}` in the periodic-cleanup config), each reporting failures to its own `#aro-hcp-failures-<env>` channel. Each per-environment job selects its subscriptions through `VAULT_SECRET_PROFILE` (`int-rh`, `stg-rh`, `prod-rh`; DEV uses the default `dev` profile). This workflow deletes orphaned role assignments and purges orphaned soft-deleted Key Vaults; it does not delete resource groups, so it does not depend on the `createdAt` tag.
-
-To resolve the principals behind orphaned role assignments, `shared-leftovers` reads the Microsoft Graph active directory, which requires `Directory.Read.All`. It deletes an assignment when the principal is absent from the active directory, including when the principal is soft-deleted. It performs the same active-directory check again immediately before deletion. A discovery failure ends the role-assignment step before deletion. A per-target revalidation failure skips that target while independently validated targets continue. The per-environment ARM identity (`VAULT_SECRET_PROFILE`) usually lacks that tenant-wide grant, so the step exports a dedicated Graph identity from `GRAPH_SECRET_PROFILE` (the dev bot, which holds `Directory.Read.All`) whenever its mounted profile differs from the ARM profile. When the two resolve to the same profile, no separate Graph credential is used and the ARM identity serves both. The sweeper binary reads that dedicated identity from `GRAPH_AZURE_CLIENT_ID` / `GRAPH_AZURE_TENANT_ID` / `GRAPH_AZURE_CLIENT_SECRET`, which the `aro-hcp-deprovision-cleanup-sweeper` step in `openshift/release` exports from the mounted Graph profile.
-
-#### Backend orphan-MRG detection
-
-The backend's `CleanOrphanedClusterManagedResourceGroup` controller checks MRGs
-in its region against its local cluster database. For an owner absent locally,
-it checks the customer resource group extracted from `managedBy`, not the HCP
-cluster through ARM: DEV clusters are served directly by individual RP
-frontends, so an ARM cluster lookup cannot establish cross-backend ownership.
-
-An existing customer RG protects the MRG, even if the cluster itself has already
-disappeared. This deliberately conservative check matches the sweeper's
-parent-RG protection. Invalid owner IDs, missing customer-RG scope, and owners
-in another subscription remain protected. Only a same-subscription customer-RG
-GET returning HTTP 404 permits orphan counting and existing cleanup handling.
-Other lookup errors abort the sync before any MRG is counted or queued for
-deletion, including candidates discovered earlier in that sync.
-
-The backend remains read-only unless
-`CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite` is explicitly configured.
-This ownership check does not apply the sweeper's retention or `createdAt`
-policy, repair missing tags, or prove a live cluster exists. Periodic cleanup
-remains responsible for background hygiene; the `OrphanedMRGDetected` known-issue
-classification must be reassessed separately after rollout and backlog
-verification.
-
-#### Tracing sweeper deletions
-
-The `rg-ordered` and `shared-leftovers` commands carry a unique `runID`,
-`subscriptionID`, `workflow`, and `dryRun` through their logs. Prow runs also
-record `prowJob`, `prowBuildID`, and `prowJobID` from the job environment.
-`commitSHA` contains the build-time version, or `development` when not supplied.
-Go builds with VCS stamping also record the full `vcs.revision` and
-`vcs.modified`; a modified build is not an exact reproduction of that commit.
-Missing Prow or VCS metadata is not inferred from a branch name.
-
-Role-assignment discovery records `assignmentID`, `principalID`, and
-`reason=principal_absent` with `phase=discovery`. Immediately before deletion,
-the fresh ARM assignment and Graph check supply the principal, scope, and final
-decision with `phase=revalidation`. An active principal is retained. A 404 at
-either the assignment re-read or DELETE is reported as already absent, not as
-a deletion performed by this run.
-
-Each ARM DELETE attempt logs `Sending ARM DELETE request` before dispatch and
-`Received ARM DELETE response` when a response is available. Correlation fields
-are:
-
-| Field | Meaning |
-| --- | --- |
-| `clientRequestID` | The `x-ms-client-request-id` sent to Azure. |
-| `attempt` | SDK attempt number, starting at one for each logical request. |
-| `requestPath` | Target ARM path, without query parameters. |
-| `statusCode` | HTTP response status, not proof that asynchronous cleanup finished. |
-| `azureRequestID` | Returned `x-ms-request-id`. |
-| `azureCorrelationRequestID` | Returned `x-ms-correlation-request-id`. |
-| `azureRoutingRequestID` | Returned `x-ms-routing-request-id`. |
-
-SDK retries retain the client request ID and increment `attempt`. A new
-step-level retry issues a new logical request and revalidates the target again.
-The per-attempt audit entry for a transport failure records only the error
-type, not its text, URL, body, or credentials. This restriction applies to the
-audit entries, not the complete command log stream: existing runner and command
-error logs are unchanged and can include SDK response bodies or transport URLs.
-A sent-request log without a response means the outcome is unknown. Dry-run
-emits candidate logs but no DELETE attempt logs.
-
-Match request IDs against Azure records that expose them, then use `runID` to
-find the decision and job metadata. Azure does not guarantee that every header
-appears in Activity Log, and empty response ID fields mean Azure did not return
-them. A shared caller identity or user agent alone does not identify the process.
-Missing or incomplete historical sweeper logs cannot prove that the sweeper did
-not issue a request. The data-plane `certificates` workflow and
-other cleanup programs are outside this ARM audit path.
-
-#### Resource-group policy
-
-For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
-
-The policy excludes long-lived slot-managed identity containers and
-infrastructure-identity bundle resource groups. Their names start with
-`aro-hcp-msi-container-` and `aro-hcp-dev-infrastructure-identities-`,
-respectively. These groups back repeated E2E leases and must not be treated as
-resources that expire after 15 days.
-
-Azure does not set that tag by default. Subscriptions where `rg-ordered` should run must apply an Azure Policy (or equivalent) that stamps `tags['createdAt']` when a resource group is created, using `[utcNow()]` in the policy rule. The rule body lives in `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json`.
-
-Because the `createdAt` tag is required for every `action: delete` rule, this policy is a hard per-subscription prerequisite: `rg-ordered` must not be enabled in a subscription (including the INT, STG, and PROD e2e subscriptions) until the `createdAt` policy is assigned there. The sweeper only requires a parseable `createdAt` tag, so groups created before the policy was assigned are not candidates until the tag is present (either stamped by the policy on new groups or backfilled onto existing ones, for example via policy remediation). Until the policy is in place, only `shared-leftovers` is safe to run in that subscription, since it does not delete resource groups.
-
-For the DEV and STG e2e/customer subscriptions (`.ci.dev.e2eSubscriptions` and `.ci.stg.e2eSubscriptions`), this policy is assigned declaratively by the dev-ci pipeline: `dev-infrastructure/templates/createdat-rg-tag-policy.bicep` fans the subscription-scoped definition + assignment out to each e2e subscription, wired as the `createdat-rg-tag-policy` step in `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`. That step lives in the privileged dev-ci tree because writing policy definitions/assignments needs `Microsoft.Authorization/policy*/write`, which the unattended Contributor bot lacks; run it with `make dev-ci-privileged-local-run` as an OWNERS member. For one-off or other environments' subscriptions, `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` creates or updates the same definition and assignment imperatively.
-
-> **Keep the rule body in sync.** The policy rule is expressed in two places: `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` (used by the imperative script) and, mirrored inline, in `dev-infrastructure/templates/createdat-rg-tag-policy-subscription.bicep` (used by the declarative dev-ci path). Both use the same definition/assignment resource names so they converge on one policy, but the rule body itself is duplicated: any change to the `if`/`then`/`[utcNow()]` logic must be applied to both files.
-
-This path is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
-
-Within a single run, the expired resource-group job attempts deletion of
-every discovered resource group, regardless of earlier failures. A failed
-deletion sets the job exit code to non-zero to signal that work remains,
-but does not prevent subsequent resource groups from being attempted.
-This means that when the job reports failure, the build log contains the
-outcome for every expired resource group — not just the first one that
-failed.
-
-The expired resource-group command limits cleanup to 20 resource groups at a
-time by default. The `--concurrency` flag can lower or raise that limit for a
-specific job. ARM clients honor server retry delays up to 10 minutes, so a
-provider throttle pauses the affected cleanup instead of causing an immediate
-burst of failed retries.
+The expired app-registration job resolves each owned `aro-hcp-e2e-*` application's service principal first and then permanently deletes both objects once Entra shows them in deleted items, so the hourly job does not just move quota pressure into the 30-day recycle bin. It only prevents new buildup: objects already in the recycle bin need a separate, explicitly scoped purge, because the ownership query returns active applications only.
 
 ## Why They Behave Differently
 
 ### Why periodic cleanup is best-effort
 
-Periodic cleanup runs in the background across shared subscriptions. If it is too aggressive, it becomes its own source of instability and Azure throttling.
-
-That is why the background cleanup jobs are deliberately conservative. In particular, the `cleanup-sweeper` jobs currently run with a single worker, and `rg-ordered` runs with `wait=false`, to be gentler to the Network provider.
-
-The goal is steady pressure in the right direction, not maximum deletion throughput in one run.
+Periodic cleanup runs in the background across shared subscriptions, so being too aggressive makes it its own source of instability and Azure throttling. The `cleanup-sweeper` jobs therefore run with a single worker and `rg-ordered` runs without waiting for deletions, to go easy on the Network provider. The aim is steady pressure in the right direction, not maximum throughput in one run. Within a run, the expired-resource-group job attempts every group it discovered regardless of earlier failures and exits non-zero at the end if any failed, so one build log shows the outcome for all of them.
 
 ### Why E2E cleanup is strict
 
-Per-test cleanup is part of test correctness.
-
-If a test cannot clean up what it created, that usually means:
-
-- cluster deletion did not complete correctly
-- test-owned Azure resources were left behind
-- the test itself created resources outside the framework's ownership model
-
-That is why the framework treats cleanup failure as meaningful signal instead of just logging and moving on.
+Per-test cleanup is part of test correctness. A test that cannot clean up after itself means cluster deletion did not finish properly, test-owned Azure resources were left behind, or the test created resources the framework does not own. The framework treats all three as signal rather than logging and moving on.
 
 ### Why DEV cleanup actively deletes managed resource groups but public-cloud cleanup does not
 
-This is one of the most common sources of confusion.
+The cleanup tool has two workflows, selected with `--mode`: `standard` (the default) and `no-rp`. The `standard` workflow goes through the RP, so it is cluster-aware and strict. The `no-rp` workflow is for when no RP is around to do the work, and it acts directly. Which one a job uses depends on one question: is there still a live owner for deleting what the cluster left behind?
 
-In public cloud, managed resource groups are part of the cluster lifecycle owned by the RP and downstream platform components. The correct behavior is to delete the cluster through the RP and wait for the managed resource groups to disappear as a consequence of that owned flow.
+In public cloud there is. Managed resource groups are part of the cluster lifecycle owned by the RP and its downstream components, so the right behaviour is to delete the cluster through the RP and wait for the managed groups to disappear as a consequence. The groups also carry deny assignments that stop customer principals from modifying them, so a cleanup job trying to delete them directly would just fail with a permission error. Service association links work the same way: Azure creates one when a cluster uses a delegated subnet, and the RP's cluster deletion is expected to remove it. If one is left behind in public cloud, the RP did not finish deleting the cluster, and that is a finding to surface, not something to quietly sweep away.
 
-Additionally, in public cloud the managed resource groups carry deny assignments that prevent customer principals from modifying them. Any attempt by cleanup jobs to directly delete those resource groups would simply fail with a permission error.
+In DEV the owner may already be gone. Each DEV E2E job brings up its own RP and tears it down afterwards, and personal-dev environments are removed wholesale. If cleanup waited for the RP to delete managed resource groups, they would stay forever, and an orphaned service association link blocks deletion of its subnet's resource group with `InUseSubnetCannotBeDeleted`. So `no-rp` finds the managed resource groups itself and deletes them, deletes any orphaned service association links, and then deletes the parent group. Deleting a link needs the first-party app credentials (the `--fpa-client-id` and `--fpa-cert-path` flags); without them the step is skipped and only the other deletions happen. In the periodic config, the DEV subscription jobs set `CLEANUP_MODE: no-rp`, while the INT, STG, and PROD jobs leave it unset and run `standard`.
 
-In DEV and other `no-rp` situations, that owner may already be gone or unavailable. If cleanup waits for someone else to delete managed resource groups, they can remain forever. In those cases cleanup has to be more direct: find the managed resource groups itself, clean them up, and then clean the parent resource group.
+So the difference is not that DEV is special for its own sake; it follows from whether the RP is still there to own deletion.
 
-So the difference is not "DEV is special" for its own sake. The difference is whether there is still a live owner for managed resource-group deletion.
-
-### Why dev cleanup actively deletes service association links but public-cloud cleanup does not
-
-Service association links (SALs) are created by Azure when a subnet is delegated to a service. When a cluster uses a delegated customer subnet, Azure creates a SAL linking the subnet to the cluster resource.
-
-In public cloud, SALs are part of the cluster lifecycle owned by the RP. The correct behavior is to delete the cluster through the RP and expect Azure to remove the SAL as a consequence of that deletion.
-
-If SALs are left behind in public cloud, that is a signal that the RP did not complete deletion correctly. The cleanup framework treats that as meaningful signal, not something to silently clean up.
-
-In dev and other `no-rp` situations, the RP may already be torn down. In dev e2e CI, each job spins up a fresh RP and tears it down after the run. If a SAL is orphaned and there is no RP left to clean it up, it blocks resource-group deletion with `InUseSubnetCannotBeDeleted` errors.
-
-That is why the `no-rp` cleanup mode includes an optional FPA-authenticated SAL deletion step. When the RP is unavailable, cleanup deletes orphaned SALs directly before deleting the resource group. This requires FPA credentials because standard service principals lack permission to delete SALs.
-
-## How Each Path Works
-
-### E2E test teardown
-
-This is implemented in:
-
-- `test/util/framework/per_test_framework.go`
-
-At the end of a test, the framework cleans:
-
-- resource groups created by the test context
-- app registrations and associated service principals created by the test,
-  including both objects in Entra's deleted-items container
-- leased identity leftovers
-
-There are two cleanup modes in the framework:
-
-- `standard`: used in normal public-cloud teardown
-- `no-rp`: used when the RP is unavailable or the infrastructure has already been torn down
-
-`standard` is strict and cluster-aware. `no-rp` is more direct and more best-effort.
-
-### Templatize cleanup
-
-This is implemented in:
-
-- `tooling/templatize/cmd/entrypoint/cleanup/`
-
-This path starts from topology, selects the resource groups that belong to the chosen entrypoint or pipeline, and tears those down.
-
-That makes it a good fit for:
-
-- personal-dev cleanup
-- DEV E2E CI deprovision
-
-It is targeted cleanup of known resources, not subscription-wide hygiene.
-
-### Periodic cleanup
-
-The consolidated periodic job definition lives in:
-
-- `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
-
-There are two broad styles of periodic cleanup:
-
-- test-oriented cleanup jobs, such as expired resource groups and old test identities
-- `cleanup-sweeper` jobs, which are meant for policy-driven resource-group cleanup and shared leftovers
-
-The expired app-registration job resolves the active service principal before
-deleting each owned `aro-hcp-e2e-*` application. It then permanently deletes
-both objects after Entra exposes them in `directory/deletedItems`, preventing
-the hourly cleanup from moving quota pressure from active objects into the
-30-day recycle bin.
-
-This flow prevents new buildup. Existing objects already in the recycle bin
-require a separate, explicitly scoped purge because the ownership query only
-returns active applications.
-
-The important point is that all of these are background hygiene jobs. They are there to keep shared environments healthy and reduce accumulation over time.
+## Running The Periodic Jobs
 
 ### Identifying the cleanup job for a subscription
 
-The source of truth for the mapping between subscriptions and
-environments/shards is
-[`test/e2e-config/e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml).
-Each pool entry lists a `subscription_name` that corresponds to the
-subscription shown in the PagerDuty alert payload.
+A subscription named in an alert or a failing run maps to its cleanup job through the periodic config. The subscription names come from the `subscriptions.e2e` entries in [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml). In the periodic cleanup config, each expired-resource-group job is named `delete-expired-<something>-resource-groups` (the Prow job is `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-<that name>`) and selects its subscription with `CUSTOMER_SUBSCRIPTION` plus a `VAULT_SECRET_PROFILE`. The `<something>` does not follow a mechanical rule across environments (the DEV subscriptions are `dev-ci-shard<N>` and `dev-pers`, INT and STG are `integration` and `stage`, PROD is `prod-<NN>`), so search the config for the subscription name rather than deriving the job name. The legacy cross-tenant "ARO HCP E2E" production subscription has no `CUSTOMER_SUBSCRIPTION` override and its job is the indexless `delete-expired-prod-resource-groups`, which takes the subscription from the `prod` profile's secrets.
 
-Cleanup job names follow the convention
-`periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-<env>-<index>-resource-groups`,
-where `<env>` and `<index>` are derived from the subscription name
-(e.g. "Prod - 01" → `delete-expired-prod-01-resource-groups`).
+If a subscription has no dedicated expired-resource-group job, it is not covered by that job family at all. The sweeper jobs discover their subscriptions from the mounted secret profile instead, so check those next.
 
-> **Exception:** The legacy cross-tenant subscription "ARO HCP E2E"
-> does not follow the `<env> - <index>` naming pattern. Its cleanup
-> job uses the indexless name
-> `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups`.
+### Resource-group policy for `rg-ordered`
+
+`rg-ordered` decides what to delete from [`resourcegroups.policy.yaml`](../../tooling/cleanup-sweeper/resourcegroups.policy.yaml), where the first matching rule wins. The file documents its own rules; the points worth knowing here are the intent behind them. Groups with a live managed-by owner, long-lived shared groups, and the slot-managed identity containers and infrastructure-identity bundles are skipped, because slot assets are reused across runs and must never age out like test resources (see [Slot Assets](slot-assets.md)). Ephemeral CI groups expire in hours, personal-dev groups in days, and `persist=true` groups last longer.
+
+Every delete rule requires the resource group to carry a parseable `createdAt` tag, and Azure does not set one by default. A group without the tag is never a candidate, so `rg-ordered` must not run in a subscription until an Azure Policy that stamps `createdAt` on new resource groups is assigned there; until then only `shared-leftovers`, which deletes no resource groups, is safe. Groups created before the policy was assigned stay out of scope until they are backfilled, for example with policy remediation.
+
+For the DEV, STG, and PROD e2e/customer subscriptions the policy is assigned declaratively: the `createdat-rg-tag-policy` step of the dev-ci pipeline `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml` deploys it to every subscription listed under `.ci.<env>.e2eSubscriptions` in the dev-ci config. That step lives in the privileged dev-ci tree because creating policy definitions and assignments needs permissions the unattended bot does not have, so an OWNERS member runs it with `make dev-ci-privileged-local-run`. For any other subscription, including INT, which that step does not cover, `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` creates the same definition and assignment imperatively.
+
+The rule body exists in two places, `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` for the script and a mirrored copy in `dev-infrastructure/templates/createdat-rg-tag-policy-subscription.bicep` for the pipeline. Both use the same resource names so they converge on one policy, but a change to the rule logic has to be made in both.
+
+### Shared leftovers
+
+`shared-leftovers` runs hourly per environment (`sweeper-shared-leftovers-{dev,int,stg,prod}`), each reporting to that environment's `#aro-hcp-failures-<env>` channel. It deletes role assignments whose principal no longer exists and purges soft-deleted Key Vaults that no longer have an owner. It never deletes resource groups, so it does not depend on `createdAt`.
+
+Deciding that a principal is gone means reading Microsoft Graph, which needs `Directory.Read.All`. The per-environment ARM identity usually lacks that tenant-wide grant, so the `aro-hcp-deprovision-cleanup-sweeper` step in `openshift/release` mounts a second identity selected by `GRAPH_SECRET_PROFILE` (the dev bot by default) and hands it to the sweeper as `GRAPH_AZURE_*` variables; when it resolves to the same profile as the ARM identity, that single identity is used for both. Each deletion is revalidated against Graph immediately beforehand. A failure to discover principals ends the role-assignment step before anything is deleted, while a failed revalidation skips only that target.
+
+### Disposable service certificates
+
+CI service certificates for the frontend, admin API, sessiongate, and Maestro server of `ci00`, `ci01`, and `ci02` runs are issued into the shared `aro-hcp-dev-svc-kv` vault, in the `global` resource group. Regional teardown never touches that group, and you should not enable global resource-group deletion to clean up individual certificates. For these job-named certificates `templatize` sets an `EmailContacts` lifetime action instead of `AutoRenew`, so they are not renewed while waiting to be swept; persistent environments, public cloud, and other vaults keep their normal renewal.
+
+Expired certificates are removed by the hourly `delete-expired-dev-ci-certificates` job, which runs `cleanup-sweeper --workflow=certificates` against [`certificates.policy.yaml`](../../tooling/cleanup-sweeper/certificates.policy.yaml). The policy is deliberately conservative. Rules are evaluated first-match-wins and anything unmatched is kept; certificates with a tag in `protectedTags` (`persist: "true"`) are never selected; deletion requires the certificate to be older than the rule's retention and, for job-named certificates, requires that no resource group for that job still exists in the subscriptions listed under `ownerInventory`. Incomplete inventory or uncertain metadata always favours keeping the certificate. The placeholder and fixture job IDs are protected by the policy's first rule, so keep it first when editing. The policy file is parsed strictly and validated when loaded, which is the quickest way to find out that an edit is invalid.
+
+To preview what a policy change would delete, run the workflow by hand. Like every workflow it applies changes unless `--dry-run=true` is passed, so always start with a dry run, and `cleanup-sweeper --help` lists the workflow's options.
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev \
+  go run ./tooling/cleanup-sweeper --workflow=certificates \
+    --dry-run=true --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
+    --options=certificates.max-deletions=1000 \
+    --options=certificates.max-purges=1000 \
+    --parallelism=2 --timeout=30m
+```
+
+After reviewing the output, repeat with `--dry-run=false` to apply. Active certificates are deleted as whole objects, including every version, so their material becomes unavailable. Azure offers no atomic "delete if the owner is gone" operation, so a resource group created at the same moment as the delete remains a small race, which the age checks, revalidation, and protected tags are there to shrink. Previously deleted certificates (tombstones) are also purged, since a lingering tombstone only blocks reuse of its name.
+
+### Tracing sweeper deletions
+
+When you need to know which job deleted something, the `rg-ordered` and `shared-leftovers` logs carry a unique `runID`, the workflow, the subscription, whether it was a dry run, and, in Prow, `prowJob` and `prowBuildID`. Every ARM DELETE is logged before dispatch (`Sending ARM DELETE request`) and again when a response arrives (`Received ARM DELETE response`), with the `x-ms-client-request-id` sent to Azure and the request, correlation, and routing IDs that Azure returned. Match those IDs against Azure's own records, then use `runID` to find the decision and job behind them. A sent request with no matching response means the outcome is unknown, and an HTTP status does not prove an asynchronous delete finished. The `certificates` workflow and the `cleanup` commands in `aro-hcp-tests` are outside this ARM audit path.
 
 ## Where To Look
 
-If you need to change behavior, start here:
-
-- consolidated periodic jobs: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
-- `cleanup-sweeper` CLI: `tooling/cleanup-sweeper/cmd/root/options.go`
-- `rg-ordered` resource group `createdAt` tag policy: `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh`
-- ordered cleanup engine: `tooling/cleanup-sweeper/pkg/engine/resourcegroup_ordered_cleanup.go`
-- templatize cleanup: `tooling/templatize/cmd/entrypoint/cleanup/`
-- E2E teardown: `test/util/framework/per_test_framework.go`
-
-For the CI execution view, also see [CI Execution](execution.md). For job-level operations, see [CI Operations](operations.md).
+- Periodic job definitions: `ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml` and the `aro-hcp-deprovision-*` steps under `ci-operator/step-registry/aro-hcp/deprovision/` in `openshift/release`
+- Per-test teardown and the `standard` / `no-rp` workflows: `test/util/framework/per_test_framework.go`
+- The `cleanup` commands used by the periodic and post-step jobs: `test/cmd/aro-hcp-tests/cleanup/`
+- Environment teardown: `tooling/templatize/cmd/entrypoint/cleanup/`
+- `cleanup-sweeper` and its policies: `tooling/cleanup-sweeper/`

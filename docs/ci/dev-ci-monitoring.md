@@ -1,38 +1,21 @@
 # DEV CI Monitoring and Alert Response
 
-This is the canonical runbook linked from Slack and PagerDuty for DEV CI alerts. Use it for alert response, exporter checks, routing maintenance, and end-to-end validation.
+This is the runbook that Slack and PagerDuty link to for DEV CI alerts. It covers alert response, exporter health checks, routing maintenance and end-to-end validation. For a regional provision-health incident, use [DEV CI Regional Load Management](dev-region-load-management.md) instead.
 
-The deployed workload is still named `tenant-quota` for historical reasons. It began as a tenant-quota collector, but it is now the extensible DEV CI telemetry exporter rather than a quota-only tool.
-
-For a regional provision-health incident, use
-[DEV CI Regional Load Management](dev-region-failover.md).
+The workload behind most of these alerts is still called `tenant-quota` for historical reasons. It began as a tenant-quota collector, but it is now the general DEV CI telemetry exporter: tenant capacity, subscription quota, E2E resource-group expiry and Prow job health all flow through the same path, and other CI sources can be added to it. This runbook deliberately does not catalogue collectors, metrics or alerts, since those change often. [`alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) is the source of truth for alert names, expressions, thresholds, annotations and routing, and [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) for the collectors the process registers.
 
 ## At A Glance
 
 | Item | Value |
 | --- | --- |
 | Slack | [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ) |
-| PagerDuty team | `ARO HCP Service Lifecycle` |
-| PagerDuty service | `ARO HCP Dev CI Alerts` |
-| Urgency and notification model | Constant low urgency / Slack only |
+| PagerDuty | team `ARO HCP Service Lifecycle`, service `ARO HCP Dev CI Alerts`, constant low urgency, Slack only |
 | Azure Action Group | `opstool-pagerduty` |
 | Azure Monitor Workspace | `opstool-monitor-usw3` |
-| Exporter | Deployment and service `tenant-quota-collector` in namespace `tenant-quota` |
-| Azure dashboard | `opstool-westus3` resource group → dashboards `arohcpdevci-quota-{dev,int,stg,prod}` (Azure Portal → Dashboards → filter by name; see [dashboards.bicep](../../tooling/tenant-quota/dashboards.bicep) for the deployed resource names) |
-
-## Scope and Name
-
-`tenant-quota` is a historical deployment and directory name, not a boundary on the platform's scope. Current telemetry includes tenant capacity, subscription quota, and E2E resource-group expiry. The same telemetry path can accommodate upcoming Prow or other CI sources; this does not imply that those sources are deployed today.
-
-Do not maintain a collector or metric catalog in this runbook. Use:
-
-- [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) for the collectors registered by the running process
-- [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) for metric behavior
-- [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) for deployed DEV CI configuration
+| Exporter | deployment and service `tenant-quota-collector` in namespace `tenant-quota` |
+| Dashboards | resource group `opstool-westus3`, dashboards `arohcpdevci-quota-{dev,int,stg,prod}` (defined by [`dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep)) |
 
 ## Architecture
-
-The alerting path is:
 
 ```text
 Azure and CI APIs
@@ -45,40 +28,34 @@ Azure and CI APIs
   -> Slack
 ```
 
-The exporter runs on the standalone `opstool` AKS platform. See [Opstool CI Platform](opstool.md) for the cluster, Prometheus, rollout, identity, and shared-resource architecture.
+The exporter runs on the standalone `opstool` AKS cluster; see [Opstool CI Platform](opstool.md) for the cluster, Prometheus and identity setup and [Dev-CI Topology](dev-ci-topology.md) for how it is rolled out. The exporter's own configuration, credentials and operating procedures are in [`tooling/tenant-quota/README.md`](../../tooling/tenant-quota/README.md).
 
 ## Alert Response Workflow
 
-Use the incident payload to identify the affected signal, but use [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) as the source of truth for current alert names, expressions, thresholds, durations, annotations, and routing.
+When an incident fires:
 
 1. Acknowledge the PagerDuty incident from [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ).
-2. Create an on-call Jira bug if one does not already exist for the issue, and link it from the PagerDuty incident.
-3. Investigate the issue and record all findings, evidence, and relevant links in the Jira bug.
-4. Assess the issue's priority and impact. If it warrants continued attention, include the Jira bug in the handover for the next shift.
+2. Create an on-call Jira bug if one does not exist yet, and link it from the incident.
+3. Investigate, and record findings, evidence and links in the bug.
+4. Assess priority and impact; if it needs continued attention, add the bug to the next shift's handover.
 
-This runbook intentionally does not prescribe general remediation. For
-`ProwCIHealthcheckProvisionSuccessRateLow`, follow the
-[DEV regional load-management SOP](dev-region-failover.md). Other operational
-knowledge should be recorded in the Jira bug during the investigation and
-promoted into a dedicated operational knowledge base once the response is
-understood and repeatable.
+General remediation is intentionally not prescribed here. Each alert's `runbook_url` annotation says where to go next, which in practice means:
 
-### AzureQuotaCritical: Bumping a Quota
+| Alerts | Guide |
+| --- | --- |
+| `AzureQuota*`, `TenantQuota*` | [Quota alerts](#quota-alerts) below |
+| `E2EExpiredResourceGroups*`, `E2EExpiredResourceGroupStale` | [Expired resource groups](#expired-e2e-resource-groups) below and [CI Cleanup](cleanup.md) |
+| `ProwCIHealthcheckProvisionSuccessRateLow` | [DEV CI Regional Load Management](dev-region-load-management.md) |
+| Other `ProwCI*` job-health alerts | [CI Operations](operations.md) |
+| `*MetricsStale`, `*CollectionStale`, `TenantQuotaCollectorUp`, `ProwCINoCachedRuns`, `ProwCIInvalidJobsDetected` | [Exporter Health Checks](#exporter-health-checks) |
 
-`AzureQuotaCritical` fires when `azure_quota_usage / azure_quota_limit` exceeds
-0.95 for a given `quota_name`/`subscription_name`/`region`, from the
-`tenant-quota-collector` metrics described in [Architecture](#architecture).
-The alert annotation identifies the exact quota, subscription, and region. The
-alert's `source` label is one of `compute`, `network`, or `rbac` (see
-[`tooling/tenant-quota/pkg/subscriptionquota`](../../tooling/tenant-quota/pkg/subscriptionquota));
-use it to pick the right resource provider below. For an `rbac`-sourced alert
-(role-assignment quota), follow [CI Identity Leasing](identity-leasing.md)
-instead — role-assignment limits are not raised through `az quota`.
+### Quota alerts
 
-For `compute` and `network` sources, most DEV CI subscriptions allow
-self-service quota increases through the `Microsoft.Quota` API, no Azure
-support ticket required. Install the `quota` CLI extension if it isn't already
-present, then find the current limit and raise it:
+The `TenantQuota*` alerts track how full a tenant's Entra directory object quota is. E2E runs consume it through the identities and app registrations they create, which is why CI pre-creates identities per slot instead of per run (see [Slot Assets](slot-assets.md#e2e-identities)) and why [CI Cleanup](cleanup.md) removes leftovers.
+
+`AzureQuotaCritical` fires when `azure_quota_usage / azure_quota_limit` stays above its threshold for a given `quota_name`, `subscription_name` and `region`; the annotation names all three. The `source` label tells you which provider owns the quota: `compute`, `network` or `rbac`.
+
+Role-assignment (`rbac`) quota cannot be raised with `az quota`; see [Role-assignment quota](e2e-capacity.md#role-assignment-quota) for how it is consumed and what to do about it. For `compute` and `network`, most DEV CI subscriptions allow self-service increases through the `Microsoft.Quota` API without a support ticket:
 
 ```bash
 az extension add --name quota --upgrade
@@ -86,17 +63,14 @@ az extension add --name quota --upgrade
 SUBSCRIPTION_ID=<subscription_id from the alert>
 REGION=<region from the alert>
 QUOTA_NAME=<quota_name from the alert, e.g. standardEDSv5Family>
-# Use the alert's `source` label to pick the provider:
-#   compute -> Microsoft.Compute
-#   network -> Microsoft.Network
-PROVIDER=Microsoft.Compute
+PROVIDER=Microsoft.Compute   # Microsoft.Network for source=network
 
 az quota show \
   --resource-name "$QUOTA_NAME" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/providers/$PROVIDER/locations/$REGION"
-# Read `resourceType` from the `az quota show` output above (typically
-# `dedicated` for compute quotas, `shared` for network quotas) and reuse it
-# below so the update matches this specific quota.
+
+# Reuse the resourceType from the output above (typically "dedicated" for
+# compute, "shared" for network) so the update targets this specific quota.
 RESOURCE_TYPE=<resourceType from the az quota show output>
 
 az quota update \
@@ -106,58 +80,26 @@ az quota update \
   --resource-type "$RESOURCE_TYPE"
 ```
 
-Target a reasonable headroom increase (for example, double the current limit)
-rather than the minimum needed to clear the alert, so a similar CI-load burst
-does not immediately re-trigger it. Re-run `az quota show` to confirm the new
-limit took effect, then record the before/after values and command used in the
-Jira bug.
+Ask for real headroom (doubling the limit is a reasonable default) rather than the minimum that clears the alert, so the next load burst does not retrigger it. Re-run `az quota show` to confirm, and record the before and after values in the Jira bug. If the update fails or lands in a pending or manual-review state, the subscription needs an Azure support request from the portal's **Help + support** blade, with the subscription, region, quota name and target limit.
 
-If `az quota update` fails or returns a pending/manual-review state, the
-subscription requires an Azure support request instead; open one from the
-Azure portal's **Help + support** blade with the subscription, region, quota
-name, and target limit from the alert.
+### Expired E2E resource groups
 
-### E2EExpiredResourceGroupsInfo: Expired E2E Resource Groups
+`E2EExpiredResourceGroupsInfo` and its escalation fire when a subscription accumulates E2E resource groups whose `deleteAfter` time has passed, which means the periodic cleanup for that subscription is not keeping up. Triage:
 
-`E2EExpiredResourceGroupsInfo` fires when more than 10 E2E resource groups
-in a single subscription have a `deleteAfter` timestamp in the past for at
-least 2 hours.
+1. Take the subscription from the alert's `subscription_name` label and find its cleanup job using [Identifying the cleanup job for a subscription](cleanup.md#identifying-the-cleanup-job-for-a-subscription).
+2. Check recent runs of that job in Prow. A passing job may simply be working through a backlog; a failing one needs its latest build log.
+3. The job attempts every expired resource group on each run, so the log shows the outcome for all of them. Failures with one shared error point to a systemic problem, a scattered few to individual resources.
 
-**Triage steps:**
+Failures you are likely to see:
 
-1. Identify the affected subscription from the alert's `subscription_name`
-   label (e.g. "ARO HCP E2E Hosted Clusters - Prod - 01").
-2. Map the subscription to its cleanup Prow job using
-   [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml) and the naming
-   convention described in [CI Cleanup — Identifying the cleanup job for a
-   subscription](cleanup.md#identifying-the-cleanup-job-for-a-subscription).
-   Note that the legacy "ARO HCP E2E" subscription uses the indexless job
-   name
-   `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups`.
-3. Check recent runs of that job in Prow. If the job is passing, the
-   backlog may be clearing on its own. If the job is failing, examine
-   the build log for the most recent failure.
-4. Because the job attempts every discovered resource group in each run,
-   the build log contains the deletion outcome for all expired RGs, not
-   just one. Look for patterns: are all deletions failing with the same
-   error (systemic issue), or is only a subset failing (isolated
-   resource problem)?
-5. Common failure patterns:
-   - `InternalServerError` with `serviceProviderClusters` remaining:
-     Azure RP-side issue, likely regional. Check if other shards in the
-     same region are affected.
-   - `ResourceGroupDeletionBlocked`: a child resource or managed RG is
-     preventing deletion.
-   - Timeout waiting for already-deleting cluster: a prior deletion
-     request is stuck in Azure ARM.
-   - Deny assignment errors: managed RG deny assignments blocking
-     deletion (see AROSLSRE-10).
-6. For regional RP issues, check for active incidents in the affected
-   region and coordinate with the RP team.
+- `InternalServerError` with `serviceProviderClusters` remaining is an RP-side problem, probably regional; check whether other shards in the region are affected and whether the region has an active incident.
+- `ResourceGroupDeletionBlocked` means a child resource or managed resource group is preventing deletion.
+- A timeout waiting for an already-deleting cluster means an earlier deletion request is stuck in ARM.
+- Deny-assignment errors mean a managed resource group's deny assignments are blocking deletion (see AROSLSRE-10).
 
 ## Exporter Health Checks
 
-Select the DEV subscription and obtain credentials for the `opstool` cluster:
+Select the DEV subscription and get credentials for the `opstool` cluster:
 
 ```bash
 az account set --subscription 1d3378d3-5a3f-4712-85a1-2485495dfc4b
@@ -167,7 +109,7 @@ az aks get-credentials \
   --overwrite-existing
 ```
 
-Check the workload and its scrape endpoint:
+Check the workload, then its scrape endpoint through a port-forward:
 
 ```bash
 kubectl -n tenant-quota get deployment,pods,service,endpoints
@@ -175,60 +117,40 @@ kubectl -n tenant-quota logs deployment/tenant-quota-collector --since=1h
 kubectl -n tenant-quota port-forward service/tenant-quota-collector 8080:8080
 ```
 
-While the port-forward is running, use another terminal:
+With the port-forward running, from another terminal:
 
 ```bash
 curl --fail --show-error http://127.0.0.1:8080/healthz
 curl --fail --show-error http://127.0.0.1:8080/metrics
 ```
 
-An empty or missing Kubernetes endpoint points to deployment, pod-readiness, service-selector, or networking problems. A healthy endpoint with absent data points toward source credentials, source APIs, collector behavior, Prometheus scraping, or Azure Monitor ingestion.
-
-## Troubleshooting by Category
-
-| Category | Durable guide |
-| --- | --- |
-| Tenant capacity, subscription quota, and identity-pool constraints | [CI Identity Leasing](identity-leasing.md) |
-| Expired E2E resource groups and cleanup health | [CI Cleanup](cleanup.md) |
-| Prow, job, and other CI execution signals | [CI Operations](operations.md) |
-| Exporter runtime, deployment, credentials, and tenant management | [`tooling/tenant-quota/README.md`](../../tooling/tenant-quota/README.md) |
-| `opstool` AKS, Prometheus, identities, secrets, and rollout | [Opstool CI Platform](opstool.md) |
+An empty or missing Kubernetes endpoint points at the deployment, pod readiness, the service selector or networking. A healthy endpoint with missing data points further along the path: source credentials or APIs, collector behaviour, Prometheus scraping, or Azure Monitor ingestion.
 
 ## Maintenance
 
-Use authoritative files instead of copying evolving inventories:
+Changes to DEV CI configuration, topology, infrastructure or tooling are deployed after merge by the [`branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit`](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit) Prow job; watch it to confirm the deployment completed. The files that define the monitoring setup are:
 
-- [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) defines alert behavior and routing.
-- [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep) defines the per-environment (Dev/Int/Stg/Prod) Azure dashboards, built from [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep).
-- [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) registers collectors.
-- [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) implements metric behavior.
-- [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) supplies deployment configuration.
-- [`tooling/tenant-quota/README.md`](../../tooling/tenant-quota/README.md) documents exporter operation and credentials.
-- [Opstool CI Platform](opstool.md) documents the hosting platform and rollout.
+- [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) for alert behaviour and routing.
+- [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep) for the per-environment dashboards, built from [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep), with charted subscriptions and regions taken from `ci.<env>` and `opstool.tenantQuota` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml).
+- [`opstool-alerting.bicep`](../../dev-infrastructure/templates/opstool-alerting.bicep) and [`pagerduty-actiongroup.bicep`](../../dev-infrastructure/modules/metrics/pagerduty-actiongroup.bicep) for the Action Group and its Key Vault wiring.
 
-Changes to DEV CI configuration, topology, infrastructure, or tooling are deployed automatically after merge by the [`branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit`](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit) Prow job. Monitor that job to confirm the deployment completed.
+The PagerDuty and Slack side lives in their own administration UIs, so this is the configuration it is expected to have:
 
-The intended PagerDuty configuration is:
-
-| Setting | Intended value |
+| Setting | Value |
 | --- | --- |
 | Team | `ARO HCP Service Lifecycle` |
 | Service | `ARO HCP Dev CI Alerts` |
 | Integration | `opstool Azure Monitor` |
 | Escalation policy | `ARO HCP Dev CI - Slack Only` |
-| Schedule | `ARO HCP Dev CI - 24x7 Ownership`, currently containing the single responder |
+| Schedule | `ARO HCP Dev CI - 24x7 Ownership` |
 | Urgency | Constant low urgency |
-| Slack channel | `#aro-hcp-alerts-rh-tenant` |
-| Slack workspace ID | `E030G10V24F` |
-| Slack channel ID | `C0BMEC7UWQZ` |
+| Slack workspace / channel ID | `E030G10V24F` / `C0BMEC7UWQZ` (`#aro-hcp-alerts-rh-tenant`) |
 
-The Red Hat Slack workspace must remain authorized under **Integrations > Extensions > Slack**. The PagerDuty service connection must target workspace `E030G10V24F` and channel `C0BMEC7UWQZ`, with notifications enabled for triggered, acknowledged, annotated, reassigned, reopened, unacknowledged, and resolved events.
+The Red Hat Slack workspace must stay authorized under **Integrations > Extensions > Slack** in PagerDuty, and the service connection must target the workspace and channel above with notifications enabled for triggered, acknowledged, annotated, reassigned, reopened, unacknowledged and resolved events.
 
 ### Azure Integration Secret
 
-The Action Group webhook is stored in Key Vault `opstool-kv-usw3` as secret `pagerduty-azure-integration-url`. Its value must be the full PagerDuty Microsoft Azure integration URL, not only an integration key.
-
-Set it without putting the URL in shell history:
+The Action Group webhook reads its URL from the secret `pagerduty-azure-integration-url` in Key Vault `opstool-kv-usw3`. The value must be the full PagerDuty Microsoft Azure integration URL, not just the integration key. Set it without putting the URL in shell history:
 
 ```bash
 read -rsp "PagerDuty Microsoft Azure integration URL: " PAGERDUTY_AZURE_INTEGRATION_URL
@@ -241,30 +163,13 @@ az keyvault secret set \
 unset PAGERDUTY_AZURE_INTEGRATION_URL
 ```
 
-After changing the secret, reconcile the Action Group through the `branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit` job so its webhook receiver reads the new value.
+The Action Group only picks up the new value when it is redeployed, so afterwards reconcile it through the dev-ci postsubmit job above.
 
 ## Validation
 
-Validate the complete path after routing or secret changes:
+After routing or secret changes, validate the whole path:
 
-1. In the Azure portal, run a test notification for the `opstool-pagerduty` Action Group.
-2. Confirm that an incident appears in the `ARO HCP Dev CI Alerts` PagerDuty service and in [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ).
-3. Confirm that no personal notification is delivered.
-4. Use a controlled trigger for one current rule from [`alerting.bicep`](../../tooling/tenant-quota/alerting.bicep), then remove the condition.
-5. Confirm the full incident lifecycle: trigger, Slack notification, recovery, PagerDuty resolution, and Slack resolution update.
-
-## Sources of Truth
-
-| Concern | Source |
-| --- | --- |
-| Alert names, expressions, thresholds, durations, annotations, and routing | [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) |
-| Per-environment quota dashboards (panels, subscriptions, regions charted) | [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep), [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep), and `ci.<env>.regions` / `opstool.tenantQuota` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |
-| Registered collectors and HTTP endpoints | [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) |
-| Metric collection and credential behavior | [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) |
-| DEV CI deployment configuration | [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |
-| Exporter deployment and operator procedures | [`tooling/tenant-quota/README.md`](../../tooling/tenant-quota/README.md) |
-| Opstool topology and workload ownership | [`topology-dev-ci.yaml`](../../topology-dev-ci.yaml) and [Opstool CI Platform](opstool.md) |
-| Action Group resource and Key Vault wiring | [`opstool-alerting.bicep`](../../dev-infrastructure/templates/opstool-alerting.bicep) and [`pagerduty-actiongroup.bicep`](../../dev-infrastructure/modules/metrics/pagerduty-actiongroup.bicep) |
-| PagerDuty objects and Slack connection | PagerDuty and Slack administration UIs |
-
-Do not duplicate evolving alert, collector, or metric catalogs in this document.
+1. Run a test notification for the `opstool-pagerduty` Action Group in the Azure portal.
+2. Confirm an incident appears in the `ARO HCP Dev CI Alerts` PagerDuty service and in [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ), and that no personal notification is delivered.
+3. Trigger one current rule from [`alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) in a controlled way, then remove the condition.
+4. Confirm the full lifecycle: trigger, Slack notification, recovery, PagerDuty resolution and the Slack resolution update.

@@ -1,271 +1,141 @@
 # E2E Subscription Onboarding
 
-This document covers the procedure for onboarding new customer subscriptions for E2E testing across all environments.
+This page is the procedure for adding a customer subscription to the E2E fleet: where the subscription is registered, what Azure needs to know about it, and what has to exist before CI can lease slots from it. It covers [DEV](#dev-e2e-subscription-onboarding), where onboarding is purely CI infrastructure, and [INT, STG and PROD](#intstgprod-e2e-subscription-onboarding), which are ARM-integrated and additionally need AFEC feature flags. Subscriptions owned by another team follow [External Subscription Onboarding](external-subscription-onboarding.md) instead.
 
-- [DEV](#dev-e2e-subscription-onboarding) — no ARM integration; onboarding is CI-infrastructure-only
-- [INT / STG / PROD](#intstgprod-e2e-subscription-onboarding) — ARM-integrated environments; requires AFEC flag registration plus CI infrastructure changes
+## What Onboarding Touches
 
----
+A subscription is usable for E2E when several systems that live in different places agree about it:
+
+- the [slot catalog](../../test/e2e-config/e2e-slots.yaml) in this repository, which declares the pool and its [assets](slot-assets.md)
+- the `dev-ci` configuration (`config/config-dev-ci.yaml`), which is the inventory the privileged rollout uses to register providers, grant the CI bot access and monitor quota
+- the Azure subscription itself: quota, registered providers, role assignments and, outside DEV, AFEC flags
+- the asset resources that back the slots, which are created with `apply-pool-assets`
+- `openshift/release`, which holds the Boskos inventory, the cleanup job for the subscription, and (in the CI secret store) the cluster profile secret that tells slot-manager which credentials own the subscription
+
+The order matters in one respect. A slot becomes leasable the moment the Boskos inventory change merges, so that change goes last, after the Azure side and the asset resources exist. [Changing Capacity](e2e-capacity.md#changing-capacity) explains the same ordering for an existing pool.
+
+## Quota Requests
+
+Every environment needs the same Azure quota before a pool can run at its intended size. These are requests to Azure rather than values derived from the catalog, so ask for them up front, since approval can take days. In every region the pool runs in, request:
+
+- total regional vCPUs: 2000
+- vCPUs for a worker VM family the CI configuration supports: 2000. DSv6 and DSv5 are the defaults; a pool's `vm_family_policy` can name others (see [VM sizes](../../test/e2e/README.md#selecting-vm-sizes-skus)). Limits are per family and are not interchangeable.
+- Standard IPv4 public IP addresses: 3000
+
+Then request a subscription-wide role assignment limit of 8000, which is the quota [E2E Capacity And Quotas](e2e-capacity.md#role-assignment-quota) assumes. If a self-service request fails, open a quota support request that lists the affected regions and the failed request IDs. Submitting through the support API needs an eligible support plan; without one, use the Azure portal.
 
 ## DEV E2E Subscription Onboarding
 
-This section covers the procedure for adding another customer subscription to the DEV E2E slot fleet.
+DEV has no ARM integration, so a new subscription needs no feature flags and no routing. Its slots belong to the `dev` environment in the catalog, which maps to the `ci01` deployment environment (`dev-xs` maps to `ci02`).
 
-The canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`, where the `dev` slot environment is bound to the `ci01` deployment environment.
+1. **Add the pool to the catalog.** In `test/e2e-config/e2e-slots.yaml`, add a pool to the environment following the [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog): a unique pool name and `resource_type`, the subscription's display name under `subscriptions.e2e`, and the three [slot assets](slot-assets.md) every DEV pool declares. Copy the shape of an existing DEV pool, keep the shard number in the name and the identity-container prefix consistent with the others, and choose `slot_count` and `resource_group_count` with [E2E Capacity And Quotas](e2e-capacity.md) open, since a new subscription brings its own role-assignment budget.
 
-### What This Onboarding Touches
+2. **Request the quota** described [above](#quota-requests).
 
-Adding a new DEV customer subscription spans four different inventories:
+3. **Register the subscription with `dev-ci` and run the privileged rollout.** Append `<subscription-id>=<display name>` to the comma-separated `ci.dev.e2eSubscriptions` string in `config/config-dev-ci.yaml`. The display name cannot contain commas, equals signs, quotes, backslashes, `$` or backticks, and the config schema rejects such names. Check that `ci.dev.regions` covers the regions the pool runs in, because the tenant-quota collector derives its subscriptions and regions from the same keys and needs no entry of its own.
 
-- the canonical slot catalog in this repository
-- the ARO-HCP-managed Boskos inventory in `openshift/release`
-- the cluster profile secret inventory outside this repository
-- the standalone `dev-ci` bootstrap RBAC rollout
+   Then ask an OWNERS-group member to run the [privileged entrypoint](dev-ci-topology.md#the-privileged-entrypoint) from the repository root:
 
-It is not just a slot-catalog change.
+   ```bash
+   make dev-ci-privileged-local-run
+   ```
 
-### Current Model
+   For the new subscription this registers the resource providers listed in `ci.e2eSubscriptionProviders`, grants the CI bot its roles, assigns the `createdAt` resource-group tag policy that the periodic cleanup depends on, turns on Cost Management tag inheritance, and deploys the subscription RBAC for the [shared mock identities](dev-mock-identities.md#how-the-shared-identities-are-set-up). That last template also defines the subscription-local `dev-msi-mock-<subscription-id>` role, which the slot mock identities in step 5 reuse and cannot create themselves. The operator needs Owner on the subscription and, for tag inheritance, permission to edit Cost Management settings there.
 
-The current implementation is split across two layers:
+   Provider registration deserves a word, because forgetting it produces confusing failures. A brand-new subscription has almost nothing registered. The portal's quota blade says the selected provider is not registered, and provisioning and role assignment then fail in ways that do not point at registration. The rollout registers the providers idempotently, so there is nothing to do by hand for a subscription we own. When a new Azure dependency appears, add its provider to `ci.e2eSubscriptionProviders` and rerun the rollout.
 
-- **Runtime slot leasing**
-  - `test/e2e-config/e2e-slots.yaml` defines the canonical slot inventory.
-  - `aro-hcp-tests slot-manager` manages Boskos sync/validation, acquire/release, and slot-managed identity-container provisioning.
-- **DEV bootstrap access**
-  - `config/config-dev-ci.yaml` records the explicit DEV E2E customer subscriptions that receive shared bootstrap grants.
-  - The **Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint reconciles the custom roles and shared-principal assignments for those subscriptions. Because those are subscription-scoped role definitions and role assignments, it is run by an OWNERS-group member (`make dev-ci-privileged-local-run`) — it is deliberately kept out of the unattended `dev-ci` postsubmit. The non-privileged CI bot identities + Key Vault secrets are reconciled automatically by the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint.
+4. **Add the subscription to the cluster profile secret.** Slot-manager finds the credentials that own a subscription by looking for the subscription's display name in the `customer-<shard>-subscription-name` entry of the selected cluster profile, and the cleanup sweepers discover their targets from the matching `customer-<shard>-subscription-id` entry. Add both entries to the `aro-hcp-dev` profile in the `hcm-aro` collection of the CI secret store, with `<shard>` matching the pool's shard. The mapping from shard to subscription must not change once jobs rely on it.
 
-The bootstrap layer is about the shared dev identities used by the DEV services and by local E2E provisioning, not the per-cluster managed identities created for a specific HCP during a test run.
+5. **Provision the assets.** Create the E2E identity containers and the slot mock identities for the new pool, then validate them. Adding slots also raises the demand on the shared infrastructure identity pool, so an ARO-HCP operator applies and validates that asset too (`ASSET=infrastructure_identities`) before anything is published. Otherwise Boskos would offer bundles whose resource groups do not exist and jobs sharing the pool would fail admission. See [Managing Slot Assets](slot-assets.md#managing-slot-assets) for the commands and why they must go through `make`:
 
-## Shared Bootstrap Identities
+   ```bash
+   make -C test apply-pool-assets    ENVIRONMENT=dev POOL=<pool> ASSET=e2e_identities
+   make -C test validate-pool-assets ENVIRONMENT=dev POOL=<pool> ASSET=e2e_identities
+   ```
 
-The DEV bootstrap layer currently grants access for these shared identities:
+   Use `ENVIRONMENT=dev-xs` for a `dev-xs` pool. The mock identities are a separate, privileged run with its own prerequisites (Owner, Microsoft Graph rights and Key Vault access) and are run one pool at a time; follow [Preparing A Slot's Identities](dev-mock-identities.md#preparing-a-slots-identities) rather than reusing the command above with a different `ASSET`.
 
-- `aro-dev-first-party2`
-- `aro-dev-arm-helper2`
-- `aro-dev-msi-mock2`
+6. **Publish the Boskos inventory and the cleanup job in `openshift/release`.** Generate and validate the inventory as described in [Managing Slot Assets](slot-assets.md#managing-slot-assets): `sync-boskos-config`, then the release checkout's `make boskos-config`, then `validate-boskos-config`. Run `make update` in the release checkout too. Slots are only used by jobs that are allowed to select them, and the E2E jobs list their subscriptions explicitly in `ALLOWED_SUBSCRIPTIONS`, so add the subscription's exact display name to the lists of the jobs that should consume it, in the same pull request. In the same pull request, add a periodic expired-resource-group job for the subscription next to the existing ones in `Azure-ARO-HCP-main__periodic-cleanup.yaml`; see [Identifying the cleanup job for a subscription](cleanup.md#identifying-the-cleanup-job-for-a-subscription). Merge, then wait for the Boskos configuration to roll out.
 
-## Prerequisites
+7. **Validate end to end.**
+   - Read back the Cost Management setting with `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` and check that `properties.preferContainerTags` is `false`. A missing setting means onboarding is incomplete. Inherited tags show up in Cost Management usage records, not on the Azure resources, and the records can take 8 to 24 hours to update.
+   - Run a rehearsal job that targets the new pool and confirm in its artifacts that the slot, region and container list are the pool's, that customer resources are created without `AuthorizationFailed` errors, and that release returns the slot.
 
-A brand-new subscription typically has no Azure resource providers registered beyond `Microsoft.Authorization`. The Azure portal quota blade reports *"The selected provider is not registered for some of the selected subscriptions"*, and later provisioning and RBAC steps fail until the providers used by ARO-HCP are registered.
-
-**Provider registration is now automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 6 of the procedure below). You no longer need to register providers manually for internally-managed subscriptions — the privileged pipeline handles it idempotently. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
-
-## Procedure
-
-1. Add the new pool to `test/e2e-config/e2e-slots.yaml`.
-   - Follow the v2 [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog): name the pool, set `subscriptions.e2e`, and declare dedicated `slot_assets.e2e_identities`.
-   - Match the subscription's shard number, preserve existing shard mappings, and choose a unique `resource_type`.
-   - Set `slot_count` to the intended concurrency for the new subscription.
-   - Keep the existing DEV identity-container pattern aligned unless there is a deliberate reason to diverge.
-   - DEV pools use `region_mode: weighted` with `westus3`, `centralus`, and `canadacentral`; dedicated E2E identity containers are provisioned in `westus3`, and infrastructure identities are leased from `dev-infrastructure-identities`.
-
-2. Request the Azure quota increases for the new subscription.
-   - Request these regional limits in every region the pool runs in:
-     - Total regional vCPUs: `2000`
-     - A worker VM family supported by the CI configuration: `2000` vCPUs. Prefer DSv5 or DSv6; use another family only when supported by the job's worker-family policy. Limits are not interchangeable between families.
-     - Standard IPv4 Public IP Addresses: `3000`
-   - Request a subscription-wide Role Assignment limit of `8000`.
-   - If self-service quota requests fail, open a quota support request with the affected regions and failed request IDs. Support API submission requires an eligible support plan; otherwise use the Azure portal.
-
-3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
-   - Run:
-     - `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`
-   - In the release checkout, regenerate config:
-     - `make update`
-   - Validate that the generated Boskos inventory matches the slot catalog:
-     - `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`
-   - Open and merge the `openshift/release` PR, then wait for the Boskos config rollout.
-
-4. Update the cluster profile secret inventory outside this repository.
-   - Add:
-     - `customer-shardN-subscription-id`
-     - `customer-shardN-subscription-name`
-   - `N` must match the intended shard number and should remain stable once jobs depend on that mapping.
-
-5. Provision the slot-backed identity containers in the new subscription.
-   - Run the apply via the Make target:
-     - `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for the ci02 pools)
-   - Use the Make target so the binary embeds ARM artifacts regenerated from the source Bicep.
-   - To scope to a single subscription or asset kind:
-     - `make -C test apply-pool-assets ENVIRONMENT=dev SUBSCRIPTION="<subscription display name>"`
-     - `make -C test apply-pool-assets ENVIRONMENT=dev ASSET=e2e_identities`
-   - Validate that the deployment stacks and identity-container resource groups match the catalog:
-     - `make -C test validate-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs`)
-
-6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
-   - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks).
-   - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
-   - No separate tenant-quota entry is needed: the `tenant-quota-collector` chart derives the `redHat0` tenant's subscriptions from `ci.<env>.e2eSubscriptions` (and `ci.dev.infrastructureSubscriptions`), monitoring them in the regions listed in `ci.<env>.regions`. Make sure that CSV covers the regions the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
-   - Include the subscription's exact display name in the Red Hat tenant inventory in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual quota-reader bootstrap grants cover it.
-   - Existing `ci.dev.mockIdentities` application names do not need to change. The mock RBAC template resolves shared principal IDs through Microsoft Graph and grants them on every subscription in `ci.dev.e2eSubscriptions`.
-   - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
-     - `make dev-ci-privileged-local-run`
-   - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
-
-7. Validate the end-to-end path.
-   - Read back `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` for each target subscription. Confirm `name: taginheritance`, `type: Microsoft.CostManagement/Settings`, subscription scope, and `properties.preferContainerTags: false`; a missing setting or failed readback means onboarding is incomplete. The API currently omits `kind` from GET even though it is required in PUT. Inherited tags appear in Cost Management usage records, not on the Azure resources themselves; usage records can take 8–24 hours to update.
-   - Confirm `slot-manager acquire` can resolve the new pool using the updated cluster profile inventory.
-   - Run a DEV rehearsal expected to target the new shard.
-   - Verify customer-resource creation in the new subscription succeeds without Azure `AuthorizationFailed` errors.
-   - Verify release and cleanup still return the leased slot correctly.
-
-### What Usually Does Not Change
-
-Adding a new DEV customer subscription normally does not require:
-
-- rotating the shared dev bootstrap principals
-
-Those steps only become necessary if the shared identities themselves change.
-
-### Where To Look
-
-- `test/e2e-config/e2e-slots.yaml`
-- `test/cmd/aro-hcp-tests/slot-manager/DESIGN.md`
-- `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
-- `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
-- `config/config-dev-ci.yaml` — subscription inventory (`ci.<env>.e2eSubscriptions`) and provider list (`ci.e2eSubscriptionProviders`)
-- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` — provider registration pipeline; reads both lists above straight from the config, so adding a subscription needs no edit here
-- `dev-infrastructure/scripts/e2e-register-providers.sh` — the registration/poll script that pipeline runs
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
-- `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
-- `tooling/tenant-quota/scripts/manage-service-principals.sh`: manual quota-reader bootstrap subscription inventory
-- `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh` — applies and verifies the billing setting through REST; the provider's GET response lacks `kind`, which causes ARM deployments to report failure after persisting the setting.
-- [Dev-CI Topology](dev-ci-topology.md)
-- [CI Identity Leasing](identity-leasing.md)
-
-### External (Unmanaged) Subscriptions
-
-For subscriptions owned by a different team where our pipeline identity does **not** have access, use the external onboarding model instead. External subscriptions are **not listed** in `config/config-dev-ci.yaml` and set `slot_assets.e2e_identities.provisioning: unmanaged` in the slot catalog.
-
-The external team runs the RBAC setup and identity-pool provisioning themselves using our Bicep modules. See [External Subscription Onboarding](external-subscription-onboarding.md) for the full procedure and grant contract.
-
-This is also why **Test Tenant subscriptions are excluded from automated provider registration**. The privileged pipeline registers providers only on the subscriptions listed in `ci.<env>.e2eSubscriptions`, which is by definition the Red Hat tenant inventory our pipeline identity holds **Owner** on. Test Tenant subscriptions live in a tenant we cannot authenticate into, so adding them to that inventory would not work and must not be attempted — they follow the external onboarding procedure, where their owning team registers providers manually.
-
----
+Tag inheritance is applied through the REST API by `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh` instead of an ARM deployment because the settings API stores the setting but omits `kind` from its GET response, which makes ARM report a failed deployment after the write has succeeded. The script writes the setting and then verifies it. Only DEV hosted-cluster subscriptions and the opted-in E2E infrastructure subscription (`ci.dev.infrastructureSubscriptionsCostTags`) get tag inheritance.
 
 ## INT/STG/PROD E2E Subscription Onboarding
 
-INT, STG, and PROD are ARM-integrated environments. Each runs its own RP instance, and ARM routes `Microsoft.RedHatOpenShift` API calls to the correct RP based on AFEC (Azure Feature Exposure Control) flags registered on the customer subscription. Without the correct flags, API calls from a subscription will not reach the intended RP.
+INT, STG and PROD are ARM-integrated. Each runs its own RP, and ARM decides which one receives a `Microsoft.RedHatOpenShift` request from the AFEC (Azure Feature Exposure Control) flags registered on the customer subscription. Without the right flags a subscription's calls never reach the RP the tests are meant to exercise. [Which environment does my subscription use?](../environments.md#which-environment-does-my-subscription-use) explains the routing and how to inspect a subscription's flags.
 
-Onboarding a new E2E testing subscription requires two steps: registering the AFEC flags so ARM routes traffic to the correct RP, and setting up the CI infrastructure (service principal, Boskos slots, cleanup jobs).
+Onboarding therefore has two parts: registering the flags, which is Azure-side and needs Microsoft approval, and the CI infrastructure setup.
 
-### ARM Routing Flags
+### Required AFEC Flags
 
-| AFEC Flag | Routes to |
-| :-------- | :-------- |
-| `HcpPrivatePreview` | Prod RP in GA regions (uksouth, switzerlandnorth, canadacentral, etc.) |
-| `STAGING-APPROVED` | STG RP (uksouthstaging) |
-| `INT-APPROVED` | INT RP (uksouth azure-test.net) |
-| `InProgress` | EUAP/canary regions (centraluseuap, eastus2euap) + disabled future regions (westus, westus2) |
+| Environment | Flags to register |
+| :---------- | :---------------- |
+| INT | `INT-APPROVED`, `ExperimentalReleaseFeatures` |
+| STG | `STAGING-APPROVED`, `ExperimentalReleaseFeatures` |
+| PROD | `ExperimentalReleaseFeatures` only; PROD is selected by registering neither environment flag |
+| PROD, canary regions only | additionally `InProgress` and `Microsoft.Resources/EUAPParticipation`, see [EUAP/Canary Region Access](#euapcanary-region-access) |
 
-### Required AFEC Flags per Environment
-
-| Environment | Required AFEC Flags |
-| :---------- | :------------------ |
-| INT         | `Microsoft.RedHatOpenShift/INT-APPROVED`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
-| STG         | `Microsoft.RedHatOpenShift/STAGING-APPROVED`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
-| PROD        | `Microsoft.RedHatOpenShift/HcpPrivatePreview`, `Microsoft.RedHatOpenShift/InProgress`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
-| PROD (canary/EUAP regions only) | additionally `Microsoft.Resources/EUAPParticipation` — see [EUAP/Canary Region Access](#euapcanary-region-access) |
-
-The routing flag controls which RP instance ARM sends requests to. `ExperimentalReleaseFeatures` gates experimental features used by E2E tests, including non-stable channel groups and `Minimal` control-plane pod sizing. Single-replica control planes cannot be enabled, including in development environments running this revision. Existing single-replica clusters can retain their setting on update or remove the `aro-hcp.experimental.cluster.single-replica` tag to opt out. The persisted availability setting, not an existing tag alone, determines whether an update can retain single-replica availability. The AFEC remains required to honor experimental tags. PROD additionally requires `InProgress` to route canary/EUAP traffic to the right RP.
+All of these are in the `Microsoft.RedHatOpenShift` namespace except `EUAPParticipation`. `INT-APPROVED` and `STAGING-APPROVED` select the environment, `HcpPrivatePreview` does not (it only exposes older preview API versions), and `ExperimentalReleaseFeatures` makes the RP honour the `aro-hcp.experimental.*` tags the E2E tests use, so without it tests that rely on those tags fail.
 
 > [!IMPORTANT]
-> `InProgress` only controls ARM *routing*. It does not grant the subscription access to a EUAP region. Deploying into `eastus2euap` or `centraluseuap` additionally requires `Microsoft.Resources/EUAPParticipation`, which lives in a different namespace and uses a different approval path — see [EUAP/Canary Region Access](#euapcanary-region-access).
+> `InProgress` only controls ARM routing. It does not grant the subscription access to a canary region. Deploying into `eastus2euap` or `centraluseuap` also needs `Microsoft.Resources/EUAPParticipation`, which has a different approval path.
 
-### Step 1: Register AFEC Flags
+### Registering AFEC Flags
 
-AFEC registration is a two-step process: first initiate the registration from the customer subscription, then approve it via a Geneva Action.
+Registration is two-sided: you ask for the flag from the subscription, and someone with Microsoft-side authority approves it. Only the first half needs access to the subscription.
 
-1. **Initiate registration** from the subscription's tenant. Run `az feature register` for each required flag:
+1. From the subscription's tenant, register each required flag. This leaves it pending approval:
+
    ```bash
    az feature register --namespace Microsoft.RedHatOpenShift --name <flag-name> \
      --subscription <subscription-id>
    ```
-   For example, for STG:
+
+2. Make sure you have access to run Geneva Actions for this feature. Access is restricted; request it through the internal access process rather than from this page.
+
+3. In Geneva Actions, open Azure Resource Manager, Feature Management, Approve Feature Registration. Enter namespace `Microsoft.RedHatOpenShift`, the subscription ID, and the names of the flags you registered in step 1.
+
+4. Verify from the subscription's tenant that every flag reads `Registered`:
+
    ```bash
-   az feature register --namespace Microsoft.RedHatOpenShift --name STAGING-APPROVED \
-     --subscription <subscription-id>
-   az feature register --namespace Microsoft.RedHatOpenShift --name ExperimentalReleaseFeatures \
-     --subscription <subscription-id>
+   az feature list --namespace Microsoft.RedHatOpenShift -o table --subscription <subscription-id>
    ```
-   This puts the features into `Registering` state.
-
-2. **Request JIT access** (in Teams):
-   - Resource type: `acis`
-   - ARO → `PlatformServiceAdministrator`
-
-3. **Approve the registration** via Geneva Actions:
-   - Azure Resource Manager → Feature Management → Approve Feature Registration
-   - Namespace: `Microsoft.RedHatOpenShift`
-   - Feature Names: all flags initiated in step 1 that are in "Pending" status
-   - Subscription: the subscription ID to onboard
-
-4. **Verify** (from the subscription's tenant):
-   ```bash
-   az feature list --namespace Microsoft.RedHatOpenShift -o table \
-     --subscription <subscription-id>
-   ```
-   All flags should show `Registered`.
-
-> [!NOTE]
-> Step 1 can be performed by anyone with write access to the subscription. Steps 2-3 require Microsoft PlatformServiceAdministrator access.
 
 ### EUAP/Canary Region Access
 
-Subscriptions that run E2E in a canary/EUAP region (`eastus2euap`, `centraluseuap`) need `Microsoft.Resources/EUAPParticipation` registered on top of the `Microsoft.RedHatOpenShift` flags above. Without it, any resource group create in the region fails with `LocationNotAvailableForResourceGroup`.
+A subscription that runs E2E in a canary region (`eastus2euap`, `centraluseuap`) needs `Microsoft.Resources/EUAPParticipation` registered on top of the flags above. Without it, creating any resource group in the region fails with `LocationNotAvailableForResourceGroup`.
 
-This flag is **ManualApprove**: `az feature register` only moves it to `Pending` and it never self-completes. Something has to approve it — either LionRock fulfillment or a Geneva Action. **File the LionRock request first; fall back to Geneva Actions if it stalls.**
+This flag is `ManualApprove`. `az feature register` only moves it to `Pending`, and nothing completes it on its own: either a LionRock fulfillment or a Geneva Action approves it. File the LionRock request first and fall back to Geneva Actions if it stalls.
 
-#### Step A: Initiate the registration
+#### Step A: Initiate The Registration
+
+The flag stays `Pending` afterwards, which is expected.
 
 ```bash
 az feature register --namespace Microsoft.Resources --name EUAPParticipation \
   --subscription <subscription-id>
 ```
 
-This leaves the flag in `Pending`. That is expected.
+#### Step B: File A LionRock Region-Access Request
 
-#### Step B: File a LionRock region-access request (preferred)
+This is the supported self-service path. File it from a b-account (an elevated account that is a Service Tree owner), one request per subscription and canary region, and ask for region access only. Do not bundle SKU or quota line items: a single gated item, GPU families in particular, holds up the whole request, including the region-access line.
 
-This is the sanctioned self-service path and the one to try first.
+#### Step C: Approve Through Geneva Actions If The Request Stalls
 
-- File from a **b-account** (elevated / Service Tree owner).
-- One request per subscription, for the canary region.
-- Make it **region-access only**. Do not bundle SKU or quota line items — a single gated line item (GPU families in particular) holds up the whole request, including the region-access line.
+Move to this when the request reaches *Action Required* or is backlogged. `Microsoft.RedHatOpenShift` is not treated as in-scope first-party for subscriptions outside the Microsoft tenant, so LionRock handles them as external subscriptions and routes fulfillment to a manual RDQuota queue where it typically stalls. For Red Hat tenant subscriptions, treat that stall as the expected outcome and do not wait weeks for it. The request's activity log shows the pattern:
 
-#### Step C: Approve via Geneva Actions (fallback)
+- `AutoApprove` reports *"Requestor service is not in scope. Auto approve ARM requests for external subscriptions. Grant WAEAP approval."* WAEAP approval looks like progress, but it is not the flag registration.
+- `CheckAutoComplete` repeats *"AFEC flag for region access is not registered. Proceeding to fulfillment.."*
+- `Fulfill` goes to manual RDQuota and ICM and ends in *Action Required*, often with a generic *"The requested SKU/Region combination is not supported"* comment and eventually a backlog note about *"high demand for virtual machines in this region"* that has nothing to do with the real problem.
 
-Switch to this path once the LionRock request lands in *Action Required* or is Backlogged. For subscriptions outside the Microsoft tenant, `Microsoft.RedHatOpenShift` is not treated as in-scope 1P, so LionRock handles them as **external subscriptions** and routes fulfillment to manual RDQuota, where it typically stalls. For Red Hat tenant subscriptions, treat the stall as the expected outcome rather than the exception — do not wait weeks on it.
+To register the flag directly, a Microsoft operator with the required access runs the Geneva Action Azure Resource Manager, Feature Management, Approve Feature Registration, with resource provider `Microsoft.Resources`, feature name `EUAPParticipation` and the subscription ID. Access to that action is restricted, so find out who holds it and how to request it from the internal access documentation rather than from this page.
 
-Recognisable failure signature in the request activity log:
+The Geneva Action registers the flag whatever state the LionRock request is in, so there is no need to cancel the request first. Do close it afterwards: an open request blocks new ones for the same subscription and region, and you need those for quota.
 
-- `AutoApprove`: *"Requestor service is not in scope. Auto approve ARM requests for external subscriptions. Grant WAEAP approval."* — WAEAP approval looks like progress, but it is not the flag registration.
-- Repeated `CheckAutoComplete`: *"AFEC flag for region access is not registered. Proceeding to fulfillment.."*
-- `Fulfill` → manual RDQuota/ICM → *Action Required*, often with a generic *"The requested SKU/Region combination is not supported"* bot comment, and eventually Backlogged with an unrelated *"high demand for virtual machines in this region"* message.
-
-To register the flag directly:
-
-1. **Request JIT access** (in Teams) — note this is a *different* claim from the ARO one in Step 1:
-   - Resource type: `acis`
-   - Scope: `AFEC`
-   - Access level: `PlatformServiceOperator`
-
-   The claim auto-approves for members of the `TM-AFEC` security group. If you are not a member, ask someone who is to run the approval or to add you.
-
-2. **Approve the registration** via Geneva Actions:
-   - Azure Resource Manager → Feature Management → Approve Feature Registration
-   - Resource Provider: `Microsoft.Resources`
-   - Feature Name: `EUAPParticipation`
-   - Subscription: the subscription ID to onboard
-
-The Geneva Action registers the flag regardless of the LionRock request's state, so there is no need to cancel it first. Do close it out afterwards though — an open request blocks new ones from being filed for the same subscription and region, and you will need those for quota.
-
-> [!NOTE]
-> Most RPs have migrated to AFEC 2.0, where the owning RP holds the approver claim. `Microsoft.Resources` has not, which is why the `TM-AFEC` path still auto-approves — expect this procedure to need revisiting if that changes. See [AFEC 2.0 updates](https://eng.ms/docs/products/arm/rp_onboarding/afec/afec_20_updates).
-
-#### Step D: Verify and register the provider
+#### Step D: Verify, Then Register The Provider
 
 ```bash
 az feature show --namespace Microsoft.Resources --name EUAPParticipation \
@@ -273,30 +143,37 @@ az feature show --namespace Microsoft.Resources --name EUAPParticipation \
 az provider register --namespace Microsoft.Resources --subscription <subscription-id>
 ```
 
-#### Quota
+Region access is separate from quota. Once the flag is registered, request the per-region [quota](#quota-requests) for the canary region, and file any GPU SKU (for example `NCasT4v3`) as its own request. GPU families are gated by product-manager pre-approval, which otherwise blocks the whole bundle.
 
-Region access is separate from quota. Once the flag is `Registered`, file the per-region quota increases for the canary region as described in step 2 of the DEV procedure above (Standard DSv3 Family vCPUs, Public IP Addresses, Role Assignments). File any GPU SKU (e.g. `NCasT4v3`) as its own request — GPU families are HPC-gated and need product-manager pre-approval, which will otherwise block the whole bundle.
+### CI Infrastructure Setup
 
-### Step 2: CI Infrastructure Setup
+1. **Register the subscription with `dev-ci`.** Append `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string in `config/config-dev-ci.yaml`, and make sure `ci.<env>.regions` covers the pool's runtime regions. The same inventory drives provider registration, the CI bot's role assignments and the quota-collector's Reader grant, so no other list needs editing. Display name restrictions are the same as for DEV.
 
-1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks). The provider-registration, CI bot RBAC, quota-collector Reader grant, and quota-monitoring consumers read this inventory directly. Ensure `ci.<env>.regions` covers the pool's runtime regions.
+2. **Run the privileged rollout.** An OWNERS-group member with Owner on the target subscriptions runs `make dev-ci-privileged-local-run`, as described for [DEV](#dev-e2e-subscription-onboarding) and in [the privileged entrypoint](dev-ci-topology.md#the-privileged-entrypoint). For INT, STG and PROD it registers the providers, grants the environment's bot (for example `OpenShift Release Bot - STG`) its roles on the subscription, and assigns the `createdAt` tag policy to DEV, STG and PROD subscriptions. For INT it also deploys the subscription RBAC for the INT mock identities. Neither tag inheritance nor slot mock identities apply outside DEV.
 
-2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription, registers the providers listed in `ci.e2eSubscriptionProviders`, and assigns the cleanup `createdAt` resource-group tag policy to managed DEV, STG and PROD subscriptions. Run it as an OWNERS-group member with **Owner** on the target subscriptions.
+3. **Request the quota** from [above](#quota-requests). In STG and PROD, which run in the AME tenant, also check the [deny-assignment limit](e2e-capacity.md#deny-assignments) when you choose the pool's slot count.
 
-3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list. Follow the v2 catalog contract with a unique pool name, `resource_type`, and dedicated `slot_assets.e2e_identities.resource_group_prefix`. For a `runtime-selected` pool, `region` is the default and the job's location override selects the runtime region; the `regions` list is only valid for weighted pools.
+4. **Add the pool to the catalog.** Add it under the environment's `pools` in `test/e2e-config/e2e-slots.yaml` following the [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog), with a unique pool name, `resource_type` and `resource_group_prefix`. These environments declare only `e2e_identities`. A pool with `region_mode: runtime-selected` uses `region` as the default and lets the job's location override pick the runtime region; a `regions` list is valid only for weighted pools.
 
-4. Sync the Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`, update cleanup job subscription inventories in `openshift/release`, and run `make update` there. Validate the generated inventory with `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`.
+5. **Add the subscription to the cluster profile secret.** Add the `customer-<shard>-subscription-name` and `customer-<shard>-subscription-id` entries described in the [DEV procedure](#dev-e2e-subscription-onboarding) to the environment's profile in the `hcm-aro` collection (`aro-hcp-int-rh`, `aro-hcp-stg-rh` or `aro-hcp-prod-rh`).
 
-5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shardN-subscription-name` and `customer-shardN-subscription-id`, where `N` matches the new pool's shard number.
+6. **Provision the E2E identity containers.** Scope the run to the new pool and validate it:
 
-6. Provision managed slot-backed identity containers with `make -C test apply-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities` and validate with `make -C test validate-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities`. These targets regenerate the Bicep-derived artifacts before rebuilding the test binary. Confirm the deployment stacks and dedicated identity-container resource groups exist in the new subscription.
+   ```bash
+   make -C test apply-pool-assets    ENVIRONMENT=<int|stg|prod> POOL=<pool> ASSET=e2e_identities
+   make -C test validate-pool-assets ENVIRONMENT=<int|stg|prod> POOL=<pool> ASSET=e2e_identities
+   ```
 
-7. Validate by running a rehearsal E2E job against the new subscription.
+7. **Publish the Boskos inventory and the cleanup job.** As in step 6 of the DEV procedure, run `sync-boskos-config` and `validate-boskos-config`, add the subscription's exact display name to the `ALLOWED_SUBSCRIPTIONS` of the jobs that should use it, add its expired-resource-group job to `Azure-ARO-HCP-main__periodic-cleanup.yaml` and merge. The INT, STG and PROD cleanup jobs select the environment's profile with `VAULT_SECRET_PROFILE`; copy an existing job for the same environment.
+
+8. **Validate** with a rehearsal E2E job that targets the new subscription.
+
+A subscription in a different tenant, such as the Test Tenant PROD subscription, is outside what the privileged rollout can reach. Its owners register providers and grant access themselves, its E2E identities are `provisioning: unmanaged`, and its quota monitoring is declared under `opstool.tenantQuota.tenants.testTestAro` in the config, with its Reader grant created by `tooling/tenant-quota/scripts/manage-service-principals.sh`. The flags above still apply to it.
 
 ## See Also
 
-- [CI Overview](README.md)
-- [Dev-CI Topology](dev-ci-topology.md)
-- [CI Identity Leasing](identity-leasing.md)
-- [CI Operations](operations.md)
-- [Environments](../environments.md)
+- [E2E Slot Assets](slot-assets.md) and [DEV Mock Identities](dev-mock-identities.md) for provisioning the assets a pool needs
+- [E2E Capacity And Quotas](e2e-capacity.md) for sizing the pool and changing it later
+- [Dev-CI Topology](dev-ci-topology.md) for what the privileged rollout owns
+- [CI Cleanup](cleanup.md) for the cleanup jobs
+- [Tenants and Environments](../environments.md) for how AFEC flags select an environment
