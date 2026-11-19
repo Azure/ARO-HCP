@@ -135,7 +135,7 @@ func New(source Source, config Config) (*Client, error) {
 	aliases := make(map[string]bool, len(config.JobTriggers))
 	for job, alias := range config.JobTriggers {
 		if !namePattern.MatchString(job) || !namePattern.MatchString(alias) || aliases[alias] {
-			return nil, errors.New("Prow jobs and trigger aliases must be valid names with unique aliases")
+			return nil, errors.New("canonical Prow jobs and trigger aliases must be valid names with unique aliases")
 		}
 		triggers[job] = alias
 		aliases[alias] = true

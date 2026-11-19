@@ -542,9 +542,10 @@ func TestFreshRetestEvidenceAndPublicationHeadGuard(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			s := failing()
 			s.onRead = func(s *source) {
-				if state == "changed head" {
+				switch state {
+				case "changed head":
 					s.snapshot.Pull.HeadSHA = otherHead
-				} else if state == "pending" {
+				case "pending":
 					s.snapshot.Statuses[0].State = "pending"
 				}
 			}
