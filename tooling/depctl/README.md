@@ -286,6 +286,30 @@ Candidate validation and request preparation use this shared Go selection
 policy. Family markers, publication request shape and branch identity do not
 change when multiple target versions coexist.
 
+### dependabot native validate-candidate
+
+```bash
+depctl dependabot native validate-candidate --repository OWNER/REPO --repo PATH \
+  --inventory FILE --group ID --target TARGET --title-file FILE --body-file FILE \
+  --artifact-dir DIR [--compiler PATH]
+```
+
+Selects the exact inventory entry, runs its fixed Go/npm/Actions consumers,
+compares generated output with an isolated baseline and checks generation
+convergence. Scope and coverage guards run before consumer execution and against
+the complete committed candidate. Late changes to the candidate or request
+inputs prevent publication-request construction.
+
+Artifacts and complete per-step logs stay outside the checkout. Successful
+execution prints only the prepared request digest; failures retain machine
+evidence and logs without leaving a publication request. The compiler is
+required for Actions and must be the trusted pinned executable.
+
+The command uses the read-only `gh` CLI proxy inside the sandbox without
+exporting a GitHub credential. Run `depctl dependabot native check-sandbox-read`
+inside that sandbox before executing candidate consumers. Keep the binary and
+compiler from the original trusted checkout, not the candidate.
+
 ### dependabot native prepare-request
 
 ```bash
@@ -299,8 +323,8 @@ Packages the complete tracked candidate diff and notification-safe metadata into
 offline packaging step follows candidate validation; it neither validates
 dependency consumers nor authorizes publication.
 
-Run `make verify-agentic-maintenance` from the repository root for Go and Python
-regressions, publication-metadata parity checks and Darwin/arm64 compile coverage.
+Run `make verify-agentic-maintenance` from the repository root for Go validation
+and remaining Python publisher regressions, metadata parity and Darwin/arm64 coverage.
 
 ### maintenance inventory
 

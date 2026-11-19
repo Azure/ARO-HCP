@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/dependabot"
 )
 
-// Builds offline native Dependabot selection and request commands.
+// Builds native Dependabot selection, validation and request commands.
 func newNativeCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "native",
@@ -60,6 +60,6 @@ func newNativeCommand() *cobra.Command {
 	selectGroup.Flags().StringVar(&inventory, "inventory", "", "native inventory JSON file")
 	selectGroup.Flags().StringVar(&group, "group", "", "24-character native family group ID")
 	selectGroup.Flags().StringVar(&target, "target", "", "exact inventory target")
-	command.AddCommand(selectGroup, newNativePrepareCommand())
+	command.AddCommand(selectGroup, newNativePrepareCommand(), newNativeValidateCommand(), newNativeSandboxReadCommand())
 	return command
 }

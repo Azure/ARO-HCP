@@ -1350,20 +1350,6 @@ def validate_replacement_request(request):
     return patch_paths(request["patch"])
 
 
-def native_inventory_selection(repo, inventory_file, group_id, target):
-    """Read the offline selection from the trusted Go binary without Python policy."""
-    try:
-        result = subprocess.run(
-            [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", "select-group",
-             "--repository", repo, "--inventory", str(inventory_file),
-             "--group", group_id, "--target", target],
-            capture_output=True, text=True, check=True,
-        )
-    except subprocess.CalledProcessError as error:
-        raise ValueError(error.stderr.strip() or "native inventory selection failed") from error
-    return json.loads(result.stdout)
-
-
 def sources_group(repo, sources):
     validate_sources(sources)
     intents = []

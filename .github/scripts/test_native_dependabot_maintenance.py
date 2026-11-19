@@ -16,7 +16,6 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 import native_dependabot_maintenance as native
-import validate_native_candidate as runner
 
 REPO = "Azure/ARO-HCP"
 PACKAGE = "example.com/library"
@@ -46,6 +45,20 @@ def replacement_output(directory, request=None, *, payload=None, nested=False):
     path = directory / "agent_output.json"
     path.write_text(json.dumps({"items": [item]}))
     return path
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd):
+    """Exercise the real Go producer in the Python publisher integration fixtures."""
+    result = subprocess.run(
+        [os.environ["DEPCTL_BINARY"], "dependabot", "native", "prepare-request",
+         "--repository", repo, "--repo", str(cwd), "--inventory", str(inventory_file),
+         "--group", group_id, "--target", target, "--title-file", str(title_file),
+         "--body-file", str(body_file), "--artifact-dir", str(artifact_dir)],
+        capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise ValueError(result.stderr.strip())
+    return json.loads(result.stdout)
 
 
 class RepositoryFixture(unittest.TestCase):
@@ -302,9 +315,9 @@ class RepositoryFixture(unittest.TestCase):
         self.calls.clear()
         artifact_root = self.root / "artifacts"
         before_index = (self.seed / ".git/index").read_bytes()
-        first = runner.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        first = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         first_bytes = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
-        second_args = runner.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        second_args = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(first, second_args)
         self.assertEqual((artifact_root / "agent" / native.REQUEST_FILE).read_bytes(), first_bytes)
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
@@ -332,7 +345,7 @@ class RepositoryFixture(unittest.TestCase):
         inputs[2].write_text("chore(deps): upgrade example library\n")
         self.upgrade_consumers()
         artifact_root = self.root / "artifacts"
-        arguments = runner.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        arguments = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(set(arguments), {"request_sha256"})
         payload = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
         self.assertEqual(arguments["request_sha256"], hashlib.sha256(payload).hexdigest())
@@ -423,7 +436,7 @@ class RepositoryFixture(unittest.TestCase):
         git(self.seed, "config", "filter.fixture.process", command)
         (self.seed / ".git/info/attributes").write_text("*.mod diff=fixture filter=fixture\n")
         self.calls.clear()
-        arguments = runner.prepare_request(REPO, *inputs, self.root / "artifacts", target=NEW, cwd=self.seed)
+        arguments = prepare_request(REPO, *inputs, self.root / "artifacts", target=NEW, cwd=self.seed)
         self.assertRegex(arguments["request_sha256"], r"^[0-9a-f]{64}$")
         self.assertFalse(sentinel.exists())
         self.assertEqual(self.calls, [])
@@ -437,7 +450,7 @@ class RepositoryFixture(unittest.TestCase):
         before_index = (self.seed / ".git/index").read_bytes()
         self.calls.clear()
         with self.assertRaises(ValueError):
-            runner.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+            prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
         self.assertFalse(artifact_root.exists())
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
         self.assertEqual(self.calls, [])
@@ -448,13 +461,13 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(json.loads(inputs[0].read_text())["groups"][0]["next_action"]["action"],
                          "maintain_replacement")
         with self.assertRaises(ValueError):
-            runner.prepare_request(REPO, *inputs, self.root / "empty", target=NEW, cwd=self.seed)
+            prepare_request(REPO, *inputs, self.root / "empty", target=NEW, cwd=self.seed)
         self.upgrade_consumers()
         self.write("backend/Dockerfile", "FROM attacker.invalid/image:1\n")
         with self.assertRaisesRegex(ValueError, "protected"):
-            runner.prepare_request(REPO, *inputs, self.root / "protected", target=NEW, cwd=self.seed)
+            prepare_request(REPO, *inputs, self.root / "protected", target=NEW, cwd=self.seed)
         git(self.seed, "restore", "backend/Dockerfile")
-        result = runner.prepare_request(REPO, *inputs, self.root / "valid", target=NEW, cwd=self.seed)
+        result = prepare_request(REPO, *inputs, self.root / "valid", target=NEW, cwd=self.seed)
         self.assertRegex(result["request_sha256"], r"^[0-9a-f]{64}$")
 
     def test_prepare_request_rejects_invalid_metadata_before_writing_artifact(self):
@@ -467,7 +480,7 @@ class RepositoryFixture(unittest.TestCase):
             path.write_bytes(content)
             artifact_root = self.root / "rejected"
             with self.subTest(content=content), self.assertRaises(ValueError):
-                runner.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+                prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
             self.assertFalse(artifact_root.exists())
             inputs[2].write_bytes(originals[0])
             inputs[3].write_bytes(originals[1])
@@ -489,7 +502,7 @@ class RepositoryFixture(unittest.TestCase):
                 artifacts = self.root / "parity" / field / str(index)
                 with self.subTest(field=field, text=text):
                     if accepted:
-                        runner.prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
+                        prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
                         prepared = json.loads((artifacts / native.REQUEST_FILE).read_bytes())
                         native.validate_replacement_request(prepared)
                         self.assertEqual(prepared[field], candidate[field])
@@ -497,7 +510,7 @@ class RepositoryFixture(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             native.validate_replacement_request(candidate)
                         with self.assertRaises(ValueError):
-                            runner.prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
+                            prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
                         self.assertFalse(artifacts.exists())
 
     def test_prepare_request_normalizes_mentions_without_changing_patch_bytes(self):
@@ -509,7 +522,7 @@ class RepositoryFixture(unittest.TestCase):
         generated = "vendor/example.com/library/library.go"
         self.write(generated, "package library\n// @Azure/reviewers stays literal\n")
         artifact_root = self.root / "artifacts"
-        result = runner.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+        result = prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
         payload = (artifact_root / native.REQUEST_FILE).read_bytes()
         request = json.loads(payload)
         self.assertEqual(request["title"], "chore(deps): upgrade ＠scope/package")
@@ -534,7 +547,7 @@ class RepositoryFixture(unittest.TestCase):
                     os.link(victim, artifact)
                 try:
                     with self.assertRaises(ValueError):
-                        runner.prepare_request(REPO, *inputs, destination, target=NEW, cwd=self.seed)
+                        prepare_request(REPO, *inputs, destination, target=NEW, cwd=self.seed)
                     self.assertEqual(victim.read_bytes(), b"preserve existing content")
                 finally:
                     artifact.unlink()
@@ -1007,12 +1020,12 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(candidate["next_action"]["action"], "prepare_replacement")
         inputs = self.prepare_inputs(observed)
         native.git(self.seed, "apply", "-", input=request["patch"])
-        runner.prepare_request(REPO, *inputs, self.root / "candidate", target=candidate["target"], cwd=self.seed)
+        prepare_request(REPO, *inputs, self.root / "candidate", target=candidate["target"], cwd=self.seed)
         prepared = json.loads((self.root / "candidate" / native.REQUEST_FILE).read_text())
         self.assertEqual(prepared["source_prs"], request["source_prs"])
         for target in (NEW, "v9.0.0"):
             with self.subTest(target=target), self.assertRaises(ValueError):
-                runner.prepare_request(REPO, *inputs, self.root / "rejected", target=target, cwd=self.seed)
+                prepare_request(REPO, *inputs, self.root / "rejected", target=target, cwd=self.seed)
         self.assertFalse((self.root / "rejected").exists())
         git(self.seed, "restore", ".")
         mixed = copy.deepcopy(request)
