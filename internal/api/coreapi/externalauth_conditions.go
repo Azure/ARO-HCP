@@ -55,10 +55,6 @@ const (
 	// ExternalAuthOIDCClientsDegradedReasonAsExpected indicates all OIDC
 	// clients are operational.
 	ExternalAuthOIDCClientsDegradedReasonAsExpected = "AsExpected"
-
-	// ExternalAuthOIDCClientsDegradedReasonUnsupported indicates the cluster
-	// version does not support External Auth OIDC observability.
-	ExternalAuthOIDCClientsDegradedReasonUnsupported = "ExternalAuthObservabilityUnsupported"
 )
 
 // Reasons used with the user-facing Degraded condition on
@@ -108,11 +104,6 @@ const (
 	// ExternalAuthMessageOIDCClientsAllOperational is the message when all OIDC
 	// clients are operational.
 	ExternalAuthMessageOIDCClientsAllOperational = "All OIDC clients are operational"
-
-	// ExternalAuthMessageObservabilityUnsupported is the user-facing message
-	// when the cluster version does not support External Auth OIDC
-	// observability. The supported OCP version are release-5.0, 4.23, 4.22, 4.21, 4.20.41+
-	ExternalAuthMessageObservabilityUnsupported = "External Auth observability is not supported on this cluster version. The minimum supported OCP version is 4.20.41."
 )
 
 // Reasons used with the ExternalAuthOIDCConfigurationDegradedCondition condition on

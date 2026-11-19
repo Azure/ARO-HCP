@@ -19,7 +19,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -133,34 +132,6 @@ func newTestHostedClusterReadDesire(t *testing.T, hc *v1beta1.HostedCluster) *ku
 	}
 }
 
-func newTestServiceProviderCluster(version *semver.Version) *coreapi.ServiceProviderCluster {
-	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutils.TestSubscriptionID +
-			"/resourceGroups/" + statusutils.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
-			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
-	))
-	spc := &coreapi.ServiceProviderCluster{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
-		},
-	}
-	if version != nil {
-		spc.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
-			{Version: version},
-		}
-	}
-	return spc
-}
-
-// defaultTestVersion returns a version that is at or above the minimum OIDC
-// observability version (4.20.41) so existing tests pass through the version gate.
-func defaultTestVersion() *semver.Version {
-	v := semver.MustParse("4.20.41")
-	return &v
-}
-
 func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
@@ -179,7 +150,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 
 		externalAuth                *coreapi.ExternalAuth
 		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
-		serviceProviderCluster      *coreapi.ServiceProviderCluster
 		hostedCluster               *v1beta1.HostedCluster
 
 		expectNoWrite   bool
@@ -214,7 +184,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 				ea.Properties.Clients = nil
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{},
@@ -230,7 +199,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "all healthy: Degraded=False, Available=True -> OIDCClientsDegraded=False",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -257,7 +225,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Degraded OIDCClientSecretGet -> OIDCClientsDegraded=True awaiting secret",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -284,7 +251,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Degraded OIDCIssuerURLInvalid -> OIDCClientsDegraded=True issuer invalid",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -310,7 +276,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Degraded with unknown reason -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -336,7 +301,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Available=False Degraded=False -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -363,7 +327,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Degraded=Unknown -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -390,7 +353,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: Available=Unknown -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -424,7 +386,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: HC found no Configuration -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{Configuration: nil},
 			},
@@ -438,7 +399,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			name:                        "confidential client: no matching OIDC status -> OIDCClientsDegraded=True generic message",
 			externalAuth:                newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -472,7 +432,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 				}}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -515,7 +474,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 				}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -568,7 +526,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 				}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -620,7 +577,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 				}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -654,9 +610,8 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:                   "no-op when ServiceProviderExternalAuth conditions already match",
-			externalAuth:           newTestExternalAuthForDegraded(),
-			serviceProviderCluster: newTestServiceProviderCluster(defaultTestVersion()),
+			name:         "no-op when ServiceProviderExternalAuth conditions already match",
+			externalAuth: newTestExternalAuthForDegraded(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
 				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{{
 					Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
@@ -683,62 +638,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			},
 			expectNoWrite: true,
 		},
-		{
-			name:                        "version below 4.20.41 with nil Configuration -> OIDCClientsDegraded=Unknown unsupported",
-			externalAuth:                newTestExternalAuthForDegraded(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster: newTestServiceProviderCluster(func() *semver.Version {
-				v := semver.MustParse("4.19.2")
-				return &v
-			}()),
-			hostedCluster: &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{Configuration: nil},
-			},
-			expectCondition: &expectedCondition{
-				status:  metav1.ConditionUnknown,
-				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonUnsupported,
-				message: coreapi.ExternalAuthMessageObservabilityUnsupported,
-			},
-		},
-		{
-			name:                        "version at 4.20.41 with Configuration -> normal evaluation",
-			externalAuth:                newTestExternalAuthForDegraded(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(defaultTestVersion()),
-			hostedCluster: &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{
-					Configuration: &v1beta1.ConfigurationStatus{
-						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{{
-								ComponentName:      testComponentName,
-								ComponentNamespace: testComponentNamespace,
-								Conditions: []metav1.Condition{
-									{Type: "Available", Status: metav1.ConditionTrue, Reason: "OIDCConfigAvailable"},
-									{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "OIDCConfigAvailable"},
-								},
-							}},
-						},
-					},
-				},
-			},
-			expectCondition: &expectedCondition{
-				status:  metav1.ConditionFalse,
-				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-				message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
-			},
-		},
-		{
-			name:                        "empty ActiveVersions -> skip (no write)",
-			externalAuth:                newTestExternalAuthForDegraded(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			serviceProviderCluster:      newTestServiceProviderCluster(nil),
-			hostedCluster: &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{
-					Configuration: &v1beta1.ConfigurationStatus{},
-				},
-			},
-			expectNoWrite: true,
-		},
 	}
 
 	for _, tc := range tests {
@@ -759,9 +658,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			if tc.serviceProviderExternalAuth != nil {
 				seed = append(seed, tc.serviceProviderExternalAuth)
 			}
-			if tc.serviceProviderCluster != nil {
-				seed = append(seed, tc.serviceProviderCluster)
-			}
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
@@ -775,7 +671,6 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			syncer := &externalAuthOIDCClientsDegradedController{
 				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
 				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
-				serviceProviderClusterLister:      &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 				readDesireLister:                  &readDesireLister,
 				resourcesDBClient:                 mockDB,
 			}
