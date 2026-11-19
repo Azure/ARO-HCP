@@ -30,6 +30,7 @@ const (
 	MSIMockSP                    = "LEASED_MSI_MOCK_SP"
 	ARMHelperSP                  = "LEASED_ARM_HELPER_SP"
 	MSIContainers                = "LEASED_MSI_CONTAINERS"
+	IdentityConsumerGuardMode    = "ARO_HCP_IDENTITY_CONSUMER_GUARD"
 	InfrastructureIdentityBundle = "LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE"
 )
 

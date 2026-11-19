@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -40,8 +41,10 @@ type admitClients struct {
 	resourceGroups *armresources.ResourceGroupsClient
 	identities     *armmsi.UserAssignedIdentitiesClient
 	roles          *armauthorization.RoleAssignmentsClient
+	hcp            *hcpsdk.ClientFactory
 }
 
+// AzureAdmitClients creates the clients used for consumer inventory and worker-based cleanup.
 func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error) {
 	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, nil)
 	if err != nil {
@@ -55,11 +58,16 @@ func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating resource groups client: %w", err)
 	}
+	hcp, err := hcpsdk.NewClientFactory(subscriptionID, credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating HCP client factory: %w", err)
+	}
 	return &admitClients{
 		subscriptionID: subscriptionID,
 		resourceGroups: resourceGroups,
 		identities:     msiFactory.NewUserAssignedIdentitiesClient(),
 		roles:          roles,
+		hcp:            hcp,
 	}, nil
 }
 
@@ -78,12 +86,21 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 	return credential, subscriptionID, nil
 }
 
+// AdmitIdentityLeaseWithClients filters consumers before inventorying and cleaning admitted principals.
 func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, clients *admitClients, cleanupWorkers int) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
 		return errors.New("resolved E2E identity inventory is empty")
 	}
-	groups := request.AcquiredSlotState.Slot.IdentityContainerNames()
+	request.AcquiredSlotState.AdmittedIdentityContainers = nil
+	groups, err := selectIdentityLeaseContainers(ctx, request, clients.hcp)
+	if err != nil {
+		return err
+	}
+	if request.SkipAdmissionCleanup {
+		request.AcquiredSlotState.AdmittedIdentityContainers = groups
+		return nil
+	}
 	logger.Info("Loading identity lease inventory", "slotName", request.AcquiredSlotState.Slot.ResourceName, "resourceGroupCount", len(groups))
 	expectedNames := framework.NewDefaultIdentities().ToSlice()
 	principals := sets.New[uuid.UUID]()
@@ -106,5 +123,6 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	if err := azureutil.RunWithWorkers(ctx, azureutil.DeleteRoleAssignmentOps(logger, clients.roles, clients.resourceGroups, clients.subscriptionID, assignments), workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
+	request.AcquiredSlotState.AdmittedIdentityContainers = groups
 	return nil
 }

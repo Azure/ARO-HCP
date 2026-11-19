@@ -98,6 +98,7 @@ func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
 	}}}
+	request.AcquiredSlotState.AdmittedIdentityContainers = []string{"identity-rg-02", "identity-rg-01"}
 	contract := slots.NewRuntimeContractBuilder()
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
@@ -163,6 +164,66 @@ func TestHandlerCleanupWorkersOption(t *testing.T) {
 			}
 			if handler.cleanupWorkers != tc.want {
 				t.Fatalf("expected %d cleanup workers, got %d", tc.want, handler.cleanupWorkers)
+			}
+		})
+	}
+}
+
+func TestHandlerMinimumContainersOption(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		value   string
+		want    int
+		wantErr bool
+	}{
+		{name: "full capacity default"},
+		{name: "explicit smaller capacity", value: "3", want: 3},
+		{name: "zero rejected", value: "0", wantErr: true},
+		{name: "negative rejected", value: "-1", wantErr: true},
+		{name: "invalid rejected", value: "three", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewHandler()
+			registry, err := assets.NewRegistry(handler)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var entries []string
+			if test.value != "" {
+				entries = []string{"e2e_identities.minimum-containers=" + test.value}
+			}
+			err = registry.ApplyOptions(entries)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("option error=%v, want error=%t", err, test.wantErr)
+			}
+			if handler.minimumContainers != test.want {
+				t.Fatalf("minimum containers=%d, want %d", handler.minimumContainers, test.want)
+			}
+		})
+	}
+}
+
+func TestHandlerRefusesUnadmittedIdentityExports(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name  string
+		state *slots.AcquiredSlotState
+	}{
+		{name: "missing state"},
+		{name: "not admitted", state: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{ResourceGroups: []string{"unsafe"}}},
+		}}},
+		{name: "empty admission", state: &slots.AcquiredSlotState{AdmittedIdentityContainers: []string{}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			contract := slots.NewRuntimeContractBuilder()
+			err := NewHandler().PublishLease(t.Context(), assets.LeaseRequest{AcquiredSlotState: test.state}, contract)
+			if err == nil {
+				t.Fatal("published identity lease without admitted containers")
+			}
+			if len(contract.MarshalShell()) != 0 {
+				t.Fatal("failed publication left partial runtime exports")
 			}
 		})
 	}
