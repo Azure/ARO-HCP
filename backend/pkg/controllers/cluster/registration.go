@@ -1129,6 +1129,16 @@ func instantiateDataPlaneWorkloadsOIDCFederationIntentController(controllerConte
 	), nil
 }
 
+func registerHostedClusterDataPlaneIdentitiesController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers: 20,
+		Enabled: func(c controllerconfig.ControllerContext) bool { return c.EnableHostedClusterDataPlaneIdentityWriter },
+		Instantiate: controllerconfig.WithCacheSyncs(func(c controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			return clusterdataplaneworkloads.NewHostedClusterDataPlaneIdentitiesController(c.ResourcesDBClient, c.BackendInformers), nil
+		}, false),
+	}
+}
+
 func registerDataPlaneWorkloadsOIDCFederationController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1458,6 +1468,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
+	registry[strings.ToLower(clusterdataplaneworkloads.HostedClusterDataPlaneIdentitiesControllerName)] = registerHostedClusterDataPlaneIdentitiesController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsIntentControllerName)] = registerMockFPARoleAssignmentIntentController()

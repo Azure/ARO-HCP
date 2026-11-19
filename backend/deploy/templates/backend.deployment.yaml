@@ -71,6 +71,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
+        - "--enable-hosted-cluster-data-plane-identity-writer={{ .Values.enableHostedClusterDataPlaneIdentityWriter }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--orphaned-mrg-cleanup-running-mode={{ .Values.orphanedMRGCleanupRunningMode }}"
         {{- if .Values.orphanedMRGCleanupTargetSubscriptionAFECFlags }}
