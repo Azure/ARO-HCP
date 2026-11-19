@@ -81,7 +81,9 @@ it through its existing Go command without introducing a helper executable.
 Construct `prow.New(client, config)` with the target repository, trusted writer,
 retry bots, hold controllers, required checks and a distinct budget namespace.
 `ReleaseHold` accepts only proven bot retry-exhaustion holds whose revision belongs
-to the PR's commits and whose current CI is positive. `Retest` requires a current
+to the PR's commits and whose current required CI is positive. Optional check
+conclusions do not gate maintenance; missing, pending, neutral or skipped required
+checks still block. `Retest` requires a current
 required-check failure, a distinct same-job comparison URL and a plain-text reason.
 The caller verifies comparison artifacts and diagnosis; the library validates URL
 syntax and association, not the comparison run's existence or outcome.

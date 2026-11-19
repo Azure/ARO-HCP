@@ -159,9 +159,6 @@ func TestReleaseHoldOwnershipAndProvenance(t *testing.T) {
 		{"pending CI", func(s *source) { s.snapshot.Statuses[0].State = "pending" }},
 		{"failed CI", func(s *source) { s.snapshot.Statuses[0].State = "failure" }},
 		{"missing required CI", func(s *source) { s.snapshot.Statuses = nil }},
-		{"unknown extra CI", func(s *source) {
-			s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{ID: 2, Context: "other", State: "mystery", CreatedAt: stamp})
-		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -240,11 +237,17 @@ func TestRetestEvidenceAndCI(t *testing.T) {
 	}{
 		{"success not failure", func(s *source, r *prow.RetestRequest) { s.snapshot.Statuses[0].State = "success" }},
 		{"pending required", func(s *source, r *prow.RetestRequest) { s.snapshot.Statuses[0].State = "pending" }},
-		{"pending unrelated", func(s *source, r *prow.RetestRequest) {
-			s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{ID: 2, Context: "optional", State: "pending", CreatedAt: stamp})
+		{"pending required check", func(s *source, r *prow.RetestRequest) {
+			s.snapshot.Statuses = nil
+			s.snapshot.Checks = []github.Check{{ID: 2, Name: "ci/prow/e2e", HeadSHA: head, Status: "queued"}}
 		}},
-		{"pending check", func(s *source, r *prow.RetestRequest) {
-			s.snapshot.Checks = []github.Check{{ID: 2, Name: "optional", HeadSHA: head, Status: "queued"}}
+		{"neutral required check", func(s *source, r *prow.RetestRequest) {
+			s.snapshot.Statuses = nil
+			s.snapshot.Checks = []github.Check{{ID: 2, Name: "ci/prow/e2e", HeadSHA: head, Status: "completed", Conclusion: "neutral"}}
+		}},
+		{"skipped required check", func(s *source, r *prow.RetestRequest) {
+			s.snapshot.Statuses = nil
+			s.snapshot.Checks = []github.Check{{ID: 2, Name: "ci/prow/e2e", HeadSHA: head, Status: "completed", Conclusion: "skipped"}}
 		}},
 		{"missing required", func(s *source, r *prow.RetestRequest) { s.snapshot.Statuses[0].Context = "other" }},
 		{"missing status id", func(s *source, r *prow.RetestRequest) { s.snapshot.Statuses[0].ID = 0 }},
@@ -738,6 +741,35 @@ func TestObservationTargetsExcludeHistoricalJobs(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestOptionalCIDoesNotBlockRequiredRecoveryOrRelease(t *testing.T) {
+	for _, state := range []string{"neutral", "skipped", "failure", "pending", "unknown"} {
+		for _, action := range []string{"release", "retest"} {
+			t.Run(action+"/"+state, func(t *testing.T) {
+				s := fixture()
+				if action == "retest" {
+					s = failing()
+				}
+				s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{ID: 30, Context: "optional", State: state, CreatedAt: stamp})
+				s.snapshot.Checks = []github.Check{{ID: 31, Name: "CodeQL", HeadSHA: head, Status: "completed", Conclusion: state}}
+				if state == "pending" {
+					s.snapshot.Checks[0].Status = "queued"
+				}
+				c := client(t, s)
+				var result prow.Result
+				var err error
+				if action == "retest" {
+					result, err = c.Retest(context.Background(), retestRequest())
+				} else {
+					result, err = c.ReleaseHold(context.Background(), holdRequest())
+				}
+				if err != nil || s.writes != 1 || result.Receipt.Outcome != "requested" {
+					t.Fatalf("optional CI blocked valid required-check action: result=%+v err=%v writes=%d", result, err, s.writes)
+				}
+			})
 		}
 	}
 }

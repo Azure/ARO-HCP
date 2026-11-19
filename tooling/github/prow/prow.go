@@ -177,7 +177,7 @@ func (c *Client) ReleaseHold(ctx context.Context, request HoldRequest) (Result, 
 }
 
 // Retest requests one diagnosed recovery per namespace and head, never while any
-// current non-Tide CI is pending or unknown. Named-job and required-set recovery
+// required CI is pending or unknown. Named-job and required-set recovery
 // consume the same budget. Failed publication is not evidence that no write occurred.
 func (c *Client) Retest(ctx context.Context, request RetestRequest) (Result, error) {
 	if err := validateRequest(request.Number, request.ExpectedHead, request.Reason); err != nil {

@@ -189,7 +189,7 @@ func latestStatuses(snapshot github.Snapshot) (map[string]github.Status, error) 
 	return latest, nil
 }
 
-// Selects terminal current CI; Tide, missing required and pending evidence fail closed.
+// Classifies only required CI; missing, pending and nonpositive required evidence fail closed.
 func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
 	latest, err := latestStatuses(snapshot)
 	if err != nil {
@@ -197,7 +197,7 @@ func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
 	}
 	states := map[string]ciState{}
 	for name, status := range latest {
-		if strings.EqualFold(name, "tide") {
+		if !contains(c.config.RequiredChecks, name) {
 			continue
 		}
 		state, err := terminal(status.State)
@@ -218,7 +218,7 @@ func (c *Client) ci(snapshot github.Snapshot) (map[string]ciState, error) {
 			continue
 		}
 		seenChecks[check.ID] = check
-		if strings.EqualFold(check.Name, "tide") {
+		if !contains(c.config.RequiredChecks, check.Name) {
 			continue
 		}
 		if check.Status != "completed" {
