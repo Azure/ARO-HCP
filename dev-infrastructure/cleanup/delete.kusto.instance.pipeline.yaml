@@ -39,7 +39,6 @@ resourceGroups:
     - japaneast
     - swedencentral
     - eastasia
-    - westus2
   steps:
   - name: delete-kusto-instance
     action: Shell
