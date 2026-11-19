@@ -24,7 +24,7 @@ In production the FPA performs the subnet delegation handshake when a customer v
 
 ### ARM Helper
 
-In production the FPA can act on behalf of the customer to create resources and to assign roles to a cluster's operator identities. The ARM helper impersonates that capability in DEV and authenticates using its own client ID and certificate. The separate `azureArmHelperMockFpaPrincipalId` setting identifies the shared FPA principal. It holds two built-in roles at subscription scope: `Contributor`, to create what a cluster needs, and `Role Based Access Control Administrator`, to bind each operator identity to its role. Azure does not require the party handing out a role to hold it, so the helper can assign `Key Vault Crypto User` and the operator roles without holding them itself. That is why the helper, and not the MSI mock, performs the operator-role assignments.
+In production the FPA can act on behalf of the customer to create resources and to assign roles to a cluster's operator identities. The ARM helper impersonates that capability in DEV and authenticates using its own client ID and certificate. The separate `azureArmHelperMockFpaPrincipalId` setting identifies the shared FPA principal. The ARM helper holds two built-in roles at subscription scope: `Contributor`, to create what a cluster needs, and `Role Based Access Control Administrator`, to bind each operator identity to its role. Azure does not require the party handing out a role to hold it, so the helper can assign `Key Vault Crypto User` and the operator roles without holding them itself. That is why the helper, and not the MSI mock, performs the operator-role assignments.
 
 One naming trap: the configuration value `armHelperFPAPrincipalId` is the principal that *receives* the simulated FPA grant, that is, the shared first-party mock. It is not the helper that authenticates the request.
 
@@ -38,7 +38,7 @@ Its custom role, `dev-msi-mock`, is therefore the union of what those operators 
 
 ### Custom Versus Built-In Roles
 
-The operator-equivalent permissions used to be custom roles because the matching built-in roles were not yet available in every tenant. Where a built-in role now exists, the setup uses it, which is why the ARM helper and the KMS grant use built-ins. `dev-first-party-mock` and `dev-msi-mock` remain custom because they bundle a set of actions that no single built-in role covers.
+The ARM helper and the KMS grant use built-in roles. `dev-first-party-mock` and `dev-msi-mock` use custom roles because they bundle a set of actions that no single built-in role covers.
 
 ## Slot Mock Identities
 
@@ -65,7 +65,7 @@ For a pool that is marked unmanaged, such as an externally owned subscription, a
 
 For each slot, apply creates the application and service principal for the three identities, creates a Key Vault certificate for each and pins it to the application, and grants six role assignments on the customer subscription: the MSI mock gets `dev-msi-mock` and `Key Vault Crypto User`, and each ARM helper gets `Contributor` and `Role Based Access Control Administrator`. Nothing is granted on the infrastructure subscription. Every step is safe to retry because the application names, certificate names and assignment IDs are deterministic; if Graph returns an ambiguous or mismatched object, stop and investigate rather than picking one.
 
-Apply also makes the Entra owners of each application and service principal exactly the list in `entraAppOwnerIds` in `config/config-dev-ci.yaml`, which mirrors the `aro-hcp-owners` group, adding missing owners before removing extras. The command refuses to write anything if that list has drifted from the group. The replacement is authoritative, so an operator whose only access to the applications is as their creator can remove themselves and lose access mid-run. Run it as someone on the list or with tenant-level application administration. Reconciliation is not transactional, so serialize runs and simply retry after a partial failure. `validate-pool-assets` reports any owner difference as an error; CI admission never looks at owners.
+Apply also makes the Entra owners of each application and service principal exactly the list in `entraAppOwnerIds` in `config/config-dev-ci.yaml`, which mirrors the `aro-hcp-owners` group, adding missing owners before removing extras. The command refuses to write anything if that list has drifted from the group. The replacement is authoritative, so an operator whose only access to the applications is as their creator can remove themselves and lose access mid-run. Run it as someone on the list or with tenant-level application administration. Reconciliation is not transactional, so serialize runs and simply retry after a partial failure. `validate-pool-assets` is read-only: it needs Graph reads for applications, service principals, owners and group membership, certificate reads in Key Vault, and subscription and RBAC reads in Azure, but it does not run the Owner preflight or repair differences. It reports any owner difference as an error; CI admission never looks at owners.
 
 ### Slot Identity Certificates
 

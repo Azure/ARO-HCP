@@ -134,7 +134,7 @@ Redeploy the templates from steps 2 and 3 when they change, for instance when a 
 
 Changing a pool's size touches resources in your subscription, and the identity containers are managed through deployment stacks that delete whatever they no longer declare. Raise capacity by provisioning first and publishing second. To lower it, follow [Changing Capacity](e2e-capacity.md#changing-capacity), which stages the reduction so that containers are not deleted while a job may still be using them.
 
-To retire a pool, stop new leases and let running jobs drain first. Then remove the slot's backing resources and grants deliberately: releasing a slot keeps its containers, mock identities and role assignments, and lowering a slot count or renaming a slot does not delete what it leaves behind. Renaming a slot changes the names of its mock identities, which orphans the old ones. Do not delete an identity or certificate while a lease still depends on it.
+To retire a pool, stop new leases and let running jobs drain first. Then remove the slot's backing resources and grants deliberately: releasing a slot keeps its containers, mock identities and role assignments. Container deletion follows the deployment-stack behavior described above; lowering a slot count or renaming a slot does not remove the mock applications, service principals, certificates or their grants. Renaming a slot changes the names of its mock identities, which orphans the old ones. Do not delete an identity or certificate while a lease still depends on it.
 
 ## See Also
 
