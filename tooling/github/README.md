@@ -112,6 +112,17 @@ already-seen baseline, not additional observation targets. Observation does not
 prove that this comment caused the run or that the run passed.
 `indeterminate` requires reconciliation, not blind retries.
 
+Each action collects one complete eligibility snapshot. Observation reads only PR
+state for hold release, or head-bound statuses/checks with PR identity bookends
+for retests; it does not repeatedly fetch comments, commits and label history.
+
+Retest comments retain a bounded, versioned record of their original targets and
+already-seen runs. Calling `Retest` again reconciles the existing request without
+posting another comment and restores that observation baseline, so a targeted run
+that started before a process restart can still be observed. Edited or malformed
+records fail closed. Older comments without baseline metadata retain their
+consumed budget but cannot prove that a run already started before resumption.
+
 When adopting this API, a consumer must reconcile its existing recovery markers
 and cooldown rules before enabling writes. A new namespace is not permission to
 reset an existing retry budget.

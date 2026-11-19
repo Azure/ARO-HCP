@@ -16,6 +16,8 @@ package prow_test
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -40,10 +42,14 @@ const (
 type source struct {
 	snapshot     github.Snapshot
 	reads        int
+	pullReads    int
+	ciReads      int
 	writes       int
 	bodies       []string
 	keys         []string
 	onRead       func(*source)
+	onPull       func(*source)
+	onCI         func(*source)
 	onPost       func(*source)
 	readErr      error
 	postErr      error
@@ -59,6 +65,28 @@ func (s *source) Snapshot(ctx context.Context, number int, expectedHead string) 
 		s.onRead(s)
 	}
 	return s.snapshot, s.readErr
+}
+
+func (s *source) PullRequest(ctx context.Context, number int) (github.PullRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return github.PullRequest{}, err
+	}
+	s.pullReads++
+	if s.onPull != nil {
+		s.onPull(s)
+	}
+	return s.snapshot.Pull, s.readErr
+}
+
+func (s *source) CI(ctx context.Context, expectedHead string) (github.CommitCI, error) {
+	if err := ctx.Err(); err != nil {
+		return github.CommitCI{}, err
+	}
+	s.ciReads++
+	if s.onCI != nil {
+		s.onCI(s)
+	}
+	return github.CommitCI{Statuses: s.snapshot.Statuses, Checks: s.snapshot.Checks}, s.readErr
 }
 
 func (s *source) PostComment(ctx context.Context, number int, expectedHead, key, body string) (github.Receipt, error) {
@@ -182,8 +210,8 @@ func TestReleaseRequestIsNotObservation(t *testing.T) {
 			}
 			c := client(t, s)
 			result, err := c.ReleaseHold(context.Background(), holdRequest())
-			if err != nil || result.Receipt.Outcome != "requested" || s.writes != 1 || s.reads != 2 || !strings.HasPrefix(s.bodies[0], "/hold cancel\n\n") {
-				t.Fatalf("request result=%+v err=%v reads=%d writes=%d", result, err, s.reads, s.writes)
+			if err != nil || result.Receipt.Outcome != "requested" || s.writes != 1 || !strings.HasPrefix(s.bodies[0], "/hold cancel\n\n") {
+				t.Fatalf("request result=%+v err=%v writes=%d", result, err, s.writes)
 			}
 			s.snapshot.Pull.Labels = nil
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -283,7 +311,7 @@ func TestRecoveryBudgetAndNamespaces(t *testing.T) {
 	s := failing()
 	c := client(t, s)
 	first, err := c.Retest(context.Background(), retestRequest())
-	if err != nil || first.Receipt.Outcome != "requested" || s.bodies[0] != "/retest-required\n\nReason: "+reason+"\nFailure: "+failureURL+"\nComparison: "+comparisonURL {
+	if err != nil || first.Receipt.Outcome != "requested" || !strings.HasPrefix(s.bodies[0], "/retest-required\n\nReason: "+reason+"\nFailure: "+failureURL+"\nComparison: "+comparisonURL+"\n\n<!-- aro-hcp-prow-recovery:") {
 		t.Fatalf("recovery result=%+v err=%v", first, err)
 	}
 	request := retestRequest()
@@ -334,12 +362,16 @@ func TestObservationNeedsNewSameJobRunNotNewStatusID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.onRead = func(s *source) {
+	poll := 0
+	s.onCI = func(s *source) {
+		poll++
 		s.snapshot.Statuses[0].ID++
-		if s.reads == 4 {
+		switch poll {
+		case 1:
+			// A new status identity alone is not a new Prow run.
+		case 2:
 			s.snapshot.Statuses[0].TargetURL = strings.Replace(newRunURL, "/e2e/", "/unit/", 1)
-		}
-		if s.reads >= 5 {
+		default:
 			s.snapshot.Statuses[0].TargetURL = newRunURL
 			s.snapshot.Statuses[0].State = "pending"
 		}
@@ -347,8 +379,8 @@ func TestObservationNeedsNewSameJobRunNotNewStatusID(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	receipt, err := c.Observe(ctx, result, time.Millisecond)
-	if err != nil || receipt.Outcome != "observed" || s.reads != 5 || s.writes != 1 {
-		t.Fatalf("new-run observation receipt=%+v err=%v reads=%d writes=%d", receipt, err, s.reads, s.writes)
+	if err != nil || receipt.Outcome != "observed" || poll < 3 || s.writes != 1 {
+		t.Fatalf("new-run observation receipt=%+v err=%v writes=%d", receipt, err, s.writes)
 	}
 }
 
@@ -370,18 +402,17 @@ func TestObservationTimeoutIsIndeterminate(t *testing.T) {
 	}
 }
 
-func TestHeadAndPolicyRacesPreventWrites(t *testing.T) {
-	for _, race := range []string{"initial head", "second read head", "new pending CI", "new human hold", "root prewrite head"} {
+func TestFreshReleaseEvidenceAndPublicationHeadGuard(t *testing.T) {
+	for _, race := range []string{"initial head", "pending CI", "human hold", "root prewrite head"} {
 		t.Run(race, func(t *testing.T) {
 			s := fixture()
 			s.onRead = func(s *source) {
-				if race == "initial head" || race == "second read head" && s.reads == 2 {
+				switch race {
+				case "initial head":
 					s.snapshot.Pull.HeadSHA = otherHead
-				}
-				if s.reads == 2 && race == "new pending CI" {
+				case "pending CI":
 					s.snapshot.Statuses[0].State = "pending"
-				}
-				if s.reads == 2 && race == "new human hold" {
+				case "human hold":
 					s.snapshot.Comments = append(s.snapshot.Comments, github.Comment{ID: 2, Author: "alice", Body: "/hold", CreatedAt: stamp, UpdatedAt: stamp})
 				}
 			}
@@ -506,20 +537,24 @@ func TestRecoveryBudgetResetsOnlyForNewHead(t *testing.T) {
 	}
 }
 
-func TestRetestSecondReadRace(t *testing.T) {
-	for _, change := range []func(*source){
-		func(s *source) { s.snapshot.Pull.HeadSHA = otherHead },
-		func(s *source) { s.snapshot.Statuses[0].State = "pending" },
-	} {
-		s := failing()
-		s.onRead = func(s *source) {
-			if s.reads == 2 {
-				change(s)
+func TestFreshRetestEvidenceAndPublicationHeadGuard(t *testing.T) {
+	for _, state := range []string{"changed head", "pending", "root prewrite head"} {
+		t.Run(state, func(t *testing.T) {
+			s := failing()
+			s.onRead = func(s *source) {
+				if state == "changed head" {
+					s.snapshot.Pull.HeadSHA = otherHead
+				} else if state == "pending" {
+					s.snapshot.Statuses[0].State = "pending"
+				}
 			}
-		}
-		if _, err := client(t, s).Retest(context.Background(), retestRequest()); err == nil || s.writes != 0 {
-			t.Fatalf("raced recovery posted: err=%v writes=%d", err, s.writes)
-		}
+			if state == "root prewrite head" {
+				s.onPost = func(s *source) { s.snapshot.Pull.HeadSHA = otherHead }
+			}
+			if _, err := client(t, s).Retest(context.Background(), retestRequest()); err == nil || s.writes != 0 {
+				t.Fatalf("raced recovery posted: err=%v writes=%d", err, s.writes)
+			}
+		})
 	}
 }
 
@@ -771,5 +806,331 @@ func TestOptionalCIDoesNotBlockRequiredRecoveryOrRelease(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestResumedObservationUsesOriginalDurableBaseline(t *testing.T) {
+	for _, mode := range []string{"new", "preexisting", "preexisting-other-context"} {
+		t.Run(mode, func(t *testing.T) {
+			s := failing()
+			preexisting := mode != "new"
+			if preexisting {
+				name := "ci/prow/e2e"
+				if mode == "preexisting-other-context" {
+					name = "previous-context"
+				}
+				s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+					ID: 2, Context: name, State: "pending", CreatedAt: "2026-11-19T11:00:00Z", TargetURL: newRunURL,
+				})
+			}
+			if _, err := client(t, s).Retest(context.Background(), retestRequest()); err != nil {
+				t.Fatal(err)
+			}
+			// The requested run is already present before this process restarts.
+			s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+				ID: 3, Context: "ci/prow/e2e", State: "pending", CreatedAt: "2026-11-19T12:01:00Z", TargetURL: newRunURL,
+			})
+			restarted := &source{snapshot: s.snapshot}
+			c := client(t, restarted)
+			result, err := c.Retest(context.Background(), retestRequest())
+			if err != nil || result.Receipt.Outcome != "duplicate" {
+				t.Fatalf("resume result=%+v err=%v", result, err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+			defer cancel()
+			receipt, err := c.Observe(ctx, result, time.Millisecond)
+			if preexisting {
+				if !errors.Is(err, context.DeadlineExceeded) || receipt.Outcome != "indeterminate" {
+					t.Fatalf("preexisting pending run proved execution: receipt=%+v err=%v", receipt, err)
+				}
+			} else if err != nil || receipt.Outcome != "observed" {
+				t.Fatalf("already-started requested run lost after restart: receipt=%+v err=%v", receipt, err)
+			}
+			if restarted.writes != 0 {
+				t.Fatalf("resuming a consumed budget posted %d requests", restarted.writes)
+			}
+		})
+	}
+}
+
+func TestResumedRequiredSetPreservesAllOriginalTargets(t *testing.T) {
+	s := failing()
+	unitFailure := strings.ReplaceAll(failureURL, "/e2e/", "/unit/")
+	s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+		ID: 2, Context: "ci/prow/unit", State: "failure", CreatedAt: stamp, TargetURL: unitFailure,
+	})
+	cfg := config()
+	cfg.RequiredChecks = append(cfg.RequiredChecks, "ci/prow/unit")
+	if _, err := clientWithConfig(t, s, cfg).Retest(context.Background(), retestRequest()); err != nil {
+		t.Fatal(err)
+	}
+	s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+		ID: 3, Context: "ci/prow/unit", State: "pending", CreatedAt: "2026-11-19T12:01:00Z",
+		TargetURL: strings.ReplaceAll(newRunURL, "/e2e/", "/unit/"),
+	})
+	restarted := &source{snapshot: s.snapshot}
+	c := clientWithConfig(t, restarted, cfg)
+	result, err := c.Retest(context.Background(), retestRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	receipt, err := c.Observe(ctx, result, time.Millisecond)
+	if err != nil || receipt.Outcome != "observed" || restarted.writes != 0 {
+		t.Fatalf("original required-set target lost: receipt=%+v err=%v writes=%d", receipt, err, restarted.writes)
+	}
+}
+
+func TestObservationUsesOnlyNarrowReads(t *testing.T) {
+	for _, action := range []string{"release", "retest"} {
+		t.Run(action, func(t *testing.T) {
+			s := failing()
+			if action == "release" {
+				s = fixture()
+			}
+			c := client(t, s)
+			var result prow.Result
+			var err error
+			if action == "release" {
+				result, err = c.ReleaseHold(context.Background(), holdRequest())
+				s.snapshot.Pull.Labels = nil
+			} else {
+				result, err = c.Retest(context.Background(), retestRequest())
+				s.snapshot.Statuses[0].TargetURL = newRunURL
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.onRead = func(*source) { t.Fatal("observation fetched a full snapshot") }
+			if action == "release" {
+				s.onCI = func(*source) { t.Fatal("hold observation fetched CI") }
+			}
+			// These malformed heavy resources must never be read during polling.
+			s.snapshot.Comments = []github.Comment{{ID: -1}}
+			s.snapshot.Commits = nil
+			s.snapshot.HoldEvents = nil
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			receipt, err := c.Observe(ctx, result, time.Millisecond)
+			if err != nil || receipt.Outcome != "observed" || s.pullReads == 0 {
+				t.Fatalf("narrow observation receipt=%+v err=%v", receipt, err)
+			}
+			if action == "retest" && (s.ciReads == 0 || s.pullReads < 2) {
+				t.Fatal("retest observation omitted CI or final proposal revalidation")
+			}
+		})
+	}
+}
+
+func TestRetestObservationRevalidatesProposalAfterCI(t *testing.T) {
+	for _, change := range []struct {
+		name string
+		edit func(*source)
+	}{
+		{"head", func(s *source) { s.snapshot.Pull.HeadSHA = otherHead }},
+		{"state", func(s *source) { s.snapshot.Pull.State = "closed" }},
+		{"merged", func(s *source) { s.snapshot.Pull.Merged = true }},
+		{"draft", func(s *source) { s.snapshot.Pull.Draft = true }},
+		{"author", func(s *source) { s.snapshot.Pull.Author = "another-author" }},
+		{"base", func(s *source) { s.snapshot.Pull.BaseRef = "another-base" }},
+		{"head ref", func(s *source) { s.snapshot.Pull.HeadRef = "another-ref" }},
+		{"check head", func(s *source) {
+			s.snapshot.Checks = []github.Check{{ID: 2, Name: "ci/prow/e2e", HeadSHA: otherHead, DetailsURL: newRunURL}}
+		}},
+		{"CI read failure", func(s *source) { s.readErr = errors.New("CI read failed") }},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			s := failing()
+			c := client(t, s)
+			result, err := c.Retest(context.Background(), retestRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.snapshot.Statuses[0].TargetURL = newRunURL
+			s.onCI = change.edit
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			receipt, err := c.Observe(ctx, result, time.Millisecond)
+			if err == nil || receipt.Outcome != "indeterminate" {
+				t.Fatalf("raced proposal proved execution: receipt=%+v err=%v", receipt, err)
+			}
+		})
+	}
+}
+
+func rewriteRecoveryMetadata(t *testing.T, body string, rewrite func(string) string) string {
+	t.Helper()
+	const prefix = "<!-- aro-hcp-prow-recovery:"
+	start := strings.Index(body, prefix)
+	if start < 0 {
+		t.Fatal("missing recovery metadata")
+	}
+	start += len(prefix)
+	end := strings.Index(body[start:], " -->") + start
+	payload, err := base64.RawURLEncoding.DecodeString(body[start:end])
+	if err != nil || !json.Valid(payload) {
+		t.Fatalf("invalid original metadata: %s, %v", payload, err)
+	}
+	return body[:start] + base64.RawURLEncoding.EncodeToString([]byte(rewrite(string(payload)))) + body[end:]
+}
+
+func TestMalformedDurableRecoveryMetadataCannotBuyAnotherAttempt(t *testing.T) {
+	for _, change := range []struct {
+		name string
+		edit func(*testing.T, string) string
+	}{
+		{"bad encoding", func(_ *testing.T, body string) string {
+			return strings.Replace(body, "<!-- aro-hcp-prow-recovery:", "<!-- aro-hcp-prow-recovery:!", 1)
+		}},
+		{"duplicate payload", func(_ *testing.T, body string) string {
+			return "<!-- aro-hcp-prow-recovery:duplicate -->\n\n" + body
+		}},
+		{"missing delimiter", func(_ *testing.T, body string) string {
+			return strings.Replace(body, "<!-- aro-hcp-prow-recovery:", "<!-- aro-hcp-prow-recovery", 1)
+		}},
+		{"wrong head", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string { return strings.Replace(payload, head, otherHead, 1) })
+		}},
+		{"unknown version", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string { return strings.Replace(payload, `"v":1`, `"v":2`, 1) })
+		}},
+		{"duplicate JSON field", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string { return strings.Replace(payload, `"v":1`, `"v":1,"v":1`, 1) })
+		}},
+		{"unknown JSON field", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string { return strings.Replace(payload, `"v":1`, `"unknown":true,"v":1`, 1) })
+		}},
+		{"missing baseline", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string {
+				return regexp.MustCompile(`"s":\[[^]]*\]`).ReplaceAllString(payload, `"s":[]`)
+			})
+		}},
+		{"wrong baseline job", func(t *testing.T, body string) string {
+			return rewriteRecoveryMetadata(t, body, func(payload string) string { return strings.Replace(payload, "/e2e/100", "/other-job/100", 1) })
+		}},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			s := failing()
+			if _, err := client(t, s).Retest(context.Background(), retestRequest()); err != nil {
+				t.Fatal(err)
+			}
+			comment := &s.snapshot.Comments[len(s.snapshot.Comments)-1]
+			comment.Body = change.edit(t, comment.Body)
+			restarted := &source{snapshot: s.snapshot}
+			if _, err := client(t, restarted).Retest(context.Background(), retestRequest()); err == nil || restarted.writes != 0 {
+				t.Fatalf("malformed metadata bought another attempt: err=%v writes=%d", err, restarted.writes)
+			}
+		})
+	}
+}
+
+func TestRecoveryMetadataExcludesUnrelatedHistoryAndBoundsPublication(t *testing.T) {
+	plain := failing()
+	if _, err := client(t, plain).Retest(context.Background(), retestRequest()); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := failing()
+	for i := range 1000 {
+		unrelated.snapshot.Statuses = append(unrelated.snapshot.Statuses, github.Status{
+			ID: 10 + i, Context: fmt.Sprintf("optional-%d", i), State: "pending", CreatedAt: stamp,
+			TargetURL: strings.ReplaceAll(newRunURL, "/e2e/", "/other-job/"),
+		})
+	}
+	if _, err := client(t, unrelated).Retest(context.Background(), retestRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if unrelated.bodies[0] != plain.bodies[0] {
+		t.Fatal("unrelated history expanded the durable baseline")
+	}
+	oversized := failing()
+	for i := range 1200 {
+		oversized.snapshot.Statuses = append(oversized.snapshot.Statuses, github.Status{
+			ID: 10 + i, Context: "ci/prow/e2e", State: "failure", CreatedAt: "2026-11-19T11:00:00Z",
+			TargetURL: strings.TrimSuffix(failureURL, "/100") + fmt.Sprintf("/%d", 1000+i),
+		})
+	}
+	if _, err := client(t, oversized).Retest(context.Background(), retestRequest()); err == nil || oversized.writes != 0 {
+		t.Fatalf("oversized request reached publication: err=%v writes=%d", err, oversized.writes)
+	}
+}
+
+func TestLegacyRecoveryConsumesBudgetWithoutInventingOriginalBaseline(t *testing.T) {
+	s := failing()
+	body := "/retest-required\n\nReason: " + reason + "\nFailure: " + failureURL + "\nComparison: " + comparisonURL
+	s.snapshot.Comments = append(s.snapshot.Comments, github.Comment{
+		ID: 101, Author: "automation[bot]", Body: body + "\n\n" + github.CommentMarker("prow/dependency/retest", head),
+		CreatedAt: stamp, UpdatedAt: stamp,
+	})
+	s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+		ID: 2, Context: "ci/prow/e2e", State: "pending", CreatedAt: "2026-11-19T12:01:00Z", TargetURL: newRunURL,
+	})
+	c := client(t, s)
+	result, err := c.Retest(context.Background(), retestRequest())
+	if err != nil || result.Receipt.Outcome != "duplicate" || s.writes != 0 {
+		t.Fatalf("legacy budget was reset: result=%+v err=%v writes=%d", result, err, s.writes)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	receipt, err := c.Observe(ctx, result, time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) || receipt.Outcome != "indeterminate" {
+		t.Fatalf("legacy history invented an original baseline: receipt=%+v err=%v", receipt, err)
+	}
+}
+
+func TestResumedObservationRequiresExactOriginalTargetTuple(t *testing.T) {
+	for _, wrong := range []string{"context", "bucket", "job"} {
+		t.Run(wrong, func(t *testing.T) {
+			s := failing()
+			if _, err := client(t, s).Retest(context.Background(), retestRequest()); err != nil {
+				t.Fatal(err)
+			}
+			next := github.Status{ID: 2, Context: "ci/prow/e2e", State: "pending", CreatedAt: "2026-11-19T12:01:00Z", TargetURL: newRunURL}
+			switch wrong {
+			case "context":
+				next.Context = "optional-context"
+			case "bucket":
+				next.TargetURL = strings.ReplaceAll(newRunURL, "/test-platform-results/", "/other-results/")
+			case "job":
+				next.TargetURL = strings.ReplaceAll(newRunURL, "/e2e/", "/other-job/")
+			}
+			s.snapshot.Statuses = append(s.snapshot.Statuses, next)
+			restarted := &source{snapshot: s.snapshot}
+			c := client(t, restarted)
+			result, err := c.Retest(context.Background(), retestRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+			defer cancel()
+			receipt, err := c.Observe(ctx, result, time.Millisecond)
+			if !errors.Is(err, context.DeadlineExceeded) || receipt.Outcome != "indeterminate" || restarted.writes != 0 {
+				t.Fatalf("wrong tuple proved execution: receipt=%+v err=%v writes=%d", receipt, err, restarted.writes)
+			}
+		})
+	}
+}
+
+func TestUntrustedRecoveryPayloadCannotSupplyObservationBaseline(t *testing.T) {
+	s := failing()
+	if _, err := client(t, s).Retest(context.Background(), retestRequest()); err != nil {
+		t.Fatal(err)
+	}
+	// A copied payload is not durable protocol history from our writer.
+	s.snapshot.Comments[len(s.snapshot.Comments)-1].Author = "alice"
+	s.snapshot.Statuses = append(s.snapshot.Statuses, github.Status{
+		ID: 2, Context: "ci/prow/e2e", State: "failure", CreatedAt: "2026-11-19T11:00:00Z", TargetURL: newRunURL,
+	})
+	restarted := &source{snapshot: s.snapshot}
+	c := client(t, restarted)
+	result, err := c.Retest(context.Background(), retestRequest())
+	if err != nil || result.Receipt.Outcome != "requested" || restarted.writes != 1 {
+		t.Fatalf("untrusted payload controlled the writer's budget: result=%+v err=%v writes=%d", result, err, restarted.writes)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	receipt, err := c.Observe(ctx, result, time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) || receipt.Outcome != "indeterminate" {
+		t.Fatalf("untrusted original baseline proved execution: receipt=%+v err=%v", receipt, err)
 	}
 }

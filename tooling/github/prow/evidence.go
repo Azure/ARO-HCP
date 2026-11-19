@@ -372,13 +372,8 @@ func (c *Client) prior(snapshot github.Snapshot, action, head string) (Result, b
 		return Result{}, false, nil
 	}
 	result := c.duplicate(snapshot, *found, action, head)
-	// On resumed observation, use the evidence available now as the baseline;
-	// do not invent the historical baseline from before this process existed.
 	result.baseline = map[string]bool{}
 	result.targets = map[string]bool{}
-	for _, run := range runs(snapshot) {
-		result.baseline[run.identity] = true
-	}
 	if action == "retest" {
 		command := commandLine.FindAllString(found.Body, -1)[0]
 		job := ""
@@ -396,9 +391,29 @@ func (c *Client) prior(snapshot github.Snapshot, action, head string) (Result, b
 				return Result{}, false, errors.New("unknown prior Prow trigger alias")
 			}
 		}
-		result.targets, err = c.priorTargets(snapshot, found.Body, job)
+		metadata, present, err := decodeRecoveryMetadata(found.Body, marker, head, job)
 		if err != nil {
 			return Result{}, false, err
+		}
+		if present {
+			result.targets, result.baseline = metadata.observation()
+		} else {
+			// Legacy comments still consume the budget. Without an original
+			// baseline, runs already visible now cannot prove execution.
+			result.targets, err = c.priorTargets(snapshot, found.Body, job)
+			if err != nil {
+				return Result{}, false, err
+			}
+			jobs := map[string]bool{}
+			for target := range result.targets {
+				_, job, _ := strings.Cut(target, "\x00")
+				jobs[job] = true
+			}
+			for _, run := range runs(snapshot) {
+				if jobs[run.job] {
+					result.baseline[run.identity] = true
+				}
+			}
 		}
 	}
 	return result, true, nil

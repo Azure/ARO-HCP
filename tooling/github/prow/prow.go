@@ -29,12 +29,14 @@ import (
 	github "github.com/Azure/ARO-HCP/tooling/github"
 )
 
-// Source supplies complete current-head evidence and guarded comment publication.
-// Snapshot must bind statuses to expectedHead and include all comment/history pages.
-// Check runs must be the latest runs for each name and App, not historical attempts.
-// PostComment must authenticate its actor, deduplicate its head-bound operation key,
-// recheck the head before writing and return an observed or duplicate comment receipt.
+// Source supplies complete action evidence, narrow observation reads and guarded
+// comment publication. Snapshot includes all comment/history pages; CI includes
+// all statuses and the latest checks per name and App, bound to the requested head.
+// PostComment authenticates its actor, deduplicates its head-bound operation key,
+// and rechecks proposal identity, state, head and comments before writing.
 type Source interface {
+	PullRequest(context.Context, int) (github.PullRequest, error)
+	CI(context.Context, string) (github.CommitCI, error)
 	Snapshot(context.Context, int, string) (github.Snapshot, error)
 	PostComment(context.Context, int, string, string, string) (github.Receipt, error)
 }
@@ -89,7 +91,7 @@ type RetestRequest struct {
 }
 
 // Result carries the request receipt and private observation baseline. Keep the
-// returned value intact when passing it to Observe; do not reconstruct it.
+// returned value intact for Observe, or call Retest again to resume from its comment.
 type Result struct {
 	Receipt  github.Receipt
 	Detail   string
@@ -146,39 +148,37 @@ func New(source Source, config Config) (*Client, error) {
 }
 
 // ReleaseHold requests cancellation only for proven bot retry-exhaustion holds
-// with trusted label provenance and positive, complete required CI. It rechecks
-// evidence before posting; this is not an atomic remote-state precondition.
+// with trusted label provenance and positive, complete required CI. One fresh
+// snapshot gates the request; publication guards are not compare-and-swap.
 func (c *Client) ReleaseHold(ctx context.Context, request HoldRequest) (Result, error) {
 	if err := validateRequest(request.Number, request.ExpectedHead, request.Reason); err != nil {
 		return Result{}, err
 	}
-	var snapshot github.Snapshot
-	for range 2 {
-		var err error
-		snapshot, err = c.snapshot(ctx, request.Number, request.ExpectedHead)
-		if err != nil {
-			return Result{}, err
-		}
-		if prior, found, err := c.prior(snapshot, "release", request.ExpectedHead); err != nil || found {
-			return prior, err
-		}
-		if !hasHold(snapshot) {
-			return c.noAction(request.Number, request.ExpectedHead, "hold label is absent"), nil
-		}
-		pending, err := c.releaseEligible(snapshot)
-		if err != nil {
-			return Result{}, err
-		}
-		if pending {
-			return c.noAction(request.Number, request.ExpectedHead, "hold cancellation is already pending"), nil
-		}
+	snapshot, err := c.snapshot(ctx, request.Number, request.ExpectedHead)
+	if err != nil {
+		return Result{}, err
+	}
+	if prior, found, err := c.prior(snapshot, "release", request.ExpectedHead); err != nil || found {
+		return prior, err
+	}
+	if !hasHold(snapshot) {
+		return c.noAction(request.Number, request.ExpectedHead, "hold label is absent"), nil
+	}
+	pending, err := c.releaseEligible(snapshot)
+	if err != nil {
+		return Result{}, err
+	}
+	if pending {
+		return c.noAction(request.Number, request.ExpectedHead, "hold cancellation is already pending"), nil
 	}
 	return c.post(ctx, request.Number, request.ExpectedHead, "release", "/hold cancel\n\nReason: "+request.Reason, snapshot, nil)
 }
 
 // Retest requests one diagnosed recovery per namespace and head, never while any
 // required CI is pending or unknown. Named-job and required-set recovery
-// consume the same budget. Failed publication is not evidence that no write occurred.
+// consume the same budget. One fresh snapshot gates the request; guarded publication
+// is not compare-and-swap. The trusted request comment preserves its original baseline.
+// Failed publication is not evidence that no write occurred.
 func (c *Client) Retest(ctx context.Context, request RetestRequest) (Result, error) {
 	if err := validateRequest(request.Number, request.ExpectedHead, request.Reason); err != nil {
 		return Result{}, err
@@ -186,21 +186,16 @@ func (c *Client) Retest(ctx context.Context, request RetestRequest) (Result, err
 	if request.Job != "" && (!namePattern.MatchString(request.Job) || c.config.JobTriggers[request.Job] == "") {
 		return Result{}, errors.New("named Prow job requires a trusted trigger mapping")
 	}
-	var snapshot github.Snapshot
-	var targets map[string]bool
-	for range 2 {
-		var err error
-		snapshot, err = c.snapshot(ctx, request.Number, request.ExpectedHead)
-		if err != nil {
-			return Result{}, err
-		}
-		if prior, found, err := c.prior(snapshot, "retest", request.ExpectedHead); err != nil || found {
-			return prior, err
-		}
-		targets, err = c.retestEligible(snapshot, request)
-		if err != nil {
-			return Result{}, err
-		}
+	snapshot, err := c.snapshot(ctx, request.Number, request.ExpectedHead)
+	if err != nil {
+		return Result{}, err
+	}
+	if prior, found, err := c.prior(snapshot, "retest", request.ExpectedHead); err != nil || found {
+		return prior, err
+	}
+	targets, err := c.retestEligible(snapshot, request)
+	if err != nil {
+		return Result{}, err
 	}
 	command := "/retest-required"
 	if request.Job != "" {
@@ -226,18 +221,38 @@ func (c *Client) Observe(ctx context.Context, result Result, interval time.Durat
 		return receipt, nil
 	}
 	for {
-		snapshot, err := c.snapshot(ctx, receipt.Number, receipt.RequestedHead)
+		pull, err := c.pull(ctx, receipt.Number, receipt.RequestedHead)
 		if err != nil {
 			receipt.Outcome = "indeterminate"
 			return receipt, err
 		}
-		receipt.ObservedHead = snapshot.Pull.HeadSHA
-		observed := result.action == "release" && !hasHold(snapshot)
+		receipt.ObservedHead = pull.HeadSHA
+		observed := result.action == "release" && !hasHold(github.Snapshot{Pull: pull})
 		if result.action == "retest" {
+			ci, err := c.source.CI(ctx, receipt.RequestedHead)
+			if err != nil {
+				receipt.Outcome = "indeterminate"
+				return receipt, err
+			}
+			snapshot := github.Snapshot{Pull: pull, Statuses: ci.Statuses, Checks: ci.Checks}
+			if err := validateChecks(snapshot); err != nil {
+				receipt.Outcome = "indeterminate"
+				return receipt, err
+			}
 			for _, run := range runs(snapshot) {
-				if result.targets[run.name+"\x00"+run.job] && !result.baseline[run.identity] {
+				target := run.name + "\x00" + run.job
+				if result.targets[target] && !result.baseline[run.identity] {
 					observed = true
 				}
+			}
+			// Revalidate identity after CI even when no new run was found.
+			final, err := c.pull(ctx, receipt.Number, receipt.RequestedHead)
+			if err != nil || !samePull(pull, final) {
+				receipt.Outcome = "indeterminate"
+				if err == nil {
+					err = errors.New("proposal identity changed during CI observation")
+				}
+				return receipt, err
 			}
 		}
 		if observed {
@@ -276,24 +291,72 @@ func (c *Client) snapshot(ctx context.Context, number int, head string) (github.
 		return github.Snapshot{}, err
 	}
 	pull := snapshot.Pull
-	if pull.Number != number || pull.HeadSHA != head || pull.State != "open" || pull.Merged || pull.Draft || pull.BaseRepo != c.config.Repository || pull.HeadRepo != c.config.Repository {
-		return github.Snapshot{}, errors.New("proposal identity, current head or open non-draft same-repository state changed")
+	if err := c.validatePull(pull, number, head); err != nil {
+		return github.Snapshot{}, err
 	}
-	for _, check := range snapshot.Checks {
-		if check.HeadSHA != head {
-			return github.Snapshot{}, errors.New("check evidence is for a different head")
-		}
+	if err := validateChecks(snapshot); err != nil {
+		return github.Snapshot{}, err
 	}
 	return snapshot, nil
 }
 
-// Posts a fixed operation, preserving exact eligible targets and all baseline runs.
-func (c *Client) post(ctx context.Context, number int, head, action, body string, snapshot github.Snapshot, targets map[string]bool) (Result, error) {
-	receipt, err := c.source.PostComment(ctx, number, head, c.key(action), body)
-	result := Result{Receipt: receipt, client: c, action: action, targets: targets, baseline: map[string]bool{}}
-	for _, run := range runs(snapshot) {
-		result.baseline[run.identity] = true
+// Reads only proposal state and validates its current maintenance identity.
+func (c *Client) pull(ctx context.Context, number int, head string) (github.PullRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return github.PullRequest{}, err
 	}
+	pull, err := c.source.PullRequest(ctx, number)
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	return pull, c.validatePull(pull, number, head)
+}
+
+// Validates the open, non-draft same-repository proposal and requested head.
+func (c *Client) validatePull(pull github.PullRequest, number int, head string) error {
+	if pull.Number != number || pull.HeadSHA != head || pull.State != "open" || pull.Merged || pull.Draft || pull.BaseRepo != c.config.Repository || pull.HeadRepo != c.config.Repository {
+		return errors.New("proposal identity, current head or open non-draft same-repository state changed")
+	}
+	return nil
+}
+
+// Compares stable proposal identity across the CI read, excluding mutable content.
+func samePull(before, after github.PullRequest) bool {
+	return before.Number == after.Number && before.Author == after.Author &&
+		before.HeadSHA == after.HeadSHA && before.HeadRef == after.HeadRef && before.HeadRepo == after.HeadRepo &&
+		before.BaseRef == after.BaseRef && before.BaseRepo == after.BaseRepo &&
+		before.State == after.State && before.Merged == after.Merged && before.Draft == after.Draft
+}
+
+// Rejects check evidence that is not bound to the requested current head.
+func validateChecks(snapshot github.Snapshot) error {
+	for _, check := range snapshot.Checks {
+		if check.HeadSHA != snapshot.Pull.HeadSHA {
+			return errors.New("check evidence is for a different head")
+		}
+	}
+	return nil
+}
+
+// Posts a fixed operation with durable exact-target observation metadata.
+func (c *Client) post(ctx context.Context, number int, head, action, body string, snapshot github.Snapshot, targets map[string]bool) (Result, error) {
+	result := Result{client: c, action: action}
+	if action == "retest" {
+		metadata := newRecoveryMetadata(head, snapshot, targets)
+		encoded, err := encodeRecoveryMetadata(metadata)
+		if err != nil {
+			return Result{}, err
+		}
+		body += "\n\n" + recoveryPrefix + encoded + " -->"
+		result.targets, result.baseline = metadata.observation()
+	}
+	// GitHub's character limit is conservatively enforced in bytes, including
+	// the one root operation marker that PostComment appends.
+	if len(body)+len("\n\n")+len(github.CommentMarker(c.key(action), head)) > maxCommentBytes {
+		return Result{}, errors.New("request comment exceeds GitHub's size limit")
+	}
+	receipt, err := c.source.PostComment(ctx, number, head, c.key(action), body)
+	result.Receipt = receipt
 	if err != nil {
 		result.Receipt.Number = number
 		result.Receipt.RequestedHead = head
