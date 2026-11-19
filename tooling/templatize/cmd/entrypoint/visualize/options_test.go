@@ -15,8 +15,11 @@
 package visualize
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func TestParseISO8601Duration(t *testing.T) {
@@ -50,5 +53,47 @@ func TestParseISO8601Duration(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", test.expected, got)
 			}
 		})
+	}
+}
+
+func TestOperationsWithoutTimingAreSkipped(t *testing.T) {
+	op := pipeline.Operation{
+		OperationType:  "Create",
+		StartTimestamp: "2025-01-01T00:00:00Z",
+		Duration:       "PT1M",
+		Children: []pipeline.Operation{
+			{OperationType: "Create", StartTimestamp: "2025-01-01T00:00:10Z", Duration: "PT10S"},
+			// ARM omitted the timing; the operation is kept in the timing file for its diagnostics only.
+			{ProvisioningState: "Failed", Error: &pipeline.OperationError{Code: "SyntheticCause"}},
+			// An untimed nested deployment must not hide its timed operations.
+			{Children: []pipeline.Operation{{OperationType: "Read", StartTimestamp: "2025-01-01T00:00:20Z", Duration: "PT1S"}}},
+		},
+	}
+	parsed, err := operationFor(op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var types []string
+	for _, child := range parsed.Children {
+		types = append(types, child.OperationType)
+	}
+	if strings.Join(types, ",") != "Create,Read" {
+		t.Fatalf("expected the untimed operation skipped and the untimed deployment's timed child lifted, got %v", types)
+	}
+	// At the top level and through several untimed levels, timed operations are lifted in order.
+	top, err := operationsFor([]pipeline.Operation{
+		{Children: []pipeline.Operation{{Children: []pipeline.Operation{{OperationType: "Deep", StartTimestamp: "2025-01-01T00:00:00Z", Duration: "PT1S"}}}}},
+		{},
+		{OperationType: "Top", StartTimestamp: "2025-01-01T00:00:01Z", Duration: "PT1S"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	types = nil
+	for _, op := range top {
+		types = append(types, op.OperationType)
+	}
+	if strings.Join(types, ",") != "Deep,Top" {
+		t.Fatalf("expected timed operations lifted from untimed ancestors at the top level, got %v", types)
 	}
 }

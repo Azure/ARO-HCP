@@ -276,7 +276,8 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	}
 	if pollErr != nil {
-		return nil, details, fmt.Errorf("failed to poll deployment: %w", pollErr)
+		// details lists the deployment's operations, which carry the per-resource errors behind a DeploymentFailed.
+		return nil, details, fmt.Errorf("failed to poll deployment %s: %w", deploymentName, pollErr)
 	}
 
 	return output, details, commit(output)
@@ -324,23 +325,28 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	remainingTime := time.Duration(timeoutSeconds) * time.Second
 	for firstLookup := true; remainingTime > 0; firstLookup = false {
 		if err != nil {
-			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
+			// The deployment could not be read, so listing its operations would fail too and only add noise.
+			return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment %s: %w", deploymentName, err)
 		}
 		if output == nil || output.ProvisioningState == nil {
-			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
+			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment %s: found a nil provisioning state", deploymentName)
 		}
 		switch planExistingDeployment(*output.ProvisioningState, firstLookup, allowRedeploy) {
 		case reuseExisting:
 			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
 			return true, armOutputFromOutputs(output.Outputs), details, nil
 		case redeployOverExisting:
-			logger.Info("Redeploying over a pre-existing deployment with identical inputs that had already ended unsuccessfully.", "provisioningState", *output.ProvisioningState)
+			logger.Info("Redeploying over a pre-existing deployment with identical inputs that had already ended unsuccessfully.", "provisioningState", *output.ProvisioningState, "lastModified", formatTimestamp(output.Timestamp), "correlationID", correlationID(output))
 			return false, nil, nil, nil
 		case failOnExisting:
+			// The deployment name is a digest of the step inputs, so this deployment may be left over from an
+			// earlier run (or an earlier attempt) with identical inputs. Say when it ran, so that is recognizable.
+			desc := describeExistingDeployment(deploymentName, output)
+			logger.Info("Found pre-existing deployment in a terminal unsuccessful state.", "provisioningState", *output.ProvisioningState, "lastModified", formatTimestamp(output.Timestamp), "correlationID", correlationID(output))
 			if output.Error != nil {
-				return false, nil, details, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+				return false, nil, details, fmt.Errorf("pre-existing deployment %s failed: %w", desc, createError(*output.Error))
 			}
-			return false, nil, details, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
+			return false, nil, details, fmt.Errorf("pre-existing deployment %s: provisioning state is %s", desc, *output.ProvisioningState)
 		case waitForExisting:
 		}
 		select {
@@ -394,6 +400,24 @@ func planExistingDeployment(state armresources.ProvisioningState, firstLookup, a
 	default:
 		return waitForExisting
 	}
+}
+
+func describeExistingDeployment(deploymentName string, props *armresources.DeploymentPropertiesExtended) string {
+	return fmt.Sprintf("%s (state %s, last modified %s)", deploymentName, string(*props.ProvisioningState), formatTimestamp(props.Timestamp))
+}
+
+func correlationID(props *armresources.DeploymentPropertiesExtended) string {
+	if props.CorrelationID == nil {
+		return ""
+	}
+	return *props.CorrelationID
+}
+
+func formatTimestamp(t *time.Time) string {
+	if t == nil {
+		return "unknown"
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func isDeploymentActiveError(err error) bool {

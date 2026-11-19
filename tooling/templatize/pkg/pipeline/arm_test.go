@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -51,22 +52,24 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 		status    int
 		lookupErr error
 		timeout   bool
-		errorText string
+		errorText string // regular expression matching the whole error, after the caller's prefix
 		noDetails bool
 		// redeployed is set for states the caller redeploys over when it finds them on the first lookup (see
 		// TestStaleFailedDeployment); only the helper, without redeploying allowed, and the 409 path fail on them.
 		redeployed bool
+		// lookupFailed means the deployment could not be read, so no operations are fetched either.
+		lookupFailed bool
 	}{
-		{name: "failed", body: `{"properties":{"provisioningState":"Failed","error":{"code":"SyntheticFailure","message":"synthetic failure"}}}`, errorText: `pre-existing deployment failed: {"code":"SyntheticFailure","message":"synthetic failure"}`, redeployed: true},
-		{name: "canceled", body: `{"properties":{"provisioningState":"Canceled"}}`, errorText: "pre-existing deployment: provisioning state is Canceled", redeployed: true},
-		{name: "deleted", body: `{"properties":{"provisioningState":"Deleted"}}`, errorText: "pre-existing deployment: provisioning state is Deleted"},
-		{name: "deleting", body: `{"properties":{"provisioningState":"Deleting"}}`, errorText: "pre-existing deployment: provisioning state is Deleting"},
-		{name: "unspecified", body: `{"properties":{"provisioningState":"NotSpecified"}}`, errorText: "pre-existing deployment: provisioning state is NotSpecified"},
-		{name: "missing state", body: `{"properties":{}}`, errorText: "failed to look up pre-existing deployment: found a nil provisioning state"},
-		{name: "missing properties", body: `{}`, errorText: "failed to look up pre-existing deployment: found a nil provisioning state"},
-		{name: "lookup error", lookupErr: lookupErr, errorText: "failed to look up pre-existing deployment: synthetic lookup failure"},
-		{name: "canceled lookup", lookupErr: context.Canceled, errorText: "failed to look up pre-existing deployment: context canceled"},
-		{name: "forbidden", status: http.StatusForbidden, body: `{"error":{"code":"AuthorizationFailed","message":"synthetic denial"}}`, errorText: "failed to look up pre-existing deployment:"},
+		{name: "failed", body: `{"properties":{"provisioningState":"Failed","timestamp":"2026-11-18T18:37:25Z","error":{"code":"SyntheticFailure","message":"synthetic failure"}}}`, errorText: `pre-existing deployment \S+ \(state Failed, last modified 2026-11-18T18:37:25Z\) failed: \{"code":"SyntheticFailure","message":"synthetic failure"\}`, redeployed: true},
+		{name: "canceled", body: `{"properties":{"provisioningState":"Canceled"}}`, errorText: `pre-existing deployment \S+ \(state Canceled, last modified unknown\): provisioning state is Canceled`, redeployed: true},
+		{name: "deleted", body: `{"properties":{"provisioningState":"Deleted"}}`, errorText: `pre-existing deployment \S+ \(state Deleted, last modified unknown\): provisioning state is Deleted`},
+		{name: "deleting", body: `{"properties":{"provisioningState":"Deleting"}}`, errorText: `pre-existing deployment \S+ \(state Deleting, last modified unknown\): provisioning state is Deleting`},
+		{name: "unspecified", body: `{"properties":{"provisioningState":"NotSpecified"}}`, errorText: `pre-existing deployment \S+ \(state NotSpecified, last modified unknown\): provisioning state is NotSpecified`},
+		{name: "missing state", body: `{"properties":{}}`, errorText: `failed to look up pre-existing deployment \S+: found a nil provisioning state`},
+		{name: "missing properties", body: `{}`, errorText: `failed to look up pre-existing deployment \S+: found a nil provisioning state`},
+		{name: "lookup error", lookupErr: lookupErr, errorText: `failed to look up pre-existing deployment \S+: synthetic lookup failure`, lookupFailed: true},
+		{name: "canceled lookup", lookupErr: context.Canceled, errorText: `failed to look up pre-existing deployment \S+: context canceled`, lookupFailed: true},
+		{name: "forbidden", status: http.StatusForbidden, body: `{"error":{"code":"AuthorizationFailed","message":"synthetic denial"}}`, errorText: `failed to look up pre-existing deployment \S+: .*AuthorizationFailed.*`, lookupFailed: true},
 		{name: "timeout", body: `{"properties":{"provisioningState":"Running"}}`, timeout: true, errorText: "timed out waiting for pre-existing deployment to finish"},
 		{name: "not found", status: http.StatusNotFound, body: `{"error":{"code":"DeploymentNotFound"}}`, noDetails: true},
 		{name: "succeeded", body: `{"properties":{"provisioningState":"Succeeded","outputs":{"result":{"type":"string","value":"synthetic output"}}}}`},
@@ -164,13 +167,11 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 					if test.errorText != "" {
 						require.Error(t, err)
 						assert.Nil(t, output)
+						assert.Regexp(t, "(?s)^"+regexp.QuoteMeta(prefix)+test.errorText+"$", err.Error())
 						if test.status == http.StatusForbidden {
-							assert.Contains(t, err.Error(), prefix+test.errorText)
 							var responseErr *azcore.ResponseError
 							require.ErrorAs(t, err, &responseErr)
 							assert.Equal(t, http.StatusForbidden, responseErr.StatusCode)
-						} else {
-							assert.EqualError(t, err, prefix+test.errorText)
 						}
 						if test.lookupErr != nil {
 							assert.ErrorIs(t, err, test.lookupErr)
@@ -181,8 +182,9 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 							assert.Equal(t, ArmOutput{"result": map[string]any{"type": "string", "value": "synthetic output"}}, output)
 						}
 					}
-					if test.noDetails {
+					if test.noDetails || test.lookupFailed {
 						assert.Nil(t, details)
+						assert.Zero(t, operations)
 					} else {
 						require.NotNil(t, details)
 						result, detailsErr := details(ctx)

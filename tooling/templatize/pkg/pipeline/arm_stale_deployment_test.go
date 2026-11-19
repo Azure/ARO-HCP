@@ -93,15 +93,15 @@ func TestStaleFailedDeployment(t *testing.T) {
 			redeploys bool
 			// redeployFails makes the redeployment itself fail.
 			redeployFails bool
-			errorText     string
+			errorText     string // regular expression matching the whole error
 		}{
 			{name: "failed earlier", existing: failed, redeploys: true},
 			// The redeployment's operations must stay available for diagnostics when it fails too.
 			{name: "failed earlier, redeployment fails", existing: failed, redeployFails: true},
 			// A deployment that fails while we wait for it is a concurrent run of these inputs failing now.
-			{name: "failed while waiting", existing: running, later: failed, errorText: `failed to poll previously-existing deployment: pre-existing deployment failed: {"code":"DeploymentFailed","message":"synthetic earlier failure"}`},
+			{name: "failed while waiting", existing: running, later: failed, errorText: `failed to poll previously-existing deployment: pre-existing deployment \S+ \(state Failed, last modified unknown\) failed: \{"code":"DeploymentFailed","message":"synthetic earlier failure"\}`},
 			// The concurrent deployment we were told about failed: that is this run failing, not a leftover.
-			{name: "concurrent failure", conflict: true, existing: failed, errorText: `failed to poll concurrent deployment: pre-existing deployment failed: {"code":"DeploymentFailed","message":"synthetic earlier failure"}`},
+			{name: "concurrent failure", conflict: true, existing: failed, errorText: `failed to poll concurrent deployment: pre-existing deployment \S+ \(state Failed, last modified unknown\) failed: \{"code":"DeploymentFailed","message":"synthetic earlier failure"\}`},
 		} {
 			t.Run(scope+"/"+testCase.name, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(logr.NewContext(t.Context(), logr.Discard()), 10*time.Second)
@@ -190,7 +190,7 @@ func TestStaleFailedDeployment(t *testing.T) {
 					return
 				}
 				if testCase.redeployFails {
-					require.ErrorContains(t, err, "failed to poll deployment:")
+					require.ErrorContains(t, err, "failed to poll deployment ")
 					assert.ErrorContains(t, err, "SyntheticRedeployFailure")
 					assert.Nil(t, output)
 					assert.Equal(t, 1, puts)
@@ -204,7 +204,8 @@ func TestStaleFailedDeployment(t *testing.T) {
 					assert.Len(t, result.ARM.Operations, 2)
 					return
 				}
-				require.EqualError(t, err, testCase.errorText)
+				require.Error(t, err)
+				assert.Regexp(t, "^"+testCase.errorText+"$", err.Error())
 				assert.Nil(t, output)
 				assert.Empty(t, cached)
 				if testCase.conflict {

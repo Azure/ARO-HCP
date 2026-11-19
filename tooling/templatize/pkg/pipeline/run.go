@@ -675,9 +675,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	// - if any consumer hits an error, the context is cancelled
 	// - if the parent context is cancelled
 	consumerWg := &sync.WaitGroup{}
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
+	// The cancellation cause records which step stopped the run, so that steps it preempts (e.g. a shell command
+	// that is killed mid-flight) report why instead of a bare "signal: killed" or "context canceled".
+	consumerCtx, consumerCancel := context.WithCancelCause(ctx)
 	defer func() {
-		consumerCancel()
+		consumerCancel(errors.New("pipeline run finished"))
 	}()
 	maxConcurrency := options.Concurrency
 	if maxConcurrency == 0 {
@@ -713,14 +715,16 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Unlock()
 					stepDef, stepExists := executionGraph.GetStep(step)
 					if !stepExists {
-						errs <- fmt.Errorf("could not find step definition for %v", step)
-						consumerCancel()
+						err := fmt.Errorf("could not find step definition for %v", step)
+						errs <- err
+						consumerCancel(err)
 						return
 					}
 					stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(stepDef)
 					if stepTimeoutErr != nil {
-						errs <- fmt.Errorf("step %v: %w", step, stepTimeoutErr)
-						consumerCancel()
+						err := fmt.Errorf("step %v: %w", step, stepTimeoutErr)
+						errs <- err
+						consumerCancel(err)
 						return
 					}
 					stepTimeoutCause := errors.New("exceeded the single-step timeout for sanity")
@@ -732,7 +736,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					stepCtxCancel()
 					if details != nil {
 						consumerWg.Add(1)
-						go func(step graph.Identifier, logger logr.Logger) {
+						go func(step graph.Identifier, logger logr.Logger, stepFailed bool) {
 							defer utilruntime.HandleCrash()
 							defer consumerWg.Done()
 							logger.V(4).Info("Fetching execution details.")
@@ -745,6 +749,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							if err != nil {
 								logger.Error(err, "error fetching execution details")
 							}
+							if stepFailed {
+								// operations can fail in a deployment that succeeds overall; those aren't worth surfacing
+								logFailedARMOperations(logger, d)
+							}
 							logger.V(4).Info("Finished fetching execution details.")
 							state.Lock()
 							state.Details[step] = d
@@ -752,7 +760,14 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							// diagnostics (and their errors) end up in the JUnit output.
 							state.Logging[step] = stepLogs.Snapshot()
 							state.Unlock()
-						}(step, stepLogger)
+						}(step, stepLogger, err != nil)
+					}
+					preempted := consumerCtx.Err() != nil
+					// Only attribute the failure to a sibling when it was us, not the caller, who cancelled the run.
+					if err != nil && preempted && ctx.Err() == nil {
+						// Another step failed and cancelled the run, which most likely killed this one; say so, or the
+						// failure looks like its own. Steps failing independently at the same time can't be told apart.
+						err = fmt.Errorf("%w (run cancelled: %v)", err, context.Cause(consumerCtx))
 					}
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -763,7 +778,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Logging[step] = stepLogs.Snapshot()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
 					state.Timing[step].RunCount = runCount
-					if consumerCtx.Err() != nil {
+					if preempted {
 						state.Timing[step].Preempted = true
 					}
 					s := "succeeded"
@@ -774,7 +789,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Unlock()
 					if err != nil {
 						errs <- err
-						consumerCancel()
+						consumerCancel(fmt.Errorf("step %s failed", step))
 						return
 					}
 					checkForStepsToExecute <- struct{}{}
@@ -991,6 +1006,33 @@ func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
 		}
 	}
 	return false
+}
+
+// logFailedARMOperations logs the operations that failed in an ARM deployment, with their nested errors. ARM only
+// reports a generic DeploymentFailed for the deployment itself, so without this the actual cause (e.g. a resource
+// provider rejecting a request) is not visible in CI output.
+func logFailedARMOperations(logger logr.Logger, details *ExecutionDetails) {
+	if details == nil || details.ARM == nil {
+		return
+	}
+	for _, failed := range FailedOperations(details.ARM.Operations) {
+		op := failed.Operation
+		values := []any{
+			"deploymentPath", strings.Join(failed.DeploymentPath, "/"),
+			"operationType", op.OperationType,
+			"provisioningState", op.ProvisioningState,
+			"statusCode", op.StatusCode,
+			"startTimestamp", op.StartTimestamp,
+			"duration", op.Duration,
+		}
+		if op.Resource != nil {
+			values = append(values, "resourceType", op.Resource.ResourceType, "resourceGroup", op.Resource.ResourceGroup, "resourceName", op.Resource.Name)
+		}
+		if op.Error != nil {
+			values = append(values, "errorCodes", strings.Join(op.Error.innermostCodes(), ","), "error", op.Error.String())
+		}
+		logger.Info("ARM deployment operation failed.", values...)
+	}
 }
 
 // lockedBuffer is a bytes.Buffer that is safe to write to from the step goroutine and the execution-details
