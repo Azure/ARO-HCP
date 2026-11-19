@@ -347,6 +347,57 @@ capacity and quota formulas.
 - `apply-pool-assets` reconciles managed backing resources.
 - `validate-pool-assets` validates declared backing resources, including
   unmanaged resources when explicitly selected.
+- `reconcile-external-subscription` prepares one externally owned DEV subscription,
+  selected by its catalog display name, across all of its `dev` and `dev-xs`
+  pools: provider registration, the two subscription RBAC deployments, the E2E
+  identity containers (the `e2e_identities` apply path) and the slot mock grants.
+  It never creates Entra applications, certificates or owners; for an unmanaged
+  pool that is `apply-pool-assets --asset mock_identities`, which creates the
+  identities only and takes the subscription ID from `EXTERNAL_SUBSCRIPTION_ID`,
+  because that operator cannot read the subscription. It binds flags to raw options like
+  `acquire` and `release`: `Validate`, then `Complete(ctx)`, then `Run(ctx)`.
+  The owner-facing procedure is
+  [`External Subscription Management`](../../../../docs/ci/external-subscription-management.md).
+
+### Subscription preparation package
+
+`slot-manager/subscriptions` holds the subscription-level tasks, independent of
+the catalog: they take explicit subscription IDs and plain parameters.
+
+- `RegisterProviders` registers providers on many subscriptions by running
+  `ARO-Tools/tools/registration`, the implementation behind the pipelines'
+  `ProviderFeatureRegistration` step, once per subscription and reporting all
+  failures together. Pipeline steps cannot loop, so the multi-subscription loop
+  is what a replacement for `e2e-register-providers.sh` needs. The registration
+  tool builds its own credential from `AZURE_TOKEN_CREDENTIALS`, unlike the
+  rest of this package.
+- `Deployer.Deploy` runs incremental subscription-scope deployments.
+  `CIBotRBAC` and `MockRBAC` build them from the compiled canonical
+  `ci-bot-rbac-subscription.bicep` and
+  `e2e-subscription-rbac-assignment-subscription.bicep`, the same per-subscription
+  modules that `ci-bot-rbac.bicep` and `mock-identity-rbac.bicep` use in dev-ci,
+  so there is one RBAC policy. `ResolveServicePrincipalID` replaces the Bicep
+  Graph lookup.
+- `mockidentities.Handler.ReconcileSubscriptionRoles` takes a pool request, like
+  the other asset handlers, and grants or verifies the slot mock identities'
+  subscription roles without Graph or vault writes.
+
+Ownership of mock identities follows the pool's `e2e_identities.provisioning`.
+For a managed pool `apply-pool-assets` creates the identities and grants their
+roles. For an unmanaged pool the ARO-HCP operator has no rights on the
+subscription, so apply and validate handle the identities only, and the
+subscription's owner grants the roles through `reconcile-external-subscription`.
+Neither path checks for Owner up front; a missing right surfaces as the Azure
+authorization error. Lease admission still verifies roles for every pool.
+
+This is intended to be adopted by the dev-ci privileged rollout in place of
+`e2e-register-providers.sh` and the Graph-extension Bicep wrappers, either through
+thin `slot-manager` subcommands over this package or a smaller binary importing
+it. Adoption still has to settle: retries for ARM `UnknownFailure` and Graph
+replication delay (`automatedRetry` in the pipelines today), `ci.dev.e2eSubscriptions`
+versus infrastructure subscriptions (`CIBotOptions`), the optional Clusters
+Service ARM helper principal (`MockPrincipals`), and running many subscriptions
+inside the 30 minute Shell step limit.
 
 All derive capacity from complete catalog demand. See
 [`docs/ci/slot-assets.md`](../../../../docs/ci/slot-assets.md#managing-slot-assets)

@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -37,8 +38,12 @@ import (
 
 const VaultURL = "https://aro-hcp-dev-svc-kv.vault.azure.net"
 
+// ExternalSubscriptionIDEnv carries the ID of an externally owned subscription
+// for the pool commands. The ARO-HCP operator cannot see that subscription, so
+// its owner provides the ID instead of the operator resolving the display name.
+const ExternalSubscriptionIDEnv = "EXTERNAL_SUBSCRIPTION_ID"
+
 type identityStore interface {
-	AuthorizeOwner(context.Context, string) error
 	Resolve(context.Context, string, bool) (leaseenv.MockPrincipal, error)
 	Certificate(context.Context, string, bool) error
 	Roles(context.Context, string, leaseenv.MockIdentityBundlePayload, bool) error
@@ -54,10 +59,33 @@ type Handler struct {
 	owners func() (ownerSettings, error)
 	// checkOwnerGroup rejects an owner list that drifted from the Entra group.
 	checkOwnerGroup func(context.Context, azcore.TokenCredential, ownerSettings) error
+	// azure supplies the Azure credential and the subscription name resolver for
+	// the pool and subscription role commands.
+	azure func() (azcore.TokenCredential, subscriptionIDResolver, error)
+	// externalSubscriptionID supplies the ID of the externally owned subscription
+	// for the pool commands; the ARO-HCP operator cannot read that subscription.
+	externalSubscriptionID func() string
 }
 
+type subscriptionIDResolver func(ctx context.Context, name string) (string, error)
+
 func NewHandler() *Handler {
-	return &Handler{newStore: newAzureStore, owners: ownerSettingsFromEnv, checkOwnerGroup: checkOwnerGroup}
+	return &Handler{newStore: newAzureStore, owners: ownerSettingsFromEnv, checkOwnerGroup: checkOwnerGroup, azure: azureDependencies, externalSubscriptionID: func() string { return os.Getenv(ExternalSubscriptionIDEnv) }}
+}
+
+func azureDependencies() (azcore.TokenCredential, subscriptionIDResolver, error) {
+	testContext := framework.NewTestContext()
+	credential, err := testContext.AzureCredential()
+	if err != nil {
+		return nil, nil, err
+	}
+	factory, err := testContext.GetARMSubscriptionsClientFactory()
+	if err != nil {
+		return nil, nil, err
+	}
+	return credential, func(ctx context.Context, name string) (string, error) {
+		return framework.GetSubscriptionID(ctx, factory.NewClient(), name)
+	}, nil
 }
 
 func checkOwnerGroup(ctx context.Context, credential azcore.TokenCredential, settings ownerSettings) error {
@@ -83,18 +111,67 @@ func IdentityNames(slot slots.ExpandedSlot) []string {
 	return []string{prefix + "-msi", prefix + "-backend", prefix + "-cs"}
 }
 
-func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+func validateSlot(slot slots.ExpandedSlot) error {
 	if slot.MockIdentityConfig == nil || slot.MockIdentityConfig.Allocation != slots.AllocationDedicated {
-		return nil, fmt.Errorf("mock identities require a dedicated slot declaration")
+		return fmt.Errorf("mock identities require a dedicated slot declaration")
 	}
 	if _, err := uuid.Parse(slot.Subscriptions.E2E.ID); err != nil || slot.ResourceName == "" {
-		return nil, fmt.Errorf("mock identities require a resolved customer subscription and slot")
+		return fmt.Errorf("mock identities require a resolved customer subscription and slot")
 	}
-	if apply {
-		if err := store.AuthorizeOwner(ctx, slot.Subscriptions.E2E.ID); err != nil {
-			return nil, err
+	return nil
+}
+
+// reconcile creates or verifies the slot's identities and their roles on the
+// slot's customer subscription.
+func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+	bundle, err := reconcileIdentities(ctx, store, slot, apply)
+	if err != nil {
+		return nil, err
+	}
+	if err := reconcileSubscriptionRoles(ctx, store, slot, bundle, apply); err != nil {
+		return nil, err
+	}
+	return bundle, nil
+}
+
+// reconcileSubscriptionRoles grants or verifies the bundle's roles on the
+// slot's customer subscription.
+func reconcileSubscriptionRoles(ctx context.Context, store identityStore, slot slots.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, apply bool) error {
+	return store.Roles(ctx, slot.Subscriptions.E2E.ID, *bundle, apply)
+}
+
+// forEachSlot calls fn for every slot of the pools with the slot's customer
+// subscription ID resolved. It is the walk shared by pool reconciliation and
+// the subscription role reconciliation.
+func forEachSlot(ctx context.Context, resolveSubscriptionID subscriptionIDResolver, environment string, pools []slots.Pool, fn func(slots.Pool, slots.ExpandedSlot) error) error {
+	for _, pool := range pools {
+		subscriptionID, err := resolveSubscriptionID(ctx, pool.Subscriptions.E2E)
+		if err != nil {
+			return fmt.Errorf("resolve subscription %q: %w", pool.Subscriptions.E2E, err)
+		}
+		for _, slot := range slots.ExpandSlotsForPool(environment, pool) {
+			slot.Subscriptions.E2E.ID = subscriptionID
+			if err := fn(pool, slot); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+// reconcileIdentities creates or verifies only the slot's Entra applications,
+// service principals and certificates. It needs no access to the subscription.
+func reconcileIdentities(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+	if err := validateSlot(slot); err != nil {
+		return nil, err
+	}
+	return resolveBundle(ctx, store, slot, apply)
+}
+
+// resolveBundle is the identity and certificate core shared by lease admission,
+// pool reconciliation and external maintenance. Authorization, roles and owner
+// mutation belong to the caller.
+func resolveBundle(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
 	bundle := &leaseenv.MockIdentityBundlePayload{SlotName: slot.ResourceName, SubscriptionID: slot.Subscriptions.E2E.ID}
 	principals := []*leaseenv.MockPrincipal{&bundle.MSI, &bundle.Backend, &bundle.ClustersService}
 	for index, name := range IdentityNames(slot) {
@@ -108,10 +185,7 @@ func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot
 		*principals[index] = principal
 	}
 	if err := bundle.Validate(); err != nil {
-		return nil, err
-	}
-	if err := store.Roles(ctx, slot.Subscriptions.E2E.ID, *bundle, apply); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validate mock identities for %s: %w", slot.ResourceName, err)
 	}
 	return bundle, nil
 }
@@ -129,7 +203,7 @@ func reconcileBundleOwners(ctx context.Context, store identityStore, slot slots.
 }
 
 func ownerRepair(slot slots.ExpandedSlot, err error) error {
-	return fmt.Errorf("mock identity bundle for %s is not ready: %w; ask the customer-subscription Owner with Entra application and certificate permissions to run: make -C test apply-pool-assets ENVIRONMENT=%s POOL=%s ASSET=mock_identities SUBSCRIPTION='%s'; CI never repairs identities or rotates credentials", slot.ResourceName, err, slot.Environment, slot.PoolName, slot.SubscriptionName)
+	return fmt.Errorf("mock identity bundle for %s is not ready: %w; ask an ARO-HCP operator with Entra application and certificate permissions to run: make -C test apply-pool-assets ENVIRONMENT=%s POOL=%s ASSET=mock_identities SUBSCRIPTION='%s'; roles on a subscription owned by another team are granted by that subscription's Owner with reconcile-external-subscription; CI never repairs identities or rotates credentials", slot.ResourceName, err, slot.Environment, slot.PoolName, slot.SubscriptionName)
 }
 
 func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequest) error {
@@ -190,6 +264,37 @@ func (handler *Handler) ValidatePools(ctx context.Context, request assets.PoolRe
 	return handler.pools(ctx, request, false)
 }
 
+// externalSubscriptionIDs maps the display name of the unmanaged pools'
+// subscription to the ID the owner supplied, so the operator never has to read
+// the subscription. Slot identity names are derived from that ID. A wrong ID
+// shows up as missing identities when the owner runs reconcile-external-subscription.
+func (handler *Handler) externalSubscriptionIDs(pools []slots.Pool) (map[string]string, error) {
+	names := map[string]bool{}
+	for _, pool := range pools {
+		if pool.IsUnmanaged() {
+			names[pool.Subscriptions.E2E] = true
+		}
+	}
+	switch {
+	case len(names) == 0:
+		return nil, nil
+	case len(names) > 1:
+		return nil, fmt.Errorf("unmanaged pools of several subscriptions were selected; select one with SUBSCRIPTION=<display name>")
+	}
+	parsed, err := uuid.Parse(strings.TrimSpace(handler.externalSubscriptionID()))
+	if err != nil || parsed == uuid.Nil {
+		return nil, fmt.Errorf("%s must be the subscription ID of the externally owned subscription, as given by its owner", ExternalSubscriptionIDEnv)
+	}
+	// uuid.Parse also accepts braced, URN and unhyphenated forms, and the identity
+	// names hash the ID's text, so only the canonical form may be stored.
+	id := parsed.String()
+	ids := map[string]string{}
+	for name := range names {
+		ids[name] = id
+	}
+	return ids, nil
+}
+
 func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, apply bool) error {
 	var eligible []slots.Pool
 	for _, pool := range request.Pools {
@@ -200,18 +305,24 @@ func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, a
 	if len(eligible) == 0 {
 		return nil
 	}
+	externalIDs, err := handler.externalSubscriptionIDs(eligible)
+	if err != nil {
+		return err
+	}
 	ownerList, err := handler.owners()
 	if err != nil {
 		return err
 	}
-	testContext := framework.NewTestContext()
-	credential, err := testContext.AzureCredential()
+	credential, resolveSubscriptionID, err := handler.azure()
 	if err != nil {
 		return err
 	}
-	factory, err := testContext.GetARMSubscriptionsClientFactory()
-	if err != nil {
-		return err
+	azureResolve := resolveSubscriptionID
+	resolveSubscriptionID = func(ctx context.Context, name string) (string, error) {
+		if id, found := externalIDs[name]; found {
+			return id, nil
+		}
+		return azureResolve(ctx, name)
 	}
 	store, err := handler.newStore(credential)
 	if err != nil {
@@ -220,29 +331,24 @@ func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, a
 	if err := handler.checkOwnerGroup(ctx, credential, ownerList); err != nil {
 		return err
 	}
-	for _, pool := range eligible {
-		if !handler.Declared(pool) {
-			continue
+	return forEachSlot(ctx, resolveSubscriptionID, request.Environment, eligible, func(pool slots.Pool, slot slots.ExpandedSlot) error {
+		bounded, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+		var bundle *leaseenv.MockIdentityBundlePayload
+		var err error
+		if pool.IsUnmanaged() {
+			// The subscription is owned elsewhere: only its owner can grant roles
+			// there, through ReconcileSubscriptionRoles.
+			bundle, err = reconcileIdentities(bounded, store, slot, apply)
+		} else {
+			bundle, err = reconcile(bounded, store, slot, apply)
 		}
-		if pool.SlotAssets.E2EIdentities != nil && pool.SlotAssets.E2EIdentities.Provisioning == slots.IdentityProvisioningUnmanaged && !request.IncludeUnmanaged {
-			continue
+		if err == nil {
+			err = reconcileBundleOwners(bounded, store, slot, bundle, ownerList.IDs, apply)
 		}
-		subscriptionID, err := framework.GetSubscriptionID(ctx, factory.NewClient(), pool.Subscriptions.E2E)
 		if err != nil {
-			return err
+			return ownerRepair(slot, err)
 		}
-		for _, slot := range slots.ExpandSlotsForPool(request.Environment, pool) {
-			slot.Subscriptions.E2E.ID = subscriptionID
-			bounded, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			bundle, err := reconcile(bounded, store, slot, apply)
-			if err == nil {
-				err = reconcileBundleOwners(bounded, store, slot, bundle, ownerList.IDs, apply)
-			}
-			cancel()
-			if err != nil {
-				return ownerRepair(slot, err)
-			}
-		}
-	}
-	return nil
+		return nil
+	})
 }

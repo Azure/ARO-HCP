@@ -38,9 +38,9 @@ type fakeStore struct {
 	principals   map[string]leaseenv.MockPrincipal
 	certificates map[string]bool
 	roles        bool
+	roleCalls    int
 	writes       int
 	fail         string
-	owner        bool
 	reads        int
 	owners       map[string][]string
 }
@@ -60,12 +60,6 @@ func (store *fakeStore) Owners(_ context.Context, name string, _ leaseenv.MockPr
 	return nil
 }
 
-func (store *fakeStore) AuthorizeOwner(context.Context, string) error {
-	if !store.owner {
-		return errors.New("not Owner")
-	}
-	return nil
-}
 func (store *fakeStore) Resolve(_ context.Context, name string, apply bool) (leaseenv.MockPrincipal, error) {
 	store.reads++
 	if store.fail == name {
@@ -96,6 +90,7 @@ func (store *fakeStore) Certificate(_ context.Context, name string, apply bool) 
 }
 func (store *fakeStore) Roles(_ context.Context, subscription string, bundle leaseenv.MockIdentityBundlePayload, apply bool) error {
 	store.reads++
+	store.roleCalls++
 	if subscription != bundle.SubscriptionID {
 		return errors.New("wrong scope")
 	}
@@ -116,7 +111,7 @@ func testSlot() slots.ExpandedSlot {
 func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 	t.Setenv(OwnerIDsEnv, "malformed-owner-settings")
 	t.Setenv(OwnersGroupIDEnv, "")
-	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
+	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}}
 	slot := testSlot()
 	if _, err := reconcile(t.Context(), store, slot, true); err != nil {
 		t.Fatal(err)
@@ -198,10 +193,6 @@ func TestPersistentLifecycle(t *testing.T) {
 	ctx := context.Background()
 	slot := testSlot()
 	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}}
-	if _, err := reconcile(ctx, store, slot, true); err == nil || store.writes != 0 {
-		t.Fatal("non-Owner wrote resources")
-	}
-	store.owner = true
 	if _, err := reconcile(ctx, store, slot, false); err == nil || store.writes != 0 {
 		t.Fatal("admission repaired missing resources")
 	}
@@ -287,7 +278,7 @@ func TestDeterministicIsolation(t *testing.T) {
 
 func TestPublishRejectsMismatchedSlotBundle(t *testing.T) {
 	slot := testSlot()
-	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
+	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}}
 	bundle, err := reconcile(t.Context(), store, slot, true)
 	if err != nil {
 		t.Fatal(err)

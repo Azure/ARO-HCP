@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -89,7 +90,7 @@ func validatePools(ctx context.Context, pools []identityPool, loadInventory inve
 }
 
 func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred azcore.TokenCredential) (subscriptionInventory, error) {
-	resourcesFactory, err := armresources.NewClientFactory(subscriptionID, cred, nil)
+	resourcesFactory, err := armresources.NewClientFactory(subscriptionID, cred, azureclient.ARMClientOptions())
 	if err != nil {
 		return subscriptionInventory{}, fmt.Errorf("failed creating resources client factory: %w", err)
 	}
@@ -107,7 +108,7 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 			resourceGroups = append(resourceGroups, *resourceGroup.Name)
 		}
 	}
-	msiFactory, err := armmsi.NewClientFactory(subscriptionID, cred, nil)
+	msiFactory, err := armmsi.NewClientFactory(subscriptionID, cred, azureclient.ARMClientOptions())
 	if err != nil {
 		return subscriptionInventory{}, fmt.Errorf("failed creating managed identity client factory: %w", err)
 	}
