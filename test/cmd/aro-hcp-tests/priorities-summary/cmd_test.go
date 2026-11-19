@@ -1,0 +1,206 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package prioritiessummary
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Azure/ARO-HCP/test/pkg/citests"
+)
+
+// writeFile writes one fixture file and returns its path.
+func writeFile(t *testing.T, dir, name string, content any) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	data, err := json.Marshal(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// reportFixture builds a report that passes command validation.
+func reportFixture() citests.PriorityReport {
+	median := 29.3
+	latest := time.Date(2026, 11, 18, 7, 37, 28, 0, time.UTC)
+	return citests.PriorityReport{
+		SchemaVersion:       citests.ReportSchemaVersion,
+		Algorithm:           citests.AlgorithmEnvironmentNormalizedMean,
+		Selection:           citests.Selection{Origin: "https://kusto/ServiceLogs", From: time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC), To: time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC), JobFilter: "e2e-parallel"},
+		MinSamples:          3,
+		GlobalMedianMinutes: &median,
+		Environments:        []citests.EnvironmentSummary{{Environment: "dev", EligibleBuildCount: 6, EligibleSampleCount: 60, MedianMinutes: 28, LatestEligibleCompletion: &latest}},
+	}
+}
+
+func TestValidate(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts options
+		want string
+	}{
+		{name: "missing output", opts: options{note: "n"}, want: "--output is required"},
+		{name: "report without changes", opts: options{outputPath: "o", reportPath: "r"}, want: "must be given together"},
+		{name: "notice without note", opts: options{outputPath: "o"}, want: "requires --note"},
+		{name: "notice only", opts: options{outputPath: "o", note: "n"}},
+		{name: "full", opts: options{outputPath: "o", reportPath: "r", changesPath: "c"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.opts.Validate()
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunWritesSummaryFromReports(t *testing.T) {
+	dir := t.TempDir()
+	report := writeFile(t, dir, "report.json", reportFixture())
+	changes := writeFile(t, dir, "changes.json", map[string]any{
+		"changes": []map[string]any{{
+			"name": "spec one", "path": "test/e2e/one.go", "line": 12,
+			"old_priority": 50, "new_priority": 40, "score_minutes": 29.2,
+			"eligible_build_count": 477, "environments": []string{"dev"},
+		}},
+		"unchanged": []string{}, "insufficient": []string{}, "unmatched": []string{"retired spec"},
+		"applied": false,
+	})
+	output := filepath.Join(dir, "summary.html")
+
+	opts := &options{reportPath: report, changesPath: changes, note: "read-only", outputPath: output, out: os.Stdout}
+	if err := opts.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := opts.Run(); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"read-only", "<h2>Coverage</h2>", "<h2>Proposed changes (1)</h2>", "one.go:12", "retired spec"} {
+		if !strings.Contains(string(page), want) {
+			t.Errorf("summary is missing %q", want)
+		}
+	}
+}
+
+func TestRunNoticeWithoutReports(t *testing.T) {
+	dir := t.TempDir()
+	output := filepath.Join(dir, "summary.html")
+	opts := &options{note: "Publication skipped: an open generated pull request exists", outputPath: output, out: os.Stdout}
+	if err := opts.Run(); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "Publication skipped") {
+		t.Fatalf("notice missing from summary:\n%s", page)
+	}
+}
+
+func TestRunRejectsForeignReport(t *testing.T) {
+	dir := t.TempDir()
+	report := reportFixture()
+	report.Algorithm = "per-run-median-v1"
+	reportPath := writeFile(t, dir, "report.json", report)
+	changes := writeFile(t, dir, "changes.json", map[string]any{"changes": []any{}, "applied": false})
+	opts := &options{reportPath: reportPath, changesPath: changes, outputPath: filepath.Join(dir, "s.html"), out: os.Stdout}
+	if err := opts.Run(); err == nil || !strings.Contains(err.Error(), "algorithm") {
+		t.Fatalf("err = %v, want algorithm rejection", err)
+	}
+}
+
+func TestRunRendersPublicationLink(t *testing.T) {
+	dir := t.TempDir()
+	report := writeFile(t, dir, "report.json", reportFixture())
+	changes := writeFile(t, dir, "changes.json", map[string]any{"changes": []any{}, "applied": true})
+	output := filepath.Join(dir, "summary.html")
+
+	opts := &options{
+		reportPath: report, changesPath: changes, note: "Published one pull request.",
+		publicationURL: "https://github.com/Azure/ARO-HCP/pull/9000",
+		outputPath:     output, out: os.Stdout,
+	}
+	if err := opts.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := opts.Run(); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `Published pull request: <a href="https://github.com/Azure/ARO-HCP/pull/9000">`) {
+		t.Fatalf("publication link missing from the page:\n%s", page)
+	}
+}
+
+func TestRunRejectsMalformedReports(t *testing.T) {
+	dir := t.TempDir()
+	changes := writeFile(t, dir, "changes.json", map[string]any{"changes": []any{}, "applied": false})
+	output := filepath.Join(dir, "summary.html")
+
+	foreign := reportFixture()
+	foreign.SchemaVersion = 99
+	for _, tc := range []struct {
+		name    string
+		content any
+		raw     string
+		want    string
+	}{
+		{name: "schema version", content: foreign, want: "schema version"},
+		{name: "unknown field", raw: `{"schema_version":1,"algorithm":"environment-normalized-mean-v1","unexpected":true}`, want: "unknown field"},
+		{name: "trailing data", raw: `{"schema_version":1,"algorithm":"environment-normalized-mean-v1"} {"extra":true}`, want: "exactly one JSON object"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var path string
+			if tc.raw != "" {
+				path = filepath.Join(dir, tc.name+".json")
+				if err := os.WriteFile(path, []byte(tc.raw), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				path = writeFile(t, dir, tc.name+".json", tc.content)
+			}
+			opts := &options{reportPath: path, changesPath: changes, outputPath: output, out: os.Stdout}
+			err := opts.Run()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+			if _, statErr := os.Stat(output); statErr == nil {
+				t.Fatalf("a rejected report still produced a summary")
+			}
+		})
+	}
+}
