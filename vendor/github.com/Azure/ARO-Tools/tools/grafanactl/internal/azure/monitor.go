@@ -46,6 +46,19 @@ func NewMonitorWorkspaceClient(subscriptionID string, cred azcore.TokenCredentia
 	}, nil
 }
 
+// GetPrometheusQueryEndpoint reads the live endpoint because a recreated workspace
+// can retain its resource ID while receiving a different query hostname.
+func (p *MonitorWorkspaceClient) GetPrometheusQueryEndpoint(ctx context.Context, resourceGroup, name string) (string, error) {
+	workspace, err := p.client.Get(ctx, resourceGroup, name, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to read workspace %s/%s: %w", resourceGroup, name, err)
+	}
+	if workspace.Properties == nil || workspace.Properties.Metrics == nil || workspace.Properties.Metrics.PrometheusQueryEndpoint == nil || len(*workspace.Properties.Metrics.PrometheusQueryEndpoint) == 0 {
+		return "", fmt.Errorf("workspace %s/%s has no Prometheus query endpoint", resourceGroup, name)
+	}
+	return *workspace.Properties.Metrics.PrometheusQueryEndpoint, nil
+}
+
 // GetAllMonitorWorkspaces returns all managed Prometheus instances in the subscription
 func (p *MonitorWorkspaceClient) GetAllMonitorWorkspaces(ctx context.Context) ([]armmonitor.AzureMonitorWorkspaceResource, error) {
 	var workspaces []armmonitor.AzureMonitorWorkspaceResource
