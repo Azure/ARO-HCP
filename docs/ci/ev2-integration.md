@@ -1,41 +1,14 @@
 # CI EV2 Integration
 
-This document is the deep-dive companion to the shorter `EV2 Commit Pinning` section in [CI Execution](execution.md). It explains how EV2 rollouts invoke Prow, how the exact job name is selected, how commit pinning works, and how the Gangway authentication path is wired.
+This document explains how an EV2 rollout of the Microsoft environments (INT, STG, PROD) starts a Prow E2E run, why that run is pinned to the rollout's commit, and how EV2 authenticates to Prow. For the broader picture of how the other CI job families fit together, see [CI Execution](execution.md); for what happens when a gating run fails, see [EV2 Retry Catcher](ev2-retry-catcher.md).
 
 ## Why EV2 Uses Prow Gating
 
-Code changes and the E2E tests that validate them are delivered as a single unit of work in the same PR. After merge, this creates a timing problem: the E2E suite could run against an environment that has not yet been updated with the newly merged code, exercising tests for features that are not yet deployed.
+Code changes and the E2E tests that validate them land in the same PR. After merge, an E2E suite started from a GitHub event or a schedule can run before the environment has received the new code, and then exercises tests for features that are not deployed yet. EV2 gating removes that race by tying validation to the rollout itself: EV2 starts the Prow run programmatically, pins it to the exact ARO-HCP commit being deployed, and uses the result as the promotion signal. The tests and the code they validate always match. A periodic run, by contrast, validates whatever is at `HEAD` when it starts.
 
-EV2 gating solves this by coupling validation to the rollout itself:
+## How A Rollout Reaches Prow
 
-- EV2 selects an environment-specific Prow job
-- the Prow run is started programmatically rather than by a GitHub event
-- the run is pinned to the exact ARO-HCP commit being deployed
-- the rollout can use the result as a promotion signal
-
-In short, EV2 gating ensures the tests and the code they validate are always aligned.
-
-## Current Environment Mapping
-
-The public-cloud environment mapping lives in `config/config.msft.clouds-overlay.yaml`.
-
-Current `prowJobName` values (see `config/config.msft.clouds-overlay.yaml`) and the E2E suite each environment gates on:
-
-| Environment | `prowJobName` | Promotion E2E suite |
-| ----------- | ------------- | ------------------- |
-| INT | `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all` | Combined parallel (fast + Slow) |
-| STG | `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all` | Combined parallel (fast + Slow) |
-| PROD | `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel` | Regular parallel (fast only) |
-
-**Promotion E2E suite:** *Combined parallel* runs fast and Slow specs; *Regular parallel* runs the fast suite only.
-
-This is the first place to check if a rollout is invoking the wrong Prow job for a given environment.
-
-## How EV2 Maps To Prow Jobs
-
-The direct contract between EV2 and Prow is defined in `test/e2e-pipeline.yaml`.
-
-The key `regionalGating` validation step looks like this:
+The contract between EV2 and Prow is the `regionalGating` validation step in [`test/e2e-pipeline.yaml`](../../test/e2e-pipeline.yaml):
 
 ```yaml
 validationSteps:
@@ -45,121 +18,38 @@ validationSteps:
     tokenSecret: "{{ .e2e.prow.globalKeyVaultTokenSecret }}"
     jobName: "{{ .e2e.regionTest.prowJobName }}"
     gatePromotion: "{{ .e2e.regionTest.gatePromotion }}"
+    allowedSubscriptions: "{{ .e2e.regionTest.allowedSubscriptions }}"
 ```
 
-That wiring means:
+Everything environment-specific comes from the `e2e` section of the config, so that is where to look when a rollout starts the wrong job or does not block on the result:
 
-- the selected `prowJobName` comes from the environment config
-- the Gangway token comes from the global Key Vault secret configured for Prow
-- the pipeline contract also supports `gatePromotion` as an environment-specific behavior flag
+- `e2e.regionTest.prowJobName` selects the Prow job. It is empty in `config/config.yaml` and set per environment in `config/config.msft.clouds-overlay.yaml`. INT and STG gate on a job that runs the combined `parallel/all` suite (fast and slow specs), PROD on the regular `prod/parallel` suite; the suite is set by `ARO_HCP_SUITE_NAME` in the job definition.
+- `e2e.regionTest.gatePromotion` decides whether EV2 waits for the Prow result and blocks promotion to the next stage when the run fails. It defaults to `true` in `config/config.yaml`.
+- `e2e.regionTest.allowedSubscriptions` optionally restricts which E2E subscriptions the triggered run may use. PROD sets it for the `eastus2euap` canary region, which is only onboarded in one subscription; the executor passes it to the job as an override that the lease-acquire step prefers (see [slot-manager](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)).
+- `e2e.prow.globalKeyVaultTokenSecret` names the Key Vault secret that holds the Gangway token.
 
-The current configuration snapshot above shows `prowJobName` directly in `config/config.msft.clouds-overlay.yaml`. Whether `gatePromotion` is set for a particular environment should always be verified from the active config rather than assumed from older docs.
+The step is executed by `prow-job-executor`, built from [`test/cmd/prow-job-executor`](../../test/cmd/prow-job-executor/main.go) on top of the `tools/prow-job-executor` package in [Azure/ARO-Tools](https://github.com/Azure/ARO-Tools). It submits the job through Gangway, polls until the job finishes, and fails the step when the job fails and `gatePromotion` is set. The `make -C test/ {int,stage,prod}-e2e` targets run the same executor, which is how [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md) reproduces a gate.
 
-## Programmatic Triggering And The `__e2e` Variant
+## The `__e2e` Variant And Commit Pinning
 
-The EV2-triggered jobs are defined in:
+The jobs EV2 starts are defined in the `Azure-ARO-HCP-main__e2e.yaml` ci-operator config in `openshift/release`. They are marked `postsubmit: true` with `run_if_changed: ^$`, so they never fire on a merge and exist only to be started through Gangway. This is why an EV2-triggered run shows up in Prow as a postsubmit even though no GitHub event started it.
 
-- `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
+To pin the run, the executor triggers the job as a postsubmit with an explicit base SHA (`--base-sha`, together with the org, repo, and base ref) instead of as a periodic that would check out `HEAD`. Because the variant also builds the `aro-hcp-e2e-tests` image from the checked-out source, the test binary comes from the same revision that EV2 is rolling out. The variant builds only that runner image, not the service images, since it tests an environment that is already deployed; see [CI Image Lifecycle](image-lifecycle.md#local-e2e-versus-persistent-e2e).
 
-That file is important for two reasons:
+The SHA itself comes from the EV2 step command generated by sdp-pipelines, which is not in this repository; the executor only consumes the value it is given.
 
-- the tests are marked `postsubmit: true`
-- each job uses `run_if_changed: ^$`
+## Gangway Authentication
 
-That combination means these jobs are not automatically triggered on merge. Instead, they exist to be started programmatically through Gangway by the EV2 pipeline path.
+EV2 authenticates to Gangway with the `prow-token` secret stored in the global Key Vault of each environment. When the `regionalGating` step runs, it reads the secret named by `e2e.prow.globalKeyVaultTokenSecret`, presents it to the Gangway API, and Gangway starts the requested job. [Renew the Prow Token](../sops/renew-prow-token.md) covers rotation.
 
-This is why EV2-triggered runs show up in Prow as postsubmit-like jobs even though the trigger originated from EV2 rather than from a normal GitHub merge event.
-
-## Commit Pinning And Test Image Fidelity
-
-The commit-pinning path is what makes EV2 gating materially different from scheduled tests.
-
-At a high level:
-
-1. EV2 decides which ARO-HCP revision is being rolled out
-2. `prow-job-executor` extracts that revision from `EV2_ROLLOUT_VERSION`
-3. the Prow run is triggered with `--base-sha`
-4. the E2E job runs against that pinned revision instead of `HEAD`
-
-The `__e2e` variant also includes the `aro-hcp-e2e-tests` image build in the job configuration, so the test binary is built from the same source revision that EV2 requested. This keeps the test image and the rolled-out source aligned.
-
-That alignment is the key guarantee EV2 gating provides:
-
-- **EV2-triggered run:** validates the exact revision being promoted
-- **Periodic run:** validates whatever is at `HEAD` at the time the job starts
-
-For the broader CI image model around shared CI images, job-local builds, and promoted runner images, see [CI Image Lifecycle](image-lifecycle.md).
-
-## Gangway Authentication And `prow-token`
-
-The EV2 path authenticates to Gangway using the `prow-token` secret stored in Azure Key Vault.
-
-Conceptually, the path is:
-
-1. EV2 reaches the `regionalGating` ProwJob validation step
-2. the step fetches the configured token secret from the global Key Vault
-3. the token is used to authenticate against the Gangway API
-4. Gangway starts the requested Prow job
-
-The operational procedure for renewal lives in:
-
-- [Renew the Prow Token](../sops/renew-prow-token.md)
-
-To reproduce a failed gate by triggering the same job by hand, see [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md). This matters most in INT and STG, which have no retry available on the rollout step.
-
-Symptoms that usually point to token problems:
-
-- the EV2 rollout gets stuck or fails at `regionalGating`
-- the step log shows HTTP 403 with an HTML login page instead of a JSON Gangway response
-
-If that happens, treat the token path as part of the rollout plumbing, not as a generic test failure.
+A rollout that hangs or fails at `regionalGating` with an HTTP 403 and an HTML login page instead of a JSON Gangway response almost always means the token has expired or was invalidated, for example when the namespace on the OpenShift CI cluster was recreated. It is a problem with the rollout plumbing, not with the tests. INT and STG have no per-step retry in the EV2 portal, so after fixing the token, [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md) is the quickest way to unblock the rollout.
 
 ## Identifying Rollouts From Prow Metadata
 
-When an EV2-triggered Prow E2E job is running, you can map it back to the originating rollout from the job metadata in the Prow dashboard.
-
-Look for annotations prefixed with:
-
-- `ev2.rollout/ARO-HCP`
-- `ev2.rollout/build`
-- `ev2.rollout/region`
-- `ev2.rollout/sdp-pipelines`
-
-Those annotations give you the rollout identifier, build number, region, and the SDP pipelines revision associated with that run.
-
-This is the fastest path when you need to answer:
-
-- "Which rollout triggered this job?"
-- "Which region was this gate evaluating?"
-- "Which SDP pipeline revision was involved?"
-
-## Promotion Gating
-
-The pipeline contract includes `e2e.regionTest.gatePromotion`.
-
-Conceptually, when that field is enabled for an environment:
-
-- EV2 waits for the Prow result
-- rollout progress depends on the job outcome
-- failed validation blocks promotion to the next stage
-
-The important operational point is that promotion gating is config-driven. The docs should explain the mechanism, but the active behavior for a specific environment should always be verified from the current environment config and pipeline inputs.
+An EV2-triggered Prow job carries annotations that tie it back to the rollout. The executor adds `ev2.rollout/cloud`, `ev2.rollout/environment`, and `ev2.rollout/region`, and expands the EV2 rollout version (a `tag.value.tag.value` string such as `build.<n>.sdp-pipelines.<sha>.ARO-HCP.<sha>`) into one `ev2.rollout/<tag>` annotation per pair. In practice that gives you the build number, the sdp-pipelines revision, and the ARO-HCP revision. You can read them from the job's metadata in the [Prow dashboard](https://prow.ci.openshift.org/?repo=Azure%2FARO-HCP) or from the ProwJob object; the manual gate-run SOP shows a `jq` query for them.
 
 ## Where To Look
 
-When you need to change or debug EV2-to-Prow integration, start here:
-
-- environment-to-job mapping: `config/config.msft.clouds-overlay.yaml`
-- EV2 validation step contract: `test/e2e-pipeline.yaml`
-- token-renewal procedure: `docs/sops/renew-prow-token.md`
-- EV2-triggered ci-operator variant: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
-- release-side job definitions: `openshift/release: ci-operator/jobs/Azure/ARO-HCP/`
-- Prow job history: [Prow dashboard](https://prow.ci.openshift.org/?repo=Azure%2FARO-HCP)
-
-## See Also
-
-- [CI Overview](README.md)
-- [CI Execution](execution.md)
-- [EV2 Retry Catcher](ev2-retry-catcher.md)
-- [CI Operations](operations.md)
-- [Renew the Prow Token](../sops/renew-prow-token.md)
+- `config/config.msft.clouds-overlay.yaml` and `config/config.yaml` (`e2e.regionTest`, `e2e.prow`) for the environment-to-job mapping and gating behavior.
+- `test/e2e-pipeline.yaml` for the `regionalGating` step.
+- `openshift/release`: `ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml` for the jobs EV2 starts.

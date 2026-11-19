@@ -1,12 +1,10 @@
 # AMW Platform Observability
 
-`aro-hcp-tests gather-observability` includes an **AMW** pane and `amw.json`
-evidence before running its existing Prometheus metric panels. This collection
-uses read-only Azure Resource Manager APIs only: no metric-name discovery,
-PromQL, label scanning, SQLite, or diagnostic-settings changes.
+`aro-hcp-tests gather-observability` includes an AMW pane and an `amw.json` evidence file alongside its Prometheus metric panels (see [CI Operations](operations.md#post-job-observability-artifacts) for the other post-job artifacts). The pane answers one question: was the Azure Monitor Workspace (AMW) that stores a cluster's Prometheus metrics near its platform limits, or dropping data, during the run? It does so using read-only Azure Resource Manager metric APIs only, with no PromQL, metric-name discovery or diagnostic-settings changes.
 
-For a quick AMW-only collection using the same rendered configuration and timing
-inputs as normal gathering:
+## Collecting And Rendering
+
+To collect only the AMW evidence, with the same rendered configuration and timing inputs as a normal gather:
 
 ```sh
 aro-hcp-tests gather-observability --amw-only \
@@ -16,79 +14,34 @@ aro-hcp-tests gather-observability --amw-only \
   --output /path/to/amw-artifacts
 ```
 
-If timing artifacts are unavailable, provide `--start-time-fallback` in RFC3339
-format. Use the normal Azure SDK credential selection, for example
-`AZURE_TOKEN_CREDENTIALS=AzureCLICredential` after signing in with Azure CLI.
-The AMW-only path skips alerts, JUnit evaluation, utilization collection, and all
-Prometheus APIs. Open the resulting `observability-summary.html` locally. Summary
-tables work without JavaScript. Interactive charts load ECharts from the same CDN
-as the other observability panes. Hover for a UTC timestamp and series values;
-click legend entries to hide or show lines. Closed sections initialize on expansion.
+Credentials come from the normal Azure SDK selection, for example `AZURE_TOKEN_CREDENTIALS=AzureCLICredential` after `az login`. When timing artifacts are not available, pass `--start-time-fallback` in RFC3339 format. The AMW-only mode skips alerts, JUnit evaluation, utilization collection and every Prometheus API.
 
-Regenerate HTML from saved evidence without Azure access:
+Open the resulting `observability-summary.html` locally. The summary tables work without JavaScript; the charts load ECharts from the same CDN as the other observability panes. To regenerate the HTML from saved evidence without Azure access:
 
 ```sh
 aro-hcp-tests gather-observability render-amw --input amw.json --output observability-summary.html
 ```
 
-## Evidence
+## What The Report Shows
 
-The collector reads these six workspace metrics at one-minute `Maximum`
-aggregation, without a dimension filter for capacity and split by `Reason` for
-drops. `StampColor` is listed in the published metric catalog but is not exposed
-by all workspaces; requesting it can cause HTTP 400 for every workspace metric.
-Returned dimensions are retained, but `StampColor` is not required:
+For each AMW in the run, the report charts active time series and events per minute against their limits, and lists dropped events and samples by reason. For each data collection rule (DCR) that sends to those workspaces, it charts ingestion requests per minute by input stream and response code. The first AMW opens expanded and the rest start collapsed; hover a chart for exact UTC values and click legend entries to hide series. Utilization and headroom are only computed from usage and limit values observed at the same timestamp for the same set of dimensions, so different stamps are never summed together, and data that is missing stays unknown rather than being shown as zero. The table states the time of the latest observation instead of presenting it as the workspace's current state.
 
-- `ActiveTimeSeries` and `ActiveTimeSeriesLimit`
-- `EventsPerMinuteIngested` and `EventsPerMinuteIngestedLimit`
-- `EventsDropped`
-- `TimeSeriesSamplesDropped`
+A few caveats apply when reading it:
 
-Utilization and headroom are calculated from numeric usage and limit observations
-at the same timestamp and complete dimension set. Different stamps are never
-summed or paired. Unsplit capacity series are labeled `Workspace (unsplit)`.
-The table states the observation time; it does not claim that
-an old observation is the workspace's current state.
+- DCR discovery looks only in the selected workspace's subscription. It matches rules by their monitoring-account destination, which shows that a rule is configured to send there, not that data is flowing.
+- The documented 15,000 requests per minute limit applies per DCR rather than per stream, and there is no byte-rate metric to compare against the ingestion volume limit.
+- The `StampColor` dimension appears in the published metric catalog but not all workspaces expose it, and requesting it makes Azure reject the whole query. The collector does not request it; if a workspace returns it, it is retained.
+- Minute maxima are shown as such and never summed into totals of lost data.
 
-The first AMW opens with active-series and events/minute graphs. Other AMWs and
-DCRs start closed. Expand dropped events/samples for one graph per metric with
-all reasons together; expand Values for the latest measurements and headroom.
-Missing data stays unknown, and minute maxima are not summed into total losses.
+## Bounds And Failure Handling
 
-DCR discovery lists rules in each selected workspace's subscription, across
-resource groups, and matches monitoring-account destinations. It does not discover
-rules in other subscriptions or prove that a matched destination has an active
-data flow. Each matching DCR contributes `MetricIngestionRequest_Count` at
-one-minute `Total`, split by `InputStreamId` and `ResponseCode` on one graph.
-The documented 15,000 requests/minute limit is per DCR, not per
-stream. The 50 GB/minute limit has no corresponding Prometheus byte metric here.
+Collection is deliberately small and time-boxed: a total deadline, a per-request timeout, no retries, and caps on the number of workspaces, DCRs, discovery pages, response sizes, series and plotted lines. The values are constants at the top of `test/cmd/aro-hcp-tests/gather-observability/amw.go`. Hitting any bound marks the result incomplete rather than failing the run, and omitted series remain in `amw.json`.
 
-`amw.json` retains requested/effective time bounds, resource IDs, decoded SDK
-metric responses, metric definitions, DCR discovery pages, and errors. These
-artifacts may contain sensitive infrastructure metadata, including unrelated DCRs
-on retained subscription discovery pages; handle them like other CI evidence.
-The report embeds summaries, not raw responses. Definitions are supplementary
-and are collected last so they cannot consume the capacity-data budget.
-
-## Bounds
-
-- 60 seconds total collection time; 10 seconds per request; no automatic retries.
-- Four workspaces, 32 matching DCRs, ten discovery pages per subscription.
-- 8 MiB per response and 32 MiB total response bodies.
-- One-minute intervals, at most 24 hours after outward rounding. Future grace
-  periods are clamped to collection time, without waiting for more data.
-- Explicit 1,000-series request limit. Reaching any bound is reported as incomplete.
-- Twelve plotted series per graph and 96 per report; up to 100 summary rows per
-  graph. Omitted visual series remain in JSON.
-
-Collection failures are best-effort diagnostics, not new e2e gates. They remain
-visible in JSON and HTML. AMW-only artifact publication failures return an error;
-normal gathering logs AMW publication failures without changing alert verdicts.
-There is no runtime increase or dependency on the full label-analysis workflow.
+Collection problems are diagnostics, not E2E gates. They stay visible in the JSON and HTML, a normal gather only logs a failure to publish the AMW artifacts without changing any alert verdict, and `--amw-only` returns an error in that case. `amw.json` keeps the time bounds, resource IDs, metric responses, metric definitions and discovery pages, which can include unrelated DCRs in the subscription, so treat it like other CI evidence.
 
 ## Preview
 
-Synthetic data only. Before this change the combined report had no AMW pane.
+The screenshots below use synthetic data.
 
 ![AMW platform desktop](images/amw-platform-desktop.png)
 

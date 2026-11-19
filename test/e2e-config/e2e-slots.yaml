@@ -423,8 +423,8 @@ environments:
     # subscription at ~92 concurrent HCPs. With resource_group_count: 25
     # (max HCPs per suite run), that is floor(92 / 25) = 3 slots per sub.
     # This constraint is AME-only (STG and PROD): deny assignments are only
-    # created in AME. See the "Scaling Constraints" section in
-    # docs/ci/identity-leasing.md for the full explanation.
+    # created in AME. See the "Deny Assignments" section in
+    # docs/ci/e2e-capacity.md for the full explanation.
     - name: shard0
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Prod - 00"

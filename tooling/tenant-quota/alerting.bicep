@@ -459,7 +459,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Regional Prow provision healthcheck has ${prowHealthcheckMaxConsecutiveFailures}+ consecutive failures (12-hour sustained failure)'
           description: 'Provision healthchecks in {{ $labels.region }} have {{ $value }} consecutive failures (${prowHealthcheckMaxConsecutiveFailures} failures × 2h interval = 12-hour sustained failure window).'
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-region-failover.md'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-region-load-management.md'
         }
         actions: [
           {

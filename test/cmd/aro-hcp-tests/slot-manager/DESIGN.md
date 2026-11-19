@@ -30,7 +30,7 @@ Pre-admission validation defers only the missing mock bundle: other resolved
 assets must still match their dedicated containers or held leases before any
 admission cleanup runs. Failed mock readmission clears the prior bundle on every
 error path, including credential setup and identity drift.
-See [dedicated slot identity operations](../../../../docs/ci/dev-mock-identities.md#dedicated-slot-identity-operations).
+See [slot mock identities](../../../../docs/ci/dev-mock-identities.md#slot-mock-identities).
 
 Local state validation has three distinct contracts:
 
@@ -337,7 +337,7 @@ explicitly empty override opts out of the acquired default. Explicit
 `--max-concurrency` limits execution workers independently; the runner uses the
 minimum of that value and suite parallelism. This worker limit does not change
 the leased identity budget. See
-[`docs/ci/identity-leasing.md`](../../../../docs/ci/identity-leasing.md) for
+[`docs/ci/e2e-capacity.md`](../../../../docs/ci/e2e-capacity.md) for
 capacity and quota formulas.
 
 ## Inventory commands
@@ -349,9 +349,10 @@ capacity and quota formulas.
   unmanaged resources when explicitly selected.
 
 All derive capacity from complete catalog demand. See
-[`docs/ci/identity-leasing.md`](../../../../docs/ci/identity-leasing.md) and
+[`docs/ci/slot-assets.md`](../../../../docs/ci/slot-assets.md#managing-slot-assets)
+for how to run them and
 [`docs/ci/e2e-subscription-onboarding.md`](../../../../docs/ci/e2e-subscription-onboarding.md)
-for operator procedures.
+for onboarding procedures.
 
 ## Future assets
 

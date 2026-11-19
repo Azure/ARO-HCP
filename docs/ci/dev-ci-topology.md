@@ -1,141 +1,71 @@
 # Dev-CI Topology
 
-The `dev-ci` topology is the standalone, persistent CI-support environment for ARO HCP. It is separate from both the main `Global` / `Region` rollout graph and the on-demand DEV RP footprint that `e2e-parallel` creates inside a job run.
-
-Use this document to understand what the `dev-ci` rollout owns today, what it deliberately does not own, and where the remaining mixed-management boundary still exists.
+The `dev-ci` topology is the standalone, persistent CI-support environment for ARO HCP. It is separate from the main `Global` / `Region` rollout graph and from the on-demand DEV footprint that `e2e-parallel` creates inside a job run. This document explains what the `dev-ci` rollout owns, why part of it can only be run by hand, and what it leaves to other systems.
 
 ## Why Dev-CI Is Separate
 
-`dev-ci` exists because some CI dependencies need to be long-lived and shared across many jobs, but they are not part of the normal product environment topology:
+Some CI dependencies have to be long-lived and shared by many jobs, but they are not part of any product environment. `dev-ci` gives them their own configuration (`config/config-dev-ci.yaml`) and their own rollout graph (`topology-dev-ci.yaml`) with two entrypoints:
 
-- `config/config-dev-ci.yaml` carries standalone configuration for these CI-supporting resources.
-- `topology-dev-ci.yaml` defines a separate rollout graph with two entrypoints: `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` (the unattended postsubmit surface) and `Microsoft.Azure.ARO.HCP.DevCI.Privileged` (the on-demand, Owner-only grants surface).
-- The long-term goal is for `openshift/release` jobs to consume this shared foundation without defining or deploying the `dev-ci` topology themselves, but that handoff is not complete yet.
+- `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` is the unattended surface. The `branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit` Prow job rolls it out after changes to `dev-ci` config, topology, `dev-infrastructure/` or `tooling/` merge.
+- `Microsoft.Azure.ARO.HCP.DevCI.Privileged` is the on-demand surface for changes that need Owner or Entra directory rights. See [The Privileged Entrypoint](#the-privileged-entrypoint).
 
-This keeps persistent CI-support infrastructure separate from the per-job RP footprint that DEV local E2E provisions on demand.
+The longer-term goal is for `openshift/release` jobs to consume this shared foundation without defining or deploying any of it; that handoff is not complete.
 
 ## What The Topology Manages Today
 
-Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint contains one root service group plus four child service groups:
+The unattended entrypoint is rooted at `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`, which deploys the shared network resources, the `opstool` AKS cluster and the Prometheus monitoring stack (see [Opstool CI Platform](opstool.md)). Workloads hang off it as child service groups:
 
-- `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
-  - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
-- `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
-  - Deploys the historically named `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
-- `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
-  - Deploys the shared Istio gateway and DNS wiring for `opstool`.
-- `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
-  - Deploys `cert-manager` and the shared Azure DNS DNS-01 `ClusterIssuer`.
-- `Microsoft.Azure.ARO.HCP.DevCI.CIHealth`
-  - Deploys the CIHealth runtime at `cihealth.tools.hcpsvc.osadev.cloud`.
+- `TenantQuota`: the DEV CI telemetry exporter (see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)).
+- `Gateway`: the shared Istio gateway and DNS wiring for `opstool`.
+- `CertManager`: `cert-manager` and the shared DNS-01 `ClusterIssuer`.
+- `CIHealth`: the CIHealth runtime at `cihealth.tools.hcpsvc.osadev.cloud`.
+- `BatchAnalysis`: the storage account that receives Tide-batch analysis output, with access for the analysis bot.
 
-In other words, `dev-ci` owns the persistent CI support layer, not the full runtime behavior of every CI job.
+[`topology-dev-ci.yaml`](../../topology-dev-ci.yaml) is the authoritative list; this one can lag behind it. In short, `dev-ci` owns the persistent CI support layer, not the runtime behaviour of any individual job.
 
 ## The Privileged Entrypoint
 
-`topology-dev-ci.yaml` also declares a **standalone, on-demand** privileged tree rooted at the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint, deliberately kept **separate** from the unattended `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint. It owns five concerns:
+The unattended postsubmit runs as the `OpenShift Release Bot` service principal. That identity is deliberately not an Owner: it has `Contributor` plus a condition-constrained `Role Based Access Control Administrator` that cannot hand out `Owner`, `User Access Administrator` or `Role Based Access Control Administrator`, and it holds no rights over Entra directory objects. Several things the CI environment depends on need more than that: custom role definitions, privileged role assignments, and creating Entra applications and minting their secrets. Rather than widen the bot's standing permissions, those pieces live behind a separate entrypoint, `Microsoft.Azure.ARO.HCP.DevCI.Privileged`, that is never part of the unattended graph and is run by hand by a member of the `aro-hcp-owners` group, who has the required Owner and Entra privileges. Changes to the bot identities or to any of the grants below are applied this way, and the rest of the postsubmit stays low-risk.
 
-1. **Resource provider registration** (`E2ESubscriptionProviders` service group): registering the Azure resource providers that E2E tests depend on across every ARO-HCP-managed E2E subscription. Unlike the RBAC grants, this needs only the `*/register/action` permission, which Contributor already grants — it is **not** an Owner-level operation. It lives here because it is on-demand reconciliation of the same E2E subscription inventory the grants below operate on, and because the unattended postsubmit has no reason to sweep those subscriptions. Both the provider list (`ci.e2eSubscriptionProviders`) and the targets (`ci.<env>.e2eSubscriptions`) come from `config/config-dev-ci.yaml`, so onboarding a subscription there is picked up with no pipeline edit.
-2. **The CI bot Entra identity lifecycle** (`E2ESubscriptionRBAC` service group): creating/reconciling the DEV, INT, STG and PROD bot Entra applications + service principals, granting their admin consent, and ensuring their `ci-bot-<env>-{client-secret,client-id,tenant-id}` Key Vault secrets exist (`entra-app-credentials ensure-secret`, which mints a client secret with `addPassword` only when missing; it adds a credential and never removes existing ones, so a previously issued DEV password keeps working until it is deleted by hand). These are Entra **directory-object writes** (create app/SP, `addPassword`) — an unattended CI identity is deliberately not given app/SP-management or credential-minting rights over directory objects, so this runs on demand instead. Nothing in this repository reads the Key Vault copy; the CI jobs consume a mirror in the CI secret store.
-3. **The subscription-scoped RBAC grants** (`E2ESubscriptionRBACGrants` service group): the DEV E2E customer-subscription RBAC (custom role definitions + shared-principal role assignments) and the CI bot subscription-scoped RBAC. Its RBAC steps create custom role definitions and/or role assignments, which require **Owner** (or an *unconstrained* User Access Administrator) on the target subscriptions — specifically the rights to write custom role definitions and to assign the privileged `Role Based Access Control Administrator` role to the mock arm-helper principal.
-4. **Cost Management tag inheritance** (`E2ESubscriptionRBACGrants` service group): registers `Microsoft.CostManagement` and waits for `Registered` before applying the setting to DEV E2E hosted-cluster subscriptions and the explicitly opted-in E2E infrastructure subscription. The billing step uses direct REST with a GET readback because ARM reports a failed deployment when the provider omits `kind` from its response, despite persisting the setting. The sibling provider-registration branch neither covers the infrastructure subscription nor orders itself before the billing step. The setting applies subscription and resource-group tags to usage records, retaining resource tags on conflicts. The operator needs Cost Management edit permission on all target subscriptions; the global infrastructure subscription is excluded.
-5. **The tenant-quota collector (RedHat0) service principal** (`E2ESubscriptionRBAC` and `E2ESubscriptionRBACGrants` service groups): the Entra application `opstool.tenantQuota.tenants.redHat0.applicationName` and its service principal (with the `Organization.Read.All` permission declared) are created declaratively in `E2ESubscriptionRBAC`. Following the CI bot pattern, a Shell step then runs `entra-app-credentials ensure-secret --grant-consent`, which grants the admin consent and stores the client secret (minted only when missing), client ID and tenant ID in the opstool Key Vault. The subscription-scoped `Reader` assignments live in `E2ESubscriptionRBACGrants` and are derived from the same `ci.<env>` subscription lists the collector chart reads, so the grants cannot drift from the collector configuration. The Microsoft test-tenant principal (`testTestAro`) is outside this tenant and remains managed by `tooling/tenant-quota/scripts/manage-service-principals.sh`.
-6. **Entra application owners**: the CI bot apps/SPs and the tenant-quota collector app/SP are reconciled with the `aro-hcp-owners` object IDs from `entraAppOwnerIds` (`ownerRelationshipSemantics: 'replace'`), so any OWNERS-group member, not only a tenant App Administrator, can run the privileged entrypoint (Graph requires app *and* service-principal ownership to update them). The list is authoritative: owners that are not in it are removed on the next run, so add new owners to `entraAppOwnerIds` rather than directly in Entra.
-   A `check-owners` Shell step (`entra-app-credentials check-owners`) runs before both identity deployments and fails the run when `entraAppOwnerIds` differs from the live members of the `aro-hcp-owners` group (`entraAppOwnersGroupId`). It names the IDs to remove (for example a deleted account, which otherwise makes Graph reject the owner update with an opaque `BadRequest`) and the group members to add; update `entraAppOwnerIds` in `config/config-dev-ci.yaml` as listed and rerun.
+The privileged entrypoint reconciles five groups of things:
 
-**Client secret expiry.** The client secrets minted by `ensure-secret` expire (two years for newly minted ones), and nothing rotates them automatically. Because the privileged entrypoint is run manually by an `aro-hcp-owners` member, `ensure-secret` makes an expired stored secret a hard failure of the run (including `--dry-run`) and logs a warning when it expires within 90 days; the Shell steps above therefore surface a needed rotation. `pin` does the same for Key Vault certificates. To rotate a secret, run the tool directly with `ensure-secret --rotate` (see [`tooling/entra-app-credentials`](../../tooling/entra-app-credentials/README.md#client-secrets)); `--dry-run --rotate` previews the rotation and reports the current expiry without failing.
+- **Resource-provider registration** on every E2E subscription, driven by `ci.e2eSubscriptionProviders` and the per-environment `ci.<env>.e2eSubscriptions` lists in the config. Registration only needs Contributor, but it sits here because it reconciles the same subscription inventory as the grants, which the postsubmit has no reason to sweep. Onboarding a subscription means editing the config, not the pipeline.
+- **CI bot identities**: the DEV, INT, STG and PROD bot Entra applications and service principals, their admin consent, and their client secret, client ID and tenant ID in the `opstool` Key Vault. Nothing in this repository reads that copy; CI jobs consume a mirror in the CI secret store.
+- **The tenant-quota collector principal** for the Red Hat tenant, created and consented the same way as the bots, plus a `Reader` assignment on every subscription the collector monitors. The assignments are derived from the same `ci.<env>` subscription lists the collector chart reads, so grants and collector configuration cannot drift. The Microsoft test-tenant principal lives outside this tenant and is still managed by `tooling/tenant-quota/scripts/manage-service-principals.sh`.
+- **The named DEV and INT mock identities**: their Entra applications, certificates (created if missing and pinned on the application) and the RBAC that lets them act on E2E subscriptions. What each identity stands in for is explained in [DEV Mock Identities](dev-mock-identities.md). The per-slot dedicated mock identities used by slot-manager jobs are not part of this rollout; operators prepare them as described in [Slot Mock Identities](dev-mock-identities.md#slot-mock-identities).
+- **Subscription-scoped settings**: the bot RBAC on E2E subscriptions, the `createdAt` resource-group tag policy, and Cost Management tag inheritance on the DEV hosted-cluster subscriptions and the opted-in E2E infrastructure subscription.
 
-> Implementation detail: because the topology framework requires every service group to reference a pipeline, the `DevCI.Privileged` root is a **no-op grouping pipeline** (`dev-infrastructure/dev-ci/privileged/pipeline.yaml`, empty step list). Two independent branches hang off that root. `E2ESubscriptionProviders` is a standalone child with no ordering relationship to the RBAC work. The identity service group (`E2ESubscriptionRBAC`) is the other child, with the grants service group (`E2ESubscriptionRBACGrants`) nested beneath it. That nesting matters: the topology runs a parent's steps before its child's, so the identities are created before the grants that look them up via `existing`. Operators never target these service groups directly — always use the entrypoint via the make target below.
+A few behaviours are worth knowing before running it:
 
-The identity that runs the unattended `dev-ci` postsubmit (the `OpenShift Release Bot` service principal, app `38335e22-716a-4a21-bf20-15ab141823f0`) is deliberately **not** an Owner. It holds `Contributor` plus a *condition-constrained* `Role Based Access Control Administrator` / `User Access Administrator` whose Azure ABAC condition forbids assigning the `Owner`, `User Access Administrator`, and `Role Based Access Control Administrator` roles. That is exactly one of the assignments this entrypoint makes, and on some target subscriptions the bot also lacks `Microsoft.Authorization/roleDefinitions/write` — so the grants would fail if the postsubmit tried to apply them. It is likewise not meant to hold the Entra directory-object rights needed to create the bot apps/SPs or mint their secrets. The `DevCI.Privileged` entrypoint is therefore never wired into the unattended `DevCI.Unprivileged` graph and is run manually by a member of the OWNERS group (who has real Owner and the directory privileges to manage these identities) whenever a change touches the bot identities or these grants:
-
-```bash
-make dev-ci-privileged-local-run
-```
-
-Because the identity service group is the parent of the grants service group within this same entrypoint, a single privileged run creates/reconciles the CI bot identities first and then applies the grants (which look up the service principals via `existing`) — no separate bootstrap run of another entrypoint is required.
-
-This split keeps the blast radius of the standing CI automation small: the postsubmit reconciles only the CI support layer that needs no Owner and no directory-object management, and the rare identity/credential and Owner-only changes are applied on demand.
+- Identities are applied before the grants that look them up, because the grants service group is nested under the identity one and the topology runs parents first. One run of the entrypoint is enough from scratch; there is no separate bootstrap. The root service group itself (`DevCI.Privileged`) is an empty grouping pipeline, since every service group must reference a pipeline. Always target the entrypoint, never the individual service groups.
+- Entra application owners come from `entraAppOwnerIds` in the config and are applied with replace semantics, so the list is authoritative: add new owners there, not directly in Entra. A `check-owners` step fails the run before any Entra write if the list differs from the live members of `aro-hcp-owners`, and it names the IDs to remove and the members to add. Update the config as it says and rerun.
+- Client secrets minted for the bots and the collector expire after two years and nothing rotates them. An expired stored secret fails the run, and one expiring within 90 days logs a warning, so a run is also how you find out a rotation is due. To rotate, use the tool directly as described in [`tooling/entra-app-credentials`](../../tooling/entra-app-credentials/README.md#expiry-and-rotation); certificates follow the same policy.
+- Cost Management tag inheritance needs Cost Management edit permission on each target subscription in addition to Owner, and the global infrastructure subscription is excluded. The step calls the REST API directly because ARM reports a failed deployment even though the setting is persisted (see the comment in `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh`).
 
 ## What It Does Not Manage
 
-The current `dev-ci` topology intentionally does not own several adjacent pieces of CI:
-
-- Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
-- The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
-
-For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
-
-## The Current Mixed-Management Boundary
-
-The DEV and INT mock identities are managed declaratively on the Azure side;
-the legacy DEV MSI mock and ARM helper service-principal pools are retired and no
-longer managed here.
-
-- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the mock identities end to end on the Azure side:
-  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the
-    shared Entra apps from `.ci.<env>.mockIdentities`. It configures no auth on the apps.
-  - The DEV `pin-mock-certs` and INT `pin-mock-certs-int` Shell steps run
-    `tooling/entra-app-credentials` immediately after the corresponding app
-    deployment. They create missing certificates and register each current
-    Key Vault certificate as a pinned `keyCredential`; existing certificates and
-    policies remain untouched.
-    Templatize runs these steps with the invoking OWNERS member's Azure CLI
-    credentials.
-  - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each
-    principal's object ID via Microsoft Graph and applies the home- and
-    E2E-subscription grants. Principal
-    IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants
-    require subscription Owner, they are applied on demand rather than by the
-    postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
-- What remains outside the rollout: `openshift/release` still owns the Boskos
-  inventories and lease contracts.
-
-So the Entra objects, certificates, certificate pinning, and RBAC are
-single-sourced in the topology; the remaining spread is limited to
-release-side Boskos wiring.
-
-## Long-Term Direction
-
-The Azure-side intended state is now in place: a single privileged rollout owns
-the app/SP, certificate, pinning, and RBAC lifecycle, driven by one source of
-truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
-
-- generate the release-side Boskos inventory from that same source instead of updating it separately
+Prow jobs, ci-operator configuration, step-registry workflows and Boskos inventory stay in `openshift/release`. The on-demand DEV footprint created during a job run is provisioned by the release-side workflow, not by this topology. Slot-manager's catalog and assets are covered by the [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md) and [Slot Assets](slot-assets.md).
 
 ## Operator Entry Points
 
-Useful local entry points for the current topology:
+Roll out the unattended surface locally:
 
 ```bash
 make dev-ci-local-run
+```
+
+Roll out the privileged surface. This is an on-demand run by an `aro-hcp-owners` member; it builds `tooling/entra-app-credentials` first and uses the invoking user's Azure CLI credentials:
+
+```bash
 make dev-ci-privileged-local-run
 ```
 
-Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an on-demand run performed by an OWNERS-group member, whose RBAC steps require Owner** — when mock Entra applications, certificates, pinned credentials, subscription-scoped RBAC, or E2E subscription resource-provider registrations need to be created or reconciled. Certificate rotation is a separate, explicitly disruptive CLI procedure.
+Certificate rotation is a separate, deliberately disruptive procedure documented in [DEV Mock Identities](dev-mock-identities.md).
 
 ## Where To Look
 
-When you need to change or debug the standalone `dev-ci` topology, start here:
-
-- `config/config-dev-ci.yaml`
-- `topology-dev-ci.yaml`
-- `dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml`
-- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml`
-- `dev-infrastructure/scripts/e2e-register-providers.sh`
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
-- `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
-- `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
-- `dev-infrastructure/Makefile`
-- [CI Identity Leasing](identity-leasing.md)
-- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
-- [Opstool CI Platform](opstool.md)
-
-## See Also
-
-- [CI Overview](README.md)
-- [CI Execution](execution.md)
-- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
-- [CI Identity Leasing](identity-leasing.md)
-- [CI Operations](operations.md)
+- `topology-dev-ci.yaml` and `config/config-dev-ci.yaml` for the service groups and their configuration.
+- `dev-infrastructure/dev-ci/` for the pipelines of every service group.
+- [Opstool CI Platform](opstool.md) and [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) for the cluster and the telemetry it hosts.
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for adding an E2E subscription.
+- [CI Overview](README.md) for the rest of the CI documentation.
