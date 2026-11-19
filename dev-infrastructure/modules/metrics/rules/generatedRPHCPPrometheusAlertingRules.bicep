@@ -805,7 +805,7 @@ resource rpHostedClusterDeletionStuck 'Microsoft.AlertsManagement/prometheusRule
           summary: 'HostedCluster {{ $labels.namespace }}/{{ $labels.name }} deletion is older than 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
           title: 'HostedCluster {{ $labels.namespace }}/{{ $labels.name }} deletion is older than 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
         }
-        expression: 'time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800'
+        expression: 'time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
