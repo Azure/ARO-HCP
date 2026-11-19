@@ -8,7 +8,7 @@ pending period, not a new 48-hour wait. No backend operation record is required;
 a `Failed` operation does not suppress this alert. KAS alerts and SLOs are unchanged.
 
 ```promql
-time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (
   hostedClusterAPI_deletion_timestamp_seconds > 0
 ) > 172800
 ```
@@ -38,10 +38,13 @@ deletion timestamp and is not guaranteed to produce zero: conversion errors omit
 the sample. See the [KSM conversion documentation](https://github.com/kubernetes/kube-state-metrics/blob/v2.20.0/docs/metrics/extend/customresourcestate-metrics.md#type-conversion-and-special-handling).
 
 Identity labels derive from configured resource labels and scrape context, not a
-verified production series schema. `api_url`, KSM type labels and ephemeral scrape
-labels are excluded. Replica churn does not reset pending while a matching replica
-remains visible. If the expression disappears, pending resets and a firing alert
-clears. On reappearance the timestamp's age has not reset, but the 15-minute pending
+verified production series schema. The grouping retains the configured `environment`
+external label alongside cluster and region; it does not filter or restrict
+environments. Series without an environment label remain eligible. `api_url`, KSM
+type labels and ephemeral scrape labels are excluded. Replica churn does not reset
+pending while a matching replica remains visible. If the expression disappears,
+pending resets and a firing alert clears. On reappearance the timestamp's age has
+not reset, but the 15-minute pending
 period starts again. Short scrape gaps may be bridged by Prometheus's lookback
 window. Telemetry loss is **not proof of successful deletion**; confirm resource
 removal independently. Azure notification resolution is separate from query state.

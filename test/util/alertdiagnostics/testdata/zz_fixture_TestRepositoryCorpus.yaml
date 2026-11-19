@@ -5778,14 +5778,14 @@
   group: rp-hosted-cluster-deletion-stuck
   alert: userJourneyClusterDeletionStuck
   occurrence: 1
-  input: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
+  input: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
   plan:
-    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
+    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
     conditions:
-      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
+      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
         path: root
         queries:
-          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
+          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0)
             role: signal
         thresholds:
           - operator: '>'
@@ -9755,16 +9755,16 @@
   alert: userJourneyClusterDeletionStuck
   occurrence: 1
   input: |
-    time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+    time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (
       hostedClusterAPI_deletion_timestamp_seconds > 0
     ) > 172800
   plan:
-    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
+    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
     conditions:
-      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
+      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
         path: root
         queries:
-          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
+          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (hostedClusterAPI_deletion_timestamp_seconds > 0)
             role: signal
         thresholds:
           - operator: '>'

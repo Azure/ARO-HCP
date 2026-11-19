@@ -11,7 +11,7 @@ spec:
     rules:
     - alert: userJourneyClusterDeletionStuck
       expr: |
-        time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+        time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region, environment) (
           hostedClusterAPI_deletion_timestamp_seconds > 0
         ) > 172800
       for: 15m
