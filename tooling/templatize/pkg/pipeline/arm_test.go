@@ -53,9 +53,12 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 		timeout   bool
 		errorText string
 		noDetails bool
+		// redeployed is set for states the caller redeploys over when it finds them on the first lookup (see
+		// TestStaleFailedDeployment); only the helper, without redeploying allowed, and the 409 path fail on them.
+		redeployed bool
 	}{
-		{name: "failed", body: `{"properties":{"provisioningState":"Failed","error":{"code":"SyntheticFailure","message":"synthetic failure"}}}`, errorText: `pre-existing deployment failed: {"code":"SyntheticFailure","message":"synthetic failure"}`},
-		{name: "canceled", body: `{"properties":{"provisioningState":"Canceled"}}`, errorText: "pre-existing deployment: provisioning state is Canceled"},
+		{name: "failed", body: `{"properties":{"provisioningState":"Failed","error":{"code":"SyntheticFailure","message":"synthetic failure"}}}`, errorText: `pre-existing deployment failed: {"code":"SyntheticFailure","message":"synthetic failure"}`, redeployed: true},
+		{name: "canceled", body: `{"properties":{"provisioningState":"Canceled"}}`, errorText: "pre-existing deployment: provisioning state is Canceled", redeployed: true},
 		{name: "deleted", body: `{"properties":{"provisioningState":"Deleted"}}`, errorText: "pre-existing deployment: provisioning state is Deleted"},
 		{name: "deleting", body: `{"properties":{"provisioningState":"Deleting"}}`, errorText: "pre-existing deployment: provisioning state is Deleting"},
 		{name: "unspecified", body: `{"properties":{"provisioningState":"NotSpecified"}}`, errorText: "pre-existing deployment: provisioning state is NotSpecified"},
@@ -71,7 +74,7 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 	for _, scope := range []string{"ResourceGroup", "Subscription"} {
 		for _, test := range cases {
 			for _, layer := range []string{"helper", "caller", "concurrent caller"} {
-				if test.noDetails && layer != "helper" {
+				if test.noDetails && layer != "helper" || test.redeployed && layer == "caller" {
 					continue
 				}
 				t.Run(scope+"/"+test.name+"/"+layer, func(t *testing.T) {
@@ -134,7 +137,7 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 					if layer == "helper" {
 						var exists bool
 						var armOutput ArmOutput
-						exists, armOutput, details, err = pollAndGetOutputFromExistingDeployment(ctx, deployments, getOperations, "subscription", timeout, scope, "rg", "deployment")
+						exists, armOutput, details, err = pollAndGetOutputFromExistingDeployment(ctx, deployments, getOperations, "subscription", timeout, time.Millisecond, scope, "rg", "deployment", false)
 						output = armOutput
 						assert.Equal(t, test.errorText == "" && !test.noDetails, exists)
 					} else {

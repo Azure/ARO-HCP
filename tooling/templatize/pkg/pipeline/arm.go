@@ -50,7 +50,8 @@ type armClient struct {
 	getOperationsClient OperationsClientGetter
 	resourceGroupClient *armresources.ResourceGroupsClient
 
-	deploymentRetryWaitTime int
+	// existingDeploymentPollInterval is how often a pre-existing deployment that is still running is looked up again.
+	existingDeploymentPollInterval time.Duration
 
 	Region        string
 	GetDeployment func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error)
@@ -82,13 +83,13 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	}
 	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, opts)
 	return &armClient{
-		bicepClient:             bicepClient,
-		subscriptionID:          subscriptionID,
-		deploymentClient:        deploymentClient,
-		getOperationsClient:     getOperationsClient,
-		deploymentRetryWaitTime: 15,
-		resourceGroupClient:     resourceGroupClient,
-		Region:                  region,
+		bicepClient:                    bicepClient,
+		subscriptionID:                 subscriptionID,
+		deploymentClient:               deploymentClient,
+		getOperationsClient:            getOperationsClient,
+		existingDeploymentPollInterval: defaultExistingDeploymentPollInterval,
+		resourceGroupClient:            resourceGroupClient,
+		Region:                         region,
 		GetDeployment: func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error) {
 			return deploymentClient.Get(ctx, rgName, deploymentName, nil)
 		},
@@ -102,7 +103,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
+	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, a.existingDeploymentPollInterval, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -166,7 +167,7 @@ func portalDeploymentURI(subscriptionID, resourceGroup, deploymentName string) s
 	return "https://ms.portal.azure.com/#view/Microsoft_Azure_Resources/DeploymentDetails.MenuView/~/overview/id/" + url.PathEscape(resourceID)
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, pollInterval time.Duration, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -213,7 +214,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 	var output ArmOutput
 	var details DetailsProducer
-	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, pollInterval, step.DeploymentLevel, rgName, deploymentName, true)
 	if err != nil {
 		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
@@ -234,7 +235,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		if isDeploymentActiveError(err) {
 			logger.V(1).Info("Deployment already active, waiting for it to complete", "deployment", deploymentName)
 			var exists bool
-			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, pollInterval, step.DeploymentLevel, rgName, deploymentName, false)
 			if err != nil {
 				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
@@ -258,7 +259,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		if isDeploymentActiveError(err) {
 			logger.V(1).Info("Deployment already active, waiting for it to complete", "deployment", deploymentName)
 			var exists bool
-			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, pollInterval, step.DeploymentLevel, rgName, deploymentName, false)
 			if err != nil {
 				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
@@ -275,15 +276,17 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	}
 	if pollErr != nil {
-		return nil, nil, fmt.Errorf("failed to poll deployment: %w", pollErr)
+		return nil, details, fmt.Errorf("failed to poll deployment: %w", pollErr)
 	}
 
 	return output, details, commit(output)
 }
 
 // pollAndGetOutputFromExistingDeployment papers over the unfortunate reality that armresources.DeploymentClient has
-// no mechanism to create a poller for an existing deployment - relegating us to a manual polling loop.
-func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string) (bool, ArmOutput, DetailsProducer, error) {
+// no mechanism to create a poller for an existing deployment - relegating us to a manual polling loop. It reports
+// false without an error when there is nothing to reuse and the caller should deploy: no deployment exists, or
+// allowRedeploy is set and the deployment is left over from an earlier attempt (see planExistingDeployment).
+func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, pollInterval time.Duration, deploymentLevel, resourceGroup, deploymentName string, allowRedeploy bool) (bool, ArmOutput, DetailsProducer, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return false, nil, nil, err
@@ -315,32 +318,82 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	}
 
 	logger.V(2).Info("Waiting for existing deployment to complete")
-	remainingTime := timeoutSeconds
-	for remainingTime > 0 {
+	if pollInterval <= 0 {
+		pollInterval = defaultExistingDeploymentPollInterval
+	}
+	remainingTime := time.Duration(timeoutSeconds) * time.Second
+	for firstLookup := true; remainingTime > 0; firstLookup = false {
 		if err != nil {
 			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 		}
 		if output == nil || output.ProvisioningState == nil {
 			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
 		}
-		switch *output.ProvisioningState {
-		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
+		switch planExistingDeployment(*output.ProvisioningState, firstLookup, allowRedeploy) {
+		case reuseExisting:
+			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
+			return true, armOutputFromOutputs(output.Outputs), details, nil
+		case redeployOverExisting:
+			logger.Info("Redeploying over a pre-existing deployment with identical inputs that had already ended unsuccessfully.", "provisioningState", *output.ProvisioningState)
+			return false, nil, nil, nil
+		case failOnExisting:
 			if output.Error != nil {
 				return false, nil, details, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
 			}
 			return false, nil, details, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
-		case armresources.ProvisioningStateSucceeded:
-			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
-			return true, armOutputFromOutputs(output.Outputs), details, nil
-		case armresources.ProvisioningStateAccepted, armresources.ProvisioningStateCreated, armresources.ProvisioningStateCreating, armresources.ProvisioningStateReady, armresources.ProvisioningStateRunning, armresources.ProvisioningStateUpdating:
-			// keep waiting for the deployment to finish
+		case waitForExisting:
 		}
-		time.Sleep(15 * time.Second)
-		remainingTime -= 15
+		select {
+		case <-ctx.Done():
+			return false, nil, details, fmt.Errorf("stopped waiting for pre-existing deployment: %w", context.Cause(ctx))
+		case <-time.After(pollInterval):
+		}
+		remainingTime -= pollInterval
 
 		output, err = get(ctx)
 	}
 	return false, nil, details, errors.New("timed out waiting for pre-existing deployment to finish")
+}
+
+// defaultExistingDeploymentPollInterval is how often a pre-existing deployment that is still running is looked up again.
+const defaultExistingDeploymentPollInterval = 15 * time.Second
+
+// existingDeploymentAction is what to do about a deployment found under the name a step is about to deploy to.
+type existingDeploymentAction int
+
+const (
+	// waitForExisting looks the deployment up again later: it is still running, or in a state we don't recognise.
+	waitForExisting existingDeploymentAction = iota
+	// reuseExisting takes the outputs of a deployment that succeeded.
+	reuseExisting
+	// redeployOverExisting deploys again under the same name, replacing a deployment left over from an earlier attempt.
+	redeployOverExisting
+	// failOnExisting fails the step.
+	failOnExisting
+)
+
+// planExistingDeployment decides what to do about a pre-existing deployment in the given provisioning state.
+//
+// Deployment names are a digest of the step inputs and the step cache only records successes, so a failed attempt
+// with identical inputs (e.g. the first attempt of an earlier run, before a retry changed the digest) leaves a failed
+// deployment under this name. Failing on it would make the failure permanent for these inputs; deploying again does
+// what a retry would. Only a deployment that had already failed or been cancelled when first looked up is such a
+// leftover: one that ends while we wait for it is a concurrent run of these inputs failing now. allowRedeploy is
+// false when the deployment is known to be a concurrent one (ARM reported it active).
+func planExistingDeployment(state armresources.ProvisioningState, firstLookup, allowRedeploy bool) existingDeploymentAction {
+	switch state {
+	case armresources.ProvisioningStateSucceeded:
+		return reuseExisting
+	case armresources.ProvisioningStateFailed, armresources.ProvisioningStateCanceled:
+		if firstLookup && allowRedeploy {
+			return redeployOverExisting
+		}
+		return failOnExisting
+	case armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateNotSpecified:
+		return failOnExisting
+	default:
+		return waitForExisting
+	}
 }
 
 func isDeploymentActiveError(err error) bool {
