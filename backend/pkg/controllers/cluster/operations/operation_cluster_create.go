@@ -37,7 +37,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -52,6 +54,7 @@ type operationClusterCreate struct {
 	serviceProviderClusterLister          corelisters.ServiceProviderClusterLister
 	clusterManagementClusterContentLister corelisters.ManagementClusterContentLister
 	readDesireLister                      kubeapplierlisters.ReadDesireLister
+	deploymentStackDesireLister           azureresourceslisters.DeploymentStackDesireLister
 	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
@@ -79,13 +82,15 @@ func NewOperationClusterCreateController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	informers coreinformers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
+	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
-	_, activeOperationLister := informers.ActiveOperations()
-	_, clusterLister := informers.Clusters()
-	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
+	_, activeOperationLister := backendInformers.ActiveOperations()
+	_, clusterLister := backendInformers.Clusters()
+	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, clusterManagementClusterContentLister := backendInformers.ManagementClusterContents()
+	_, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
 		activeOperationLister:                 activeOperationLister,
@@ -93,6 +98,7 @@ func NewOperationClusterCreateController(
 		serviceProviderClusterLister:          serviceProviderClusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
+		deploymentStackDesireLister:           deploymentStackDesireLister,
 		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		notificationClient:                    notificationClient,
@@ -125,7 +131,7 @@ func (c *operationClusterCreate) newStatusCalculators() (operationbase.Operation
 		&clusterCreatePlacementCheck{clusterLister: c.clusterLister, clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateServingCACheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDefaultIngressCertificateCheck{readDesireLister: c.readDesireLister},
-		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, deploymentStackDesireLister: c.deploymentStackDesireLister},
 		&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDataPlaneOIDCFederationCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister},
 	)
