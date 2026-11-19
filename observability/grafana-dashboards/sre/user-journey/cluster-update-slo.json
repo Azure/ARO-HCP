@@ -139,7 +139,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Cluster update operations whose current phase is accepted or updating and that started over 90 minutes ago, past the default cluster update completion deadline. The Backend fails updates at their deadline, so an operation here means the deadline is not being enforced. Reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
+      "description": "Cluster update operations whose current phase is accepted or updating and that started over 90 minutes ago, past the default cluster update completion deadline. The Backend fails updates at their deadline, so an operation here means the deadline is not being enforced, unless the update has an extended experimental deadline. Reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },

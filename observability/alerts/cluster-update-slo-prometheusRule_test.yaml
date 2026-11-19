@@ -430,7 +430,7 @@ tests:
         subscription_id: sub-1
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
-        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so unless this update has an extended experimental deadline, the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # The hold keeps the alert firing through a gap in the start time metric while
@@ -464,7 +464,7 @@ tests:
         subscription_id: sub-1
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
-        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so unless this update has an extended experimental deadline, the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # The alert clears as soon as the update completes, despite the 6h hold: /stuck
@@ -501,7 +501,7 @@ tests:
         subscription_id: sub-1
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
-        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so unless this update has an extended experimental deadline, the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
   - eval_time: 130m
@@ -548,7 +548,7 @@ tests:
         subscription_id: sub-1
       exp_annotations:
         summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
-        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so unless this update has an extended experimental deadline, the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-update"
         correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
 # A former Backend leader's stale snapshot does not page. backend-0 (former

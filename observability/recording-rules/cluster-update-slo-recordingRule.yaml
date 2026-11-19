@@ -38,7 +38,7 @@ spec:
   # gauges"; before it, the last synced operation wins.) Dashboard counts of
   # this record are therefore counts of CLUSTERS by the outcome of their latest
   # retained update, not counts of individual operations: a failed update that
-  # is later retried successfully is overwritten and never counted.
+  # is later retried successfully is overwritten and drops out of the record.
   #
   # ONE STATE PER OPERATION: the record holds exactly one series per
   # (cluster, resource, operation_type), with the current phase as a label and
