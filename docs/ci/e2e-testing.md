@@ -130,6 +130,7 @@ Tests are organized into suites with label-based filtering. The available labels
 | `Importance:{Low,Medium,High,Critical}` | Test importance level |
 | `Development-Only` | Tests that only run in DEV environments |
 | `Integration-Only` | Tests that only run in integration |
+| `Stage-And-Prod-Only` | Tests that only run in the stage and prod suites |
 | `PreLaunchSetup:None` | Tests that require no pre-existing infrastructure |
 | `ARO-HCP-RP-API-Compatible` | Tests compatible with both ARM and ARO HCP RP APIs |
 
