@@ -24,8 +24,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"sigs.k8s.io/randfill"
-
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
@@ -35,50 +33,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
-		// ImageDigestMirrors, Ingress, and CryptoRestrictions do not exist in v20240610preview.
-		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.ImageDigestMirrors = nil
-			j.Ingress = coreapi.CustomerIngressProfile{}
-			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
-		},
-		// VnetIntegrationSubnetID was added in v20251223preview and does not exist in v20240610preview.
-		// ContainerRegistry was added in v20261001 and does not exist in v20240610preview.
-		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j.SubnetID != nil {
-				j.SubnetID = coreapitesting.FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", coreapitesting.GenName(c))
-			}
-			if j.NetworkSecurityGroupID != nil {
-				j.NetworkSecurityGroupID = coreapitesting.FuzzArmResourceID("Microsoft.Network/networkSecurityGroups", coreapitesting.GenName(c))
-			}
-			j.VnetIntegrationSubnetID = nil
-			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
-		},
-		// DiskType was added in v20251223preview and does not exist in v20240610preview.
-		func(j *coreapi.OSDiskProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j.EncryptionSetID != nil {
-				j.EncryptionSetID = coreapitesting.FuzzArmResourceID("Microsoft.Compute/diskEncryptionSets", coreapitesting.GenName(c))
-			}
-			j.DiskType = ""
-		},
-		// Visibility was added in v20251223preview and does not exist in v20240610preview.
-		// KeyVaultType was added in v20261001 and does not exist in v20240610preview.
-		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.Visibility = ""
-			j.KeyVaultType = ""
-		},
-		func(j *coreapi.CustomerManagedEncryptionProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			zeroValueKMS := coreapi.KmsEncryptionProfile{}
-			if j.Kms != nil && *j.Kms == zeroValueKMS {
-				j.Kms = nil
-			}
-		},
-	), rand.NewSource(seed))
+	fuzzer := coreapitesting.FuzzerFor(
+		coreapitesting.RoundTripFuzzFuncs(metadataapi.APIVersionV20240610Preview),
+		rand.NewSource(seed),
+	)
 
 	for i := 0; i < 200; i++ {
 		original := &coreapi.Cluster{}

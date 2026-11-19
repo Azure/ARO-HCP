@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
@@ -33,7 +34,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.FuzzerFor(
-		coreapitesting.CommonRoundTripFuzzFuncs(),
+		coreapitesting.RoundTripFuzzFuncs(metadataapi.APIVersionV20261001),
 		rand.NewSource(seed),
 	)
 
