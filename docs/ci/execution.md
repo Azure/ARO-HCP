@@ -346,25 +346,6 @@ Where to read further:
 - [DEV Mock Identities](dev-mock-identities.md) explains the service principals that replace the first-party application in DEV.
 - [E2E Capacity And Quotas](e2e-capacity.md) explains how slot and container counts relate to Azure limits.
 
-### Slot-Bound Mock Identities
-
-DEV/dev-xs slot jobs spread ARM traffic through a persistent mock bundle:
-
-- each primary slot owns one MSI mock and two distinct ARM helper SPs
-- admission resolves them through Graph and validates certificates and baseline
-  RBAC read-only before publishing `LEASED_MOCK_IDENTITY_BUNDLE`
-- provisioning consumes the bundle's client/principal IDs and certificate names
-- personal development environments use the named shared mock SP values
-
-The primary slot provides exclusivity without an extra mock identity lease.
-Owner preparation and repair happen outside CI; failed admission does not create
-identities or rotate credentials.
-
-See [CI Identity Leasing](identity-leasing.md#slot-bound-mock-identities) and
-[external onboarding](external-subscription-onboarding.md) for preparation and
-maintenance. Shared FPA semantics and normal configuration override precedence
-apply to both shared and slot-bound identities.
-
 ## EV2 Commit Pinning
 
 The connection between EV2 and Prow is configured in this repository: `config/config.msft.clouds-overlay.yaml` selects the `prowJobName` for each environment, and `test/e2e-pipeline.yaml` passes it to the EV2 pipeline. The job is then triggered against the rollout's commit rather than `HEAD`, which is the key difference between EV2 gating and a periodic E2E. [CI EV2 Integration](ev2-integration.md) covers the full path, including Gangway authentication and how to identify a specific run.

@@ -1,236 +1,102 @@
 # DEV Mock Identities
 
-DEV (and the MSIT INT environment) cannot use the real Azure
-control planes that the product relies on in production:
+DEV, and the INT environment that runs in the MSIT tenant, cannot use two Azure services the product depends on in production. There is no Microsoft first-party application (FPA) for the Resource Provider and Clusters Service to act through, and the Managed Identities Data Plane, which hands out the runtime credentials of a cluster's user-assigned managed identities, only exists in tenants that have the FPA integration.
 
-- there is no Microsoft **First Party Application (FPA)** that the Resource Provider
-  and Clusters Service can act through, and
-- the **Managed Identities Data Plane** service — which hands out the runtime
-  credentials of a cluster's user-assigned managed identities — is only available in
-  tenants where that FPA integration exists.
+To run end to end anyway, CI substitutes a few ordinary Entra service principals, the *mock identities*. The product code calls the matching mocked clients the *hardcoded identities*, as in `hardcoded_identity_mi_dataplane_client.go`, so you will see both names. This page explains what each one stands in for, why it holds the roles it does, how slot-managed jobs get their own copies, and how all of them are created and maintained.
 
-To run end to end without those, DEV substitutes a small set of **mock identities**:
-ordinary Entra service principals that impersonate the identities the product would
-otherwise use. This document explains what each mock identity stands in for, why it
-needs exactly the roles it is granted, and how those roles are assigned today.
+## The Identities
 
-## The Identities At A Glance
+| Identity | Stands in for | Roles |
+| :------- | :------------ | :---- |
+| First-party mock (`aro-dev-first-party2`) | The Microsoft first-party application | Custom role `dev-first-party-mock` |
+| ARM helper | The FPA's ability to create Azure resources and assign roles for the customer ("MockFPA") | Built-in `Contributor` and `Role Based Access Control Administrator` |
+| MSI mock | Every per-cluster operator managed identity, via the mocked data plane | Custom role `dev-msi-mock` and built-in `Key Vault Crypto User` |
 
-DEV/dev-xs slot jobs use [dedicated three-principal bundles](#slot-bound-ci-bundles).
-The shared FPA supplies first-party semantics, while personal-dev uses named
-shared MSI/ARM identities. The DEV bootstrap layer's Entra
-**application definitions** (display name, certificate DNS, and certificate
-vault URL) come from `config/config-dev-ci.yaml` under
-`.ci.dev.mockIdentities`; the service principal **object IDs are resolved at
-deployment time** via Microsoft Graph lookup
-(see [How The Roles Are Assigned](#how-the-roles-are-assigned)):
+The shared application definitions (names, certificate names and DNS names) live in `config/config-dev-ci.yaml` under `.ci.<env>.mockIdentities`. Shared bootstrap resolves principal object IDs through Graph, and slot admission discovers the dedicated principals through Graph before exporting their non-secret runtime bundle. Clusters Service receives the identities through its deployment values (see `cluster-service/deploy/templates/deployment.yaml`).
 
-| Identity | Mocks | Roles it receives |
-|---|---|---|
-| `aro-dev-first-party2` (firstParty) | The Microsoft First Party Application | `dev-first-party-mock` (custom) |
-| `aro-dev-arm-helper2` (armHelper) | The FPA's ARM/RBAC delegation ("MockFPA") | `Contributor` + `Role Based Access Control Administrator` (built-in) |
-| `aro-dev-msi-mock2` (miMock) | Every per-cluster operator managed identity | `dev-msi-mock` (custom) + `Key Vault Crypto User` (built-in) |
-| Slot MSI mock | Same operator-identity mock, dedicated to one slot | `dev-msi-mock` + Key Vault Crypto User on that slot's customer subscription |
-| Slot Backend / Clusters Service helpers | Two distinct authenticating helper SPs, dedicated to one slot | Each gets Contributor + RBAC Administrator on that slot's customer subscription |
+There are two supported configurations for ARM helper and MSI mock identities. The *shared* ones (`aro-dev-arm-helper2`, `aro-dev-msi-mock2`, and the first-party mock) serve personal development environments and the persistent shared services. Slot-managed DEV E2E jobs use *slot mock identities* instead: every slot gets its own MSI mock and two ARM helpers, described [below](#slot-mock-identities). The first-party mock is always the shared one. INT has its own named set of the same three roles, including a separate ARM helper for Clusters Service.
 
-Clusters Service consumes them via its [deployment values](../../cluster-service/values.yaml):
-`azureFirstPartyApplicationClientId`, `azureArmHelperIdentityClientId` +
-`azureArmHelperMockFpaPrincipalId`, and `azureMiMockServicePrincipal*`.
+## What Each One Is For
 
-## First Party Mock — `aro-dev-first-party2`
+### First-Party Mock
 
-This principal stands in for the Microsoft First Party Application. In production the
-FPA performs the subnet-delegation handshake (service association links) when a
-customer virtual network is attached to a managed cluster, and reads/writes the
-managed resource group.
+In production the FPA performs the subnet delegation handshake when a customer virtual network is attached to a managed cluster, and reads and writes the managed resource group. The `dev-first-party-mock` role grants exactly that: create, read, validate and delete service association links on subnets, and read and write on resource groups. It deliberately does not create the cluster's Azure resources or assign roles; that is the ARM helper's job.
 
-Its custom role `dev-first-party-mock` therefore grants only:
+### ARM Helper
 
-- `Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/*` — create,
-  read, validate and delete the service association link that delegates a subnet.
-- `Microsoft.Resources/subscriptions/resourceGroups/read|write` — manage the
-  managed resource group.
+In production the FPA can act on behalf of the customer to create resources and to assign roles to a cluster's operator identities. The ARM helper impersonates that capability in DEV and authenticates using its own client ID and certificate. The separate `azureArmHelperMockFpaPrincipalId` setting identifies the shared FPA principal. It holds two built-in roles at subscription scope: `Contributor`, to create what a cluster needs, and `Role Based Access Control Administrator`, to bind each operator identity to its role. Azure does not require the party handing out a role to hold it, so the helper can assign `Key Vault Crypto User` and the operator roles without holding them itself. That is why the helper, and not the MSI mock, performs the operator-role assignments.
 
-That narrow scope is deliberate: the first-party mock does **not** create the
-cluster's Azure resources or assign roles. Those are the ARM helper's job.
+One naming trap: the configuration value `armHelperFPAPrincipalId` is the principal that *receives* the simulated FPA grant, that is, the shared first-party mock. It is not the helper that authenticates the request.
 
-## ARM Helper — `aro-dev-arm-helper2` (the "MockFPA")
+Backend and Clusters Service each have their own ARM helper in slot-managed jobs and in INT. This matters because Azure throttles CheckAccess calls per application, and each concurrent environment runs its own backend rate limiter. If all environments authenticated as one shared helper, their independent limiters would add up against a single Azure limit.
 
-In production the FPA can act on behalf of the customer to create Azure resources and
-to **assign roles to the cluster's operator identities**. In DEV the ARM helper
-authenticates those operations. Its client ID and certificate identify the caller;
-`azureArmHelperMockFpaPrincipalId` separately identifies the shared first-party
-mock principal, not that authenticating helper.
+### MSI Mock
 
-It is granted two **built-in** roles at subscription scope:
+This is the most important and most easily misunderstood identity. Because the Managed Identities Data Plane is unavailable, the backend and Clusters Service use a mock client (`backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go`) that answers every request with one service principal disguised as a managed identity. In effect, every per-cluster operator identity (cloud controller manager, ingress, network operator, the KMS plugin and the rest) authenticates at runtime as the MSI mock.
 
-- **Contributor** (`b24988ac-…`) — create and manage the Azure resources a cluster
-  needs.
-- **Role Based Access Control Administrator** (`f58310d9-…`) — create the role
-  assignments that bind each cluster operator identity to its operator role.
+Its custom role, `dev-msi-mock`, is therefore the union of what those operators do: manage federated identity credentials for workload identity, and a broad set of network actions on load balancers, subnets, security groups, route tables, NAT gateways, private DNS links and virtual networks. When a cluster enables etcd encryption the KMS plugin also authenticates as the MSI mock and calls Key Vault key operations, so the MSI mock holds the built-in `Key Vault Crypto User` role as well, the same one the product assigns to a per-cluster KMS identity. DEV E2E exercises this path in the private key vault and Cilium key vault tests.
 
-Note that Azure does **not** require the granting principal to hold the permissions
-it hands out; *Role Based Access Control Administrator* can assign `Key Vault Crypto
-User` (and the operator roles) without holding them itself. This is why the ARM
-helper, not the MSI mock, is the identity that performs operator-role assignments.
+### Custom Versus Built-In Roles
 
-CheckAccess throttles third-party applications per identity/application, while
-each concurrent E2E environment runs its own backend-local limiter. Dedicated
-slot helpers prevent those backends from sharing `aro-dev-arm-helper2`'s budget.
-The mock handler grants slot helpers access only to their customer subscription.
+The operator-equivalent permissions used to be custom roles because the matching built-in roles were not yet available in every tenant. Where a built-in role now exists, the setup uses it, which is why the ARM helper and the KMS grant use built-ins. `dev-first-party-mock` and `dev-msi-mock` remain custom because they bundle a set of actions that no single built-in role covers.
 
-At runtime the slot bundle supplies `armHelperClientId` and
-`armHelperCertName` for Backend and
-`clustersServiceArmHelperClientId` and `clustersServiceArmHelperCertName`.
-`armHelperFPAPrincipalId` remains the shared first-party mock principal: despite
-its similar name, it identifies the principal that receives the simulated FPA
-grant, not the ARM helper authenticating the request.
+## Slot Mock Identities
 
-INT uses named ARM helper identities. Backend
-uses `armHelperClientId` and `armHelperCertName`; Clusters Service can use the
-independent `clustersServiceArmHelperClientId` and
-`clustersServiceArmHelperCertName` values. Environments without a dedicated
-Clusters Service identity set both pairs to the same identity; the Clusters
-Service chart reads only the `clustersServiceArmHelper*` pair.
+A slot-managed DEV job gets its own MSI mock and two ARM helpers through the `mock_identities` [slot asset](slot-assets.md#mock-identities). They are named `aro-hcp-slot-<UUID>-{msi,backend,cs}`, where the UUID is derived from the customer subscription and the slot name, so they survive a change of region but not a rename of the slot.
 
-## MSI Mock — Shared And Slot-Bound
+Unlike the shared identities, these are created and reconciled by the slot-manager asset commands, not by the dev-ci rollout.
 
-This is the most important — and most easily misunderstood — identity.
+### Preparing A Slot's Identities
 
-Because the Managed Identities Data Plane is unavailable, the backend/CS uses a mock
-client (`backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go`) whose
-own documentation states it plainly: *"all requests made with it return a single
-Azure Service Principal identity, disguised as a Managed Identity."* In other words,
-**every per-cluster operator identity — Cloud Controller Manager, Ingress, the
-network operator, the KMS plugin, and so on — authenticates at runtime as the single
-MSI mock service principal.**
+Apply is a privileged, operator-run action. CI admission only reads. The operator needs three separate things, none of which implies the others:
 
-That is why its custom role `dev-msi-mock` is the **union** of what those operators
-actually do at runtime:
+- **Azure:** an active, unconditional `Owner` assignment on the customer subscription, direct, inherited or through a group. The preflight checks for Owner explicitly; Contributor plus RBAC Administrator does not pass. Activate any eligible assignment first.
+- **Microsoft Graph:** rights to create and manage the applications and service principals and their credentials, and to read the membership of the configured owners group. Owning the subscription grants none of this.
+- **Key Vault:** permission to read and create certificates in the shared service vault, `aro-hcp-dev-svc-kv`. Coordinate this with its owners; customer-subscription Owner does not grant access to that vault. Runtime certificate delivery also needs the appropriate secret access, separate from these operator permissions.
 
-- `Microsoft.ManagedIdentity/userAssignedIdentities/read` and
-  `…/federatedIdentityCredentials/*` — workload-identity federation for the
-  operators.
-- A broad set of `Microsoft.Network/*` actions on load balancers, subnets, NSGs,
-  route tables, NAT gateways, private DNS zone links and virtual networks — the
-  operations the cloud-controller-manager, ingress and network operators perform.
+The subscription must also already carry the subscription-local `dev-msi-mock-<subscription-id>` role definition. The slot code reuses that role and does not create it; it comes from the shared subscription RBAC template described [below](#how-the-shared-identities-are-set-up). Then run, per pool and one pool at a time:
 
-For the same reason it also needs Key Vault crypto access: when a cluster enables
-etcd data encryption, the **KMS plugin authenticates as the MSI mock** and calls
-Key Vault key operations. This path is exercised by DEV E2E
-(`test/e2e/cluster_create_private_kv.go`,
-`test/e2e/cluster_create_complex_cilium_kv.go`,
-`test/e2e/cluster_version_backlevel.go`). The MSI mock is therefore granted the
-**built-in `Key Vault Crypto User`** role (`12338af0-0e69-4776-bea7-57ae8d297424`) —
-the same role the product assigns to the per-cluster KMS identity for both Dev and
-Public (`internal/azure/cluster_scoped_identities_config.go`).
+```bash
+AROHCP_ENV=development make -C test apply-pool-assets    ENVIRONMENT="<dev|dev-xs>" POOL="<pool>" ASSET=mock_identities
+AROHCP_ENV=development make -C test validate-pool-assets ENVIRONMENT="<dev|dev-xs>" POOL="<pool>" ASSET=mock_identities
+```
 
-The slot's dedicated MSI principal has these same roles, scoped only to its
-customer subscription. See
-[CI Identity Leasing](identity-leasing.md) for the lease model.
+For a pool that is marked unmanaged, such as an externally owned subscription, add `SUBSCRIPTION='<display name>'` as well; selecting by pool or subscription is what includes unmanaged pools (see [Managing Slot Assets](slot-assets.md#managing-slot-assets)). The Make target needs Mike Farah's `yq` v4. It loads `ENTRA_APP_OWNER_IDS` and `ENTRA_APP_OWNERS_GROUP_ID` from the DEV defaults in `config/config-dev-ci.yaml` (or `MOCK_IDENTITY_CONFIG`); confirm those authoritative settings before applying. Pool and subscription selectors are exact matches and combine as an intersection. Never run this from CI.
 
-## Why Some Roles Are Custom And Others Built-In
+For each slot, apply creates the application and service principal for the three identities, creates a Key Vault certificate for each and pins it to the application, and grants six role assignments on the customer subscription: the MSI mock gets `dev-msi-mock` and `Key Vault Crypto User`, and each ARM helper gets `Contributor` and `Role Based Access Control Administrator`. Nothing is granted on the infrastructure subscription. Every step is safe to retry because the application names, certificate names and assignment IDs are deterministic; if Graph returns an ambiguous or mismatched object, stop and investigate rather than picking one.
 
-The ARM helpers use the built-in `Contributor` and `Role Based Access Control
-Administrator` roles. The MSI mock uses the built-in `Key Vault Crypto User`
-role for KMS access, matching the product's per-cluster KMS identity.
+Apply also makes the Entra owners of each application and service principal exactly the list in `entraAppOwnerIds` in `config/config-dev-ci.yaml`, which mirrors the `aro-hcp-owners` group, adding missing owners before removing extras. The command refuses to write anything if that list has drifted from the group. The replacement is authoritative, so an operator whose only access to the applications is as their creator can remove themselves and lose access mid-run. Run it as someone on the list or with tenant-level application administration. Reconciliation is not transactional, so serialize runs and simply retry after a partial failure. `validate-pool-assets` reports any owner difference as an error; CI admission never looks at owners.
 
-The custom roles `dev-first-party-mock` and `dev-msi-mock` bundle actions with
-no single built-in equivalent: FPA subnet delegation and resource-group access,
-and the union of the mocked operators' permissions, respectively.
+### Slot Identity Certificates
 
-## How The Roles Are Assigned
+The slot identities use the same pinned-certificate approach as the shared ones, explained under [Certificates](#certificates). Apply creates missing certificates and pins the current one without touching healthy credentials or certificate policies. Because pinning replaces an application's whole credential set, it must only ever be used on these dedicated applications. Admission checks that each certificate is valid and that its thumbprint matches what is pinned, and an expired or mismatched certificate fails the job.
 
-The **shared bootstrap** identities are created and granted their roles by two Bicep templates,
-both deployed by the `dev-ci` topology's **Owner-only, on-demand**
-`Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint, run by an OWNERS-group
-member with `make dev-ci-privileged-local-run` (it is excluded from the
-unattended `dev-ci` postsubmit because it needs subscription Owner):
+Rotation is a deliberate, disruptive operation with affected jobs drained; see [Rotating A Certificate](#rotating-a-certificate). One current limitation: the generated DNS name for a slot certificate, `<application name>.hcp.osadev.cloud`, is longer than the 64-character common-name limit enforced by `entra-app-credentials pin`, so it cannot be pasted into a rotation command. Agree a compatible DNS name of at most 64 characters with the vault owners first, or use a separately reviewed tooling correction. This procedure does not select or change the certificate subject for you. Coordinate runtime certificate delivery before resuming affected jobs.
 
-- [`dev-infrastructure/templates/mock-identity-apps.bicep`](../../dev-infrastructure/templates/mock-identity-apps.bicep) creates the Entra applications and their
-  service principals via `dev-infrastructure/modules/entra/app.bicep`. It configures **no**
-  authentication mechanism on the apps: the mock certificates are self-signed and
-  Clusters Service authenticates in send-certificate-chain mode, so Subject Name
-  and Issuer (SNI) trust does not validate (Entra rejects the self-signed chain
-  with `AADSTS7000213`). Instead the privileged pipeline's DEV
-  `pin-mock-certs` Shell step pins the certificate's public key onto each shared
-  app as a `keyCredential` immediately after app deployment (see
-  [Certificates](#certificates)), and Entra authenticates by matching the
-  presented leaf's thumbprint. The template deliberately does not manage
-  `keyCredentials`, so redeploying it does not wipe the pinned certs. It also
-  does **not** create the Key Vault certificates itself; the following
-  privileged Shell step owns certificate creation and pinning.
-- [`dev-infrastructure/templates/mock-identity-rbac.bicep`](../../dev-infrastructure/templates/mock-identity-rbac.bicep) looks up each configured shared service
-  principal's object ID via Microsoft Graph (by `uniqueName`, the normalized
-  application name), then fans out over the target subscriptions and deploys
-  `e2e-subscription-rbac-assignment-subscription.bicep` into each. That per-
-  subscription module is **self-contained**: it defines the custom roles
-  (`dev-first-party-mock`, `dev-msi-mock`) inline in the target subscription and
-  creates all the role assignments. Defining the roles locally avoids any cross-
-  subscription `assignableScopes` dependency. The operator still needs Owner
-  authorization on each target subscription; this is not an authorization bypass.
-  Because each subscription gets its own copy and
-  Azure enforces custom-role display-name uniqueness **per tenant**, the display
-  name is suffixed with the subscription id (e.g. `dev-msi-mock-<subscriptionId>`)
-  to avoid `RoleDefinitionWithSameNameExists`.
+### Test-Scoped Managed HSM Access
 
-The set of subscriptions that receive grants is controlled by two parameters:
+Tests that use a Managed HSM grant the mock principal `Managed HSM Crypto User` on the HSM itself. That grant belongs to the test's HSM and is not part of the persistent subscription baseline, and mock admission is read-only, so it is not revoked when the slot is released. If a test fails to remove it, the principal keeps access to that HSM until the test resource group is deleted and cleaned up. Expiry of the resource group alone does not revoke anything. Periodic [cleanup](cleanup.md) deletes expired resource groups and then attempts to purge their soft-deleted vaults and HSMs on a best-effort basis; Azure soft-delete retention and purge protection mean erasure is not immediate. The ARM orphan-role sweeper only handles assignments whose principals no longer exist, so it will not remove these.
 
-- `e2eSubscriptionIds` — the onboarded E2E customer subscriptions, from
-  `.ci.dev.e2eSubscriptions` (DEV) / `.ci.int.e2eSubscriptions` (INT).
-- `grantHomeSubscription` — whether to also grant the mock identities on the
-  **deployment** ("home") subscription. DEV deploys into its own home (global)
-  subscription, so it sets this `true`. INT leaves it `false` (the default),
-  because INT's apps are deployed from the DEV global subscription while INT's
-  real home subscription is already listed in `.ci.int.e2eSubscriptions` —
-  setting it true would wrongly grant INT roles on the DEV global sub.
+## How The Shared Identities Are Set Up
 
-Application definitions, role names, and the subscription lists are supplied by
-`dev-infrastructure/configurations/mock-identity-apps*.tmpl.bicepparam` and
-`dev-infrastructure/configurations/mock-identity-rbac*.tmpl.bicepparam` from `config/config-dev-ci.yaml`.
+The shared identities, and the subscription RBAC that every E2E subscription needs, are created by the on-demand, Owner-only `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint of the [dev-ci topology](dev-ci-topology.md#the-privileged-entrypoint), run by an OWNERS-group member with `make dev-ci-privileged-local-run`. It is kept out of the unattended dev-ci postsubmit because it needs subscription Owner. Two Bicep templates do the work:
 
-Slot applications and their six assignments are created separately by
-`make -C test apply-pool-assets` with `ASSET=mock_identities` and explicit pool
-selectors as shown below (the CLI itself uses `--asset`). Bootstrap must run first to supply
-the local custom role. External owners should use the
-[scoped external runbook](external-subscription-onboarding.md), not the broad
-managed-subscription pipeline.
+- `mock-identity-apps.bicep` creates the Entra applications and service principals. It deliberately configures no authentication on them; certificates are handled separately, as described next.
+- `mock-identity-rbac.bicep` looks up each principal's object ID through Graph and deploys `e2e-subscription-rbac-assignment-subscription.bicep` into every target subscription. That per-subscription template defines the custom roles locally, suffixing their names with the subscription ID because Azure requires custom role names to be unique per tenant, which also lets the pipeline onboard subscriptions it does not own, and creates all the role assignments.
+
+The target subscriptions are the entries of `.ci.<env>.e2eSubscriptions`, plus, for DEV only, the home subscription the pipeline deploys into, so that mock identities can be tested from personal development environments. INT leaves the home subscription out because its real home is already in the INT list.
 
 ### Certificates
 
-The mock identity apps authenticate with a **pinned certificate**
-(`keyCredentials`), not SNI. Bicep can neither create Key Vault certificates nor
-read their material, so the privileged pipeline invokes
-`tooling/entra-app-credentials` immediately after deploying the apps:
+The mock applications authenticate with a pinned certificate: the certificate's public key is registered on the application as a credential, and Entra matches the thumbprint of the certificate the client presents. Subject-name-and-issuer trust, the usual alternative, does not work here. The certificates are self-signed and Clusters Service sends the whole chain, and Entra rejects such a chain (`AADSTS7000213`). `mock-identity-apps.bicep` does not configure subject-name-and-issuer trust or manage the pinned credentials.
 
-Shared application names, certificate names, and certificate DNS names come
-from the environment's `mockIdentities` configuration.
+Bicep can neither create Key Vault certificates nor read them, so after the apps are deployed a Shell step in the privileged pipeline runs `tooling/entra-app-credentials`. For each mock application it reads the current certificate from the environment's Key Vault, creates it from the standard self-signed policy if it does not exist, pins its public key on the application, and verifies the resulting thumbprint through Graph. RBAC is applied only after every certificate has been reconciled. The step runs with the invoking operator's credentials, so that person needs certificate create and read rights on the vault and ownership of the applications.
 
-1. Read the current certificate from the environment Key Vault
-   (`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT).
-2. If it does not exist, create it with the established self-signed certificate
-   policy. Existing certificates and policies are left untouched.
-3. Register the current public certificate as the app's sole pinned
-   `keyCredential` and verify the resulting thumbprint through Microsoft Graph.
-4. Apply RBAC only after every requested certificate has been reconciled.
+Key Vault's own lifetime policy can auto-renew a certificate, which leaves the pinned thumbprint stale until the privileged pipeline is run again.
 
-This makes `make dev-ci-privileged-local-run` the routine write entrypoint
-for **shared bootstrap** mock applications, certificates, pinning, and RBAC;
-dedicated slot bundles use the scoped asset commands below.
+### Rotating A Certificate
 
-Templatize executes the Shell steps with the invoking OWNERS member's Azure CLI
-credentials. The caller needs Key Vault certificate create/read, Graph
-application ownership/write, and the subscription permissions documented above.
-
-### Disruptive Certificate Rotation
-
-Rotation is intentionally excluded from the pipeline. It is rare, disruptive,
-and must be requested directly through the certificate CLI. **Expect mock
-identity authentication to fail temporarily between Key Vault replacement and
-successful Graph pinning. Do not rotate certificates while DEV or INT E2E work
-needs uninterrupted authentication.**
-
-From the repository root, rotate only the intended application:
+Rotation is excluded from the pipeline because it is rare and disruptive: authentication fails between the moment Key Vault gets the new certificate and the moment Graph pins it. Do not rotate while E2E work needs uninterrupted authentication. From the repository root, rotate only the intended application:
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
@@ -239,157 +105,13 @@ AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
   --rotate
 ```
 
-Use the application, certificate, DNS, and vault values from
-`config/config-dev-ci.yaml` and the pipeline mappings. The command replaces the
-Key Vault certificate, waits until the new version is current, pins its
-thumbprint, and verifies the Graph update.
-
-If rotation creates the certificate but pinning fails, **do not immediately run
-another rotation**. For shared bootstrap apps, run `make dev-ci-privileged-local-run`; its normal
-create-if-missing reconciliation reads the current certificate and repairs the
-application without creating another version.
-
-Key Vault lifetime policies remain unchanged and may auto-renew certificates.
-An auto-renewed certificate can likewise drift from the pinned thumbprint until
-the privileged pipeline is run.
+For a shared identity, take the three values from its entry in `config/config-dev-ci.yaml`. A slot identity is not listed there: its application and certificate names are generated from the slot, so take them from the names the slot's asset commands report (derived by `mockidentities.IdentityNames` in the slot-manager code), and do not rotate a shared identity in their place. If the command creates the certificate but pinning fails, do not rotate again. Re-run the normal reconciliation, which finds the current certificate and pins it: the privileged pipeline for a shared identity, or the scoped `apply-pool-assets` for a slot identity.
 
 ## Where To Look
 
-- `config/config-dev-ci.yaml` — `.ci.dev.mockIdentities` / `.ci.int.mockIdentities`
-  shared application definitions
-- `dev-infrastructure/templates/mock-identity-apps.bicep` — creates the Entra
-  apps + service principals (auth is pinned out-of-band, see Certificates)
-- `dev-infrastructure/templates/mock-identity-rbac.bicep` — Graph lookup of
-  principal IDs + fan-out RBAC across home and E2E subscriptions
-- `dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep`
-  — inline custom role definitions + all assignments (per subscription)
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml` — the
-  privileged pipeline that deploys the templates above
-- `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go` — the mock MSI
-- `internal/azure/cluster_scoped_identities_config.go` — product operator-role mapping
-- `cluster-service/values.yaml` — how CS
-  consumes the mock identities
-
-## See Also
-
-- [CI Overview](README.md)
-- [Dev-CI Topology](dev-ci-topology.md)
-- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
-- [CI Identity Leasing](identity-leasing.md)
-
-## Slot-bound CI bundles
-
-DEV/dev-xs slot-manager jobs use the dedicated asset described in the
-[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities).
-Each primary slot supplies one MSI mock and separate Backend and Clusters Service
-helpers through `LEASED_MOCK_IDENTITY_BUNDLE`. The primary slot lease provides
-exclusivity. Personal-development environments use shared-principal configuration.
-
-### Dedicated slot identity operations
-
-The operator needs an active, unconditional customer-subscription Owner
-assignment (direct, inherited or through group membership), Entra application/SP
-management rights and certificate access to `https://aro-hcp-dev-svc-kv.vault.azure.net`.
-Activate eligible Owner access before applying. The preflight uses ARM's
-`atScope() and assignedTo(...)` filter for inherited and transitive group access.
-Install the existing subscription RBAC template first: its subscription-local
-`dev-msi-mock-<subscription-id>` role is reused.
-
-```bash
-AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
-AROHCP_ENV=development make -C test validate-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
-```
-
-Select the intended pool and environment (`dev` or `dev-xs`). Unmanaged pools
-are skipped unless explicitly selected with `POOL` or `SUBSCRIPTION`. The mock
-handler uses `e2e_identities.provisioning: unmanaged`; there is no independent
-mock provisioning field. For example, select `ENVIRONMENT=dev-xs POOL=hypershift
-SUBSCRIPTION='Hypershift Managed Azure' ASSET=mock_identities` for its authorized
-operator. See the [external runbook](external-subscription-onboarding.md#step-3-prepare-and-validate-the-selected-pool).
-Do not run
-Owner reconciliation from CI. Run one reconciliation per selected pool at a time.
-Failed applies can be retried: application unique names, SP application IDs,
-certificate names and role assignment IDs are stable. Ambiguous or mismatched
-Graph objects require investigation, never arbitrary selection or deletion.
-
-Apply also reconciles Entra ownership of every slot application **and** service
-principal to exactly `entraAppOwnerIds` (`config/config-dev-ci.yaml`, mirroring the
-`aro-hcp-owners` group), the same authoritative `replace` semantics as the dev-ci
-pipeline. This grants the configured Entra group members ownership, not repository
-OWNERS membership or ARM subscription roles. `make -C test apply-pool-assets`
-and `validate-pool-assets` export `ENTRA_APP_OWNER_IDS` and
-`ENTRA_APP_OWNERS_GROUP_ID` from that file (requires Mike Farah `yq` v4). Explicit
-environment or Make overrides are supported but must still match the live group;
-`MOCK_IDENTITY_CONFIG` selects an alternate config file. The binary fails before
-mock-asset writes when these settings are invalid or the list has drifted from
-the group. Re-running apply
-repairs owner drift: missing owners are added first, then unexpected
-owners (including the creator, if not in the list) are removed. Both application
-and SP additions must be visible before either object's removals begin; complete
-owner enumeration and final equality checks fail closed. Reconciliation is
-sequential across the three application/SP pairs: earlier pairs can be repaired
-even if a later pair fails. Retry after partial failure or propagation delay; no
-transaction or concurrent-owner-update isolation is provided. Keep reconciliation
-serialized. `validate` reports
-any difference as an error. Lease admission in CI never reads or changes owners.
-
-The applying operator must retain Entra application-management authorization
-throughout reconciliation: use a configured owner with the necessary delegated
-permissions, or an appropriately authorized tenant application administrator /
-application credential whose access does not depend on being an object owner.
-Adding other owners does not preserve the creator's own access after removal.
-An ownership-only operator excluded from the desired list can lose access and
-must hand off retries to an authorized owner or administrator. ARM subscription
-Owner alone does not grant these Graph permissions. Pool validation additionally
-needs group membership and application/SP owner reads; CI admission does not.
-
-Each slot has six persistent assignments at its customer subscription: MSI gets
-the MSI custom role and Key Vault Crypto User; each helper gets Contributor and
-Role Based Access Control Administrator. No grant is added to the infrastructure
-subscription. CI needs Graph application/SP reads, public certificate reads and
-subscription RBAC reads; it never applies this baseline.
-
-Owner apply reuses `tooling/entra-app-credentials/pkg/pinning` to create missing
-certificates and pin the current certificate without rotating healthy credentials
-or changing certificate policies. Pinning replaces the application's entire
-`keyCredentials` collection, so only the dedicated applications are eligible.
-Admission checks certificate validity and exact pinned thumbprints using reads;
-expired certificates fail closed. Keep the existing vault and delivery pipelines.
-Rotation is an explicit disruptive `entra-app-credentials pin --rotate` operation
-with affected jobs drained, not a deployment/admission/release operation. Use the
-deterministic application name for the certificate name. The handler derives DNS
-as `<name>.hcp.osadev.cloud`, but that exceeds the current rotation CLI's
-64-character common-name limit. Do not copy it into `--mapping`: coordinate an
-approved shorter certificate subject/SAN or a separate tooling correction first.
-See the [rotation prerequisite and scoped command](external-subscription-onboarding.md#maintenance-and-repair).
-
-After a partially successful slot certificate rotation, rerun the same scoped
-mock apply to pin the current certificate, then validate. The shared dev-ci
-pipeline does not reconcile these dedicated applications. Do not delete a slot
-certificate or app while its primary lease or any consumer is still active.
-
-### Test-scoped Managed HSM access
-
-The Managed HSM Crypto User grants made by tests are HSM-local data-plane
-assignments tied to the test HSM lifecycle, not part of the persistent ARM
-subscription RBAC baseline. Mock admission is read-only: it verifies Graph,
-certificates and the persistent identity bundle's subscription baseline, but
-does not synchronously revoke test-scoped grants. Acquire and release are no-ops
-for this asset. A reused slot principal can therefore retain access to an old
-test HSM until the test resource group's expiry and successful background cleanup
-if test teardown did not remove it. Expiry alone does not revoke access.
-
-The test framework tags resource groups with `e2e.aro-hcp-ci.redhat.com=true`
-and `deleteAfter.aro-hcp-ci.redhat.com`. Periodic expired-resource-group cleanup
-selects these groups; its `no-rp` workflow deletes the resource group and then
-attempts to purge its soft-deleted Key Vaults and Managed HSMs. HSM purge is
-best-effort. Failed resource group deletions remain discoverable by later scans,
-but a failed purge after successful resource group deletion is not retried by
-the expired-resource-group scan because that group no longer exists.
-
-Resource group deletion and permanent HSM purge are distinct: Azure soft-delete
-retention and purge protection apply, so cleanup does not guarantee immediate
-permanent erasure. See [CI cleanup](cleanup.md) and
-[Managed HSM soft delete](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/soft-delete-overview).
-The ARM orphan-role sweeper handles assignments whose Graph principals no longer
-exist; it does not clean up HSM-local grants to live persistent mock principals.
+- `config/config-dev-ci.yaml`: `.ci.<env>.mockIdentities` application definitions, the owner list, and the E2E subscription inventory
+- `dev-infrastructure/templates/mock-identity-apps.bicep`, `mock-identity-rbac.bicep` and `e2e-subscription-rbac-assignment-subscription.bicep`: the shared identities and the roles
+- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`: the privileged pipeline that deploys them and pins their certificates
+- `test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities/`: the slot asset implementation
+- `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go`: the mocked data plane
+- `internal/azure/cluster_scoped_identities_config.go`: the product's own operator-role mapping

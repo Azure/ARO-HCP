@@ -39,7 +39,7 @@ rerun the scoped `make -C test apply-pool-assets` command with
 `ASSET=mock_identities` and the original environment/pool selectors instead:
 the shared pipeline does not reconcile slot apps. Drain affected jobs and
 coordinate runtime certificate delivery before rotating. See
-[external subscription maintenance](../../docs/ci/external-subscription-onboarding.md#maintenance-and-repair).
+[external subscription maintenance](../../docs/ci/external-subscription-onboarding.md#maintenance).
 
 The command uses `DefaultAzureCredential` with token-based credentials only, so
 `AZURE_TOKEN_CREDENTIALS` must be set for the execution environment. The caller

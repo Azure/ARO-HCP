@@ -28,13 +28,13 @@ Containers are provisioned by `apply-pool-assets` (see [Managing Slot Assets](#m
 
 DEV has no Microsoft first-party application and no Managed Identities Data Plane, so CI substitutes ordinary Entra service principals for them. [DEV Mock Identities](dev-mock-identities.md) explains what each one stands in for and which roles it needs. This page covers how they attach to slots.
 
-Each DEV slot owns three of them: one MSI mock and two ARM helpers, one for the backend and one for Clusters Service. Giving every slot its own set means concurrent jobs do not share the ARM read throttle of a single MSI mock or the CheckAccess request budget of a single helper. Earlier iterations achieved the same goal by leasing identities from Boskos pools; those pools have been retired, and nothing in the slot-managed path resolves them any more.
+Each DEV slot owns three of them: one MSI mock and two ARM helpers, one for the backend and one for Clusters Service. Giving every slot its own set means concurrent jobs do not share the ARM read throttle of a single MSI mock or the CheckAccess request budget of a single helper.
 
 The identities are named after the customer subscription and the slot, not the region, so they stay the same when a pool's regions change. They are created ahead of time by an operator with subscription Owner, not by CI. Admission only reads Graph, the public certificates in Key Vault and the subscription role assignments, and fails if anything is missing or wrong; it never creates, repairs or rotates. The job receives a non-secret bundle with the client IDs, principal IDs and certificate names of the three principals, and the services read the certificates from the shared service Key Vault. Personal development environments are not slot-managed and keep using the shared identities.
 
 Preparing and maintaining these identities is covered in [Slot Mock Identities](dev-mock-identities.md#slot-mock-identities).
 
-The release-side `aro-hcp-local-e2e` workflow still declares the old MSI-mock and ARM-helper leases. They no longer select any identity; until they are removed they only act as a concurrency gate on DEV jobs.
+Workflow concurrency can also be constrained by the additional leases declared in `openshift/release`. They do not select slot mock identities; consult the current workflow when jobs wait despite free slots.
 
 ## Infrastructure Identities
 
@@ -49,20 +49,20 @@ Three things have to agree: the catalog in `test/e2e-config/e2e-slots.yaml`, the
 **Azure resources.** `apply-pool-assets` reconciles the managed backing resources and `validate-pool-assets` checks them read-only.
 
 ```bash
-make -C test apply-pool-assets    ENVIRONMENT=<dev|dev-xs|int|stg|prod> [POOL=<pool>] [SUBSCRIPTION=<display name>] [ASSET=<kind>]
-make -C test validate-pool-assets ENVIRONMENT=<dev|dev-xs|int|stg|prod> [POOL=<pool>] [SUBSCRIPTION=<display name>] [ASSET=<kind>]
+make -C test apply-pool-assets    ENVIRONMENT="<environment>" POOL="<pool>" SUBSCRIPTION="<display name>" ASSET=e2e_identities
+make -C test validate-pool-assets ENVIRONMENT="<environment>" POOL="<pool>" SUBSCRIPTION="<display name>" ASSET=e2e_identities
 ```
 
-Both derive what to expect from the whole catalog and neither looks at Boskos, so they can succeed while the release inventory is stale. Unmanaged pools are skipped unless you select them explicitly with `POOL` or `SUBSCRIPTION`. Selecting by `ASSET` alone does not include them, and omitting `ASSET` runs every asset kind, which can touch the infrastructure subscription as well, so scope runs to the asset you mean to change. All of these commands need Owner on the E2E subscriptions, which are read-only for everyone else. The infrastructure identities live in the infrastructure subscription and are maintained by the ARO-HCP team.
+Replace the placeholders with the catalog environment (`dev`, `dev-xs`, `int`, `stg` or `prod`), pool and subscription display name. The example selects only E2E containers; use the separate [mock preparation procedure](dev-mock-identities.md#preparing-a-slots-identities) for mock assets. Both commands derive what to expect from the whole catalog and neither looks at Boskos, so they can succeed while the release inventory is stale. Unmanaged pools are skipped unless you select them explicitly with `POOL` or `SUBSCRIPTION`. Selecting by `ASSET` alone does not include them, and omitting `ASSET` runs every asset kind, which can touch the infrastructure subscription as well, so scope runs to the asset you mean to change. All of these commands need Owner on the E2E subscriptions, which are read-only for everyone else. The infrastructure identities live in the infrastructure subscription and are maintained by the ARO-HCP team.
 
-Always go through the Make target. It rebuilds `aro-hcp-tests`, and the rebuild regenerates the ARM templates from the Bicep sources before embedding them. Those generated templates are git-ignored build output, so running a stale or hand-built binary applies an outdated template and shows up as resource groups being deleted and recreated instead of updated. (`apply-identity-pool` is an older alias that only handles E2E identities.)
+Always go through the Make target. It rebuilds `aro-hcp-tests`, and the rebuild regenerates the ARM templates from the Bicep sources before embedding them. Those generated templates are git-ignored build output, so running a stale or hand-built binary applies an outdated template and shows up as resource groups being deleted and recreated instead of updated. (`apply-identity-pool` and `validate-identity-pool` are aliases that only handle E2E identities and do not forward `POOL`.)
 
 **Boskos inventory.** `sync-boskos-config` rewrites the managed section of `generate-boskos.py` in a release checkout, but `validate-boskos-config` reads the generated `_boskos.yaml`, so the generator has to run in between:
 
 ```bash
-./test/aro-hcp-tests slot-manager sync-boskos-config     --release-repo <release-checkout>
-make -C <release-checkout> boskos-config
-./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>
+./test/aro-hcp-tests slot-manager sync-boskos-config     --release-repo "<release-checkout>"
+make -C "<release-checkout>" boskos-config
+./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo "<release-checkout>"
 ```
 
 Commit the generator change together with the regenerated inventory.

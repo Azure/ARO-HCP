@@ -2,7 +2,7 @@
 
 `e2e-parallel-inplace-upgrade` is a required presubmit that checks a PR can be rolled out on top of infrastructure that is already running `main`. The standard `e2e-parallel` job always provisions a fresh environment, so it cannot see problems that only appear on an upgrade: a breaking Bicep parameter change, a missing migration step, an incompatible configuration transition, or customer clusters that do not survive the rollout. This job exists to catch those.
 
-It is scheduled automatically alongside `e2e-parallel` once the first-wave checks pass, and can be re-run with `/test e2e-parallel-inplace-upgrade`. It runs in its own DEV environment (`ci02`) with a dedicated E2E subscription, so it does not compete with `e2e-parallel` for slots or for customer-subscription quota; the pool is defined in [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml). The independence is not complete: both release workflows still declare the legacy MSI-mock and ARM-helper leases, which every run takes, so an upgrade run can wait behind `e2e-parallel` even when `ci02` slots are free. See [Slot Assets](slot-assets.md#mock-identities) for that remaining gate. Region selection for this job works the same way as for `e2e-parallel`, see [DEV CI Regional Load Management](dev-region-load-management.md).
+It is scheduled automatically alongside `e2e-parallel` once the first-wave checks pass, and can be re-run with `/test e2e-parallel-inplace-upgrade`. It runs in its own DEV environment (`ci02`) with a dedicated E2E subscription, so it does not compete with `e2e-parallel` for slots or for customer-subscription quota; the pool is defined in [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml). Additional leases declared by the release workflows can constrain concurrency even when slots are free; see [Slot Assets](slot-assets.md#mock-identities). Region selection for this job works the same way as for `e2e-parallel`, see [DEV CI Regional Load Management](dev-region-load-management.md).
 
 ## How It Works
 
@@ -23,5 +23,7 @@ Which part of the job failed tells you whose problem it is:
 - **`aro-hcp-test-local-upgrade` fails in post-upgrade validation.** The rollout itself succeeded but a customer cluster did not come out healthy. This can be an upgrade problem or an ordinary bug in the PR's service code.
 
 ## Limitations
+
+The baseline uses the checked-out base revision's configuration adapter and test binary. Slot-bundle support must exist in that revision; PR-only adapter support is not carried across checkout.
 
 The baseline is provisioned with the `templatize` binary baked into the PR's test image, running against `main`'s pipeline definitions. A PR that changes `templatize` in a way incompatible with `main`'s pipelines can therefore make the baseline fail spuriously. The baseline step also needs service images for a recent `main` commit in ACR, so it fails if the `images-push` postsubmit has been broken for a long stretch.
