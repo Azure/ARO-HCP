@@ -753,7 +753,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					}
 					if details != nil {
 						consumerWg.Add(1)
-						go func(step graph.Identifier, logger logr.Logger) {
+						go func(step graph.Identifier, logger logr.Logger, stepFailed bool) {
 							defer utilruntime.HandleCrash()
 							defer consumerWg.Done()
 							logger.V(4).Info("Fetching execution details.")
@@ -766,6 +766,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							if err != nil {
 								logger.Error(err, "error fetching execution details")
 							}
+							if stepFailed {
+								// An operation can fail even when the deployment succeeds overall.
+								logFailedARMOperations(logger, d)
+							}
 							logger.V(4).Info("Finished fetching execution details.")
 							state.Lock()
 							state.Details[step] = d
@@ -773,7 +777,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							// diagnostics (and their errors) end up in the JUnit output.
 							state.Logging[step] = stepLogs.Snapshot()
 							state.Unlock()
-						}(step, stepLogger)
+						}(step, stepLogger, err != nil)
 					}
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -1011,6 +1015,31 @@ func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
 		}
 	}
 	return false
+}
+
+// logFailedARMOperations reports the operation errors that explain ARM's generic DeploymentFailed.
+func logFailedARMOperations(logger logr.Logger, details *ExecutionDetails) {
+	if details == nil || details.ARM == nil {
+		return
+	}
+	for _, failed := range FailedOperations(details.ARM.Operations) {
+		op := failed.Operation
+		values := []any{
+			"deploymentPath", strings.Join(failed.DeploymentPath, "/"),
+			"operationType", op.OperationType,
+			"provisioningState", op.ProvisioningState,
+			"statusCode", op.StatusCode,
+			"startTimestamp", op.StartTimestamp,
+			"duration", op.Duration,
+		}
+		if op.Resource != nil {
+			values = append(values, "resourceType", op.Resource.ResourceType, "resourceGroup", op.Resource.ResourceGroup, "resourceName", op.Resource.Name)
+		}
+		if op.Error != nil {
+			values = append(values, "errorCodes", strings.Join(op.Error.innermostCodes(), ","), "error", op.Error.String())
+		}
+		logger.Info("ARM deployment operation failed.", values...)
+	}
 }
 
 // lockedBuffer is a bytes.Buffer that is safe to write to from the step goroutine and the execution-details

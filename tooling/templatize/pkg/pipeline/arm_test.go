@@ -61,9 +61,9 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 		{name: "unspecified", body: `{"properties":{"provisioningState":"NotSpecified"}}`, errorText: "pre-existing deployment: provisioning state is NotSpecified"},
 		{name: "missing state", body: `{"properties":{}}`, errorText: "failed to look up pre-existing deployment: found a nil provisioning state"},
 		{name: "missing properties", body: `{}`, errorText: "failed to look up pre-existing deployment: found a nil provisioning state"},
-		{name: "lookup error", lookupErr: lookupErr, errorText: "failed to look up pre-existing deployment: synthetic lookup failure"},
-		{name: "canceled lookup", lookupErr: context.Canceled, errorText: "failed to look up pre-existing deployment: context canceled"},
-		{name: "forbidden", status: http.StatusForbidden, body: `{"error":{"code":"AuthorizationFailed","message":"synthetic denial"}}`, errorText: "failed to look up pre-existing deployment:"},
+		{name: "lookup error", lookupErr: lookupErr, errorText: "failed to look up pre-existing deployment: synthetic lookup failure", noDetails: true},
+		{name: "canceled lookup", lookupErr: context.Canceled, errorText: "failed to look up pre-existing deployment: context canceled", noDetails: true},
+		{name: "forbidden", status: http.StatusForbidden, body: `{"error":{"code":"AuthorizationFailed","message":"synthetic denial"}}`, errorText: "failed to look up pre-existing deployment:", noDetails: true},
 		{name: "timeout", body: `{"properties":{"provisioningState":"Running"}}`, timeout: true, errorText: "timed out waiting for pre-existing deployment to finish"},
 		{name: "not found", status: http.StatusNotFound, body: `{"error":{"code":"DeploymentNotFound"}}`, noDetails: true},
 		{name: "succeeded", body: `{"properties":{"provisioningState":"Succeeded","outputs":{"result":{"type":"string","value":"synthetic output"}}}}`},
@@ -71,7 +71,7 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 	for _, scope := range []string{"ResourceGroup", "Subscription"} {
 		for _, test := range cases {
 			for _, layer := range []string{"helper", "caller", "concurrent caller"} {
-				if test.noDetails && layer != "helper" {
+				if test.status == http.StatusNotFound && layer != "helper" {
 					continue
 				}
 				t.Run(scope+"/"+test.name+"/"+layer, func(t *testing.T) {
@@ -180,6 +180,7 @@ func TestExistingDeploymentDiagnostics(t *testing.T) {
 					}
 					if test.noDetails {
 						assert.Nil(t, details)
+						assert.Zero(t, operations)
 					} else {
 						require.NotNil(t, details)
 						result, detailsErr := details(ctx)
