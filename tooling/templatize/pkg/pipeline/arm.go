@@ -215,7 +215,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	var details DetailsProducer
 	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
+		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
 	if exists {
 		return output, details, commit(output)
@@ -236,7 +236,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 			var exists bool
 			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
 			if !exists {
 				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
@@ -260,7 +260,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 			var exists bool
 			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
 			if !exists {
 				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
@@ -318,17 +318,17 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	remainingTime := timeoutSeconds
 	for remainingTime > 0 {
 		if err != nil {
-			return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
+			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 		}
-		if output.ProvisioningState == nil {
-			return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
+		if output == nil || output.ProvisioningState == nil {
+			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
 		}
 		switch *output.ProvisioningState {
 		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
 			if output.Error != nil {
-				return false, nil, nil, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+				return false, nil, details, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
 			}
-			return false, nil, nil, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
+			return false, nil, details, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
 		case armresources.ProvisioningStateSucceeded:
 			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
 			return true, armOutputFromOutputs(output.Outputs), details, nil
@@ -340,7 +340,7 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 
 		output, err = get(ctx)
 	}
-	return false, nil, nil, errors.New("timed out waiting for pre-existing deployment to finish")
+	return false, nil, details, errors.New("timed out waiting for pre-existing deployment to finish")
 }
 
 func isDeploymentActiveError(err error) bool {
