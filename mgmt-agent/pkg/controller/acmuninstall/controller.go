@@ -15,9 +15,9 @@
 // Package acmuninstall removes MultiClusterEngine / ACM leftovers from a
 // management cluster in a fixed order and logs when each step finishes.
 //
-// After this has been merged and deployed to all production management
-// clusters, remove "open-cluster-management.io" from watchedGroupSuffixes in
-// the resource watcher and remove this controller.
+// After ACM uninstall has been deployed to all production management clusters,
+// remove "open-cluster-management.io" from watchedGroupSuffixes in the resource
+// watcher and remove both the uninstall and ownership-cleanup controllers.
 package acmuninstall
 
 import (
@@ -311,7 +311,7 @@ func (c *Controller) ensureHypershiftOperatorNotManagedByMCE(ctx context.Context
 // ensureManagedClustersDeleted leaves local-cluster for MCE removal and waits
 // for ACM controllers to finish cleaning up all other registrations.
 func (c *Controller) ensureManagedClustersDeleted(ctx context.Context) (stepResult, error) {
-	items, err := c.listClusterScoped(ctx, ManagedClustersGVR)
+	items, err := listClusterScoped(ctx, c.dynamicClient, ManagedClustersGVR)
 	if err != nil {
 		return stepResult{}, err
 	}
