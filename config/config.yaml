@@ -1351,6 +1351,7 @@ clouds:
         globalMSIName: global-rollout-identity
         keyVault:
           name: arohcpdev-global
+          encryptionKeyName: secretSyncKey-202611
       # DNS
       dns:
         baseDnsZoneRG: global

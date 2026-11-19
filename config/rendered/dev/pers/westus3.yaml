@@ -440,7 +440,7 @@ global:
     displayName: empty-sentinel
     id: empty-sentinel
   keyVault:
-    encryptionKeyName: secretSyncKey
+    encryptionKeyName: secretSyncKey-202611
     name: arohcpdev-global
     private: false
     softDelete: true
