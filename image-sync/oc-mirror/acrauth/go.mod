@@ -2,7 +2,7 @@ module github.com/Azure/ARO-HCP/tooling/acrauth
 
 go 1.25.7
 
-require github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20261029184915-ae250b4c53dd
+require github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20261119152653-bc31149d518c
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect

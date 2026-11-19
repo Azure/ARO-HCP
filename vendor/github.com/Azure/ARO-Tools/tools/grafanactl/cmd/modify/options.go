@@ -17,6 +17,7 @@ package modify
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/base"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/internal/azure"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/internal/grafana"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // RawAddDatasourceOptions represents the initial, unvalidated configuration for add datasource operations.
@@ -52,6 +54,7 @@ type CompletedAddDatasourceOptions struct {
 	GrafanaClient                *grafana.Client
 	ManagedGrafanaClient         *azure.ManagedGrafanaClient
 	ResourceGraphDiscoveryClient *azure.ResourceGraphDiscoveryClient
+	getWorkspaceEndpoint         func(context.Context, string) (string, error)
 }
 
 // DefaultAddDatasourceOptions returns a new RawAddDatasourceOptions with default values
@@ -124,5 +127,19 @@ func (o *ValidatedAddDatasourceOptions) Complete(ctx context.Context) (*Complete
 		GrafanaClient:                 grafanaClient,
 		ManagedGrafanaClient:          managedGrafanaClient,
 		ResourceGraphDiscoveryClient:  resourceGraphClient,
+		getWorkspaceEndpoint: func(ctx context.Context, resourceID string) (string, error) {
+			id, err := arm.ParseResourceID(resourceID)
+			if err != nil {
+				return "", fmt.Errorf("invalid workspace resource ID %q: %w", resourceID, err)
+			}
+			if !strings.EqualFold(id.ResourceType.String(), "Microsoft.Monitor/accounts") {
+				return "", fmt.Errorf("resource %q is not an Azure Monitor workspace", resourceID)
+			}
+			client, err := azure.NewMonitorWorkspaceClient(id.SubscriptionID, cred, clientOpts)
+			if err != nil {
+				return "", err
+			}
+			return client.GetPrometheusQueryEndpoint(ctx, id.ResourceGroupName, id.Name)
+		},
 	}, nil
 }
