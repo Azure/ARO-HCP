@@ -50,6 +50,13 @@ func testPull() *gh.PullRequest {
 	return &gh.PullRequest{Number: gh.Ptr(7), User: &gh.User{Login: gh.Ptr("robot")}, State: gh.Ptr("open"), Draft: gh.Ptr(true), Merged: gh.Ptr(false), Title: gh.Ptr("title"), Body: gh.Ptr("body\n<!-- owned -->"), Labels: []*gh.Label{}, Head: &gh.PullRequestBranch{Ref: gh.Ptr("update"), SHA: gh.Ptr(testHead), Repo: &gh.Repository{FullName: gh.Ptr("owner/repo")}}, Base: &gh.PullRequestBranch{Ref: gh.Ptr("main"), SHA: gh.Ptr(testBase), Repo: &gh.Repository{FullName: gh.Ptr("owner/repo")}}}
 }
 
+// TestListedPull omits detail-only merge state from a complete list record.
+func testListedPull(p *gh.PullRequest) *gh.PullRequest {
+	clone := *p
+	clone.Merged = nil
+	return &clone
+}
+
 // TestComment supplies a complete typed comment record.
 func testComment(body string) *gh.IssueComment {
 	stamp := gh.Timestamp{}
@@ -245,9 +252,11 @@ func TestPublicationRejectsAmbiguityAndChecksAllFiles(t *testing.T) {
 					}
 					respond(t, w, &gh.Branch{Commit: &gh.RepositoryCommit{SHA: &sha}})
 				case r.URL.Path == "/repos/owner/repo/pulls":
-					items := []*gh.PullRequest{{Number: gh.Ptr(7)}}
+					items := []*gh.PullRequest{testListedPull(testPull())}
 					if ambiguous {
-						items = append(items, &gh.PullRequest{Number: gh.Ptr(8)})
+						other := testListedPull(testPull())
+						other.Number = gh.Ptr(8)
+						items = append(items, other)
 					}
 					respond(t, w, items)
 				case r.URL.Path == "/repos/owner/repo/pulls/7" || r.URL.Path == "/repos/owner/repo/pulls/8":
@@ -317,7 +326,7 @@ func TestPublicationReadinessIsExplicitAndExistingReadinessIsPreserved(t *testin
 				case r.URL.Path == "/repos/owner/repo/pulls":
 					items := []*gh.PullRequest{}
 					if published {
-						items = append(items, &gh.PullRequest{Number: gh.Ptr(7)})
+						items = append(items, testListedPull(p))
 					}
 					respond(t, w, items)
 				case r.URL.Path == "/repos/owner/repo/pulls/7":
@@ -447,7 +456,7 @@ func TestPublicationUpdatesOnlyOwnedMetadata(t *testing.T) {
 			}
 			respond(t, w, &gh.Branch{Commit: &gh.RepositoryCommit{SHA: &sha}})
 		case r.URL.Path == "/repos/owner/repo/pulls":
-			respond(t, w, []*gh.PullRequest{{Number: gh.Ptr(7)}})
+			respond(t, w, []*gh.PullRequest{testListedPull(p)})
 		case r.URL.Path == "/repos/owner/repo/pulls/7":
 			if r.Method == "PATCH" {
 				writes++
@@ -501,7 +510,7 @@ func TestPublicationForkIdentity(t *testing.T) {
 		case r.URL.Path == "/repos/owner/repo/pulls":
 			items := []*gh.PullRequest{}
 			if published {
-				items = append(items, &gh.PullRequest{Number: gh.Ptr(7)})
+				items = append(items, testListedPull(p))
 			}
 			respond(t, w, items)
 		case r.URL.Path == "/repos/owner/repo/pulls/7":

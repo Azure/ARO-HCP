@@ -91,17 +91,17 @@ func (c *Client) PostComment(ctx context.Context, number int, expectedHead, key,
 	posted, _, err := c.writer.Issues.CreateComment(ctx, c.owner, c.repo, number, &gh.IssueComment{Body: &full})
 	if err != nil || posted == nil || posted.GetID() <= 0 {
 		receipt.Outcome = "indeterminate"
-		return receipt, ErrIndeterminate
+		return receipt, indeterminate("create comment", err)
 	}
 	receipt.CommentID = int(posted.GetID())
 	observed, _, err := c.api.Issues.GetComment(ctx, c.owner, c.repo, posted.GetID())
 	if err != nil || observed == nil || observed.GetID() != posted.GetID() || observed.GetBody() != full || observed.GetUser().GetLogin() != actor {
 		receipt.Outcome = "indeterminate"
-		return receipt, ErrIndeterminate
+		return receipt, indeterminate("read back comment", err)
 	}
 	if err = c.checkCommentPull(ctx, pull); err != nil {
 		receipt.Outcome = "indeterminate"
-		return receipt, ErrIndeterminate
+		return receipt, indeterminate("verify proposal after comment write", err)
 	}
 	receipt.Outcome = "observed"
 	return receipt, nil
@@ -113,11 +113,29 @@ func (c *Client) checkCommentPull(ctx context.Context, initial PullRequest) erro
 	if err != nil {
 		return err
 	}
-	if p == nil || p.Number == nil || p.GetUser().GetLogin() == "" || p.State == nil || (p.GetState() != "open" && p.GetState() != "closed") || p.Merged == nil || !shaPattern.MatchString(p.GetHead().GetSHA()) || p.GetHead().GetRef() == "" || !repositoryPattern.MatchString(p.GetHead().GetRepo().GetFullName()) || p.GetBase().GetRef() == "" || !repositoryPattern.MatchString(p.GetBase().GetRepo().GetFullName()) {
-		return ErrEvidenceIncomplete
+	if p == nil || p.GetNumber() <= 0 || p.GetUser().GetLogin() == "" {
+		return fmt.Errorf("missing comment proposal number or author: %w", ErrEvidenceIncomplete)
 	}
-	if p.GetNumber() != initial.Number || p.GetState() != "open" || p.GetMerged() || p.GetUser().GetLogin() != initial.Author || p.GetHead().GetSHA() != initial.HeadSHA || p.GetHead().GetRef() != initial.HeadRef || p.GetHead().GetRepo().GetFullName() != initial.HeadRepo || p.GetBase().GetRef() != initial.BaseRef || p.GetBase().GetRepo().GetFullName() != initial.BaseRepo {
-		return ErrConflict
+	if p.State == nil || (p.GetState() != "open" && p.GetState() != "closed") || p.Merged == nil {
+		return fmt.Errorf("missing comment proposal state: %w", ErrEvidenceIncomplete)
+	}
+	if !shaPattern.MatchString(p.GetHead().GetSHA()) || p.GetHead().GetRef() == "" || !repositoryPattern.MatchString(p.GetHead().GetRepo().GetFullName()) {
+		return fmt.Errorf("incomplete comment proposal source: %w", ErrEvidenceIncomplete)
+	}
+	if p.GetBase().GetRef() == "" || !repositoryPattern.MatchString(p.GetBase().GetRepo().GetFullName()) {
+		return fmt.Errorf("incomplete comment proposal target: %w", ErrEvidenceIncomplete)
+	}
+	if p.GetNumber() != initial.Number || p.GetUser().GetLogin() != initial.Author {
+		return fmt.Errorf("comment proposal number or author changed: %w", ErrConflict)
+	}
+	if p.GetState() != "open" || p.GetMerged() {
+		return fmt.Errorf("comment proposal is no longer open and unmerged: %w", ErrConflict)
+	}
+	if p.GetHead().GetSHA() != initial.HeadSHA || p.GetHead().GetRef() != initial.HeadRef || p.GetHead().GetRepo().GetFullName() != initial.HeadRepo {
+		return fmt.Errorf("comment proposal source changed: %w", ErrConflict)
+	}
+	if p.GetBase().GetRef() != initial.BaseRef || p.GetBase().GetRepo().GetFullName() != initial.BaseRepo {
+		return fmt.Errorf("comment proposal target changed: %w", ErrConflict)
 	}
 	return nil
 }

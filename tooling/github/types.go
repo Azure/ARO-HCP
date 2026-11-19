@@ -28,6 +28,14 @@ var ErrConflict = errors.New("remote state conflicts with expectation")
 // ErrIndeterminate reports a write whose result could not be verified; callers must reconcile, not blindly retry.
 var ErrIndeterminate = errors.New("remote write result is indeterminate")
 
+// Indeterminate retains the operation and underlying failure alongside the uncertain-write classification.
+func indeterminate(operation string, cause error) error {
+	if cause != nil {
+		return fmt.Errorf("%s: %w: %w", operation, ErrIndeterminate, cause)
+	}
+	return fmt.Errorf("%s: %w", operation, ErrIndeterminate)
+}
+
 // PullRequest is the identity and review state of one proposal.
 type PullRequest struct {
 	Number   int      `json:"number"`
@@ -84,6 +92,12 @@ type Check struct {
 	Status     string `json:"status"`
 	Conclusion string `json:"conclusion"`
 	DetailsURL string `json:"detailsURL"`
+}
+
+// CommitCI is the complete status history and latest check runs for one commit.
+type CommitCI struct {
+	Statuses []Status `json:"statuses"`
+	Checks   []Check  `json:"checks"`
 }
 
 // Snapshot is a complete, head-bound evidence set.
