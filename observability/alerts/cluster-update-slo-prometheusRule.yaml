@@ -24,14 +24,16 @@ spec:
   # changes (the IDMS image registry mirror journey), authorizedCIDRs and other
   # cluster spec changes, and control plane version upgrades. The operation
   # metrics do not record what an update changed, so when one of these fires,
-  # first check what the affected updates changed from the Backend logs, then
-  # triage the matching journey.
+  # first establish what the affected updates changed from the customer's
+  # request (the Backend logs show what is holding an update, not what it
+  # changed), then triage the matching journey.
   #
   # Scope — the error alerts below fire on terminal "failed" updates. Updates
   # that exceed their completion deadline (90 minutes by default) are failed by
   # the Backend and therefore counted there. userJourneyClusterUpdateStuckOperation
   # (arohcp_cluster_update_slo_stuck_alerts) covers updates still in flight past
-  # that deadline, i.e. when the deadline is not being enforced.
+  # the default deadline, i.e. when the deadline is not being enforced, unless
+  # the update has an extended experimental deadline.
   # OperationClusterUpdate controller saturation is not alerted on by this SLO;
   # the backend alerts that watch it deploy to the dev lane only.
   #
