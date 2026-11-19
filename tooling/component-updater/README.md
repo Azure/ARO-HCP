@@ -7,7 +7,17 @@ Components are declared in `config.yaml` under this directory; each has its own
 component (`istio-mesh-revision` / `azure-istio`). AKS and Grafana providers are
 not implemented yet and can be added without changing the CLI shape.
 
-Adding this tool does not schedule jobs, deploy clusters, or open PRs.
+The tool itself never schedules jobs, deploys clusters, or opens PRs. In CI it is
+driven by the Prow periodic job
+`periodic-ci-Azure-ARO-HCP-main-component-updater-component-updater-tooling`
+(Monday–Thursday 00:00 UTC / 10:00 AM AEST). The job starts in check mode
+(read-only discovery, no PR); once `MODE` is flipped to `update` in its ci-operator
+config, it runs `update`, commits the resulting config and rendered-config
+changes, and opens a PR via the `aro-hcp-robot` GitHub App. See
+`docs/ci/operations.md` for the job-to-config mapping. The job authenticates to
+Azure with a service principal (`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/
+`AZURE_TENANT_ID` and `AZURE_TOKEN_CREDENTIALS=prod`) and passes
+`AZURE_SUBSCRIPTION_ID` for mesh discovery.
 
 Agent-oriented procedure: [AGENTS.md](AGENTS.md).
 
@@ -68,7 +78,8 @@ source value changed. On success it prints a one-line confirmation and hides
 includes the make output plus a `make -C … materialize` retry command; the
 source edit is kept.
 
-Neither command upgrades clusters, pushes commits, or opens a PR.
+Neither command upgrades clusters, pushes commits, or opens a PR — the CI job
+wrapping `update` (see above) performs the commit and PR creation.
 
 Version-bump PRs must include source configuration, generated configurations,
 and Helm fixtures together. A tooling-only change does not require a version bump.
