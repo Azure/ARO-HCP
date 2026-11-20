@@ -17,6 +17,7 @@ package gatherobservability
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	_ "embed"
@@ -128,6 +129,9 @@ func classifyAlertsAt(alerts []alert, issues []knownIssue, now time.Time) []aler
 			}
 			if ki.maxDuration != 0 {
 				firing := result[i].Alert
+				if !strings.EqualFold(firing.Condition, "Resolved") {
+					continue
+				}
 				if firing.StartsAt == nil || firing.EndsAt == nil {
 					continue
 				}

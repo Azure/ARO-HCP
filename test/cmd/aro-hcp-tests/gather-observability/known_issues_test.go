@@ -210,7 +210,7 @@ func TestClassifyAlertsMaxDuration(t *testing.T) {
 		{name: "resolved at bound", condition: "Resolved", startsAt: &started, endsAt: &atBound, known: true},
 		{name: "resolved over bound", condition: "Resolved", startsAt: &started, endsAt: &overBound},
 		{name: "still firing", condition: "Fired", startsAt: &started},
-		{name: "resolved timestamp without resolved condition", condition: "Fired", startsAt: &started, endsAt: &withinBound, known: true},
+		{name: "resolved timestamp without resolved condition", condition: "Fired", startsAt: &started, endsAt: &withinBound},
 		{name: "resolved without end timestamp", condition: "Resolved", startsAt: &started},
 		{name: "resolved without start timestamp", condition: "Resolved", endsAt: &withinBound},
 		{name: "end before start", condition: "Resolved", startsAt: &started, endsAt: &beforeStart},
