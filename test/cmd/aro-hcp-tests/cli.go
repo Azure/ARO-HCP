@@ -201,8 +201,11 @@ func setupCli() (*cobra.Command, error) {
 		// Modify specs, such as adding a label to all specs
 		// 	specs = specs.AddLabel("SLOW")
 
-		// Specs can be globally filtered...
-		// specs = specs.MustFilter([]string{`name.contains("filter")`})
+		// Keep this smoke test isolated to the prod job so other presubmits retain their coverage.
+		// This branch must not be merged with the filter in place.
+		if os.Getenv("ARO_HCP_SUITE_NAME") == "prod/parallel" {
+			specs = specs.MustFilter([]string{`name.contains("via shoebox diagnostic settings")`})
+		}
 
 		// Or walked...
 		// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
