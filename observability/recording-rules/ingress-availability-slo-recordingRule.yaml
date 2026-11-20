@@ -255,7 +255,7 @@ spec:
   # ========================================
   # Ingress Latency SLO Recording Rules
   # ========================================
-  # SLO: 99.5% of synthetic canary route checks complete within 200ms
+  # SLO: 99.5% of synthetic canary route checks complete within 400ms
   # Error Budget: 0.5% (1 - 0.995)
   #
   # SLI scope: ingress_canary_check_duration measures the END-TO-END duration of
@@ -287,7 +287,7 @@ spec:
   # again, re-verify against the metrics browser's label-values list, not
   # against any query *result* rendering.
   #
-  # 99.5% of checks within 200ms is closer to a P99 latency objective than a
+  # 99.5% of checks within 400ms is closer to a P99 latency objective than a
   # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
   # named LatencyP99 (see ingress-availability-slo-prometheusRule.yaml).
   #
@@ -296,7 +296,7 @@ spec:
   # and frontend-slo-recordingRule.yaml (ARO-29638 / #6965). A histogram's
   # buckets are not guaranteed to all become queryable at the same instant;
   # evaluating at the live ingestion edge can see le="+inf" already reflect a
-  # just-scraped check while le="200.0" hasn't caught up yet, making that
+  # just-scraped check while le="400.0" hasn't caught up yet, making that
   # check look like a slow one until the bucket settles. #6965 reproduced
   # this directly (a real 460ms p99 read back as 995ms without the offset,
   # and a stored West US 3 INT recording of 13.265s against a settled
@@ -308,12 +308,12 @@ spec:
     interval: 1m
     rules:
     # Latency SLI: fraction of synthetic canary route checks completing within
-    # 200ms, aggregated per HCP cluster.
+    # 400ms, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
     #
     # HA replica dedup for a histogram cannot be `max without (prometheus_replica)`
     # applied separately to each `le` bucket: that picks the numerator's bucket
-    # from whichever replica happens to report the larger le="200.0" value and the
+    # from whichever replica happens to report the larger le="400.0" value and the
     # denominator's bucket from whichever replica happens to report the larger
     # le="+inf" value -- independently. If the two replicas' counters
     # genuinely diverge (not just redundantly duplicate each other), this can
@@ -323,7 +323,7 @@ spec:
     # `topk(1, ...) by (host, instance)` on le="+inf" instead picks ONE
     # winning replica (by total volume, the most complete-looking scrape) per
     # (host, instance), keeping its `prometheus_replica` label; `and on (...,
-    # prometheus_replica)` then restricts le="200.0" to that same winning
+    # prometheus_replica)` then restricts le="400.0" to that same winning
     # replica, so every host/instance's fast and total figures always come
     # from one consistent replica. This also keeps the dedup from
     # double-counting fully redundant replicas (Test 10/12's requirement):
@@ -332,7 +332,7 @@ spec:
     - record: latency:ingress_canary:ratio
       expr: |
         sum by (_id, cluster, region) (
-          rate(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
+          rate(ingress_canary_check_duration_bucket{le="400.0"}[5m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -369,7 +369,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
+          increase(ingress_canary_check_duration_bucket{le="400.0"}[5m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -389,7 +389,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[30m] offset 5m)
+          increase(ingress_canary_check_duration_bucket{le="400.0"}[30m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -409,7 +409,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[1h] offset 5m)
+          increase(ingress_canary_check_duration_bucket{le="400.0"}[1h] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -429,7 +429,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[6h] offset 5m)
+          increase(ingress_canary_check_duration_bucket{le="400.0"}[6h] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -449,7 +449,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200.0"}[3d] offset 5m)
+          increase(ingress_canary_check_duration_bucket{le="400.0"}[3d] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) by (_id, cluster, region, host, instance)
           )

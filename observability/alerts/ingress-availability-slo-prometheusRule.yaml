@@ -187,10 +187,18 @@ spec:
   # Same paired short/long window MWMBR design as the availability group
   # above (see its header comment for the full rationale).
   #
-  # SLO: 99.5% of synthetic canary route checks complete within 200ms. 99.5%
+  # SLO: 99.5% of synthetic canary route checks complete within 400ms. 99.5%
   # is closer to a P99 latency objective than a P95 one, so this SLI's
   # alerts are named LatencyP99 rather than bare Latency.
   # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Originally 200ms (the next bucket down). A production check found p99
+  # running 250-380ms with ~30% of HCPs already over the 0.5% budget in a
+  # normal week at that threshold -- 200ms wasn't a latency regression
+  # signal, it was permanently unachievable for a healthy fleet. 400ms is
+  # the next available histogram bucket boundary and comfortably covers the
+  # reported p99 range; if a normal week still overspends the budget at
+  # 400ms, 800ms is the next bucket to try.
   #
   # Burn rate thresholds:
   #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
@@ -266,7 +274,7 @@ spec:
       annotations:
         summary: "Ingress canary latency critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
         description: |
-          More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          More than 7.2% of synthetic canary route checks exceeded 400ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
           Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
@@ -299,7 +307,7 @@ spec:
       annotations:
         summary: "Ingress canary latency degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
         description: |
-          More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          More than 3% of synthetic canary route checks exceeded 400ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
           Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
@@ -332,7 +340,7 @@ spec:
       annotations:
         summary: "Ingress canary latency trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
         description: |
-          More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          More than 0.5% of synthetic canary route checks exceeded 400ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
           Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"

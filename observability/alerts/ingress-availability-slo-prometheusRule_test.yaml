@@ -303,12 +303,12 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/ggg"
 # ========================================
-# Test 5: Latency normal — all canary checks within 200ms, no alerts
+# Test 5: Latency normal — all canary checks within 400ms, no alerts
 # ========================================
-# le="200.0" and le="+inf" increase at the same rate → ratio 1, error_rate 0.
+# le="400.0" and le="+inf" increase at the same rate → ratio 1, error_rate 0.
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x400"
@@ -333,9 +333,9 @@ tests:
   - eval_time: 400m
     alertname: userJourneyIngressLatencyP99Errors3d6h
 # ========================================
-# Test 6: Latency fast burn — 50% of checks exceed 200ms
+# Test 6: Latency fast burn — 50% of checks exceed 400ms
 # ========================================
-# le="200.0" increases at half the rate of le="+inf" → ratio 0.5, error_rate
+# le="400.0" increases at half the rate of le="+inf" → ratio 0.5, error_rate
 # 0.5. 5 instances x 2 checks/min combined (10/min). The fast tier's floors
 # (total_5m >= 3, total_1h >= 10) clear almost immediately at that rate. The
 # medium tier's raised total_6h >= 300 floor does not: at 10/min it isn't
@@ -349,23 +349,23 @@ tests:
 # 5m on top of the usual margin.
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+inf"}'
     values: "0+2x400"
@@ -399,7 +399,7 @@ tests:
       exp_annotations:
         summary: "Ingress canary latency critically degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
         description: |
-          More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster lat-bad, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          More than 7.2% of synthetic canary route checks exceeded 400ms in both the last 5 minutes and the last hour for HCP cluster lat-bad, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
           Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
@@ -419,19 +419,19 @@ tests:
       exp_annotations:
         summary: "Ingress canary latency degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
         description: |
-          More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster lat-bad, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          More than 3% of synthetic canary route checks exceeded 400ms in both the last 30 minutes and the last 6 hours for HCP cluster lat-bad, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
           Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
 # ========================================
-# Test 7: Latency below fast burn — ~5.9% of checks exceed 200ms
+# Test 7: Latency below fast burn — ~5.9% of checks exceed 400ms
 # ========================================
-# le="200.0" rate / le="+inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
+# le="400.0" rate / le="+inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
 # but > 0.5% (slow). Fast must NOT fire; slow fires once both windows clear
 # their floor and for:3h elapses.
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0+16x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+17x400"
@@ -458,7 +458,7 @@ tests:
       exp_annotations:
         summary: "Ingress canary latency trending below SLO for lat-slow (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow)"
         description: |
-          More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          More than 0.5% of synthetic canary route checks exceeded 400ms in both the last 6 hours and the last 3 days for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
           Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-slow"
@@ -618,7 +618,7 @@ tests:
 # early window
 # ========================================
 # Rate 2/min, with exactly 2 slow checks occurring in the first minute and
-# none since (le="200.0" permanently lags le="+inf" by 2 from t=1 onward).
+# none since (le="400.0" permanently lags le="+inf" by 2 from t=1 onward).
 # At simulated t=16m: total_6h = total_30m = 32 (only 16 minutes of history
 # exist yet, same data in both windows), error_rate = 2/32 = 6.25% > 3%.
 # eval_time is 21m, not 16m, because every latency selector carries
@@ -633,7 +633,7 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x200"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0 0 2+2x198"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-medium", namespace="clusters-lat-thin-medium", _id="lat-thin-medium", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-medium"}'
     values: "1+0x200"
@@ -677,7 +677,7 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x200"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="200.0"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0 0 2+2x198"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-slow", namespace="clusters-lat-thin-slow", _id="lat-thin-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-slow"}'
     values: "1+0x200"

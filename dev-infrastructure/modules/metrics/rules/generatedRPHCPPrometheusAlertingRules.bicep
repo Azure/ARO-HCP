@@ -756,10 +756,10 @@ resource arohcpIngressLatencySloAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         annotations: {
           correlationId: 'userJourneyIngressLatencyP99Errors/{{ $labels._id }}'
-          description: '''More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          description: '''More than 7.2% of synthetic canary route checks exceeded 400ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
 Resource ID: {{ $labels.resource_id }}
 '''
-          info: '''More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          info: '''More than 7.2% of synthetic canary route checks exceeded 400ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
 Resource ID: {{ $labels.resource_id }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
@@ -791,10 +791,10 @@ Resource ID: {{ $labels.resource_id }}
         }
         annotations: {
           correlationId: 'userJourneyIngressLatencyP99Errors/{{ $labels._id }}'
-          description: '''More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          description: '''More than 3% of synthetic canary route checks exceeded 400ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
 Resource ID: {{ $labels.resource_id }}
 '''
-          info: '''More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          info: '''More than 3% of synthetic canary route checks exceeded 400ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
 Resource ID: {{ $labels.resource_id }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
@@ -826,10 +826,10 @@ Resource ID: {{ $labels.resource_id }}
         }
         annotations: {
           correlationId: 'userJourneyIngressLatencyP99Errors/{{ $labels._id }}'
-          description: '''More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          description: '''More than 0.5% of synthetic canary route checks exceeded 400ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
 Resource ID: {{ $labels.resource_id }}
 '''
-          info: '''More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          info: '''More than 0.5% of synthetic canary route checks exceeded 400ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
 Resource ID: {{ $labels.resource_id }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
