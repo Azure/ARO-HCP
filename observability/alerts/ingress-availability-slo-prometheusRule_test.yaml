@@ -660,19 +660,20 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
       value: 0.0625
-  # The alert's own long-window gate -- copied verbatim from
-  # userJourneyIngressLatencyP99Errors6h30m's expr -- must be empty despite
-  # error_rate_6h clearing 0.030 above, because total_6h (32) does not clear
-  # the raised floor (300). Checking the gate directly (rather than the
-  # alert's firing state, which also depends on `for:` and would stay
-  # pending here regardless of the floor) isolates exactly what this fix
-  # changed.
-  - expr: |
-      errors:ingress_canary_latency:total_6h >= 300
-      and
-      errors:ingress_canary_latency:error_rate_6h > 0.030
+  # The real alert must be neither pending nor firing despite error_rate_6h
+  # clearing 0.030 above, because total_6h (32) does not clear the raised
+  # floor (300) -- and the alert's 30m short window is already fully
+  # satisfied (same data, see above), so pending state here depends only on
+  # the long-window floor, not on `for:` timing. Querying the real ALERTS
+  # series (rather than a copy of the gate's own thresholds, which would
+  # keep passing even if the real alert's floor regressed back to 30)
+  # follows certificate-rotation-prometheusRule_test.yaml's pattern
+  # (flagged by Copilot review).
+  - expr: count(ALERTS{alertname="userJourneyIngressLatencyP99Errors6h30m", alertstate=~"pending|firing", _id="lat-thin-medium"}) or vector(0)
     eval_time: 21m
-    exp_samples: []
+    exp_samples:
+    - labels: '{}'
+      value: 0
 # ========================================
 # Test 14: Slow latency tier must not fire on a one-off blip in a thin
 # early 3d window
@@ -704,14 +705,15 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
       value: 0.006666666666666667
-  # The alert's own long-window gate -- copied verbatim from
-  # userJourneyIngressLatencyP99Errors3d6h's expr -- must be empty despite
-  # error_rate_3d clearing 0.005 above, because total_3d (300) does not
-  # clear the raised floor (1000). See Test 13's comment for why this checks
-  # the gate directly rather than the alert's firing state.
-  - expr: |
-      errors:ingress_canary_latency:total_3d >= 1000
-      and
-      errors:ingress_canary_latency:error_rate_3d > 0.005
+  # The real alert must be neither pending nor firing despite error_rate_3d
+  # clearing 0.005 above, because total_3d (300) does not clear the raised
+  # floor (1000) -- and the alert's 6h short window is already satisfied
+  # (floor exactly met at 300, error_rate_6h also 0.667%), so pending state
+  # here depends only on the long-window floor. See Test 13's comment for
+  # why this queries the real ALERTS series rather than a copy of the
+  # gate's thresholds.
+  - expr: count(ALERTS{alertname="userJourneyIngressLatencyP99Errors3d6h", alertstate=~"pending|firing", _id="lat-thin-slow"}) or vector(0)
     eval_time: 155m
-    exp_samples: []
+    exp_samples:
+    - labels: '{}'
+      value: 0

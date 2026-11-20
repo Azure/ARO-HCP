@@ -333,26 +333,37 @@ spec:
     # pair one replica's "fast" count with the other replica's "total" count,
     # producing a ratio that belongs to neither replica's actual observations
     # (the repository's frontend SLO notes this same per-bucket-max hazard).
-    # `topk(1, ...) by (host, instance)` on le="+inf" instead picks ONE
-    # winning replica (by total volume, the most complete-looking scrape) per
-    # (host, instance), keeping its `prometheus_replica` label; `and on (...,
-    # prometheus_replica)` then restricts le="200.0" to that same winning
-    # replica, so every host/instance's fast and total figures always come
-    # from one consistent replica. This also keeps the dedup from
-    # double-counting fully redundant replicas (Test 10/12's requirement):
-    # topk still picks exactly one value per (host, instance) regardless of
-    # how many replicas reported it.
+    # `topk(1, ...) without (prometheus_replica, le)` on le="+inf" instead
+    # picks ONE winning replica (by total volume, the most complete-looking
+    # scrape) per *every other label* -- crucially including `pod`, not just
+    # `host`/`instance`: if a replacement pod reuses the same instance
+    # address within the window, grouping by only (host, instance) would
+    # merge the old and new pod's distinct histories, letting topk pick one
+    # pod's "+inf" total while `and` admits both pods' "200.0" counts into
+    # the numerator -- a mismatch that can make the fast count exceed the
+    # total and the error rate go negative, silently suppressing a real
+    # alert (flagged by Copilot review). Keeping every label except
+    # `prometheus_replica` (the only thing we actually want to dedup across)
+    # and `le` (which differs by construction between the two bucket
+    # selectors) in the grouping key means only true same-pod HA-replica
+    # duplicates compete in `topk`, never two different pods. `and ignoring
+    # (le) (...)` then restricts le="200.0" to that exact same series --
+    # same pod, same winning replica -- by matching on every label except
+    # `le`, not just the six listed in the old `on (...)` clause. This also
+    # keeps the dedup from double-counting fully redundant replicas (Test
+    # 10/12's requirement): topk still picks exactly one value per pod
+    # regardless of how many replicas reported it.
     - record: latency:ingress_canary:ratio
       expr: |
         sum by (_id, cluster, region) (
           rate(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) without (prometheus_replica, le)
           )
         )
         /
         sum by (_id, cluster, region) (
-          topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) without (prometheus_replica, le)
         )
     # Error rate derived from the latency SLI.
     # Instantaneous (5m rate) value only -- kept for dashboards / SLI
@@ -393,14 +404,14 @@ spec:
     - record: errors:ingress_canary_latency:total_5m
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) without (prometheus_replica, le)
         )
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
         sum by (_id, cluster, region) (
           increase(ingress_canary_check_duration_bucket{le="400.0"}[5m] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) without (prometheus_replica, le)
           )
         )
     - record: errors:ingress_canary_latency:slow_5m
@@ -413,14 +424,14 @@ spec:
     - record: errors:ingress_canary_latency:total_30m
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) without (prometheus_replica, le)
         )
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
         sum by (_id, cluster, region) (
           increase(ingress_canary_check_duration_bucket{le="400.0"}[30m] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m] offset 5m)) without (prometheus_replica, le)
           )
         )
     - record: errors:ingress_canary_latency:slow_30m
@@ -433,14 +444,14 @@ spec:
     - record: errors:ingress_canary_latency:total_1h
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) without (prometheus_replica, le)
         )
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
         sum by (_id, cluster, region) (
           increase(ingress_canary_check_duration_bucket{le="400.0"}[1h] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h] offset 5m)) without (prometheus_replica, le)
           )
         )
     - record: errors:ingress_canary_latency:slow_1h
@@ -453,14 +464,14 @@ spec:
     - record: errors:ingress_canary_latency:total_6h
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) without (prometheus_replica, le)
         )
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
         sum by (_id, cluster, region) (
           increase(ingress_canary_check_duration_bucket{le="400.0"}[6h] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h] offset 5m)) without (prometheus_replica, le)
           )
         )
     - record: errors:ingress_canary_latency:slow_6h
@@ -473,14 +484,14 @@ spec:
     - record: errors:ingress_canary_latency:total_3d
       expr: |
         sum by (_id, cluster, region) (
-          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) by (_id, cluster, region, host, instance)
+          topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) without (prometheus_replica, le)
         )
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
         sum by (_id, cluster, region) (
           increase(ingress_canary_check_duration_bucket{le="400.0"}[3d] offset 5m)
-          and on (_id, cluster, region, host, instance, prometheus_replica) (
-            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) by (_id, cluster, region, host, instance)
+          and ignoring (le) (
+            topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d] offset 5m)) without (prometheus_replica, le)
           )
         )
     - record: errors:ingress_canary_latency:slow_3d

@@ -517,3 +517,54 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="lat-split", cluster="mgmt-1", region="uksouth"}'
       value: 0
+# ========================================
+# Test 17: A pod replacement reusing the same instance address must not
+# merge two pods' histories (per Copilot review)
+# ========================================
+# Two distinct pods share the same host/instance (simulating a replacement
+# pod that reused the old pod's address within the window) but are
+# distinguished by their own `pod` label. "pod-a" contributed 50 checks
+# during the window, all slow (le="+inf" grows 10/min, le="400.0" stays flat
+# at 0); "pod-b" contributed 45, all fast (le="+inf" and le="400.0" both
+# grow 9/min). Each pod's real, non-overlapping checks should both count --
+# summed, that's 95 total checks, 45 fast, 50 slow, a 52.6% error rate.
+#
+# Grouping/joining by (host, instance) alone -- ignoring `pod` -- would
+# instead treat the two pods as HA-replica duplicates of the same series:
+# topk would keep only pod-a's larger total (discarding pod-b's 45 checks
+# entirely, undercounting true volume), while the `and on` join (not
+# listing `pod`) would still admit BOTH pods' le="400.0" series against
+# that one surviving total, since they share every label the join actually
+# checks. That gives total_5m = 50 (pod-a only) but fast_5m = 0 (pod-a) + 45
+# (pod-b) = 45, an error rate of (50-45)/50 = 10% -- a dramatic undercount
+# of the true 52.6%, potentially enough to miss a burn-rate threshold that
+# the real combined traffic would have crossed. Grouping/joining by every
+# label except prometheus_replica and le keeps pod-a and pod-b as distinct
+# series throughout (so their real volumes are summed, not winner-takes-all)
+# while still deduping each pod's own HA replica pair down to one.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="pod-turnover", cluster="mgmt-1", region="uksouth", host="canary.apps.pod-turnover.example.io", instance="10.0.0.1:60000", pod="pod-a", le="+inf"}'
+    values: "0+10x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="pod-turnover", cluster="mgmt-1", region="uksouth", host="canary.apps.pod-turnover.example.io", instance="10.0.0.1:60000", pod="pod-a", le="400.0"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="pod-turnover", cluster="mgmt-1", region="uksouth", host="canary.apps.pod-turnover.example.io", instance="10.0.0.1:60000", pod="pod-b", le="+inf"}'
+    values: "0+9x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="pod-turnover", cluster="mgmt-1", region="uksouth", host="canary.apps.pod-turnover.example.io", instance="10.0.0.1:60000", pod="pod-b", le="400.0"}'
+    values: "0+9x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 15m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="pod-turnover", cluster="mgmt-1", region="uksouth"}'
+      value: 95
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 15m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="pod-turnover", cluster="mgmt-1", region="uksouth"}'
+      value: 45
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 15m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="pod-turnover", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5263157894736842
