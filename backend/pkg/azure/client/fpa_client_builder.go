@@ -56,7 +56,7 @@ type FirstPartyApplicationClientBuilder interface {
 	GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error)
 	DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error)
 	RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error)
-	DeploymentStacksClient(tenantID, subscriptionID string) (*armdeploymentstacks.Client, error)
+	DeploymentStacksClient(tenantID, subscriptionID string) (DeploymentStacksClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -162,7 +162,7 @@ func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplication
 	return FirstPartyApplicationClientBuilderTypeValue
 }
 
-func (b *firstPartyApplicationClientBuilder) DeploymentStacksClient(tenantID, subscriptionID string) (*armdeploymentstacks.Client, error) {
+func (b *firstPartyApplicationClientBuilder) DeploymentStacksClient(tenantID, subscriptionID string) (DeploymentStacksClient, error) {
 	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
 	if err != nil {
 		return nil, err

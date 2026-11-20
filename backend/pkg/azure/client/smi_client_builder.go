@@ -68,7 +68,7 @@ const (
 // a cluster-scoped identity.
 type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
-	DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (*armdeploymentstacks.Client, error)
+	DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (DeploymentStacksClient, error)
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
 	// NetworkSecurityGroupsClient returns a new Network Security Groups client
@@ -163,7 +163,7 @@ func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDat
 	}
 }
 
-func (b *serviceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (*armdeploymentstacks.Client, error) {
+func (b *serviceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (DeploymentStacksClient, error) {
 	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err

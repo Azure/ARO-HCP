@@ -1237,7 +1237,7 @@ func TestSDKTokenFailures(t *testing.T) {
 			}
 			builds, requests := 0, 0
 			tokenErr := errors.New("token acquisition failed")
-			controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(_, subscription string) (*armdeploymentstacks.Client, error) {
+			controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(_, subscription string) (azureclient.DeploymentStacksClient, error) {
 				builds++
 				credential := stackCredential{}
 				if phase == "GET" || builds == 2 {
@@ -1359,19 +1359,19 @@ func (q *recordingQueue) AddAfter(_ Key, delay time.Duration) {
 
 type fpaBuilder struct {
 	azureclient.FirstPartyApplicationClientBuilder
-	build func(string, string) (*armdeploymentstacks.Client, error)
+	build func(string, string) (azureclient.DeploymentStacksClient, error)
 }
 
-func (builder fpaBuilder) DeploymentStacksClient(tenant, subscription string) (*armdeploymentstacks.Client, error) {
+func (builder fpaBuilder) DeploymentStacksClient(tenant, subscription string) (azureclient.DeploymentStacksClient, error) {
 	return builder.build(tenant, subscription)
 }
 
 type smiBuilder struct {
 	azureclient.ServiceManagedIdentityClientBuilder
-	build func(context.Context, string, *azcorearm.ResourceID, string) (*armdeploymentstacks.Client, error)
+	build func(context.Context, string, *azcorearm.ResourceID, string) (azureclient.DeploymentStacksClient, error)
 }
 
-func (builder smiBuilder) DeploymentStacksClient(ctx context.Context, url string, identity *azcorearm.ResourceID, subscription string) (*armdeploymentstacks.Client, error) {
+func (builder smiBuilder) DeploymentStacksClient(ctx context.Context, url string, identity *azcorearm.ResourceID, subscription string) (azureclient.DeploymentStacksClient, error) {
 	return builder.build(ctx, url, identity, subscription)
 }
 
@@ -1379,7 +1379,7 @@ func setup(t *testing.T, transport stackTransport) (*controller, *memoryCRUD, *c
 	t.Helper()
 	storage := &memoryCRUD{doc: newDesire()}
 	clk := clocktesting.NewFakeClock(testNow)
-	fpa := fpaBuilder{build: func(tenant, subscription string) (*armdeploymentstacks.Client, error) {
+	fpa := fpaBuilder{build: func(tenant, subscription string) (azureclient.DeploymentStacksClient, error) {
 		if tenant != "tenant" || subscription != "sub" {
 			t.Fatalf("FPA builder: %s %s", tenant, subscription)
 		}
@@ -1561,7 +1561,7 @@ func TestCredentialBuilderRoutingAndCaching(t *testing.T) {
 					ServiceManagedIdentity: &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: identity, ClusterIdentityURL: "https://identity.example/cluster"},
 				}
 				builds, requests := 0, 0
-				build := func() (*armdeploymentstacks.Client, error) {
+				build := func() (azureclient.DeploymentStacksClient, error) {
 					builds++
 					if builds == failBuild {
 						return nil, context.DeadlineExceeded
@@ -1578,13 +1578,13 @@ func TestCredentialBuilderRoutingAndCaching(t *testing.T) {
 						return nil, nil
 					}), nil
 				}
-				controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(tenant, subscription string) (*armdeploymentstacks.Client, error) {
+				controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(tenant, subscription string) (azureclient.DeploymentStacksClient, error) {
 					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA || tenant != "tenant" || subscription != "sub" {
 						t.Fatal("incorrect FPA routing")
 					}
 					return build()
 				}}
-				controller.serviceManagedIdentityClientBuilder = smiBuilder{build: func(_ context.Context, url string, id *azcorearm.ResourceID, subscription string) (*armdeploymentstacks.Client, error) {
+				controller.serviceManagedIdentityClientBuilder = smiBuilder{build: func(_ context.Context, url string, id *azcorearm.ResourceID, subscription string) (azureclient.DeploymentStacksClient, error) {
 					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI || url != "https://identity.example/cluster" || id != identity || subscription != "sub" {
 						t.Fatal("incorrect SMI routing")
 					}
