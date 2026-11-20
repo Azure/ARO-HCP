@@ -342,7 +342,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	}
 	spc := &coreapi.ServiceProviderCluster{}
 
-	clusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, nil, oldClusterServiceCluster, spc, nil)
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -377,7 +377,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripServiceProviderClusterSize(t 
 		},
 	}
 
-	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc, nil)
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -600,7 +600,7 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc, nil)
 
 	require.NoError(t, err)
 
@@ -1316,7 +1316,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 	// a PATCH payload — it only contains mutable fields. Simulate what CS returns
 	// after applying the PATCH by building a full cluster with immutable fields
 	// from the old cluster plus the updated key version.
-	_, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
+	_, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc, nil)
 	require.NoError(t, err)
 
 	fullCSCluster, err := arohcpv1alpha1.NewCluster().

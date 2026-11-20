@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -35,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -474,7 +477,12 @@ func convertImageDigestMirrorsToCSBuilder(in []coreapi.ImageDigestMirror) []*aro
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *coreapi.Cluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
+// desiredVersionExcludingOutOfBand is the recognized version to tell Cluster Service when the
+// desired control-plane version is out of band, resolved by the caller (the
+// channel's best exact version, or for a nightly cluster the exact nightly build
+// set on it — see cpoutofbandhelpers.RecognizedVersionForOutOfBandPin). It is only consulted
+// on the create path (oldClusterServiceCluster == nil) and update callers pass nil.
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *coreapi.Cluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, desiredVersionExcludingOutOfBand *semver.Version) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -485,9 +493,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		csVersionID, err := clusterCSVersionID(serviceProviderCluster, cluster)
+		csVersionID, err := clusterCSVersionID(serviceProviderCluster, cluster, desiredVersionExcludingOutOfBand)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(fmt.Errorf("failed to get cluster CS version ID: %w", err))
 		}
 		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, cluster,
 			resourceID.SubscriptionID,
@@ -554,12 +562,28 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *
 
 // clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster
 // from ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
-func clusterCSVersionID(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.Cluster) (string, error) {
+// outOfBandCSVedesiredVersionExcludingOutOfBandrsion is the recognized version to tell Cluster Service while the
+// desired version is out of band, resolved by the caller (the channel's best
+// exact version, or for a nightly cluster the exact nightly build set on it).
+func clusterCSVersionID(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.Cluster, desiredVersionExcludingOutOfBand *semver.Version) (string, error) {
 	if serviceProviderCluster == nil || serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return "", fmt.Errorf("control plane desired version is not set on the ServiceProviderCluster")
 	}
 	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
-	return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup), nil
+	desiredVersion := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()
+	// When the cluster is pinned to an out-of-band version (one Cluster Service does
+	// not recognize), it must never be sent to Cluster Service. The HostedCluster
+	// release image is served from the out-of-band repository by the cluster
+	// resources controller; Cluster Service is told the recognized substitute
+	// version — the one the cluster would run without the pin — so the cluster is
+	// created at a version consistent with the payload it runs.
+	if cpoutofband.IsOutOfBandControlPlaneVersion(desiredVersion) {
+		if desiredVersionExcludingOutOfBand == nil {
+			return "", utils.TrackError(fmt.Errorf("recognized version is not resolved for the out-of-band pinned cluster"))
+		}
+		return NewOpenShiftVersionXYZ(desiredVersionExcludingOutOfBand.String(), channelGroup), nil
+	}
+	return NewOpenShiftVersionXYZ(desiredVersion, channelGroup), nil
 }
 
 // ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride

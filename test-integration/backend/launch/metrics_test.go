@@ -145,7 +145,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
-			HardcodedIdentity: hardcodedIdentity,
+			HardcodedIdentity:    hardcodedIdentity,
+			OCPImagesACRHostname: "exampleacrhostname.com",
 		}
 
 		backendErrCh := make(chan error, 1)
