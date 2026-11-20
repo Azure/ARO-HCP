@@ -80,6 +80,9 @@ var _ = Describe("Region in-place upgrade", func() {
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(resourceGroupName, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			// The cluster is created before the region upgrade, on an RP that may still expect the
+			// data-plane identities to have roles on the customer resources.
+			clusterParams.AssignDataPlaneCustomerScopedRoles = true
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,

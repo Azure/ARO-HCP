@@ -112,11 +112,11 @@ func testExpectedRoleAssignmentIDs(t *testing.T) []*azcorearm.ResourceID {
 	config := testConfig()
 	scope := testManagedResourceGroupScope(t)
 
-	cpRoleDefs := config.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(testControlPlaneOperatorName)].RoleDefinitionsResourceIDs()
+	cpRoleDefs := metadataapi.Must(config.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(testControlPlaneOperatorName)].RoleDefinitionsResourceIDs(testSubscriptionID))
 	require.NotEmpty(t, cpRoleDefs, "control-plane operator must have at least one role definition")
-	dpRoleDefs := config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(testDataPlaneOperatorName)].RoleDefinitionsResourceIDs()
+	dpRoleDefs := metadataapi.Must(config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(testDataPlaneOperatorName)].RoleDefinitionsResourceIDs(testSubscriptionID))
 	require.NotEmpty(t, dpRoleDefs, "data-plane operator must have at least one role definition")
-	smiRoleDefs := config.ServiceManagedIdentity.RoleDefinitionsResourceIDs()
+	smiRoleDefs := metadataapi.Must(config.ServiceManagedIdentity.RoleDefinitionsResourceIDs(testSubscriptionID))
 	require.NotEmpty(t, smiRoleDefs, "service managed identity must have at least one role definition")
 
 	expected := []*azcorearm.ResourceID{
@@ -346,7 +346,7 @@ func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 	controlPlaneOperators := map[string]*azcorearm.ResourceID{}
 	resolvedIdentities := map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{}
 	for identifier, identity := range config.ControlPlaneOperatorsIdentities {
-		if identity == nil || len(identity.RoleDefinitionsResourceIDs()) == 0 {
+		if identity == nil || len(metadataapi.Must(identity.RoleDefinitionsResourceIDs(testSubscriptionID))) == 0 {
 			continue
 		}
 		name := string(identifier)

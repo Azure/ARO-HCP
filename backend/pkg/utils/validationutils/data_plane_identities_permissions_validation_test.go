@@ -1266,7 +1266,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_roleActionsForOperator(t *test
 					RoleDefinitionsCachedReader: mockCachedReader,
 				},
 			}
-			result, err := v.roleActionsForOperator(context.Background(), tt.operatorName)
+			result, err := v.roleActionsForOperator(context.Background(), tt.operatorName, testSubscriptionID)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1396,7 +1396,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_roleDataActionsForOperator(t *
 					RoleDefinitionsCachedReader: mockCachedReader,
 				},
 			}
-			result, err := v.roleDataActionsForOperator(context.Background(), tt.operatorName)
+			result, err := v.roleDataActionsForOperator(context.Background(), tt.operatorName, testSubscriptionID)
 
 			if tt.wantErr {
 				assert.Error(t, err)

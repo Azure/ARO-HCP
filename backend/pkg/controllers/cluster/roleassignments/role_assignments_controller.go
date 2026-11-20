@@ -460,7 +460,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 		if !ok {
 			return nil, fmt.Errorf("principal ID not yet resolved for control plane operator %q (identity %q)", operatorName, identityResourceID.String())
 		}
-		roleDefinitionIDs, err := c.controlPlaneOperatorRoleDefinitionIDs(operatorName)
+		roleDefinitionIDs, err := c.controlPlaneOperatorRoleDefinitionIDs(operatorName, cluster.ID.SubscriptionID)
 		if err != nil {
 			return nil, err
 		}
@@ -476,7 +476,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 		if !ok {
 			return nil, fmt.Errorf("principal ID not yet resolved for data plane operator %q (identity %q)", operatorName, identityResourceID.String())
 		}
-		roleDefinitionIDs, err := c.dataPlaneOperatorRoleDefinitionIDs(operatorName)
+		roleDefinitionIDs, err := c.dataPlaneOperatorRoleDefinitionIDs(operatorName, cluster.ID.SubscriptionID)
 		if err != nil {
 			return nil, err
 		}
@@ -494,7 +494,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 	if !ok {
 		return nil, fmt.Errorf("principal ID not yet resolved for service managed identity (identity %q)", serviceManagedIdentityResourceID.String())
 	}
-	roleDefinitionIDs, err := c.serviceManagedIdentityRoleDefinitionIDs()
+	roleDefinitionIDs, err := c.serviceManagedIdentityRoleDefinitionIDs(cluster.ID.SubscriptionID)
 	if err != nil {
 		return nil, err
 	}
@@ -567,14 +567,17 @@ func serviceManagedIdentityPrincipalID(serviceProviderCluster *coreapi.ServicePr
 }
 
 // controlPlaneOperatorRoleDefinitionIDs returns the role definition resource IDs
-// configured for a control-plane operator. It returns an error for an unknown
+// configured for a control-plane operator, resolved for the cluster's subscription. It returns an error for an unknown
 // operator or one with no configured role definitions.
-func (c *roleAssignmentsSyncer) controlPlaneOperatorRoleDefinitionIDs(operatorName string) ([]*azcorearm.ResourceID, error) {
+func (c *roleAssignmentsSyncer) controlPlaneOperatorRoleDefinitionIDs(operatorName, subscriptionID string) ([]*azcorearm.ResourceID, error) {
 	operatorIdentity, ok := c.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
 	if !ok || operatorIdentity == nil {
 		return nil, fmt.Errorf("no control plane operator identity configuration for operator %q", operatorName)
 	}
-	roleDefinitionIDs := operatorIdentity.RoleDefinitionsResourceIDs()
+	roleDefinitionIDs, err := operatorIdentity.RoleDefinitionsResourceIDs(subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve role definitions for control plane operator %q: %w", operatorName, err)
+	}
 	if len(roleDefinitionIDs) == 0 {
 		return nil, fmt.Errorf("no role definitions configured for control plane operator %q", operatorName)
 	}
@@ -582,14 +585,17 @@ func (c *roleAssignmentsSyncer) controlPlaneOperatorRoleDefinitionIDs(operatorNa
 }
 
 // dataPlaneOperatorRoleDefinitionIDs returns the role definition resource IDs
-// configured for a data-plane operator. It returns an error for an unknown operator
-// or one with no configured role definitions.
-func (c *roleAssignmentsSyncer) dataPlaneOperatorRoleDefinitionIDs(operatorName string) ([]*azcorearm.ResourceID, error) {
+// configured for a data-plane operator, resolved for the cluster's subscription.
+// It returns an error for an unknown operator or one with no configured role definitions.
+func (c *roleAssignmentsSyncer) dataPlaneOperatorRoleDefinitionIDs(operatorName, subscriptionID string) ([]*azcorearm.ResourceID, error) {
 	operatorIdentity, ok := c.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
 	if !ok || operatorIdentity == nil {
 		return nil, fmt.Errorf("no data plane operator identity configuration for operator %q", operatorName)
 	}
-	roleDefinitionIDs := operatorIdentity.RoleDefinitionsResourceIDs()
+	roleDefinitionIDs, err := operatorIdentity.RoleDefinitionsResourceIDs(subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve role definitions for data plane operator %q: %w", operatorName, err)
+	}
 	if len(roleDefinitionIDs) == 0 {
 		return nil, fmt.Errorf("no role definitions configured for data plane operator %q", operatorName)
 	}
@@ -597,14 +603,17 @@ func (c *roleAssignmentsSyncer) dataPlaneOperatorRoleDefinitionIDs(operatorName 
 }
 
 // serviceManagedIdentityRoleDefinitionIDs returns the role definition resource IDs
-// configured for the service managed identity. It returns an error when the service
+// configured for the service managed identity, resolved for the cluster's subscription. It returns an error when the service
 // managed identity is not configured or has no configured role definitions.
-func (c *roleAssignmentsSyncer) serviceManagedIdentityRoleDefinitionIDs() ([]*azcorearm.ResourceID, error) {
+func (c *roleAssignmentsSyncer) serviceManagedIdentityRoleDefinitionIDs(subscriptionID string) ([]*azcorearm.ResourceID, error) {
 	serviceManagedIdentity := c.clusterScopedIdentitiesConfig.ServiceManagedIdentity
 	if serviceManagedIdentity == nil {
 		return nil, fmt.Errorf("no service managed identity configuration")
 	}
-	roleDefinitionIDs := serviceManagedIdentity.RoleDefinitionsResourceIDs()
+	roleDefinitionIDs, err := serviceManagedIdentity.RoleDefinitionsResourceIDs(subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve role definitions for service managed identity: %w", err)
+	}
 	if len(roleDefinitionIDs) == 0 {
 		return nil, fmt.Errorf("no role definitions configured for service managed identity")
 	}
