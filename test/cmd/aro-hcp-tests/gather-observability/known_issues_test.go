@@ -178,6 +178,75 @@ func TestEmbeddedKnownIssuesParse(t *testing.T) {
 	}
 }
 
+// TestEmbeddedKnownIssuesClassification guards the shipped suppression policy,
+// not just its parseability: if the maxDuration bound were removed from the
+// embedded ocm-* KubePodNotReady entry, these cases would fail instead of
+// silently restoring unbounded suppression.
+func TestEmbeddedKnownIssuesClassification(t *testing.T) {
+	ptrTime := func(t time.Time) *time.Time { return &t }
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded known issues must parse: %v", err)
+	}
+
+	started := time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)
+	now := started.Add(time.Hour)
+
+	for _, tt := range []struct {
+		name      string
+		condition string
+		namespace string
+		startsAt  *time.Time
+		endsAt    *time.Time
+		known     bool
+	}{
+		{
+			name:      "ocm KubePodNotReady resolved within 15m is suppressed",
+			condition: "Resolved",
+			namespace: "ocm-arohcpci01-example-cluster",
+			startsAt:  &started,
+			endsAt:    ptrTime(started.Add(15 * time.Minute)),
+			known:     true,
+		},
+		{
+			name:      "ocm KubePodNotReady resolved over 15m is not suppressed",
+			condition: "Resolved",
+			namespace: "ocm-arohcpci01-example-cluster",
+			startsAt:  &started,
+			endsAt:    ptrTime(started.Add(15*time.Minute + time.Second)),
+		},
+		{
+			name:      "ocm KubePodNotReady still firing is not suppressed",
+			condition: "Fired",
+			namespace: "ocm-arohcpci01-example-cluster",
+			startsAt:  &started,
+		},
+		{
+			name:      "non-ocm namespace is not suppressed by the class entry",
+			condition: "Resolved",
+			namespace: "kube-system",
+			startsAt:  &started,
+			endsAt:    ptrTime(started.Add(time.Minute)),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			alerts := []alert{{Alert: alertData{
+				Name:      "KubePodNotReady",
+				Condition: tt.condition,
+				Labels:    map[string]string{"namespace": tt.namespace, "pod": "etcd-0"},
+				StartsAt:  tt.startsAt,
+				EndsAt:    tt.endsAt,
+			}}}
+			got := classifyAlertsAt(alerts, issues, now)
+			if got[0].Metadata.KnownIssue != tt.known {
+				t.Errorf("known=%v, want %v (reason=%q)", got[0].Metadata.KnownIssue, tt.known, got[0].Metadata.KnownIssueReason)
+			}
+		})
+	}
+}
+
 func TestUndatedKnownIssueDoesNotExpire(t *testing.T) {
 	t.Parallel()
 	issues := mustParse(t, `knownIssues:
