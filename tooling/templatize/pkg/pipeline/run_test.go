@@ -1491,3 +1491,60 @@ func TestWaitForRetry(t *testing.T) {
 		assert.Less(t, elapsed, 200*time.Millisecond, "should cancel without waiting for full duration")
 	})
 }
+
+// TestExecuteNodeDoesNotWaitAfterFinalAttempt guards the retry-budget
+// off-by-one: once the last permitted attempt has run, no backoff may follow.
+// stepOuterTimeout budgets MaximumRetryCount-1 backoffs, so waiting after the
+// final attempt would overrun the budget and replace the step's error with the
+// outer context's deadline.
+func TestExecuteNodeDoesNotWaitAfterFinalAttempt(t *testing.T) {
+	const (
+		serviceGroup  = "Microsoft.Azure.ARO.HCP.Test"
+		resourceGroup = "rg"
+	)
+	step := &types.ShellStep{
+		StepMeta: types.StepMeta{
+			Name: "transient",
+			AutomatedRetry: &types.AutomatedRetry{
+				ErrorContainsAny:       []string{"transient failure"},
+				MaximumRetryCount:      2,
+				DurationBetweenRetries: "10ms",
+			},
+		},
+	}
+	id := graph.Identifier{
+		ServiceGroup:   serviceGroup,
+		StepDependency: types.StepDependency{ResourceGroup: resourceGroup, Step: "transient"},
+	}
+	executionGraph := &graph.Graph{
+		Services: map[string]*topology.Service{
+			serviceGroup: {ServiceGroup: serviceGroup, PipelinePath: "pipeline.yaml"},
+		},
+		ResourceGroups: map[graph.ResourceGroupKey]*types.ResourceGroupMeta{
+			{Name: resourceGroup}: {Name: resourceGroup, ResourceGroup: resourceGroup, Subscription: TEST_SUBSCRIPTION_ID},
+		},
+		Steps: map[graph.Identifier]types.Step{id: step},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	attempts := 0
+	var executor Executor = func(_ graph.Identifier, _ types.Step, _ context.Context, _ ExecutionTarget, _ *StepRunOptions, _ *ExecutionState) (Output, DetailsProducer, error) {
+		attempts++
+		if attempts == step.AutomatedRetries().MaximumRetryCount {
+			// Cancel the outer budget as it would be once the final backoff elapses.
+			cancel()
+		}
+		return nil, nil, errors.New("transient failure")
+	}
+
+	_, runCount, err := executeNode(testr.New(t), executor, executionGraph, id, ctx, &PipelineRunOptions{
+		SubsciptionLookupFunc: func(context.Context, string) (string, error) { return "subscription", nil },
+		TopoDirLookupFunc:     func(string) (string, error) { return ".", nil },
+	}, NewExecutionState())
+
+	assert.Equal(t, 2, attempts, "the step must run exactly MaximumRetryCount times")
+	assert.Equal(t, 2, runCount)
+	assert.ErrorContains(t, err, "transient failure", "the step error must not be replaced by the outer context's cancellation")
+}

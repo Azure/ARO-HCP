@@ -915,6 +915,13 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 			attemptCancel()
 			runCount++
 			if shouldRetryError(logger, step, stepRunErr) {
+				// No attempt remains after the final one, so do not wait: the
+				// backoff would only delay the failure and could replace the
+				// step's error with a context-deadline error from the outer
+				// step budget that stepOuterTimeout did not allocate for it.
+				if !shouldExecuteStep(step, runCount) {
+					break
+				}
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
@@ -999,7 +1006,9 @@ func stepAttemptTimeout(step types.Step) (time.Duration, error) {
 // later attempts from starting, defeating the configured retry count. This
 // applies to every retried step, whether or not it declares a timeout: the
 // outer budget is derived from the attempt budget, which falls back to the
-// flat sanity timeout for steps without an enforced one.
+// flat sanity timeout for steps without an enforced one. Exactly
+// MaximumRetryCount-1 backoffs can occur, because executeNode does not wait
+// once no attempt remains.
 func stepOuterTimeout(step types.Step) (time.Duration, error) {
 	outer, err := stepAttemptTimeout(step)
 	if err != nil {
