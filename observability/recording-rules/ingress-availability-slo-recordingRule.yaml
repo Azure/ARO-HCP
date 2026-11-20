@@ -361,7 +361,8 @@ spec:
       expr: |
         1 - latency:ingress_canary:ratio
   # ========================================
-  # Ingress Latency SLO Recording Rules: Windowed Errors (burn-rate, volume-aware)
+  # Ingress Latency Alerting Recording Rules: Windowed Errors (burn-rate,
+  # volume-aware, operational 400ms threshold -- NOT the published SLO)
   # ========================================
   # Same paired short/long window rationale as the availability windowed group
   # above. ingress_canary_check_duration_bucket is a cumulative histogram
@@ -371,14 +372,20 @@ spec:
   # topk-based winning-replica dedup as the instantaneous ratio above, for
   # the same per-bucket-mixing reason -- see that rule's comment.
   #
-  # Reads le="400.0", not the 200ms bucket the instantaneous ratio above
-  # uses: a production check found p99 running 250-380ms with ~30% of HCPs
-  # already over the 0.5% error budget in a normal week at 200ms, so that
-  # threshold wasn't catching regressions, it was permanently unachievable
-  # for a healthy fleet. 400ms is the next available histogram bucket and
-  # comfortably covers the reported p99 range. This threshold applies only
-  # to alerting (the series below, which feed the alert rules); it does not
-  # change the #6516 baseline SLI above.
+  # Reads le="400.0", not the le="200.0" the #6516 baseline SLI above uses,
+  # and deliberately does not claim to still be measuring that published
+  # 99.5%/200ms objective (flagged by Copilot review): a production check
+  # found p99 running 250-380ms with ~30% of HCPs already over the 0.5%
+  # error budget in a normal week at 200ms, so alerting on the published
+  # value would page constantly on a target a healthy fleet structurally
+  # can't meet, not on genuine degradation. This is an operational
+  # threshold chosen for actionable alerting, not a redefinition of the
+  # SLO -- the baseline SLI above is untouched and remains the source of
+  # truth for the published 200ms objective. 400ms is the next available
+  # histogram bucket and comfortably covers the reported p99 range; the
+  # burn-rate math (99.5% target, 0.5% budget, 14.4x/6x/1x multipliers) is
+  # reused unchanged for consistency with the rest of this file's alerts,
+  # not because 400ms is itself the published SLO value.
   - name: arohcp_ingress_latency_slo_windowed_recording_rules
     interval: 1m
     rules:

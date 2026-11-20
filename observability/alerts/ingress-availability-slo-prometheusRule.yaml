@@ -187,18 +187,25 @@ spec:
   # Same paired short/long window MWMBR design as the availability group
   # above (see its header comment for the full rationale).
   #
-  # SLO: 99.5% of synthetic canary route checks complete within 400ms. 99.5%
-  # is closer to a P99 latency objective than a P95 one, so this SLI's
-  # alerts are named LatencyP99 rather than bare Latency.
-  # Error Budget: 0.5% (1 - 0.995)
+  # These alerts fire on an operational 400ms threshold, not the #6516
+  # (ARO-22170) published 99.5%/200ms SLO objective -- that objective is
+  # tracked unchanged for dashboards via latency:ingress_canary:ratio in the
+  # recording rule file, not alerted on (flagged by Copilot review, which
+  # pointed out that paging on the published value would be dishonest: a
+  # production check found p99 running 250-380ms with ~30% of HCPs already
+  # over the 0.5% budget in a normal week at 200ms, so that threshold isn't
+  # a latency regression signal, it's permanently unachievable for a
+  # healthy fleet). 400ms is the next available histogram bucket boundary
+  # and comfortably covers the reported p99 range; if a normal week still
+  # overspends the budget at 400ms, 800ms is the next bucket to try.
   #
-  # Originally 200ms (the next bucket down). A production check found p99
-  # running 250-380ms with ~30% of HCPs already over the 0.5% budget in a
-  # normal week at that threshold -- 200ms wasn't a latency regression
-  # signal, it was permanently unachievable for a healthy fleet. 400ms is
-  # the next available histogram bucket boundary and comfortably covers the
-  # reported p99 range; if a normal week still overspends the budget at
-  # 400ms, 800ms is the next bucket to try.
+  # 99.5% is closer to a P99 latency objective than a P95 one, so this
+  # SLI's alerts are named LatencyP99 rather than bare Latency; the
+  # burn-rate math below (99.5% target, 0.5% budget, 14.4x/6x/1x
+  # multipliers) is reused unchanged from the SLO definition for
+  # consistency with the rest of this file's alerts, not because 400ms is
+  # itself the published objective.
+  # Error Budget: 0.5% (1 - 0.995)
   #
   # Burn rate thresholds:
   #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
