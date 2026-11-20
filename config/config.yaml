@@ -177,7 +177,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
-      digest: sha256:267697be88449eb020f149c98e0bff9dc4d9d2acdbc2cb993209030fc9eb6972 # v1.31.3 (2026-11-04 18:57)
+      digest: sha256:f121af0009b72c06935b609a701e1ec900deb52e0076d6beb98226fc061dbde3 # v1.31.4 (2026-11-19 16:53)
   # AKS Runtime Image
   aksCommandRuntime:
     image:
@@ -190,7 +190,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:feba4dcc8ce4747a1e95cfda1cb070441f3d788465e92d4cecfff93a4e5636e8 # v5.2.0 (2026-11-13 05:14)
+        digest: sha256:f1b927b1e40a49ff85f7b7dd4a902ce3f106a5e696134a4654b6d6670b1fa741 # v5.2.0 (2026-11-19 21:13)
       resources:
         requests:
           cpu: 250m
@@ -222,7 +222,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:e4c17e3548f62079a0ad25072b05863fa6fc6e25ad57029f949d4f236ce0f571 # 1.44.2-20261107-1 (2026-11-07 13:08)
+        digest: sha256:813ab30992d098ceb6a32bf10165d861a55d8199fdfce1550c4b166109c3a18b # 1.46.1-20261120-1 (2026-11-20 14:55)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -325,7 +325,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:53e35fba301a1d015794c8158185e735e09518ff451b049075614368d29e3755 # v1.8.2 (2026-11-16 09:05)
+      digest: sha256:e6dcb658b6e757f88cfeb59b08533622496798c0d02bc93a4c457d57ce949414 # v1.8.2 (2026-11-17 18:20)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -705,13 +705,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: d136963b6a482ef1a937140eeaed667a4394651b36276fe12573951b050e7b26 # v0.95.2 (2026-11-11 10:29)
+          sha: d444e2db2e5a6de3247a7d69870114ccd67ba37c603801b3e1bf92a2e23c3fac # v0.95.2 (2026-11-17 18:29)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe # v3.16.0 (2026-11-09 09:33)
+          sha: 1c3ca370b3e626a449f3ef19a93ad10d306e85f63077842b3a136c6ed3f47b65 # v3.16.0 (2026-11-17 19:15)
         version: ""
         resources:
           requests:
@@ -725,12 +725,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 9fd9f590befae5bcfde70d48011456e4d7bd30fc2100de0ceb8f71335559ccd0 # v0.95.2 (2026-11-11 10:31)
+          sha: c69983d1e282592eb5d02d5815c0474f8acb6c4666adf068fe490e4cdb86ce02 # v0.95.2 (2026-11-17 18:15)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:abc4a74fde8a54f4fc6a4214073345fc958c50ed5c8cf801e01fddd86c146416 # v2.20.0 (2026-11-03 10:16)
+          digest: sha256:dca83c497a31458f720f633ef16adcbe2c0c8355b0f4254b74c556f8d38d9a31 # v2.20.0 (2026-11-17 15:00)
       admissionWebhook:
         patch:
           image:
@@ -844,13 +844,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: d136963b6a482ef1a937140eeaed667a4394651b36276fe12573951b050e7b26 # v0.95.2 (2026-11-11 10:29)
+          sha: d444e2db2e5a6de3247a7d69870114ccd67ba37c603801b3e1bf92a2e23c3fac # v0.95.2 (2026-11-17 18:29)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe # v3.16.0 (2026-11-09 09:33)
+          sha: 1c3ca370b3e626a449f3ef19a93ad10d306e85f63077842b3a136c6ed3f47b65 # v3.16.0 (2026-11-17 19:15)
         resources:
           requests:
             cpu: NONE
@@ -863,12 +863,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 9fd9f590befae5bcfde70d48011456e4d7bd30fc2100de0ceb8f71335559ccd0 # v0.95.2 (2026-11-11 10:31)
+          sha: c69983d1e282592eb5d02d5815c0474f8acb6c4666adf068fe490e4cdb86ce02 # v0.95.2 (2026-11-17 18:15)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:abc4a74fde8a54f4fc6a4214073345fc958c50ed5c8cf801e01fddd86c146416 # v2.20.0 (2026-11-03 10:16)
+          digest: sha256:dca83c497a31458f720f633ef16adcbe2c0c8355b0f4254b74c556f8d38d9a31 # v2.20.0 (2026-11-17 15:00)
       admissionWebhook:
         patch:
           image:
@@ -1161,7 +1161,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7 # f33f327dcf11b614ecb0197b7f304ab0256b995a (2026-11-16 14:49)
+      digest: sha256:0c3a3547f3e5d860de4bbe9cb5a8743c7b03f8f8c49c5489430d36739dc3443c # 5f04ca88aa9afa4976bac8b503ffd50cff2a0889 (2026-11-19 12:51)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
