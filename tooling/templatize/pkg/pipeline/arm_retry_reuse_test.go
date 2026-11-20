@@ -183,9 +183,9 @@ func TestFindSucceededAttempt(t *testing.T) {
 				var logs strings.Builder
 				logger := funcr.New(func(prefix, args string) { logs.WriteString(args + "\n") }, funcr.Options{Verbosity: 10})
 				server := &deploymentsServer{get: testCase.get, list: testCase.list}
-				deployments, _, _ := server.clients(t)
+				deployments, getOperations, _ := server.clients(t)
 
-				name, output, found := findSucceededAttempt(t.Context(), logger, deployments, scope, "rg", []string{"attempt-1", "attempt-2", "attempt-3"})
+				name, output, found := findSucceededAttempt(t.Context(), logger, newDeploymentScope(deployments, getOperations, reuseSubscription, scope, "rg"), []string{"attempt-1", "attempt-2", "attempt-3"})
 
 				assert.Equal(t, testCase.found != "", found)
 				assert.Equal(t, testCase.found, name)
