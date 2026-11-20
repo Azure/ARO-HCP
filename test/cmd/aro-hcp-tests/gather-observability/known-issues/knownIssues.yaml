@@ -14,30 +14,8 @@ knownIssues:
 - name: "KubePodNotReady"
   labels:
     namespace: "ocm-.*"
-    pod: "(packageserver|olm-operator|catalog-operator)-.*"
-  reason: "OLM pods in hosted control plane namespaces are simply uninteresting to us."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "ocm-.*"
-    pod: "hosted-cluster-config-operator-.*"
-  reason: "HCCO pods are transiently not-ready during cluster provisioning because the init container (availability-prober) blocks until the guest cluster kube-apiserver and 18+ CRDs are bootstrapped, which routinely exceeds the 5-minute KubePodNotReady threshold."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "ocm-.*"
-    pod: "cluster-network-operator-.*"
-  maxDuration: "10m"
-  reason: "cluster-network-operator pods are transiently not-ready during HCP provisioning because their availability-prober init container gates on the guest cluster kube-apiserver (https://kube-apiserver:6443/readyz) and required network.operator.openshift.io APIs before the main container starts, which routinely exceeds the 5-minute KubePodNotReady threshold. Same pattern as the hosted-cluster-config-operator entry above."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "ocm-.*"
-    pod: "etcd-.*"
-  maxDuration: "10m"
-  reason: "etcd pods can be transiently not-ready during HCP provisioning. Only firings that self-resolve within 10 minutes are suppressed, so sustained or still-firing etcd outages remain failures."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "ocm-.*"
-    pod: "capi-provider-.*"
-  reason: "capi-provider pods are transiently not-ready during HCP provisioning due to a deliberate bootstrap dependency cycle: the pod mounts the service-network-admin-kubeconfig secret (created by the KAS component), but capi-provider is intentionally excluded from the KAS dependency gate in HyperShift (componentsExcludedFromKubeAPIServerDependency) because node provisioning cannot wait for KAS to fully roll out. The pod sits in ContainerCreating with FailedMount errors until KAS reconciles and creates the secret, then the availability-prober init container gates on KAS /livez before starting the main container. This is by design and consistently exceeds the 5-minute KubePodNotReady threshold during provisioning (~56 alerts/day across 32 pods)."
+  maxDuration: "15m"
+  reason: "Control-plane operand pods in hosted control plane namespaces are transiently not-ready during HCP bootstrap: availability-prober init containers gate on the guest kube-apiserver, the capi-provider mounts a secret the KAS component applies late (fixed upstream in https://github.com/openshift/hypershift/pull/10205), and image pulls race high-concurrency provisioning. Measured CI firing durations cluster at 6-19 minutes and self-resolve (ARO-30374 analysis, Oct-Nov 2026). Only firings that self-resolve within 15 minutes are suppressed; still-firing, sustained, or long-tail (35m+) bootstrap failures remain failures. This replaces the previous per-pod entries (OLM packageserver/olm-operator/catalog-operator, HCCO, CNO, etcd, capi-provider) with one duration-bounded class entry so new operand pods do not need individual enumeration."
 - name: "KubeDeploymentReplicasMismatch"
   labels:
     namespace: "ocm-.*"
