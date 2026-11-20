@@ -402,11 +402,11 @@ resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRul
       }
       {
         record: 'errors:velero_hcp_backup:failed_outcomes:sum30d'
-        expression: 'sum_over_time(errors:velero_hcp_backup:failed_outcomes:rate5m[30d:1m])'
+        expression: 'sum_over_time((max without (prometheus_replica) (errors:velero_hcp_backup:failed_outcomes:rate5m))[30d:1m])'
       }
       {
         record: 'sli:velero_hcp_backup:completed_outcomes:sum30d'
-        expression: 'sum_over_time(sli:velero_hcp_backup:completed_outcomes:rate5m[30d:1m])'
+        expression: 'sum_over_time((max without (prometheus_replica) (sli:velero_hcp_backup:completed_outcomes:rate5m))[30d:1m])'
       }
     ]
   }

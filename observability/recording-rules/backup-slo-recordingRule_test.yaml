@@ -93,6 +93,14 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:rate5m", cluster="mgmt-fail"}'
       value: 1.6666666666666667e-2
+  # Success portion of completed_outcomes is 0 (analogous to failed=0 above).
+  - expr: |
+      sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-fail"}
+      - errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-fail"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-fail"}'
+      value: 0
   - expr: sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-fail"}
     eval_time: 10m
     exp_samples:
