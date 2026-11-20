@@ -26,6 +26,12 @@ knownIssues:
     namespace: "ocm-.*"
     pod: "capi-provider-.*"
   reason: "capi-provider pods are transiently not-ready during HCP provisioning due to a deliberate bootstrap dependency cycle: the pod mounts the service-network-admin-kubeconfig secret (created by the KAS component), but capi-provider is intentionally excluded from the KAS dependency gate in HyperShift (componentsExcludedFromKubeAPIServerDependency) because node provisioning cannot wait for KAS to fully roll out. The pod sits in ContainerCreating with FailedMount errors until KAS reconciles and creates the secret, then the availability-prober init container gates on KAS /livez before starting the main container. This is by design and consistently exceeds the 5-minute KubePodNotReady threshold during provisioning (~56 alerts/day across 32 pods)."
+- name: "KubeDeploymentReplicasMismatch"
+  labels:
+    namespace: "ocm-.*"
+    deployment: "(capi-provider|cluster-api)"
+  reason: "capi-provider/cluster-api deployments in ocm-* HCP namespaces sit at 0/1 ready whenever the hosted kube-apiserver is impaired, because each pod's availability-prober init container gates on KAS /readyz. In ARO-HCP CI this manifests when HyperShift auto etcd-recovery triggers on a single transient etcd container restart during bootstrap (findFailingEtcdPod has no crash-loop debounce), so the deployment reports unavailable replicas for the recovery window. Every observed firing co-occurred with runs already failing on the underlying etcd alerts; the recovery trigger itself is tracked in https://issues.redhat.com/browse/ARO-30373 and https://github.com/openshift/hypershift/issues/10122, and bootstrap-phase ordering is addressed by https://github.com/openshift/hypershift/pull/10205. The pod-level provisioning analogue is the KubePodNotReady capi-provider entry above. Scope is deliberately narrow: etcd StatefulSet/CrashLoop alerts and all other control-plane deployments still fail the run."
+  expiresAfter: "2027-05-31"
 - name: "KubePodNotReady"
   labels:
     namespace: "velero"
