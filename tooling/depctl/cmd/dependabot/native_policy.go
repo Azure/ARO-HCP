@@ -15,10 +15,13 @@
 package dependabot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -40,19 +43,110 @@ type nativePolicyInput struct {
 	Contents  map[string]string `json:"contents"`
 }
 
-// Reads one trusted lifecycle evidence envelope without coercing identity numbers.
-func readNativePolicyInput(cmd *cobra.Command) (nativePolicyInput, error) {
+type nativePolicyOperation uint8
+
+const (
+	nativePolicyTree nativePolicyOperation = iota
+	nativePolicyCoverage
+	nativePolicyAdmission
+)
+
+type nativePolicyRawOptions struct {
+	operation nativePolicyOperation
+	pathsOnly bool
+}
+
+type nativePolicyValidatedOptions struct {
+	operation nativePolicyOperation
+	pathsOnly bool
+	input     nativePolicyInput
+}
+
+type nativePolicyOptions struct {
+	operation     nativePolicyOperation
+	input         nativePolicyInput
+	read          dependabot.NativeReadFunc
+	output        io.Writer
+	coveragePaths []string
+	paths         map[string]bool
+	available     map[string]bool
+	live          map[string]bool
+}
+
+// Validate decodes strict evidence and checks required local inputs before execution.
+func (o *nativePolicyRawOptions) Validate(reader io.Reader) (*nativePolicyValidatedOptions, error) {
 	var input nativePolicyInput
-	decoder := json.NewDecoder(cmd.InOrStdin())
+	decoder := json.NewDecoder(reader)
 	decoder.UseNumber()
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
-		return input, cli.Invalid(err)
+		return nil, cli.Invalid(err)
 	}
 	if err := decoder.Decode(new(any)); err != io.EOF {
-		return input, cli.Invalid(fmt.Errorf("expected one policy evidence object"))
+		return nil, cli.Invalid(fmt.Errorf("expected one policy evidence object"))
 	}
-	return input, nil
+	switch o.operation {
+	case nativePolicyTree:
+		if !filepath.IsAbs(input.Root) || filepath.Clean(input.Root) != input.Root ||
+			len(input.Base) != 40 || strings.Trim(input.Base, "0123456789abcdef") != "" ||
+			len(input.Tree) != 40 || strings.Trim(input.Tree, "0123456789abcdef") != "" {
+			return nil, &dependabot.NativePolicyError{Reason: "tree validation requires a repository root and full lowercase base/tree SHAs"}
+		}
+	case nativePolicyCoverage:
+		if !o.pathsOnly && len(input.Intents) == 0 {
+			return nil, &dependabot.NativePolicyError{Reason: "missing coverage intent"}
+		}
+	}
+	return &nativePolicyValidatedOptions{operation: o.operation, pathsOnly: o.pathsOnly, input: input}, nil
+}
+
+// Complete prepares immutable evidence sets, read dependencies and output.
+func (o *nativePolicyValidatedOptions) Complete(output io.Writer) *nativePolicyOptions {
+	options := &nativePolicyOptions{operation: o.operation, input: o.input, output: output}
+	switch o.operation {
+	case nativePolicyCoverage:
+		if o.pathsOnly {
+			paths := dependabot.NativeCoveragePaths(o.input.Intents)
+			options.coveragePaths = make([]string, 0, len(paths))
+			for filename := range paths {
+				options.coveragePaths = append(options.coveragePaths, filename)
+			}
+			sort.Strings(options.coveragePaths)
+			return options
+		}
+		options.available = nativePolicyPaths(o.input.Available)
+	case nativePolicyAdmission:
+		options.paths = nativePolicyPaths(o.input.Paths)
+		options.available = nativePolicyPaths(o.input.Available)
+		options.live = nativePolicyPaths(o.input.Live)
+	}
+	options.read = ghapi.NativeCLIRead
+	return options
+}
+
+// Run checks completed policy evidence or emits the bounded coverage path query.
+func (o *nativePolicyOptions) Run(ctx context.Context) error {
+	switch o.operation {
+	case nativePolicyTree:
+		return dependabot.NativeValidateTree(ctx, o.read, o.input.Root, o.input.Base, o.input.Tree, o.input.Paths, o.input.Group, o.input.Complete)
+	case nativePolicyCoverage:
+		if o.coveragePaths != nil {
+			return json.NewEncoder(o.output).Encode(o.coveragePaths)
+		}
+		return dependabot.NativeVerifyCoverage(ctx, o.read, o.input.Intents, o.input.content, o.available)
+	case nativePolicyAdmission:
+		return dependabot.NativeAdmissionSafe(ctx, o.read, o.input.Group, o.paths, o.available, o.live, o.input.content)
+	}
+	return fmt.Errorf("unknown native policy operation")
+}
+
+// Runs the typed validation, completion and execution phases for policy commands.
+func runNativePolicyCommand(cmd *cobra.Command, raw *nativePolicyRawOptions) error {
+	validated, err := raw.Validate(cmd.InOrStdin())
+	if err != nil {
+		return err
+	}
+	return validated.Complete(cmd.OutOrStdout()).Run(cmd.Context())
 }
 
 // Reads only the immutable contents supplied by the trusted lifecycle caller.
@@ -78,50 +172,32 @@ func nativePolicyPaths(paths []string) map[string]bool {
 
 // Builds the read-only local tree policy used by the trusted publisher.
 func newNativeCheckTreeCommand() *cobra.Command {
+	options := &nativePolicyRawOptions{operation: nativePolicyTree}
 	return &cobra.Command{Use: "check-tree", Short: "Check exact native replacement tree evidence from stdin", Args: cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			input, err := readNativePolicyInput(cmd)
-			if err != nil {
-				return err
-			}
-			return dependabot.NativeValidateTree(cmd.Context(), ghapi.NativeCLIRead, input.Root, input.Base, input.Tree, input.Paths, input.Group, input.Complete)
+			return runNativePolicyCommand(cmd, options)
 		},
 	}
 }
 
 // Builds immutable intent coverage checks and their bounded evidence path query.
 func newNativeCheckCoverageCommand() *cobra.Command {
-	var pathsOnly bool
+	options := &nativePolicyRawOptions{operation: nativePolicyCoverage}
 	command := &cobra.Command{Use: "check-coverage", Short: "Check native intent coverage evidence from stdin", Args: cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			input, err := readNativePolicyInput(cmd)
-			if err != nil {
-				return err
-			}
-			if pathsOnly {
-				paths := []string{}
-				for filename := range dependabot.NativeCoveragePaths(input.Intents) {
-					paths = append(paths, filename)
-				}
-				sort.Strings(paths)
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(paths)
-			}
-			return dependabot.NativeVerifyCoverage(cmd.Context(), ghapi.NativeCLIRead, input.Intents, input.content, nativePolicyPaths(input.Available))
+			return runNativePolicyCommand(cmd, options)
 		},
 	}
-	command.Flags().BoolVar(&pathsOnly, "paths-only", false, "return only the immutable evidence paths required by the intents")
+	command.Flags().BoolVar(&options.pathsOnly, "paths-only", false, "return only the immutable evidence paths required by the intents")
 	return command
 }
 
 // Builds native admission eligibility checks without publication or arbitrary execution.
 func newNativeCheckAdmissionCommand() *cobra.Command {
+	options := &nativePolicyRawOptions{operation: nativePolicyAdmission}
 	return &cobra.Command{Use: "check-admission", Short: "Check native admission consumer evidence from stdin", Args: cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			input, err := readNativePolicyInput(cmd)
-			if err != nil {
-				return err
-			}
-			return dependabot.NativeAdmissionSafe(cmd.Context(), ghapi.NativeCLIRead, input.Group, nativePolicyPaths(input.Paths), nativePolicyPaths(input.Available), nativePolicyPaths(input.Live), input.content)
+			return runNativePolicyCommand(cmd, options)
 		},
 	}
 }
