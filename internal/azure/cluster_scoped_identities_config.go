@@ -116,6 +116,18 @@ const (
 	RoleDefinitionConfigSetNamePublic RoleDefinitionConfigSetName = "public"
 )
 
+// Names of the dev-only, per-subscription custom roles that grant data-plane operators their minimal permissions.
+// They must match the default dp*OperatorRoleName parameters in
+// dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep, which creates one copy of
+// each role in every DEV e2e subscription. See ClusterScopedIdentityRoleDefinition.CustomRoleName.
+//
+// TODO: remove these and use the built-in roles once equivalent data-plane built-in roles are available.
+const (
+	dataPlaneDiskCSIDriverDevRoleName = "ARO HCP Data Plane Disk CSI Operator"
+	dataPlaneFileCSIDriverDevRoleName = "ARO HCP Data Plane File CSI Operator"
+	dataPlaneImageRegistryDevRoleName = "ARO HCP Data Plane Image Registry Operator"
+)
+
 // NewClusterScopedIdentitiesConfig creates a new ClusterScopedIdentitiesConfig based on the setName RoleDefinitionConfigSetName.
 func NewClusterScopedIdentitiesConfig(setName RoleDefinitionConfigSetName) *ClusterScopedIdentitiesConfig {
 	clusterScopedOperatorsSpecs := newClusterScopedOperatorsIdentitySpecs()
@@ -224,11 +236,54 @@ type BaseClusterScopedIdentity struct {
 }
 
 // ClusterScopedIdentityRoleDefinition is the configuration of a cluster scoped identity role definition.
+// Exactly one of ResourceID or CustomRoleName must be set.
 type ClusterScopedIdentityRoleDefinition struct {
 	// DescriptiveName is the friendly/descriptive name of the Azure Role Definition.
 	DescriptiveName string
-	// ResourceID is the resource ID of the Azure Role Definition.
+	// ResourceID is the resource ID of the Azure Role Definition. It is the same in every subscription.
 	ResourceID *azcorearm.ResourceID
+	// CustomRoleName identifies a custom role definition that exists as a separate copy in each
+	// subscription, so its ID must be calculated for the subscription it is used in.
+	// The ID is calculated the same way as Bicep's guid(subscription().id, roleName).
+	//
+	// This is only allowed in the dev role definition config set, and is a temporary measure: it is used to
+	// prove minimal data-plane operator permissions in CI before equivalent built-in roles exist. The value
+	// must match the roleName parameters, and the guid(...) expression must match the role definition
+	// names, in dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep.
+	CustomRoleName string
+}
+
+// ResourceIDForSubscription returns the resource ID of the Azure Role Definition to use in the given subscription.
+// For role definitions with a fixed ResourceID the subscription is ignored. For role definitions with a
+// CustomRoleName, the tenant-level role definition resource ID is calculated for the subscription.
+func (rd *ClusterScopedIdentityRoleDefinition) ResourceIDForSubscription(subscriptionID string) (*azcorearm.ResourceID, error) {
+	switch {
+	case rd.ResourceID != nil:
+		return rd.ResourceID, nil
+	case len(rd.CustomRoleName) > 0:
+		if len(subscriptionID) == 0 {
+			return nil, fmt.Errorf("a subscription ID is required to calculate the role definition ID for %q", rd.CustomRoleName)
+		}
+		// Bicep's subscription().id always has a lowercase subscription ID, and the calculation is case-sensitive.
+		roleDefinitionName := armTemplateGUID("/subscriptions/"+strings.ToLower(subscriptionID), rd.CustomRoleName)
+		resourceID, err := azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build the role definition ID for %q: %w", rd.CustomRoleName, err)
+		}
+		return resourceID, nil
+	default:
+		return nil, fmt.Errorf("role definition %q has neither a resource ID nor a custom role name", rd.DescriptiveName)
+	}
+}
+
+// validate returns an error unless exactly one of ResourceID or CustomRoleName is set.
+func (rd *ClusterScopedIdentityRoleDefinition) validate() error {
+	hasResourceID := rd.ResourceID != nil
+	hasCustomRoleName := len(rd.CustomRoleName) > 0
+	if hasResourceID == hasCustomRoleName {
+		return fmt.Errorf("role definition %q must set exactly one of ResourceID or CustomRoleName", rd.DescriptiveName)
+	}
+	return nil
 }
 
 // ControlPlaneOperatorIdentity is the configuration for a control plane operator identity.
@@ -266,15 +321,21 @@ type ServiceManagedIdentity struct {
 	BaseClusterScopedIdentity
 }
 
-// RoleDefinitionsResourceIDs returns the resource IDs of the Azure Role Definitions associated to the identity.
-func (b *BaseClusterScopedIdentity) RoleDefinitionsResourceIDs() []*azcorearm.ResourceID {
+// RoleDefinitionsResourceIDs returns the resource IDs of the Azure Role Definitions associated to the identity,
+// for use in the given subscription. See ClusterScopedIdentityRoleDefinition.ResourceIDForSubscription.
+func (b *BaseClusterScopedIdentity) RoleDefinitionsResourceIDs(subscriptionID string) ([]*azcorearm.ResourceID, error) {
 	var ids []*azcorearm.ResourceID
 	for _, rd := range b.RoleDefinitions {
-		if rd != nil && rd.ResourceID != nil {
-			ids = append(ids, rd.ResourceID)
+		if rd == nil {
+			continue
 		}
+		id, err := rd.ResourceIDForSubscription(subscriptionID)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
 	}
-	return ids
+	return ids, nil
 }
 
 // BaseClusterScopedOperatorIdentity is the base configuration for all cluster scoped identities
@@ -455,8 +516,18 @@ func roleDefinitionsForSetName(setName RoleDefinitionConfigSetName, specs []*clu
 			rd = s.Dev
 		case RoleDefinitionConfigSetNamePublic:
 			rd = s.Public
+			// Per-subscription custom roles are a dev/CI-only measure and must never reach the public config set.
+			if rd != nil && len(rd.CustomRoleName) > 0 {
+				return nil, fmt.Errorf("role definition %q in the %q config set must not use a custom role name", rd.DescriptiveName, setName)
+			}
 		default:
 			return nil, fmt.Errorf("unknown role definition config set name %q", setName)
+		}
+
+		if rd != nil {
+			if err := rd.validate(); err != nil {
+				return nil, err
+			}
 		}
 
 		out = append(out, rd)
@@ -631,8 +702,8 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
-								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+								DescriptiveName: dataPlaneDiskCSIDriverDevRoleName,
+								CustomRoleName:  dataPlaneDiskCSIDriverDevRoleName,
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
@@ -679,8 +750,8 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
-								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+								DescriptiveName: dataPlaneFileCSIDriverDevRoleName,
+								CustomRoleName:  dataPlaneFileCSIDriverDevRoleName,
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
@@ -731,8 +802,8 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
-								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+								DescriptiveName: dataPlaneImageRegistryDevRoleName,
+								CustomRoleName:  dataPlaneImageRegistryDevRoleName,
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",

@@ -41,6 +41,11 @@ param keyVaultName string
 ])
 param rbacScope string = 'resourceGroup'
 
+@description('''If true, assign the data-plane file CSI and image registry identities their roles on the customer
+resources (resource group, VNet, NSG). Set false in DEV, where the data-plane operators use minimal custom roles
+that the RP assigns on the managed resource group only.''')
+param assignDataPlaneCustomerScopedRoles bool = true
+
 @description('If true, deploy the dp-autonode role assignments module and include the identity in dataPlaneOperators')
 param enableAutoNode bool = false
 
@@ -290,7 +295,7 @@ resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 }
 
 // Azure Red Hat OpenShift Image Registry Operator: Manage the OpenShift image registry's use of Azure Storage.
-// Shared by the control plane and data plane image-registry identities below.
+// Used by the control plane image-registry identity, and by the data plane one when assignDataPlaneCustomerScopedRoles is true.
 // https://www.azadvertizer.net/azrolesadvertizer/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5.html
 var imageRegistryOperatorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -373,7 +378,7 @@ resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   scope: resourceGroup(resourceGroupName)
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignDataPlaneCustomerScopedRoles && rbacScope == 'resourceGroup') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId)
   scope: resourceGroup()
   properties: {
@@ -383,7 +388,7 @@ resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsof
   }
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignDataPlaneCustomerScopedRoles && rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
   scope: vnet
   properties: {
@@ -395,7 +400,7 @@ resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authori
 
 // No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
-resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignDataPlaneCustomerScopedRoles && rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
   scope: nsg
   properties: {
@@ -410,7 +415,7 @@ resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   scope: resourceGroup(resourceGroupName)
 }
 
-resource dpImageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+resource dpImageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignDataPlaneCustomerScopedRoles && rbacScope == 'resourceGroup') {
   name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId)
   scope: resourceGroup()
   properties: {
@@ -420,7 +425,7 @@ resource dpImageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authoriza
   }
 }
 
-resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignDataPlaneCustomerScopedRoles && rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
   scope: vnet
   properties: {
