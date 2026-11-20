@@ -15,12 +15,12 @@
 package ghapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"os/exec"
 	"strings"
 	"unicode/utf8"
@@ -29,25 +29,22 @@ import (
 // NativeCLIRead uses the supported gh proxy for read-only sandbox API evidence.
 // It does not require or create a credential in the sandbox process.
 func NativeCLIRead(ctx context.Context, endpoint string, paginated, ci bool) (json.RawMessage, error) {
+	if paginated || ci {
+		return nil, errors.New("native evidence does not support pagination or CI credentials")
+	}
 	location, err := url.Parse(endpoint)
 	if err != nil || !strings.HasPrefix(endpoint, "repos/") || location.IsAbs() || location.Host != "" || location.Fragment != "" {
 		return nil, errors.New("native evidence requires a relative repository API endpoint")
 	}
-	arguments := []string{"api", "--method", "GET"}
-	if paginated {
-		arguments = append(arguments, "--paginate", "--slurp")
-	}
-	command := exec.CommandContext(ctx, "gh", append(arguments, endpoint)...)
-	if token := os.Getenv("CI_TOKEN"); ci && token != "" {
-		for _, entry := range os.Environ() {
-			if !strings.HasPrefix(entry, "GH_TOKEN=") {
-				command.Env = append(command.Env, entry)
-			}
-		}
-		command.Env = append(command.Env, "GH_TOKEN="+token)
-	}
+	command := exec.CommandContext(ctx, "gh", "api", "--method", "GET", endpoint)
 	payload, err := command.Output()
 	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			if stderr := bytes.TrimSpace(exit.Stderr); len(stderr) != 0 {
+				return nil, fmt.Errorf("native GitHub GET failed: %w: %s", err, stderr)
+			}
+		}
 		return nil, fmt.Errorf("native GitHub GET failed: %w", err)
 	}
 	if !utf8.Valid(payload) || !json.Valid(payload) {
