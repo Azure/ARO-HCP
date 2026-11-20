@@ -305,9 +305,11 @@ tests:
 # ========================================
 # Test 5: Latency normal — all canary checks within 400ms, no alerts
 # ========================================
-# le="400.0" and le="+inf" increase at the same rate → ratio 1, error_rate 0.
+# le="200.0", le="400.0" and le="+inf" all increase at the same rate → ratio 1, error_rate 0.
 - interval: 1m
   input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200.0"}'
+    values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+inf"}'
@@ -349,22 +351,32 @@ tests:
 # 5m on top of the usual margin.
 - interval: 1m
   input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
+    values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200.0"}'
+    values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200.0"}'
+    values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+inf"}'
     values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200.0"}'
+    values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+inf"}'
     values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200.0"}'
+    values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="400.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+inf"}'

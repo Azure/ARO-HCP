@@ -255,8 +255,19 @@ spec:
   # ========================================
   # Ingress Latency SLO Recording Rules
   # ========================================
-  # SLO: 99.5% of synthetic canary route checks complete within 400ms
+  # SLO: 99.5% of synthetic canary route checks complete within 200ms
   # Error Budget: 0.5% (1 - 0.995)
+  #
+  # This 200ms baseline is the SLI #6516 (ARO-22170) originally published as
+  # `latency:ingress_canary:ratio` / `errors:ingress_canary_latency:error_rate`
+  # for dashboards/SLI reporting -- left unchanged here rather than silently
+  # redefined, since other consumers may already depend on its 200ms meaning
+  # (flagged by Copilot review). It was never actually functional though: the
+  # bucket selector was `le="200"` without the trailing ".0" prod requires
+  # (see below), so it has matched zero series since #6516 merged; fixed here
+  # alongside the alerting-specific threshold below. The windowed group
+  # further down defines its own, separately-named 400ms alerting threshold
+  # -- see that group's header comment for why 200ms doesn't work for paging.
   #
   # SLI scope: ingress_canary_check_duration measures the END-TO-END duration of
   # the same synthetic canary route check as availability above. Elevated latency
@@ -287,17 +298,19 @@ spec:
   # again, re-verify against the metrics browser's label-values list, not
   # against any query *result* rendering.
   #
-  # 99.5% of checks within 400ms is closer to a P99 latency objective than a
-  # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
-  # named LatencyP99 (see ingress-availability-slo-prometheusRule.yaml).
+  # 99.5% of checks within a latency bound is closer to a P99 latency
+  # objective than a P95 one (99.5% is much nearer 99% than 95%), so alerts
+  # on this SLI are named LatencyP99 (see
+  # ingress-availability-slo-prometheusRule.yaml) regardless of which bucket
+  # the bound is set to.
   #
   # Every rate()/increase() over ingress_canary_check_duration_bucket below
   # carries `offset 5m`, matching frontend-path-latency-prometheusRule.yaml
   # and frontend-slo-recordingRule.yaml (ARO-29638 / #6965). A histogram's
   # buckets are not guaranteed to all become queryable at the same instant;
   # evaluating at the live ingestion edge can see le="+inf" already reflect a
-  # just-scraped check while le="400.0" hasn't caught up yet, making that
-  # check look like a slow one until the bucket settles. #6965 reproduced
+  # just-scraped check while a lower numeric bucket hasn't caught up yet,
+  # making that check look like a slow one until the bucket settles. #6965 reproduced
   # this directly (a real 460ms p99 read back as 995ms without the offset,
   # and a stored West US 3 INT recording of 13.265s against a settled
   # recompute of 44.6ms). offset 5m always evaluates the last settled window
@@ -308,12 +321,12 @@ spec:
     interval: 1m
     rules:
     # Latency SLI: fraction of synthetic canary route checks completing within
-    # 400ms, aggregated per HCP cluster.
+    # 200ms, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
     #
     # HA replica dedup for a histogram cannot be `max without (prometheus_replica)`
     # applied separately to each `le` bucket: that picks the numerator's bucket
-    # from whichever replica happens to report the larger le="400.0" value and the
+    # from whichever replica happens to report the larger le="200.0" value and the
     # denominator's bucket from whichever replica happens to report the larger
     # le="+inf" value -- independently. If the two replicas' counters
     # genuinely diverge (not just redundantly duplicate each other), this can
@@ -323,7 +336,7 @@ spec:
     # `topk(1, ...) by (host, instance)` on le="+inf" instead picks ONE
     # winning replica (by total volume, the most complete-looking scrape) per
     # (host, instance), keeping its `prometheus_replica` label; `and on (...,
-    # prometheus_replica)` then restricts le="400.0" to that same winning
+    # prometheus_replica)` then restricts le="200.0" to that same winning
     # replica, so every host/instance's fast and total figures always come
     # from one consistent replica. This also keeps the dedup from
     # double-counting fully redundant replicas (Test 10/12's requirement):
@@ -332,7 +345,7 @@ spec:
     - record: latency:ingress_canary:ratio
       expr: |
         sum by (_id, cluster, region) (
-          rate(ingress_canary_check_duration_bucket{le="400.0"}[5m] offset 5m)
+          rate(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m)
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)) by (_id, cluster, region, host, instance)
           )
@@ -357,6 +370,15 @@ spec:
   # pairing as availability: fast=1h/5m, medium=6h/30m, slow=3d/6h. Same
   # topk-based winning-replica dedup as the instantaneous ratio above, for
   # the same per-bucket-mixing reason -- see that rule's comment.
+  #
+  # Reads le="400.0", not the 200ms bucket the instantaneous ratio above
+  # uses: a production check found p99 running 250-380ms with ~30% of HCPs
+  # already over the 0.5% error budget in a normal week at 200ms, so that
+  # threshold wasn't catching regressions, it was permanently unachievable
+  # for a healthy fleet. 400ms is the next available histogram bucket and
+  # comfortably covers the reported p99 range. This threshold applies only
+  # to alerting (the series below, which feed the alert rules); it does not
+  # change the #6516 baseline SLI above.
   - name: arohcp_ingress_latency_slo_windowed_recording_rules
     interval: 1m
     rules:

@@ -414,7 +414,7 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     rules: [
       {
         record: 'latency:ingress_canary:ratio'
-        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="400.0"}[5m] offset 5m) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)))) / sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)))'
+        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200.0"}[5m] offset 5m) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)))) / sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m] offset 5m)))'
       }
       {
         record: 'errors:ingress_canary_latency:error_rate'
