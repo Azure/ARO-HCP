@@ -27,17 +27,18 @@ import (
 
 // pollExistingDeploymentOrOtherAttempt is pollAndGetOutputFromExistingDeployment for the step's own deployment,
 // failing over to the deployments of the step's other retry attempts when its own had already failed or been
-// cancelled at the first lookup: see findSucceededAttempt. otherAttempts names those deployments (see
-// otherAttemptDeploymentNames); without any, there is nothing to fail over to.
-func pollExistingDeploymentOrOtherAttempt(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string, otherAttempts []string) (bool, ArmOutput, DetailsProducer, error) {
+// cancelled at the first lookup: see findSucceededAttempt. inputs are the step's, from which the other attempts'
+// deployment names are computed. (Without a step cache, deployment names are random rather than digests of the inputs,
+// but then the step's own deployment is never found, so this never fails over.)
+func pollExistingDeploymentOrOtherAttempt(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string, inputs deploymentInputs) (bool, ArmOutput, DetailsProducer, error) {
 	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, deploymentLevel, resourceGroup, deploymentName)
 	var ended *endedDeploymentError
-	if len(otherAttempts) == 0 || !errors.As(err, &ended) {
+	if !errors.As(err, &ended) {
 		return exists, output, details, err
 	}
 	logger := logr.FromContextOrDiscard(ctx).WithValues("deployment", deploymentName)
 	scope := newDeploymentScope(client, getOperationsClient, subscriptionID, deploymentLevel, resourceGroup)
-	name, attemptOutput, found := findSucceededAttempt(ctx, logger, scope, otherAttempts)
+	name, attemptOutput, found := findSucceededAttempt(ctx, logger, scope, otherAttemptDeploymentNames(inputs))
 	if !found {
 		return exists, output, details, err
 	}

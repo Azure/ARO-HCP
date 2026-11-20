@@ -213,12 +213,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 	var output ArmOutput
 	var details DetailsProducer
-	// without a digest, the deployment name is random and other attempts' names are unknown
-	var otherAttempts []string
-	if digest != "" {
-		otherAttempts = otherAttemptDeploymentNames(inputs)
-	}
-	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, otherAttempts)
+	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, inputs)
 	if err != nil {
 		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
