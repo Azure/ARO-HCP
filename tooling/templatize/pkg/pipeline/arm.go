@@ -214,6 +214,20 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	var output ArmOutput
 	var details DetailsProducer
 	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+	var ended *endedDeploymentError
+	if errors.As(err, &ended) && digest != "" {
+		// Another attempt of this step may have deployed the same inputs successfully; see findSucceededAttempt.
+		name, attemptOutput, found := findSucceededAttempt(ctx, logger, client, step.DeploymentLevel, rgName, otherAttemptDeploymentNames(inputs))
+		if found {
+			logger.Info("Reusing the outputs of another retry attempt's successful deployment with identical inputs; this attempt's deployment had ended unsuccessfully.", "provisioningState", ended.state, "succeededDeployment", name)
+			if step.DeploymentLevel == "Subscription" {
+				details = DetermineOperationsForSubscriptionDeployment(getOperationsClient, subscriptionID, name)
+			} else {
+				details = DetermineOperationsForResourceGroupDeployment(getOperationsClient, subscriptionID, rgName, name)
+			}
+			return attemptOutput, details, commit(attemptOutput)
+		}
+	}
 	if err != nil {
 		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
@@ -316,7 +330,7 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 
 	logger.V(2).Info("Waiting for existing deployment to complete")
 	remainingTime := timeoutSeconds
-	for remainingTime > 0 {
+	for firstLookup := true; remainingTime > 0; firstLookup = false {
 		if err != nil {
 			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 		}
@@ -325,10 +339,16 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 		}
 		switch *output.ProvisioningState {
 		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
+			var err error
 			if output.Error != nil {
-				return false, nil, details, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+				err = fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+			} else {
+				err = fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
 			}
-			return false, nil, details, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
+			if firstLookup && (*output.ProvisioningState == armresources.ProvisioningStateFailed || *output.ProvisioningState == armresources.ProvisioningStateCanceled) {
+				err = &endedDeploymentError{state: *output.ProvisioningState, err: err}
+			}
+			return false, nil, details, err
 		case armresources.ProvisioningStateSucceeded:
 			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
 			return true, armOutputFromOutputs(output.Outputs), details, nil
@@ -341,6 +361,120 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 		output, err = get(ctx)
 	}
 	return false, nil, details, errors.New("timed out waiting for pre-existing deployment to finish")
+}
+
+// endedDeploymentError reports a deployment that had already failed or been cancelled when first looked up, rather
+// than one that ended while we waited for it: it was left behind by an earlier run of the same inputs.
+type endedDeploymentError struct {
+	state armresources.ProvisioningState
+	err   error
+}
+
+func (e *endedDeploymentError) Error() string { return e.err.Error() }
+func (e *endedDeploymentError) Unwrap() error { return e.err }
+
+// maxRetryAttempts bounds the attempt numbers a step's deployments may have been made under: the retry loop runs
+// attempts 0 to MaximumRetryCount-1 (see shouldExecuteStep), and MaximumRetryCount is at most 10. The bound doesn't
+// follow the step's configured count, which may have changed since.
+const maxRetryAttempts = 10
+
+// otherAttemptDeploymentNames names the deployments the other attempts of a step would make, in attempt order.
+// Deployment names are a digest of the step inputs, which include the retry attempt, so each retry deploys the same
+// inputs under a name of its own.
+func otherAttemptDeploymentNames(inputs deploymentInputs) []string {
+	var names []string
+	for attempt := range maxRetryAttempts {
+		if attempt == inputs.RetryAttempt {
+			continue
+		}
+		other := inputs
+		other.RetryAttempt = attempt
+		// the same inputs were just serialized for the step's own digest, so this can't fail
+		if name, _, err := stepDigest(other); err == nil {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// findSucceededAttempt looks for a successful deployment among candidates, the deployments of the step's other retry
+// attempts, and returns the first one's name and outputs.
+//
+// The step cache only records successes, so when an attempt fails and a retry succeeds, a later run with identical
+// inputs (e.g. the upgrade phase of an upgrade test, for a step it doesn't change) finds the failed first attempt
+// under its deployment name. The retry's success is just as valid for these inputs, so it is reused instead of
+// failing the step, and the failed deployment is left as it is. The scope's successful deployments are listed once,
+// rather than looking each candidate up: lookups of deployments that don't exist are retried for a while. Errors are
+// only logged, without the request (which names the subscription): the step then fails on its own deployment.
+func findSucceededAttempt(ctx context.Context, logger logr.Logger, client *armresources.DeploymentsClient, deploymentLevel, resourceGroup string, candidates []string) (string, ArmOutput, bool) {
+	filter := to.Ptr("provisioningState eq 'Succeeded'")
+	succeeded := map[string]bool{}
+	note := func(deployments []*armresources.DeploymentExtended) {
+		for _, deployment := range deployments {
+			if deployment != nil && deployment.Name != nil && deployment.Properties != nil && deployment.Properties.ProvisioningState != nil &&
+				*deployment.Properties.ProvisioningState == armresources.ProvisioningStateSucceeded {
+				succeeded[*deployment.Name] = true
+			}
+		}
+	}
+	var get func(name string) (*armresources.DeploymentPropertiesExtended, error)
+	var listErr error
+	if deploymentLevel == "Subscription" {
+		pager := client.NewListAtSubscriptionScopePager(&armresources.DeploymentsClientListAtSubscriptionScopeOptions{Filter: filter})
+		for pager.More() && listErr == nil {
+			page, err := pager.NextPage(ctx)
+			listErr = err
+			note(page.Value)
+		}
+		get = func(name string) (*armresources.DeploymentPropertiesExtended, error) {
+			response, err := client.GetAtSubscriptionScope(ctx, name, nil)
+			return response.Properties, err
+		}
+	} else {
+		pager := client.NewListByResourceGroupPager(resourceGroup, &armresources.DeploymentsClientListByResourceGroupOptions{Filter: filter})
+		for pager.More() && listErr == nil {
+			page, err := pager.NextPage(ctx)
+			listErr = err
+			note(page.Value)
+		}
+		get = func(name string) (*armresources.DeploymentPropertiesExtended, error) {
+			response, err := client.Get(ctx, resourceGroup, name, nil)
+			return response.Properties, err
+		}
+	}
+	if listErr != nil {
+		logger.V(1).Info("Failed to list successful deployments to find another retry attempt's.", responseErrorFields(listErr)...)
+		return "", nil, false
+	}
+	for _, name := range candidates {
+		if !succeeded[name] {
+			continue
+		}
+		// listed deployments may leave out their outputs
+		output, err := get(name)
+		if err != nil {
+			logger.V(1).Info("Failed to look up another retry attempt's successful deployment.", append(responseErrorFields(err), "otherDeployment", name)...)
+			return "", nil, false
+		}
+		if output == nil || output.ProvisioningState == nil || *output.ProvisioningState != armresources.ProvisioningStateSucceeded {
+			continue
+		}
+		return name, armOutputFromOutputs(output.Outputs), true
+	}
+	return "", nil, false
+}
+
+// responseErrorFields describes an ARM request failure for logs without its request URL, which names the subscription.
+func responseErrorFields(err error) []any {
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		return []any{"statusCode", responseErr.StatusCode, "errorCode", responseErr.ErrorCode}
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return []any{"reason", "context done"}
+	}
+	// other errors, e.g. from the transport, may quote the URL, too
+	return []any{"reason", "request failed"}
 }
 
 func isDeploymentActiveError(err error) bool {
