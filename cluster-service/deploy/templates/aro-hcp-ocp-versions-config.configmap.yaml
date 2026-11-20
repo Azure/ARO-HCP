@@ -18,6 +18,10 @@ data:
         minVersion: 4.20.0
         maxVersion: ""
       - url: https://api.openshift.com/api/upgrades_info/graph
+        channelGroupName: eus
+        minVersion: 4.20.0
+        maxVersion: ""
+      - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: candidate
         minVersion: 4.20.0
         maxVersion: ""

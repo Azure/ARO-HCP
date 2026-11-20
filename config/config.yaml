@@ -1405,6 +1405,10 @@ clouds:
           enhancedMetricsEnabled: true
       # Cluster Service
       clustersService:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: cmarches/aro-hcp-clusters-service
+          digest: sha256:e1625de3ba13657d26dbfc7ae0e903ff98c1227f20b2c438a8b5ded2cc4eb370
         k8s:
           resources:
             requests:

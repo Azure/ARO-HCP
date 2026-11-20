@@ -26,14 +26,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetZStreamOffset verifies that the stable channel group selects the penultimate release
-// (offset 1) while every other channel group uses the tip (offset 0).
+// TestGetZStreamOffset verifies that the stable and eus channel groups select the penultimate
+// release (offset 1) while every other channel group uses the tip (offset 0).
 func TestGetZStreamOffset(t *testing.T) {
 	tests := []struct {
 		channel string
 		want    uint
 	}{
 		{channel: "stable", want: 1},
+		{channel: "eus", want: 1},
 		{channel: "candidate", want: 0},
 		{channel: "fast", want: 0},
 		{channel: "nightly", want: 0},

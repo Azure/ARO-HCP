@@ -67,6 +67,7 @@ func TestParseGraphData(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]coreapi.VersionProfile{
 		{ID: "4.20", ChannelGroup: "candidate"},
+		{ID: "4.20", ChannelGroup: "eus"},
 		{ID: "5.0", ChannelGroup: "fast"},
 		{ID: "4.23", ChannelGroup: "nightly"},
 		{ID: "4.19", ChannelGroup: "stable"},
@@ -75,16 +76,32 @@ func TestParseGraphData(t *testing.T) {
 }
 
 func TestGraphDataChannelValidation(t *testing.T) {
-	for _, name := range []string{"eus-4.20", "eus-garbage", "unknown", "stable", "stable-garbage", "fast-4.20.1", "candidate-04.20", "nightly-4.20-rc.1"} {
-		t.Run(name, func(t *testing.T) {
-			archive := graphArchive(t, graphEntry{"version", "1.1.0"}, graphEntry{"channels/channel.yml", "name: " + name})
+	for _, tc := range []struct {
+		name    string
+		outcome string // "valid", "skipped", or "invalid"
+	}{
+		{"eus-4.20", "valid"},
+		{"eus-garbage", "invalid"},
+		{"unknown", "skipped"},
+		{"stable", "invalid"},
+		{"stable-garbage", "invalid"},
+		{"fast-4.20.1", "invalid"},
+		{"candidate-04.20", "invalid"},
+		{"nightly-4.20-rc.1", "invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			archive := graphArchive(t, graphEntry{"version", "1.1.0"}, graphEntry{"channels/channel.yml", "name: " + tc.name})
 			profiles, err := ParseGraphData(bytes.NewReader(archive))
-			if strings.HasPrefix(name, "eus-") || name == "unknown" {
+			switch tc.outcome {
+			case "valid":
+				require.NoError(t, err)
+				require.Len(t, profiles, 1)
+			case "skipped":
 				require.NoError(t, err, "unsupported groups must be skipped before parsing the version")
 				require.NotNil(t, profiles)
 				require.Empty(t, profiles)
-			} else {
-				require.EqualError(t, err, "y-stream channel must be <stable|fast|candidate|nightly>-<major>.<minor>")
+			default:
+				require.EqualError(t, err, "y-stream channel must be <stable|fast|eus|candidate|nightly>-<major>.<minor>")
 				require.Nil(t, profiles)
 			}
 		})

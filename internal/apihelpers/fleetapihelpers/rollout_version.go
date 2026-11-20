@@ -24,14 +24,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-var rolloutChannelPattern = regexp.MustCompile(`^(stable|fast|candidate|nightly)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+var rolloutChannelPattern = regexp.MustCompile(`^(stable|fast|eus|candidate|nightly)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // RolloutVersionFromName parses the canonical y-stream channel used as a rollout name.
 func RolloutVersionFromName(name string) (coreapi.VersionProfile, error) {
 	group, minor, _ := strings.Cut(name, "-")
 	_, parseErr := semver.Parse(minor + ".0")
 	if !rolloutChannelPattern.MatchString(name) || parseErr != nil {
-		return coreapi.VersionProfile{}, fmt.Errorf("y-stream channel must be <stable|fast|candidate|nightly>-<major>.<minor>")
+		return coreapi.VersionProfile{}, fmt.Errorf("y-stream channel must be <stable|fast|eus|candidate|nightly>-<major>.<minor>")
 	}
 	return coreapi.VersionProfile{ID: minor, ChannelGroup: group}, nil
 }
