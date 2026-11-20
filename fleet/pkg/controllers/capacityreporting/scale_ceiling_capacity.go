@@ -144,7 +144,7 @@ func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alp
 	}
 	// Pool tag alone determines NIC count — our bicep sets the actual
 	// configured secondary NIC count which may differ from the SKU maximum.
-	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); present && err == nil {
+	if nics, _, err := agentpoolspec.SecondaryNICCount(tags); err == nil {
 		result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(nics, resource.DecimalSI)
 	}
 	if len(result) == 0 {

@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
@@ -131,11 +133,12 @@ func TestComputeMaxCapacity(t *testing.T) {
 				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryBytes: memoryBytes("32Gi")},
 			},
 			wantMax: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("64Gi"),
+				corev1.ResourceMemory:              resource.MustParse("64Gi"),
+				kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 			},
 		},
 		{
-			name: "no matching SKU in CR or cache contributes nothing",
+			name: "no matching SKU leaves only configured NIC capacity",
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{},
 			},
@@ -149,7 +152,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 				},
 			},
 			skuMetadata: map[string]*skucache.SKUMetadata{},
-			wantMax:     corev1.ResourceList{},
+			wantMax:     corev1.ResourceList{kuberesources.SwiftNICResourceName: resource.MustParse("0")},
 		},
 		{
 			name: "autoscaling without max count falls back to current count",
@@ -213,7 +216,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryBytes: memoryBytes("32Gi")},
 			},
 			wantMax: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("64Gi"),
+				corev1.ResourceMemory:              resource.MustParse("64Gi"),
+				kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 			},
 		},
 		{
@@ -276,8 +280,9 @@ func TestComputeMaxCapacity(t *testing.T) {
 				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", MemoryBytes: memoryBytes("128Gi")},
 			},
 			wantMax: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("16"),
-				corev1.ResourceMemory: resource.MustParse("192Gi"),
+				corev1.ResourceCPU:                 resource.MustParse("16"),
+				corev1.ResourceMemory:              resource.MustParse("192Gi"),
+				kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 			},
 		},
 		{
@@ -387,7 +392,9 @@ func TestComputeMaxCapacityConfiguredSecondaryNICs(t *testing.T) {
 		wantEntry bool
 	}{
 		{
-			name: "tag absent",
+			name:      "tag absent",
+			wantNICs:  0,
+			wantEntry: true,
 		},
 		{
 			name:      "zero count",
@@ -399,6 +406,11 @@ func TestComputeMaxCapacityConfiguredSecondaryNICs(t *testing.T) {
 			tags:      map[string]*string{agentpoolspec.SwiftSecondaryNICCountTag: ptr.To("2")},
 			wantNICs:  6,
 			wantEntry: true,
+		},
+		{
+			name:      "invalid negative count",
+			tags:      map[string]*string{agentpoolspec.SwiftSecondaryNICCountTag: ptr.To("-1")},
+			wantEntry: false,
 		},
 	}
 
@@ -470,6 +482,38 @@ func TestComputeMaxCapacityPreservesFractionalSKU(t *testing.T) {
 
 	actual := computeMaxCapacity(nil, pools, metadata)
 	assertResourceListEqual(t, corev1.ResourceList{
-		corev1.ResourceMemory: resource.MustParse("35Gi"),
+		corev1.ResourceMemory:              resource.MustParse("35Gi"),
+		kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 	}, actual, "fractional SKU fallback ceiling")
+}
+
+func TestMixedPoolCeilingWithZeroConfiguredNICs(t *testing.T) {
+	pools := []armcontainerservice.AgentPool{
+		{Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
+			NodeLabels:        workerNodeLabels(),
+			VMSize:            ptr.To("swift"),
+			Count:             ptr.To(int32(1)),
+			EnableAutoScaling: ptr.To(true),
+			MaxCount:          ptr.To(int32(3)),
+			Tags: map[string]*string{
+				agentpoolspec.SwiftMultiTenancyTag:      ptr.To(agentpoolspec.SwiftMultiTenancyEnabledValue),
+				agentpoolspec.SwiftSecondaryNICCountTag: ptr.To("2"),
+			},
+		}},
+		{Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
+			NodeLabels: workerNodeLabels(),
+			VMSize:     ptr.To("non-swift"),
+			Count:      ptr.To(int32(1)),
+		}},
+	}
+	metadata := map[string]*skucache.SKUMetadata{
+		"swift":     {VCPUs: 4, MemoryBytes: memoryBytes("8Gi")},
+		"non-swift": {VCPUs: 4, MemoryBytes: memoryBytes("8Gi")},
+	}
+	require.NoError(t, validateScaleCeilingInputs(nil, pools, metadata))
+	assertResourceListEqual(t, corev1.ResourceList{
+		corev1.ResourceCPU:                 resource.MustParse("16"),
+		corev1.ResourceMemory:              resource.MustParse("32Gi"),
+		kuberesources.SwiftNICResourceName: resource.MustParse("6"),
+	}, computeMaxCapacity(nil, pools, metadata), "mixed pool ceiling")
 }
