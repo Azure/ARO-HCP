@@ -19,6 +19,9 @@ package azureresourcesapi
 // and controller interests on the same constant so changing a name cannot
 // silently break notifications.
 const (
+	// NodePoolEgressPublicIPsDeploymentStackDesireName identifies the node-pool egress
+	// public IP intent as a cluster-scoped DeploymentStackDesire.
+	NodePoolEgressPublicIPsDeploymentStackDesireName = "node-pool-egress-public-ips"
 	// MockFPARoleAssignmentsDeploymentStackDesireName identifies the mock First Party Application
 	// Owner role assignment intent as a cluster-scoped DeploymentStackDesire.
 	MockFPARoleAssignmentsDeploymentStackDesireName = "mock-fpa-role-assignments-over-mrg"

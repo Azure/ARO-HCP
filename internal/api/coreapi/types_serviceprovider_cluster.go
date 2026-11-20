@@ -400,6 +400,12 @@ type ServiceProviderClusterStatus struct {
 	// group, so Azure deletes it in cascade when that resource group is removed.
 	// Written by: MockFPARoleAssignmentsIntent, MockFPARoleAssignments
 	MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*MockFPARoleAssignmentStatus `json:"mockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup,omitempty"`
+	// ReservedNodePoolEgressPublicIPResourceIDs records the public IP identities before
+	// publishing executable stack intent. Once reserved, these IDs are reused rather
+	// than regenerated, so naming changes or publication retries cannot orphan resources.
+	// Deployment progress and errors belong to the DeploymentStackDesire, not this field.
+	// Written by: NodePoolEgressPublicIPs
+	ReservedNodePoolEgressPublicIPResourceIDs []*azcorearm.ResourceID `json:"reservedNodePoolEgressPublicIPResourceIDs,omitempty"`
 }
 
 // dataplaneOIDCFederationAssignmentKeySeparator is the text encoding separator

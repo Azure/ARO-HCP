@@ -2778,6 +2778,16 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			(*out)[key] = outVal
 		}
 	}
+	if in.ReservedNodePoolEgressPublicIPResourceIDs != nil {
+		in, out := &in.ReservedNodePoolEgressPublicIPResourceIDs, &out.ReservedNodePoolEgressPublicIPResourceIDs
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = DeepCopyResourceID(*in)
+			}
+		}
+	}
 	return
 }
 

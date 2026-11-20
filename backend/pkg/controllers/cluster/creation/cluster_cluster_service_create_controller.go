@@ -25,6 +25,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -48,11 +49,8 @@ type clusterClusterServiceCreateSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
-	// deploymentStackDesireLister reads the mock FPA role assignments DeploymentStackDesire to
-	// observe whether the grant is live in Azure. It is only set (and non-nil) when
-	// mockFPARoleAssignmentsEnabled is true.
-	deploymentStackDesireLister azureresourceslisters.DeploymentStackDesireLister
-	clustersServiceClient       ocm.ClusterServiceClientSpec
+	deploymentStackDesireLister  azureresourceslisters.DeploymentStackDesireLister
+	clustersServiceClient        ocm.ClusterServiceClientSpec
 	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
@@ -106,17 +104,13 @@ func NewClusterClusterServiceCreateController(
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
 
-	// Only watch (and read) the mock FPA role assignments DeploymentStackDesire when the
-	// MockFPARoleAssignments controller runs. When a real FPA is available nothing publishes it,
-	// so wiring the watch would be dead weight and the precondition short-circuits to ready.
+	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
+	syncer.deploymentStackDesireLister = deploymentStackDesireLister
+	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName)
 	if mockFirstPartyApplicationRoleAssignmentsEnabled {
-		deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
-		syncer.deploymentStackDesireLister = deploymentStackDesireLister
-		// Wake this controller when the stack desires controller writes an observed Azure status back
-		// onto the desire, so the POST fires promptly once the grant lands rather than only on resync.
-		if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
-			panic(err)
-		}
 		controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	}
 
@@ -242,6 +236,13 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		if !c.createPreconditionDNSAllocated(ctx, cluster) {
 			return nil
 		}
+		ready, err := c.createPreconditionNodePoolEgressPublicIPs(ctx, cluster, existingServiceProviderCluster, subscription)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if !ready {
+			return nil
+		}
 		csCluster, err = c.createClusterServiceCluster(csCtx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
@@ -251,6 +252,11 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	csInternalID, err := metadataapi.NewInternalID(csCluster.HREF())
 	if err != nil {
 		return utils.TrackError(err)
+	}
+	if azureresources.NodePoolEgressPublicIPsApplicable(cluster) {
+		if err := azureresources.ValidateNodePoolEgressPublicIPReservationIdentity(existingServiceProviderCluster, csInternalID.ClusterID()); err != nil {
+			return utils.TrackError(err)
+		}
 	}
 
 	logger.Info("Storing ClusterServiceID on cluster document", "clusterServiceID", csInternalID.String())
@@ -362,6 +368,24 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignm
 		return false, nil
 	}
 	return true, nil
+}
+
+func (syncer *clusterClusterServiceCreateSyncer) createPreconditionNodePoolEgressPublicIPs(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, subscription *coreapi.Subscription) (bool, error) {
+	if !azureresources.NodePoolEgressPublicIPsApplicable(cluster) {
+		return true, nil
+	}
+	spec, err := azureresources.NodePoolEgressPublicIPsDesiredSpec(cluster, spc, subscription)
+	if err != nil || spec == nil {
+		return false, err
+	}
+	desire, err := syncer.deploymentStackDesireLister.GetForCluster(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return azureresources.NodePoolEgressPublicIPsReady(*spec, desire, spc.Status.ReservedNodePoolEgressPublicIPResourceIDs)
 }
 
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
