@@ -13,11 +13,12 @@
 // limitations under the License.
 
 // Package capacityreporting populates ManagementClusterScheduling documents
-// in Cosmos. It contains three controllers:
+// in Cosmos. It contains reporting and pressure controllers:
 // EnsureCapacityReadDesireController ensures the CapacityReport ReadDesire
 // exists, CapacityReportingController writes observed capacity from the
 // mirrored CR, and ScaleCeilingReportingController computes maximum
-// scheduling capacity from AKS agent pool scaling limits.
+// scheduling capacity from AKS agent pool scaling limits. The pressure
+// controller evaluates resource reserves and the health/freshness of this data.
 package capacityreporting
 
 import (
@@ -37,6 +38,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -162,6 +164,7 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 		// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
 		// the observed data, so the transient reservation is no longer needed.
 		updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+		fleetapihelpers.PrunePendingSwiftNICReservations(&updated.Status)
 	}
 	if !controllerutils.NeedsUpdate(existing, updated) {
 		return nil

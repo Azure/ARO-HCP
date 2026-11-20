@@ -34,9 +34,9 @@ func TestScaleCeilingConverges(t *testing.T) {
 	require.NoError(t, s.persistMaxCapacity(ctx, scaleCeilingTestStampIdentifier, capacity, &next))
 	stable, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
-	require.Equal(t, initial.CosmosETag, stable.CosmosETag, "a new wall clock alone must not publish another report")
-	require.Equal(t, initial.InstanceVersion, stable.InstanceVersion)
-	require.True(t, first.Equal(stable.Status.ScaleCeiling.LastReportedAt))
+	require.NotEqual(t, initial.CosmosETag, stable.CosmosETag, "a successful unchanged poll refreshes the evidence timestamp")
+	require.True(t, next.Equal(stable.Status.ScaleCeiling.LastReportedAt))
+	require.True(t, first.Equal(&meta.FindStatusCondition(stable.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent).LastTransitionTime), "a successful poll does not change the health transition time")
 	// Changes owned by other actors are preserved and do not cause a rewrite.
 	stable.Status.ObservedResources.Capacity = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
 	other, err := crud.Replace(ctx, stable, nil)
@@ -78,7 +78,7 @@ func TestScaleCeilingConverges(t *testing.T) {
 	initialized, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	require.True(t, later.Equal(initialized.Status.ScaleCeiling.LastReportedAt))
-	require.NoError(t, s.persistMaxCapacity(ctx, scaleCeilingTestStampIdentifier, capacity, &next))
+	require.NoError(t, s.persistMaxCapacity(ctx, scaleCeilingTestStampIdentifier, capacity, &later))
 	last, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	require.Equal(t, initialized.CosmosETag, last.CosmosETag)

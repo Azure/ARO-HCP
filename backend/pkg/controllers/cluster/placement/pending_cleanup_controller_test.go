@@ -127,6 +127,11 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 		strings.ToLower(pendingClusterResourceID("c").String()),
 		strings.ToLower(pendingClusterResourceID("d").String()),
 	}, kept, "keep entries whose effective placement (Status first, else Spec) points here or is still nil")
+	require.Equal(t, map[string]int64{
+		strings.ToLower(pendingClusterResourceID("a").String()): 3,
+		strings.ToLower(pendingClusterResourceID("c").String()): 3,
+		strings.ToLower(pendingClusterResourceID("d").String()): 3,
+	}, updated.Status.PendingSwiftNICReservations, "backfill legacy pending assignments using existing conservative reservation rules")
 }
 
 func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
@@ -145,7 +150,10 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(thisStamp)),
 			PartitionKey: thisStamp,
 		},
-		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{pendingClusterResourceID("a")}},
+		Status: fleetapi.ManagementClusterSchedulingStatus{
+			PendingAssignedClusters:     []*azcorearm.ResourceID{pendingClusterResourceID("a")},
+			PendingSwiftNICReservations: map[string]int64{strings.ToLower(pendingClusterResourceID("a").String()): 3},
+		},
 	}
 	created, err := fleetDB.Stamps().ManagementClusters(thisStamp).Scheduling().Create(ctx, doc, nil)
 	require.NoError(t, err)

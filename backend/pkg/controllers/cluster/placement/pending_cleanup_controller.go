@@ -17,6 +17,7 @@ package placement
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -24,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -104,7 +106,7 @@ func (c *pendingCleanupSyncer) CooldownChecker() controllerutil.CooldownChecker 
 // sibling cluster controllers (placement, creation): a pure check on the fetched
 // document with no I/O.
 func (c *pendingCleanupSyncer) needsWork(scheduling *fleetapi.ManagementClusterScheduling) bool {
-	return len(scheduling.Status.PendingAssignedClusters) > 0
+	return len(scheduling.Status.PendingAssignedClusters) > 0 || len(scheduling.Status.PendingSwiftNICReservations) > 0
 }
 
 // SyncOnce sweeps one management cluster's PendingAssignedClusters list. On a
@@ -141,6 +143,18 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 		updated.Status.PendingAssignedClusters = nil
 	} else {
 		updated.Status.PendingAssignedClusters = kept
+	}
+	fleetapihelpers.PrunePendingSwiftNICReservations(&updated.Status)
+	for _, pending := range kept {
+		key := strings.ToLower(pending.String())
+		if _, exists := updated.Status.PendingSwiftNICReservations[key]; exists {
+			continue
+		}
+		if updated.Status.PendingSwiftNICReservations == nil {
+			updated.Status.PendingSwiftNICReservations = map[string]int64{}
+		}
+		// Backfill reservations created before the pressure controller existed.
+		updated.Status.PendingSwiftNICReservations[key] = swiftNICsForResourceID(ctx, c.clusterLister, pending)
 	}
 
 	if !controllerutil.NeedsUpdate(existing, updated) {
