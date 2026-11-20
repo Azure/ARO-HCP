@@ -28,15 +28,11 @@ import (
 // pollExistingDeploymentOrOtherAttempt is pollAndGetOutputFromExistingDeployment for the step's own deployment,
 // failing over to the deployments of the step's other retry attempts when its own had already failed or been
 // cancelled at the first lookup: see findSucceededAttempt. inputs are the step's, from which the other attempts'
-// deployment names are computed. Without a step cache, deployment names are random rather than a digest of the
-// inputs; other attempts' names are then unknown, so it doesn't fail over.
-func pollExistingDeploymentOrOtherAttempt(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string, inputs deploymentInputs) (bool, ArmOutput, DetailsProducer, error) {
+// deployment names are computed when namedByInputs; otherwise deployment names are random, so it doesn't fail over.
+func pollExistingDeploymentOrOtherAttempt(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string, inputs deploymentInputs, namedByInputs bool) (bool, ArmOutput, DetailsProducer, error) {
 	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, deploymentLevel, resourceGroup, deploymentName)
 	var ended *endedDeploymentError
-	if !errors.As(err, &ended) {
-		return exists, output, details, err
-	}
-	if digest, _, digestErr := stepDigest(inputs); digestErr != nil || digest != deploymentName {
+	if !namedByInputs || !errors.As(err, &ended) {
 		return exists, output, details, err
 	}
 	logger := logr.FromContextOrDiscard(ctx).WithValues("deployment", deploymentName)

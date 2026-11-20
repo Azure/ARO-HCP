@@ -215,7 +215,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 	var output ArmOutput
 	var details DetailsProducer
-	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, inputs)
+	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, inputs, namedByInputs)
 	if err != nil {
 		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
