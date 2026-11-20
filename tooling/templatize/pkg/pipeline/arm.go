@@ -205,9 +205,11 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		return skip, nil, nil
 	}
 
-	// when there's no step cache, there's no digest
+	// With a step cache, deployments are named after a digest of their inputs, so a rerun with the same inputs finds
+	// its earlier deployment. Without one, every deployment gets a new random name.
+	namedByInputs := stepCacheDir != ""
 	deploymentName := randString()
-	if digest != "" {
+	if namedByInputs {
 		deploymentName = digest
 	}
 
