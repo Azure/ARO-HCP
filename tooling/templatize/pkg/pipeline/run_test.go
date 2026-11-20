@@ -17,6 +17,7 @@ package pipeline
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,9 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"sigs.k8s.io/yaml"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/graph"
@@ -45,6 +49,139 @@ func mustStamp(v string) graph.Stamp {
 		panic(err)
 	}
 	return s
+}
+
+func TestPipelineDiagnosticsCompletion(t *testing.T) {
+	t.Setenv("COMPRESS_TIMING_METADATA", "false")
+	for _, testCase := range []struct {
+		name string
+		// stepFails makes the step return an error, which cancels the consumer context in runGraph.
+		stepFails bool
+		// interrupted cancels the caller's context (e.g. SIGINT), which diagnostics must honor.
+		interrupted bool
+	}{
+		{name: "succeeded"},
+		{name: "failed", stepFails: true},
+		{name: "interrupted", stepFails: true, interrupted: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(logr.NewContext(t.Context(), testr.New(t)))
+			defer cancel()
+			pipeline := &types.Pipeline{ServiceGroup: "test", ResourceGroups: []*types.ResourceGroup{{
+				ResourceGroupMeta: &types.ResourceGroupMeta{Name: "rg", ResourceGroup: "rg", Subscription: "subscription"},
+				Steps:             []types.Step{&types.ARMStep{StepMeta: types.StepMeta{Name: "deployment"}}},
+			}}}
+			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			outputDir := t.TempDir()
+			timingFile, junitFile := filepath.Join(outputDir, "timing.yaml"), filepath.Join(outputDir, "junit.xml")
+			t.Cleanup(func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+				select {
+				case <-finished:
+				case <-time.After(5 * time.Second):
+					t.Error("pipeline did not finish during cleanup")
+				}
+			})
+			primaryErr := errors.New("synthetic deployment failure")
+			expected := &ExecutionDetails{ARM: &ARMExecutionDetails{}}
+			var executionState *ExecutionState
+			var identifier graph.Identifier
+			var detailsCtxErr error
+			executor := func(id graph.Identifier, _ types.Step, _ context.Context, _ ExecutionTarget, _ *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+				executionState, identifier = state, id
+				var stepErr error
+				if testCase.stepFails {
+					stepErr = primaryErr
+				}
+				if testCase.interrupted {
+					cancel()
+				}
+				return nil, func(detailsCtx context.Context) (*ExecutionDetails, error) {
+					close(entered)
+					select {
+					case <-release:
+					case <-time.After(5 * time.Second):
+						return nil, errors.New("diagnostics were not released")
+					}
+					logr.FromContextOrDiscard(detailsCtx).Info("synthetic diagnostics finished")
+					if detailsCtxErr = detailsCtx.Err(); detailsCtxErr != nil {
+						return nil, detailsCtxErr
+					}
+					return expected, errors.New("synthetic diagnostics error")
+				}, stepErr
+			}
+			var runErr error
+			go func() {
+				_, runErr = RunPipeline(&topology.Service{ServiceGroup: "test"}, pipeline, ctx, &PipelineRunOptions{
+					TimingOutputFile:      timingFile,
+					JUnitOutputFile:       junitFile,
+					Concurrency:           1,
+					SubsciptionLookupFunc: func(context.Context, string) (string, error) { return "subscription", nil },
+					TopoDirLookupFunc:     func(string) (string, error) { return ".", nil },
+				}, executor)
+				close(finished)
+			}()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("diagnostics did not start")
+			}
+			select {
+			case <-finished:
+				t.Fatal("pipeline returned before diagnostics finished")
+			default:
+			}
+			for _, file := range []string{timingFile, junitFile} {
+				_, statErr := os.Stat(file)
+				assert.ErrorIs(t, statErr, os.ErrNotExist, "%s must only be written after diagnostics complete", file)
+			}
+			close(release)
+			select {
+			case <-finished:
+			case <-time.After(5 * time.Second):
+				t.Fatal("pipeline did not finish")
+			}
+			if testCase.stepFails {
+				assert.EqualError(t, runErr, "errors occurred during execution: [synthetic deployment failure]")
+			} else {
+				require.NoError(t, runErr)
+			}
+
+			// diagnostics must outlive the consumer cancellation a failed step triggers, but not the caller's
+			if testCase.interrupted {
+				assert.ErrorIs(t, detailsCtxErr, context.Canceled)
+				assert.Nil(t, executionState.Details[identifier])
+				return
+			}
+			assert.NoError(t, detailsCtxErr)
+			assert.Same(t, expected, executionState.Details[identifier])
+			timingData, err := os.ReadFile(timingFile)
+			require.NoError(t, err)
+			var timing []NodeInfo
+			require.NoError(t, yaml.Unmarshal(timingData, &timing))
+			require.Len(t, timing, 1)
+			assert.Equal(t, expected, timing[0].Details)
+
+			// errors collecting diagnostics must be part of the step's log, which is what ends up in JUnit
+			report, err := os.ReadFile(junitFile)
+			require.NoError(t, err)
+			var suites junit.TestSuites
+			require.NoError(t, xml.Unmarshal(report, &suites))
+			require.Len(t, suites.Suites, 1)
+			require.Len(t, suites.Suites[0].TestCases, 1)
+			if testCase.stepFails {
+				require.NotNil(t, suites.Suites[0].TestCases[0].FailureOutput)
+				output := suites.Suites[0].TestCases[0].FailureOutput.Output
+				assert.Contains(t, output, "synthetic diagnostics finished")
+				assert.Contains(t, output, "error fetching execution details")
+				assert.Contains(t, output, "synthetic diagnostics error")
+			}
+		})
+	}
 }
 
 func TestMockedPipelineRun(t *testing.T) {
