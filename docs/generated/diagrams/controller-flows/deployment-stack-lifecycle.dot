@@ -1,0 +1,29 @@
+digraph deployment_stack_lifecycle {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Mock-FPA grant · intent, stack execution and observation", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  intent [label="MockFPARoleAssignmentsIntent\nno real FPA; Cluster + provider\nkeep desired grant through deletion while MRG confirmed"];
+  map [label="Resources: provider role map\nprincipal + Owner role; preserve casing\nstamp old key only after replacement succeeds", fillcolor="#e4f2e5"];
+  publish [label="MockFPARoleAssignments\nconfirmed MRG required\nreserve assignment IDs and persist before publishing"];
+  desire [label="AzureResources: DeploymentStackDesire\nApply template excludes draining keys\nARM permissions manager identity\nUnmanage resources=Delete; groups=Detach", fillcolor="#e4f2e5"];
+  executor [label="AzureDeploymentStackDesires\n1m handler resync; errors rate-limited\nsettled same hash: default 6h cooldown"];
+  azure [label="Azure deployment stack / MRG-scoped Owner grants\nBeginCreateOrUpdate; subsequent GET\nApply correlation associates recorded hash", fillcolor="#fff0da", color="#b27624"];
+  observation [label="Desire status: Stack + ObservedSpecHash\nSuccessfullyApplied / SuccessfullyDeleted / Degraded\noriginal ETag guards observation write", fillcolor="#e4f2e5"];
+  gate [label="ClusterClusterServiceCreate: ALL\nnonempty map; every entry managed, not draining\ncurrent spec hash + successful Apply\nAND remaining create prerequisites"];
+  retirement [label="MRG deletion observed / ownership cleared\npublisher retires desire document\nchild cleanup keeps mock record while either MRG ref exists\nfinal deletion waits for AzureResources descendants", fillcolor="#e4f2e5"];
+  intent -> map [label="standalone provider Replace"];
+  map -> publish [label="non-draining keys"];
+  publish -> desire [label="separate-container Create / Replace\nsame spec hash: no write"];
+  desire -> executor [label="add / update; missing document is no-op"];
+  executor -> azure [label="Apply mutation / lazy GET"];
+  azure -> observation [label="correlated outcome persisted"];
+  observation -> executor [label="in-flight: observe again; unchanged pending: 30s\nretryable failure: repair; invalid intent: cooldown", style=dashed, constraint=false];
+  observation -> intent [label="current successful replacement: stamp old key\nold reserved ID absent from all resources: drop key", style=dashed];
+  observation -> gate [label="all-required grant observation"];
+  map -> gate [label="desired grant set"];
+  gate -> gate [label="missing / stale / incomplete: wait", style=dashed, constraint=false];
+  azure -> retirement [label="MRG-scoped stack / grants cascade externally", style=dashed];
+  retirement -> desire [label="Cosmos retirement is NOT Azure DELETE", style=dashed, constraint=false];
+  delete [label="General executor Delete action\nBeginDelete only accepts intent\nGET 404 confirms SuccessfullyDeleted\nmock publisher does not use this action", fillcolor="#fff0da", color="#b27624"];
+  executor -> delete [label="only if producer requests Delete"];
+}
