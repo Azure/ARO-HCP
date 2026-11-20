@@ -2,15 +2,12 @@
 
 aliases:
   service-lifecycle-global-approvers:
-  - janboll 
   - mmazur
   - raelga 
   - roivaz 
   service-lifecycle-approvers:
-  - ashishmax31
   - avollmer-redhat
   - hbhushan3
-  - janboll 
   - mmazur
   - raelga 
   - roivaz 
