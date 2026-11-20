@@ -25,7 +25,7 @@ acr:
 acrDNSSuffix: azurecr.io
 acrPull:
   image:
-    digest: sha256:267697be88449eb020f149c98e0bff9dc4d9d2acdbc2cb993209030fc9eb6972
+    digest: sha256:f121af0009b72c06935b609a701e1ec900deb52e0076d6beb98226fc061dbde3
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
@@ -71,7 +71,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:feba4dcc8ce4747a1e95cfda1cb070441f3d788465e92d4cecfff93a4e5636e8
+      digest: sha256:f1b927b1e40a49ff85f7b7dd4a902ce3f106a5e696134a4654b6d6670b1fa741
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -87,7 +87,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:e4c17e3548f62079a0ad25072b05863fa6fc6e25ad57029f949d4f236ce0f571
+      digest: sha256:813ab30992d098ceb6a32bf10165d861a55d8199fdfce1550c4b166109c3a18b
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
   watson:
@@ -191,7 +191,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci02
   image:
-    digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7
+    digest: sha256:0c3a3547f3e5d860de4bbe9cb5a8743c7b03f8f8c49c5489430d36739dc3443c
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -728,7 +728,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:abc4a74fde8a54f4fc6a4214073345fc958c50ed5c8cf801e01fddd86c146416
+        digest: sha256:dca83c497a31458f720f633ef16adcbe2c0c8355b0f4254b74c556f8d38d9a31
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -737,18 +737,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 9fd9f590befae5bcfde70d48011456e4d7bd30fc2100de0ceb8f71335559ccd0
+        sha: c69983d1e282592eb5d02d5815c0474f8acb6c4666adf068fe490e4cdb86ce02
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: d136963b6a482ef1a937140eeaed667a4394651b36276fe12573951b050e7b26
+        sha: d444e2db2e5a6de3247a7d69870114ccd67ba37c603801b3e1bf92a2e23c3fac
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe
+        sha: 1c3ca370b3e626a449f3ef19a93ad10d306e85f63077842b3a136c6ed3f47b65
       replicas: 2
       resources:
         limits:
@@ -989,7 +989,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:53e35fba301a1d015794c8158185e735e09518ff451b049075614368d29e3755
+    digest: sha256:e6dcb658b6e757f88cfeb59b08533622496798c0d02bc93a4c457d57ce949414
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -1109,7 +1109,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:abc4a74fde8a54f4fc6a4214073345fc958c50ed5c8cf801e01fddd86c146416
+        digest: sha256:dca83c497a31458f720f633ef16adcbe2c0c8355b0f4254b74c556f8d38d9a31
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -1118,18 +1118,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 9fd9f590befae5bcfde70d48011456e4d7bd30fc2100de0ceb8f71335559ccd0
+        sha: c69983d1e282592eb5d02d5815c0474f8acb6c4666adf068fe490e4cdb86ce02
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: d136963b6a482ef1a937140eeaed667a4394651b36276fe12573951b050e7b26
+        sha: d444e2db2e5a6de3247a7d69870114ccd67ba37c603801b3e1bf92a2e23c3fac
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe
+        sha: 1c3ca370b3e626a449f3ef19a93ad10d306e85f63077842b3a136c6ed3f47b65
       replicas: 2
       resources:
         limits:
