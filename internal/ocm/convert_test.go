@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
 )
 
 const (
@@ -211,7 +212,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
 			cluster := coreapitesting.ClusterTestCase(t, tc.cluster)
-			csVersionID, err := clusterCSVersionID(spcWithDesiredVersionFromHCPCluster(cluster), cluster)
+			csVersionID, err := clusterCSVersionID(spcWithDesiredVersionFromHCPCluster(cluster), cluster, nil)
 			require.NoError(t, err)
 			builder, azureBuilder, err := withImmutableAttributes(
 				ocmClusterDefaults(coreapitesting.TestLocation),
@@ -383,6 +384,69 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 		).
 		Replicas(0).
 		AutoRepair(false)
+}
+
+func TestClusterCSVersionIDOutOfBand(t *testing.T) {
+	const (
+		channelGroup     = "fast"
+		customerVersion  = "4.19.5"
+		outOfBandVersion = "4.19.99"
+		bestVersion      = "4.19.120"
+		// Any valid digest-pinned reference; the release image is not consulted here.
+		oobImage = "quay.io/openshift-release-dev/ocp-release-priv@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	)
+
+	cluster := &coreapi.Cluster{}
+	cluster.CustomerProperties.Version = coreapi.VersionProfile{ID: customerVersion, ChannelGroup: channelGroup}
+
+	t.Run("out-of-band desired version is replaced by the channel best", func(t *testing.T) {
+		cpoutofband.ConfigureControlPlaneVersions(map[string]string{outOfBandVersion: oobImage})
+		t.Cleanup(func() { cpoutofband.ConfigureControlPlaneVersions(nil) })
+
+		got, err := clusterCSVersionID(spcWithDesiredVersion(outOfBandVersion), cluster, ptr.To(semver.MustParse(bestVersion)))
+		require.NoError(t, err)
+		// Cluster Service must receive the channel's best exact version (the one
+		// the cluster would run without the pin), never the out-of-band pinned
+		// version it would reject.
+		assert.Equal(t, NewOpenShiftVersionXYZ(bestVersion, channelGroup), got)
+		assert.NotEqual(t, NewOpenShiftVersionXYZ(outOfBandVersion, channelGroup), got)
+	})
+
+	t.Run("out-of-band desired version with unresolved best errors", func(t *testing.T) {
+		cpoutofband.ConfigureControlPlaneVersions(map[string]string{outOfBandVersion: oobImage})
+		t.Cleanup(func() { cpoutofband.ConfigureControlPlaneVersions(nil) })
+
+		_, err := clusterCSVersionID(spcWithDesiredVersion(outOfBandVersion), cluster, nil)
+		require.Error(t, err, "an out-of-band pinned cluster must not be created without a resolved channel best")
+	})
+
+	t.Run("non-out-of-band desired version is sent as-is", func(t *testing.T) {
+		cpoutofband.ConfigureControlPlaneVersions(map[string]string{outOfBandVersion: oobImage})
+		t.Cleanup(func() { cpoutofband.ConfigureControlPlaneVersions(nil) })
+
+		const desired = "4.19.10"
+		got, err := clusterCSVersionID(spcWithDesiredVersion(desired), cluster, nil)
+		require.NoError(t, err)
+		// Not pinned to an out-of-band version: Cluster Service gets the resolved
+		// desired version; the channel best is not consulted.
+		assert.Equal(t, NewOpenShiftVersionXYZ(desired, channelGroup), got)
+	})
+
+	t.Run("out-of-band desired version on a nightly cluster is replaced by the exact nightly set on it", func(t *testing.T) {
+		cpoutofband.ConfigureControlPlaneVersions(map[string]string{outOfBandVersion: oobImage})
+		t.Cleanup(func() { cpoutofband.ConfigureControlPlaneVersions(nil) })
+
+		const nightly = "4.19.0-0.nightly-2026-11-20-123456"
+		nightlyCluster := &coreapi.Cluster{}
+		nightlyCluster.CustomerProperties.Version = coreapi.VersionProfile{ID: customerVersion, ChannelGroup: "nightly"}
+
+		got, err := clusterCSVersionID(spcWithDesiredVersion(outOfBandVersion), nightlyCluster, ptr.To(semver.MustParse(nightly)))
+		require.NoError(t, err)
+		// A nightly cluster is told the exact nightly build set on it (there is
+		// no channel best for nightly), never the out-of-band pinned version.
+		assert.Equal(t, NewOpenShiftVersionXYZ(nightly, "nightly"), got)
+		assert.NotEqual(t, NewOpenShiftVersionXYZ(outOfBandVersion, "nightly"), got)
+	})
 }
 
 func TestBuildCSNodePool(t *testing.T) {
@@ -1612,7 +1676,7 @@ func TestBuildCSCluster(t *testing.T) {
 			}
 
 			// Build actual CS cluster
-			actualClusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
+			actualClusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster, nil)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1681,7 +1745,7 @@ func TestClusterCSVersionID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := clusterCSVersionID(tc.spc, tc.cluster)
+			got, err := clusterCSVersionID(tc.spc, tc.cluster, nil)
 			if tc.wantError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantError)
