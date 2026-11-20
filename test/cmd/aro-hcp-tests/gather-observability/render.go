@@ -175,9 +175,20 @@ func incompleteHTML(partial []byte, err error) []byte {
 	return append([]byte("<section role=\"alert\" style=\"padding:16px;border:2px solid #d29922\"><h2>Incomplete report</h2><pre>"+template.HTMLEscapeString(err.Error())+"</pre></section>"), partial...)
 }
 
+func formatAlertDuration(start, end *time.Time) string {
+	if end == nil {
+		return "still firing"
+	}
+	if start == nil {
+		return "unknown (missing start time)"
+	}
+	return end.Sub(*start).String()
+}
+
 // renderAlertsHTML renders the Azure Monitor alerts page to HTML bytes.
 func renderAlertsHTML(data any) ([]byte, error) {
 	funcMap := template.FuncMap{
+		"formatDuration":         formatAlertDuration,
 		"alertDiagnosticsJSON":   alertDiagnosticsJSON,
 		"alertDiagnosticsScript": alertDiagnosticsScript,
 		"formatTime": func(t *time.Time) string {
