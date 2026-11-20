@@ -35,12 +35,16 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -330,6 +334,22 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	clusterInCacheWithChannel := func(channelGroup string) *coreapi.Cluster {
+		c := clusterInCache()
+		c.CustomerProperties.Version.ChannelGroup = channelGroup
+		return c
+	}
+	newRollout := func(yStreamChannel string, best *semver.Version) *fleetapi.ControlPlaneVersionRollout {
+		id := metadataapi.Must(fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel))
+		profile := metadataapi.Must(fleetapihelpers.RolloutVersionFromName(yStreamChannel))
+		return &fleetapi.ControlPlaneVersionRollout{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   id,
+				PartitionKey: "fleet",
+			},
+			Spec: fleetapi.ControlPlaneVersionRolloutSpec{Version: profile, BestExactVersion: best},
+		}
+	}
 	spcInCache := func(activeVersion, desiredVersion string) *coreapi.ServiceProviderCluster {
 		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))
 		active := semver.MustParse(activeVersion)
@@ -348,10 +368,14 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		clusters  []*coreapi.Cluster
-		spcs      []*coreapi.ServiceProviderCluster
-		mockSetup func(*ocm.MockClusterServiceClientSpec)
+		name              string
+		clusters          []*coreapi.Cluster
+		spcs              []*coreapi.ServiceProviderCluster
+		outOfBandVersions map[string]string
+		rollouts          []*fleetapi.ControlPlaneVersionRollout
+		mockSetup         func(*ocm.MockClusterServiceClientSpec)
+		expectError       bool
+		expectErrContains string
 	}{
 		{
 			name:      "cluster absent from cache returns nil",
@@ -377,6 +401,42 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 		},
+		{
+			// Desired version is out of band (and differs from the active version),
+			// so the upgrade must NOT be posted to Cluster Service. The empty
+			// mockSetup makes gomock fail if any Cluster Service call is made.
+			name:              "out-of-band desired version is not sent to Cluster Service",
+			clusters:          []*coreapi.Cluster{clusterInCache()},
+			spcs:              []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.99")},
+			outOfBandVersions: map[string]string{"4.19.99": "quay.io/openshift-release-dev/ocp-release-priv@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
+			mockSetup:         func(mc *ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:              "cross-minor out-of-band desired version posts recognized substitute to Cluster Service",
+			clusters:          []*coreapi.Cluster{clusterInCacheWithChannel("stable")},
+			spcs:              []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.20.99")},
+			outOfBandVersions: map[string]string{"4.20.99": "quay.io/openshift-release-dev/ocp-release-priv@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			rollouts:          []*fleetapi.ControlPlaneVersionRollout{newRollout("stable-4.20", ptr.To(semver.MustParse("4.20.10")))},
+			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
+				mc.EXPECT().
+					ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
+					Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator([]*arohcpv1alpha1.ControlPlaneUpgradePolicy{}, nil))
+				expectedBuilder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.20.10")
+				mc.EXPECT().
+					PostControlPlaneUpgradePolicy(gomock.Any(), testClusterServiceID, expectedBuilder).
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
+			},
+		},
+		{
+			name:              "cross-minor out-of-band with rollout lookup failure returns error and posts no policy",
+			clusters:          []*coreapi.Cluster{clusterInCacheWithChannel("stable")},
+			spcs:              []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.20.99")},
+			outOfBandVersions: map[string]string{"4.20.99": "quay.io/openshift-release-dev/ocp-release-priv@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			rollouts:          []*fleetapi.ControlPlaneVersionRollout{},
+			mockSetup:         func(mc *ocm.MockClusterServiceClientSpec) {},
+			expectError:       true,
+			expectErrContains: "not found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -385,6 +445,9 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			defer ctrl.Finish()
 
 			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+			cpoutofband.ConfigureControlPlaneVersions(tt.outOfBandVersions)
+			t.Cleanup(func() { cpoutofband.ConfigureControlPlaneVersions(nil) })
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
@@ -395,6 +458,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 				clusterServiceClient:         mockClusterServiceClient,
 				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs},
+				rolloutLister:                &fleetlistertesting.SliceControlPlaneVersionRolloutLister{ControlPlaneVersionRollouts: tt.rollouts},
 			}
 
 			err := syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
@@ -402,7 +466,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
 			})
-			assertSyncResult(t, err, false, "")
+			assertSyncResult(t, err, tt.expectError, tt.expectErrContains)
 		})
 	}
 }

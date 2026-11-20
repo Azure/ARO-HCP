@@ -150,6 +150,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 			},
 			HardcodedIdentity:                    hardcodedIdentity,
 			MockFirstPartyApplicationPrincipalID: "test-mock-fpa-principal-id",
+			OCPImagesACRHostname:                 "exampleacrhostname.com",
 		}
 
 		backendErrCh := make(chan error, 1)

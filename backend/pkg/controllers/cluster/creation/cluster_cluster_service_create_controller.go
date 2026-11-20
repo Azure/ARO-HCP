@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -33,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
+	cpoutofbandhelpers "github.com/Azure/ARO-HCP/internal/cpoutofband/helpers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
@@ -48,6 +52,7 @@ type clusterClusterServiceCreateSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
 	// deploymentStackDesireLister reads the mock FPA role assignments DeploymentStackDesire to
 	// observe whether the grant is live in Azure. It is only set (and non-nil) when
 	// mockFPARoleAssignmentsEnabled is true.
@@ -74,6 +79,7 @@ func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
+	rolloutLister fleetlisters.ControlPlaneVersionRolloutLister,
 	backendInformers coreinformers.BackendInformers,
 	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	denyAssignmentsEnabled bool,
@@ -83,13 +89,14 @@ func NewClusterClusterServiceCreateController(
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		resourcesDBClient:                               resourcesDBClient,
-		clusterLister:                                   clusterLister,
-		serviceProviderClusterLister:                    serviceProviderClusterLister,
-		subscriptionLister:                              subscriptionLister,
-		managementClusterLister:                         managementClusterLister,
-		clustersServiceClient:                           clustersServiceClient,
-		denyAssignmentsEnabled:                          denyAssignmentsEnabled,
+		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		subscriptionLister:           subscriptionLister,
+		managementClusterLister:      managementClusterLister,
+		rolloutLister:                rolloutLister,
+		clustersServiceClient:        clustersServiceClient,
+		denyAssignmentsEnabled:       denyAssignmentsEnabled,
 		mockFirstPartyApplicationRoleAssignmentsEnabled: mockFirstPartyApplicationRoleAssignmentsEnabled,
 	}
 
@@ -372,7 +379,24 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 		return nil, utils.TrackError(err)
 	}
 
-	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
+	// A cluster pinned to an out-of-band version is created in Cluster Service
+	// at a recognized substitute version: the version it would run without the
+	// pin — the channel's best exact version, or for a nightly cluster the exact
+	// nightly build set on it — and the one whose out-of-band payload the
+	// cluster resources controller serves.
+	// createPreconditionOutOfBandCSVersionResolved guarantees it is resolved by
+	// now.
+	var desiredVersionExcludingOutOfBand *semver.Version
+	if cpoutofband.IsOutOfBandControlPlaneVersion(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()) {
+		substitute, substituteErr := cpoutofbandhelpers.RecognizedVersionForOutOfBandPin(ctx, c.rolloutLister, cluster, *serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion)
+		if substituteErr != nil {
+			return nil, utils.TrackError(substituteErr)
+		}
+		desiredVersionExcludingOutOfBand = substitute
+		logger.Info("Desired version excluding out-of-band", "desiredVersionExcludingOutOfBand", desiredVersionExcludingOutOfBand)
+	}
+
+	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster, desiredVersionExcludingOutOfBand)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
@@ -381,7 +405,13 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	csClusterBuilder.ProvisionShardID(provisionShardID)
 	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 
-	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
+	versionSentForCSVersionCalculation := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()
+	if desiredVersionExcludingOutOfBand != nil {
+		// Cluster Service is created at the recognized substitute version, not
+		// at the pin version.
+		versionSentForCSVersionCalculation = desiredVersionExcludingOutOfBand.String()
+	}
+	logger.Info("Creating cluster in Cluster Service", "versionSentForCSVersionCalculation", versionSentForCSVersionCalculation)
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))

@@ -114,6 +114,9 @@ type BackendOptions struct {
 	// by MockFPARoleAssignments. It is empty when the backend runs with a real FPA
 	// (HasRealFPA is true).
 	MockFirstPartyApplicationPrincipalID string
+	// OCPImagesACRHostname is the hostname of the Azure Container Registry
+	// containing OCP Images (from AzureRuntimeConfig.OCPImagesACR.Hostname).
+	OCPImagesACRHostname string
 }
 
 const backendShutdownTimeout = 31 * time.Second
