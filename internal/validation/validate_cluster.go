@@ -992,7 +992,6 @@ var (
 	toClusterAutoscalingProfileMaxNodesTotal               = func(oldObj *coreapi.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodesTotal }
 	toClusterAutoscalingProfileMaxPodGracePeriodSeconds    = func(oldObj *coreapi.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxPodGracePeriodSeconds }
 	toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds = func(oldObj *coreapi.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodeProvisionTimeSeconds }
-	toClusterAutoscalingProfilePodPriorityThreshold        = func(oldObj *coreapi.ClusterAutoscalingProfile) *int32 { return &oldObj.PodPriorityThreshold }
 )
 
 func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterAutoscalingProfile) field.ErrorList {
@@ -1010,15 +1009,16 @@ func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("maxNodesTotal"), &newObj.MaxNodesTotal, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodesTotal), 500)...)
 
 	//MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds))...)
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 1)...)
+	// HyperShift ClusterAutoscaling.maxPodGracePeriod allows 0. Omitted values are defaulted before validation.
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 0)...)
 
 	//MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maxNodeProvisionTimeSeconds"), &newObj.MaxNodeProvisionTimeSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds))...)
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodeProvisionTimeSeconds"), &newObj.MaxNodeProvisionTimeSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds), 1)...)
+	// HyperShift maxNodeProvisionTime accepts the duration "0s". Omitted values are defaulted before validation.
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodeProvisionTimeSeconds"), &newObj.MaxNodeProvisionTimeSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds), 0)...)
 
 	//PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("podPriorityThreshold"), &newObj.PodPriorityThreshold, safe.Field(oldObj, toClusterAutoscalingProfilePodPriorityThreshold))...)
+	// HyperShift has no minimum or maximum, so 0 and negative values are valid.
+	// Omitted values are defaulted before validation.
 
 	return errs
 }
