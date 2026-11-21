@@ -58,20 +58,41 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 	require.NoError(t, validateSchema(cfg))
 	resolved, err := yaml.Marshal(cfg)
 	require.NoError(t, err)
+	for _, key := range []string{"redHat0", "testTestAro"} {
+		for _, invalid := range []string{"servicePrincipalClientId", "keyVaultSecretName", "invalid-reference"} {
+			var changed map[string]any
+			require.NoError(t, yaml.Unmarshal(resolved, &changed))
+			tenant := changed["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["tenants"].(map[string]any)[key].(map[string]any)
+			if invalid == "invalid-reference" {
+				tenant["clientIdKeyVaultSecretName"] = "../invalid"
+			} else {
+				tenant[invalid] = "removed-field"
+			}
+			require.Error(t, validateSchema(changed))
+		}
+	}
 	for _, tc := range []struct {
 		name             string
 		values           string
 		custom           bool
 		omitStartupSince bool
+		sharedReferences bool
 	}{
 		{name: "deployed", values: "values.yaml.tmpl"},
 		{name: "defaults", values: "values.yaml"},
 		{name: "custom controller settings", values: "values.yaml.tmpl", custom: true},
 		{name: "omitted startup since", values: "values.yaml.tmpl", omitStartupSince: true},
+		{name: "shared credential aliases", values: "values.yaml.tmpl", sharedReferences: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var testConfig map[string]any
 			require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+			if tc.sharedReferences {
+				tenants := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["tenants"].(map[string]any)
+				for _, field := range []string{"clientIdKeyVaultSecretName", "clientSecretKeyVaultSecretName"} {
+					tenants["testTestAro"].(map[string]any)[field] = tenants["redHat0"].(map[string]any)[field]
+				}
+			}
 			expected := map[string]any{
 				"interval": "15m", "window": "24h", "repairInterval": "12h", "overlap": "10m",
 				"workers": float64(10), "cacheSize": float64(20000), "cacheTTL": "15m",
@@ -158,6 +179,16 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 			}
 			if tc.values == "values.yaml.tmpl" {
 				require.Equal(t, expectedTenants(testConfig), runtime["tenants"])
+				require.NotContains(t, cm.Data["config.yaml"], "servicePrincipalClientId")
+				require.NotContains(t, cm.Data["config.yaml"], "keyVaultSecretName:")
+				for _, entry := range expectedTenants(testConfig) {
+					tenant := entry.(map[string]any)
+					for _, field := range []string{"clientIdKeyVaultSecretName", "clientSecretKeyVaultSecretName"} {
+						reference := tenant[field].(string)
+						require.Equal(t, 1, strings.Count(manifest, `objectName: "`+reference+`"`))
+						require.Equal(t, 1, strings.Count(manifest, `objectAlias: "`+reference+`"`))
+					}
+				}
 			} else {
 				expected["enabled"] = false
 				require.Equal(t, expected, outcomes)
@@ -232,7 +263,7 @@ func expectedTenants(testConfig map[string]any) []any {
 		t := tenants[key].(map[string]any)
 		return map[string]any{
 			"tenantId": t["tenantId"], "tenantName": t["tenantName"],
-			"servicePrincipalClientId": t["servicePrincipalClientId"], "keyVaultSecretName": t["keyVaultSecretName"],
+			"clientIdKeyVaultSecretName": t["clientIdKeyVaultSecretName"], "clientSecretKeyVaultSecretName": t["clientSecretKeyVaultSecretName"],
 			"scope": "https://graph.microsoft.com/.default", "directoryQuota": t["directoryQuota"],
 			"subscriptions": subs,
 		}
