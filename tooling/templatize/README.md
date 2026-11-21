@@ -53,3 +53,33 @@ target enforces the budget.
 
 Both targets use `--dev-mode` to validate one region. This controls regional
 coverage independently of budget enforcement.
+
+### Deployment stack scopes
+
+`make validate-config-pipelines` also runs `pipeline validate-stack-scopes`, which
+fails when two executions of the same cloud and environment would deploy the
+same `ARMStack` step into the same subscription and resource group.
+
+A deployment stack is identified by its name and the scope it is deployed at (the
+resource group, or the subscription for `deploymentLevel: Subscription`), and the
+stack name does not include the region or stamp. For every `ARMStack` step (except
+`operation: delete`), the check renders the resource group for every region the
+step executes in, following `executionConstraints` the way the deployment manifest
+generator does, and for stamps 1 and 2 of stamped resource groups. If two
+executions land in the same scope, they would share one stack and prune each
+other's resources. For example, two regions of one geography listed for a step
+whose resource group is per geography:
+
+```yaml
+- name: kusto-infra
+  resourceGroup: '{{ .kusto.rg }}'   # hcp-kusto-<env>-<geo>
+  executionConstraints:
+  - environments: [prod]
+    regions: [eastus2, centralus]    # both render hcp-kusto-prod-us
+```
+
+To fix a collision, restrict the resource group to one execution per scope with
+`executionConstraints`, move the step to a region- or stamp-scoped resource
+group, or keep the step as `action: ARM`. The check reads the int/stg/prod
+environments from `config/config.msft.clouds-overlay.yaml`; stacks defined only
+outside this repository are not covered.
