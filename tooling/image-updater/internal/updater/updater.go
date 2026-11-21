@@ -148,6 +148,13 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	return nil
 }
 
+// Summary renders the recorded updates in the given format. It lets a caller
+// reuse the result of a run -- the pipeline puts it in a pull request body --
+// without reaching into the Updates map itself.
+func (u *Updater) Summary(format string) (string, error) {
+	return output.FormatResults(u.Updates, format, u.DryRun)
+}
+
 // outputResults formats and writes the update results
 func (u *Updater) outputResults(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
