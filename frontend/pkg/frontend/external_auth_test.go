@@ -25,6 +25,8 @@ import (
 
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
@@ -112,6 +114,12 @@ func TestExternalAuthAcceptedOperationDeadlines(t *testing.T) {
 	cluster.SetPartitionKey(cluster.ID.SubscriptionID)
 	cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateSucceeded
 	_, err := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	// External auth admission rejects a create on a cluster with no node pools.
+	nodePool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String()+"/nodePools/np")), coreapitesting.TestLocation)
+	nodePool.SetResourceID(nodePool.ID)
+	nodePool.SetPartitionKey(nodePool.ID.SubscriptionID)
+	_, err = db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).Create(ctx, nodePool, nil)
 	require.NoError(t, err)
 	body, err := coreapi.MarshalJSON(version.NewExternalAuth(obj))
 	require.NoError(t, err)

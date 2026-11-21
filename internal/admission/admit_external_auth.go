@@ -32,6 +32,9 @@ type ExternalAuthAdmissionContext struct {
 	Clock utilsclock.PassiveClock
 	// ExternalAuths is a list of all external auths for the cluster
 	ExternalAuths []*coreapi.ExternalAuth
+
+	// NodePools is a list of all node pools for the cluster
+	NodePools []*coreapi.NodePool
 }
 
 // DefaultExternalAuthOperationCompletionDeadlineDuration bounds each accepted external auth operation.
@@ -80,6 +83,15 @@ func AdmitExternalAuth(ctx context.Context, admissionContext *ExternalAuthAdmiss
 	if op.Type == operation.Create {
 		if len(admissionContext.ExternalAuths) > 0 {
 			errs = append(errs, field.Forbidden(field.NewPath("name"), "There are other external auths on the cluster. Only one external auth is allowed per cluster."))
+		}
+
+		// Cluster Service refuses to configure the console clients of an external auth until the cluster has a node
+		// pool in a ready state. Accepting the create anyway leaves the resource sitting in Accepted while the backend
+		// retries the rejected call, with nothing telling the user what is missing, so reject it up front instead.
+		// This is a *best-effort* check: it catches the "no node pools at all" case, but a cluster whose node pools
+		// exist and are not yet ready still has to wait for the backend to converge.
+		if len(admissionContext.NodePools) == 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("name"), "External authentication requires at least one node pool. Please create a node pool before configuring external authentication."))
 		}
 	}
 

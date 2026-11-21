@@ -1,0 +1,28 @@
+{
+	"id": "33f7b09e-c8c1-5c5e-9c32-94e6d442a8af",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"parentResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourcegroups/resourcegroupname/providers/microsoft.redhatopenshift/hcpopenshiftclusters/clientid-not-in-audiences",
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/clientid-not-in-audiences/nodePools/existing-node-pool"
+		},
+		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/clientid-not-in-audiences/nodePools/existing-node-pool",
+		"location": "fake-location",
+		"name": "existing-node-pool",
+		"properties": {
+			"platform": {
+				"vmSize": "Standard_D8s_v3"
+			},
+			"provisioningState": "Succeeded",
+			"version": {
+				"channelGroup": "stable",
+				"id": "4.20.8"
+			}
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/clientid-not-in-audiences/nodePools/existing-node-pool",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+}

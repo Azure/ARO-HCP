@@ -94,6 +94,10 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						createClusterAndComplete(t, ctx, ti, v20261001, subscriptionID, clusterName)
 						require.NoError(t, integrationutils.StampRandomClusterServiceID(ctx, ti.ResourcesDBClient(), clusterResourceID(clusterName)))
 					}
+					if tc.kind == "ExternalAuth" {
+						// External auth admission rejects a create on a cluster with no node pools.
+						createNodePoolAndComplete(t, ctx, ti, v20251223, subscriptionID, clusterName, externalAuthPrerequisiteNodePoolName)
+					}
 
 					var payload map[string]any
 					require.NoError(t, json.Unmarshal(tc.payload, &payload))

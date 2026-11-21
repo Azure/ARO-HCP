@@ -899,6 +899,10 @@ func externalAuthResourceID(clusterName, authName string) string {
 	return clusterResourceID(clusterName) + "/externalAuths/" + authName
 }
 
+// externalAuthPrerequisiteNodePoolName is the node pool created to satisfy the
+// "external auth needs at least one node pool" admission check.
+const externalAuthPrerequisiteNodePoolName = "ea-prereq-np"
+
 // createExternalAuthAndComplete creates an external auth on an existing cluster.
 func createExternalAuthAndComplete(
 	t *testing.T,
@@ -909,6 +913,11 @@ func createExternalAuthAndComplete(
 	t.Helper()
 
 	resourceID := externalAuthResourceID(clusterName, authName)
+
+	// External auth admission rejects a create on a cluster with no node pools, so the
+	// prerequisite node pool has to exist before the external auth is created.
+	createNodePoolAndComplete(t, ctx, testInfo, apiVersion, subscriptionID, clusterName, externalAuthPrerequisiteNodePoolName)
+
 	require.NoError(t, integrationutils.StampRandomClusterServiceID(
 		ctx,
 		testInfo.ResourcesDBClient(),
