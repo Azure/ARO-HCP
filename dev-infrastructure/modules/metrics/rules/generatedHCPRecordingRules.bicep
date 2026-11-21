@@ -300,6 +300,52 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
   }
 }
 
+resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-cpo-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:cpo:replicas_unavailable:ratio'
+        expression: '1 - clamp_max(max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) / (max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0), 1)'
+      }
+      {
+        record: 'hypershift:cpo:reconcile:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_errors:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*",result="error"}[5m])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile:rate30d'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[30d])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_errors:rate30d'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*",result="error"}[30d])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_within_10s:rate30d'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[30d])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_duration_count:rate30d'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[30d])))'
+      }
+      {
+        record: 'hypershift:cpo:availability:ratio1m'
+        expression: 'clamp_max(min by (cluster, namespace, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) / (max by (cluster, namespace, region) (avg_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) > 0), 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_node_drain_recording_rules'
   location: location
