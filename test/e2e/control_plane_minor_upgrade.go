@@ -33,7 +33,7 @@ import (
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/timing"
@@ -103,14 +103,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for y-stream upgrade to %s", targetMinor)
 
 			By("creating cluster parameters at install (previous minor) version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersionId
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-cp-ystream-"+suffix, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -124,20 +124,20 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for y-stream upgrade cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster at install version %s (previous minor)", installVersionId))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q at install version %s", clusterName, installVersionId)
 
 			By("getting admin credentials")
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				hcpClient,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -157,16 +157,17 @@ var _ = Describe("Customer", func() {
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
 			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
-			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 				Tags: framework.TagsForPatch(clusterParams.Tags, upgradeTags),
-				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-					Version: &hcpsdk20240610preview.VersionProfile{
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20260901preview.VersionProfileUpdate{
 						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")

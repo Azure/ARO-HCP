@@ -39,6 +39,12 @@
       },
       "type": "object"
     },
+    "integrationSubnetName": {
+      "metadata": {
+        "description": "The integration subnet name for control plane connectivity."
+      },
+      "type": "string"
+    },
     "keyVaultName": {
       "metadata": {
         "description": "The KeyVault name that contains the etcd encryption key"
@@ -113,9 +119,10 @@
       "type": "Microsoft.KeyVault/vaults/keys"
     },
     "hcp": {
-      "apiVersion": "2024-06-10-preview",
+      "apiVersion": "2026-09-01-preview",
       "dependsOn": [
-        "etcdEncryptionKey"
+        "etcdEncryptionKey",
+        "keyVault"
       ],
       "identity": "[parameters('identityValue')]",
       "location": "[resourceGroup().location]",
@@ -137,9 +144,10 @@
               "kms": {
                 "activeKey": {
                   "name": "[parameters('etcdEncryptionKeyName')]",
-                  "vaultName": "[parameters('keyVaultName')]",
                   "version": "[last(split(reference('etcdEncryptionKey').keyUriWithVersion, '/'))]"
-                }
+                },
+                "vaultName": "[parameters('keyVaultName')]",
+                "visibility": "[if(equals(reference('keyVault').publicNetworkAccess, 'Disabled'), 'Private', 'Public')]"
               }
             },
             "keyManagementMode": "CustomerManaged"
@@ -153,7 +161,8 @@
             "userAssignedIdentities": "[parameters('userAssignedIdentitiesValue')]"
           },
           "outboundType": "LoadBalancer",
-          "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]"
+          "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
+          "vnetIntegrationSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('integrationSubnetName'))]"
         },
         "version": {
           "channelGroup": "stable",
@@ -186,6 +195,12 @@
       "existing": true,
       "name": "[parameters('vnetName')]",
       "type": "Microsoft.Network/virtualNetworks"
+    },
+    "vnetIntegrationSubnet": {
+      "apiVersion": "2022-07-01",
+      "existing": true,
+      "name": "[format('{0}/{1}', parameters('vnetName'), parameters('integrationSubnetName'))]",
+      "type": "Microsoft.Network/virtualNetworks/subnets"
     }
   }
 }
