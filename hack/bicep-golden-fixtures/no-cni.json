@@ -492,6 +492,13 @@
             }
           },
           "parameters": {
+            "assignDataPlaneCustomerScopedRoles": {
+              "defaultValue": true,
+              "metadata": {
+                "description": "If true, assign the data-plane file CSI and image registry identities their roles on the customer resources; forwarded to non-msi-scoped-assignments.bicep. Set false in DEV, where the RP assigns minimal custom roles on the managed resource group."
+              },
+              "type": "bool"
+            },
             "clusterName": {
               "defaultValue": "",
               "metadata": {
@@ -1201,6 +1208,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "assignDataPlaneCustomerScopedRoles": {
+                    "value": "[parameters('assignDataPlaneCustomerScopedRoles')]"
+                  },
                   "enableAutoNode": {
                     "value": "[parameters('enableAutoNode')]"
                   },
@@ -1323,6 +1333,13 @@
                     }
                   },
                   "parameters": {
+                    "assignDataPlaneCustomerScopedRoles": {
+                      "defaultValue": true,
+                      "metadata": {
+                        "description": "If true, assign the data-plane file CSI and image registry identities their roles on the customer\nresources (resource group, VNet, NSG). Set false in DEV, where the data-plane operators use minimal custom roles\nthat the RP assigns on the managed resource group only."
+                      },
+                      "type": "bool"
+                    },
                     "enableAutoNode": {
                       "defaultValue": false,
                       "metadata": {
@@ -1589,7 +1606,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleNsgAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -1604,7 +1621,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resourceGroup'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -1618,7 +1635,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleVnetAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -1647,7 +1664,7 @@
                     },
                     "dpImageRegistryOperatorRoleResourceGroupAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resourceGroup'))]",
                       "dependsOn": [
                         "dpImageRegistryMi"
                       ],
@@ -1661,7 +1678,7 @@
                     },
                     "dpImageRegistryOperatorRoleVnetAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpImageRegistryMi"
                       ],
@@ -2414,6 +2431,9 @@
                 },
                 "mode": "Incremental",
                 "parameters": {
+                  "assignDataPlaneCustomerScopedRoles": {
+                    "value": "[parameters('assignDataPlaneCustomerScopedRoles')]"
+                  },
                   "enableAutoNode": {
                     "value": "[parameters('enableAutoNode')]"
                   },
@@ -2536,6 +2556,13 @@
                     }
                   },
                   "parameters": {
+                    "assignDataPlaneCustomerScopedRoles": {
+                      "defaultValue": true,
+                      "metadata": {
+                        "description": "If true, assign the data-plane file CSI and image registry identities their roles on the customer\nresources (resource group, VNet, NSG). Set false in DEV, where the data-plane operators use minimal custom roles\nthat the RP assigns on the managed resource group only."
+                      },
+                      "type": "bool"
+                    },
                     "enableAutoNode": {
                       "defaultValue": false,
                       "metadata": {
@@ -2802,7 +2829,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleNsgAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -2817,7 +2844,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resourceGroup'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -2831,7 +2858,7 @@
                     },
                     "dpFileCsiDriverFileStorageOperatorRoleVnetAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpFileCsiDriverMi"
                       ],
@@ -2860,7 +2887,7 @@
                     },
                     "dpImageRegistryOperatorRoleResourceGroupAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resourceGroup'))]",
                       "dependsOn": [
                         "dpImageRegistryMi"
                       ],
@@ -2874,7 +2901,7 @@
                     },
                     "dpImageRegistryOperatorRoleVnetAssignment": {
                       "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+                      "condition": "[and(parameters('assignDataPlaneCustomerScopedRoles'), equals(parameters('rbacScope'), 'resource'))]",
                       "dependsOn": [
                         "dpImageRegistryMi"
                       ],

@@ -16,6 +16,9 @@ param useMsiPool bool = true
 ])
 param rbacScope string = 'resourceGroup'
 
+@description('If true, assign the data-plane file CSI and image registry identities their roles on the customer resources; forwarded to non-msi-scoped-assignments.bicep. Set false in DEV, where the RP assigns minimal custom roles on the managed resource group.')
+param assignDataPlaneCustomerScopedRoles bool = true
+
 type ManagedIdentities = {
   clusterApiAzureMiName: string
   controlPlaneMiName: string
@@ -71,6 +74,7 @@ module pooledNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (us
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
+    assignDataPlaneCustomerScopedRoles: assignDataPlaneCustomerScopedRoles
     enableAutoNode: enableAutoNode
   }
 }
@@ -109,6 +113,7 @@ module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
+    assignDataPlaneCustomerScopedRoles: assignDataPlaneCustomerScopedRoles
     enableAutoNode: enableAutoNode
   }
 }

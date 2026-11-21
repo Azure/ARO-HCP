@@ -123,6 +123,12 @@ resource msiMockRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
 }
 
 // Data-plane operator role definitions only. Not assigned by this module.
+// The RP assigns them on the cluster's managed resource group when it runs with the
+// dev role definition config set. It does not look them up: it calculates each role
+// definition ID as guid(subscription().id, <role name>), the same as the `name` below
+// (see CustomRoleName in internal/azure/cluster_scoped_identities_config.go).
+// Do not change the dp*OperatorRoleName defaults or the guid(...) expressions without
+// updating that file, or DEV clusters will reference role definitions that don't exist.
 resource dpDiskCsiOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(subscription().id, dpDiskCsiOperatorRoleName)
   properties: {
