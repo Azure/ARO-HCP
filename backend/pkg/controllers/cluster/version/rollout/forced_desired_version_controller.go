@@ -133,6 +133,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		versionForChannel = serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	}
 	var best *semver.Version
+	activeRolloutPin := false
 	if versionForChannel != nil {
 		channelGroup := cluster.CustomerProperties.Version.ChannelGroup
 		if channelGroup == "" {
@@ -148,7 +149,8 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 			logger.Info("Channel rollout is missing; no best version available", "ystreamChannel", yStreamChannel)
 		}
 		if err == nil {
-			best = rollout.Spec.BestExactVersion
+			best = effectiveExactVersion(&rollout.Spec)
+			activeRolloutPin = hasActiveRolloutPin(&rollout.Spec)
 		}
 	}
 
@@ -166,10 +168,11 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		}
 	case experimentalExactVersion != nil:
 		newDesired = experimentalExactVersion
-	case immediate && best != nil && desired != nil && minorString(*best) == minorString(*desired) && best.GT(*desired):
+	case immediate && best != nil && desired != nil && minorString(*best) == minorString(*desired) && !best.EQ(*desired) && (activeRolloutPin || best.GT(*desired)):
 		// Production e2e tests must reliably exercise automatic z-stream upgrades
 		// even when the fleet's canaries are incomplete or failed. Immediate bypasses
-		// progressive rollout gates, but never downgrades or changes the minor.
+		// progressive rollout gates. Only an active channel pin permits a downgrade;
+		// the minor must remain unchanged.
 		// Initial assignment and requested minor upgrades retain their owners.
 		newDesired = best
 	}
