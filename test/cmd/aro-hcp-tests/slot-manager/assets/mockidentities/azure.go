@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	kiota "github.com/microsoft/kiota-abstractions-go"
 	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
@@ -36,10 +35,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/pinning"
@@ -59,7 +58,7 @@ func newAzureStore(credential azcore.TokenCredential) (identityStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	certificates, err := azcertificates.NewClient(VaultURL, credential, nil)
+	certificates, err := azcertificates.NewClient(VaultURL, credential, &azcertificates.ClientOptions{ClientOptions: azureclient.ClientOptions()})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +66,7 @@ func newAzureStore(credential azcore.TokenCredential) (identityStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &azureStore{credential: credential, graph: client, certificates: pinning.NewCertificateClient(certificates), certificateAPI: certificates, applications: applications}, nil
+	return &azureStore{armOptions: azureclient.ARMClientOptions(), credential: credential, graph: client, certificates: pinning.NewCertificateClient(certificates), certificateAPI: certificates, applications: applications}, nil
 }
 
 // createIfMissing makes Graph treat an alternate-key PATCH as an upsert; without
@@ -185,45 +184,6 @@ const (
 
 type roleBinding struct{ principal, role string }
 
-func (store *azureStore) AuthorizeOwner(ctx context.Context, subscription string) error {
-	token, err := store.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
-	if err != nil {
-		return fmt.Errorf("obtain Owner credential: %w", err)
-	}
-	claims := jwt.MapClaims{}
-	if _, _, err := jwt.NewParser().ParseUnverified(token.Token, claims); err != nil {
-		return fmt.Errorf("cannot identify Owner credential")
-	}
-	objectID, ok := claims["oid"].(string)
-	if !ok || objectID == "" {
-		return fmt.Errorf("owner credential has no object ID")
-	}
-	if _, err := uuid.Parse(objectID); err != nil {
-		return fmt.Errorf("owner credential has an invalid object ID")
-	}
-	client, err := armauthorization.NewRoleAssignmentsClient(subscription, store.credential, store.armOptions)
-	if err != nil {
-		return err
-	}
-	pager := client.NewListForScopePager("/subscriptions/"+subscription, &armauthorization.RoleAssignmentsClientListForScopeOptions{Filter: ptr.To("atScope() and assignedTo('" + objectID + "')")})
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return err
-		}
-		for _, assignment := range page.Value {
-			if assignment == nil || assignment.Properties == nil {
-				continue
-			}
-			properties := assignment.Properties
-			if strings.HasSuffix(strings.ToLower(ptr.Deref(properties.RoleDefinitionID, "")), "/8e3af657-a8ff-443c-a75c-2fe8c4bcb635") && ptr.Deref(properties.Condition, "") == "" {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf("apply requires an active, unconditional Owner assignment at the customer subscription or an ancestor, directly or through group membership; activate eligible Owner access before retrying")
-}
-
 func bindings(bundle leaseenv.MockIdentityBundlePayload, msiRole string) []roleBinding {
 	return []roleBinding{
 		{bundle.MSI.PrincipalID, msiRole}, {bundle.MSI.PrincipalID, cryptoUserRole},
@@ -252,7 +212,7 @@ func (store *azureStore) Roles(ctx context.Context, subscription string, bundle 
 		}
 	}
 	if len(roleIDs) != 1 {
-		return fmt.Errorf("expected subscription-local dev-msi-mock role; Owner must deploy e2e-subscription-rbac-assignment-subscription.bicep first")
+		return fmt.Errorf("expected subscription-local dev-msi-mock role; the subscription owner must run reconcile-external-subscription (or deploy e2e-subscription-rbac-assignment-subscription.bicep) first")
 	}
 	roleID := roleIDs[0]
 	if !strings.HasPrefix(strings.ToLower(roleID), strings.ToLower(scope)+"/providers/microsoft.authorization/roledefinitions/") {

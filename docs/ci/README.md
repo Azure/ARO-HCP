@@ -23,7 +23,7 @@ E2E environments are acquired as slots from `slot-manager`, whose [design docume
 - [E2E Slot Assets](slot-assets.md) describes the three assets that come with a slot (E2E identities, mock identities and infrastructure identities), why each exists, and how to provision and validate them.
 - [DEV Mock Identities](dev-mock-identities.md) explains what each mock identity stands in for in DEV, why it holds the roles it does, and how slot mock identities and their certificates are prepared and rotated.
 - [E2E Capacity And Quotas](e2e-capacity.md) explains the Azure limits that bound the slot catalog, how to check a catalog against them, and how to change capacity safely.
-- [E2E Subscription Onboarding](e2e-subscription-onboarding.md) is the procedure for adding a customer subscription in DEV, INT, STG or PROD. [External Subscription Onboarding](external-subscription-onboarding.md) is the variant for subscriptions owned by another team.
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md) is the procedure for adding an ARO-HCP-managed customer subscription in DEV, INT, STG or PROD. [External Subscription Management](external-subscription-management.md) covers onboarding and recurring maintenance for subscriptions owned by another team.
 - [DEV CI Regional Load Management](dev-region-load-management.md) describes how to drain, rebalance and restore DEV presubmit traffic across regions.
 
 ## Running And Troubleshooting CI
