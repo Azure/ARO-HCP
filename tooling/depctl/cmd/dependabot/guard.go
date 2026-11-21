@@ -19,53 +19,90 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/cli"
 	dependabotpolicy "github.com/Azure/ARO-HCP/tooling/depctl/internal/dependabot"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge/ghapi"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/policy"
 )
+
+// dependabotRepositoryPattern matches the OWNER/REPO form these commands accept.
+var dependabotRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
 // rawReader is the raw JSON surface the guard needs.
 type rawReader interface {
 	REST(ctx context.Context, endpoint string) ([]byte, error)
 }
 
-// guardOptions are the unvalidated publication-guard flags.
-type guardOptions struct {
+// GuardOptions are the unvalidated publication-guard flags.
+type GuardOptions struct {
 	Repository  string
 	AgentOutput string
 }
 
-// guardCreate validates proposals and rewrites the agent output in place.
-func guardCreate(ctx context.Context, options guardOptions) error {
-	if options.Repository == "" || options.AgentOutput == "" {
-		return cli.Invalid(errors.New("--repository OWNER/REPO and --agent-output FILE are required"))
+// ValidatedGuard are the guard options that passed validation.
+type ValidatedGuard struct {
+	*GuardOptions
+}
+
+// Validate checks the guard inputs before any client is built.
+func (o *GuardOptions) Validate() (*ValidatedGuard, error) {
+	if o.Repository == "" || o.AgentOutput == "" {
+		return nil, cli.Invalid(errors.New("--repository OWNER/REPO and --agent-output FILE are required"))
 	}
-	reader, err := readerFactory(options.Repository)
+	if !dependabotRepositoryPattern.MatchString(o.Repository) {
+		return nil, cli.Invalid(errors.New("--repository must be OWNER/REPO"))
+	}
+	return &ValidatedGuard{GuardOptions: o}, nil
+}
+
+// CompletedGuard are the guard options with their reader and warning sink.
+type CompletedGuard struct {
+	*ValidatedGuard
+	reader forge.Reader
+	raw    rawReader
+	warn   func(string)
+}
+
+// Complete builds the read-only reader and the warning sink.
+func (v *ValidatedGuard) Complete(errOut io.Writer) (*CompletedGuard, error) {
+	reader, err := readerFactory(v.Repository)
 	if err != nil {
-		return cli.Invalid(err)
+		return nil, cli.Invalid(err)
 	}
 	raw, ok := reader.(rawReader)
 	if !ok {
-		return cli.Internal(errors.New("reader does not expose the raw API"))
+		return nil, cli.Internal(errors.New("reader does not expose the raw API"))
 	}
-	pulls, err := reader.OpenPullRequests(ctx, policy.Robot)
+	warn := func(message string) {
+		fmt.Fprintf(errOut, "::warning::%s\n", message)
+	}
+	return &CompletedGuard{ValidatedGuard: v, reader: reader, raw: raw, warn: warn}, nil
+}
+
+// Run validates proposals and rewrites the agent output in place.
+func (c *CompletedGuard) Run(ctx context.Context) error {
+	pulls, err := c.reader.OpenPullRequests(ctx, policy.Robot)
 	if err != nil {
 		return cli.MapEngineError(err)
 	}
-	records, err := dependabotpolicy.OwnedSecurityProposals(pulls, options.Repository)
+	records, err := dependabotpolicy.OwnedSecurityProposals(pulls, c.Repository)
 	if err != nil {
 		return cli.Incomplete("%v", err)
 	}
-	var numbers []int
+	numbers := make([]int, 0, len(records))
 	for _, record := range records {
 		numbers = append(numbers, record.Number)
 	}
-	content, err := os.ReadFile(options.AgentOutput)
+	content, err := os.ReadFile(c.AgentOutput)
 	if err != nil {
 		return cli.Internal(fmt.Errorf("read agent output: %w", err))
 	}
@@ -73,43 +110,100 @@ func guardCreate(ctx context.Context, options guardOptions) error {
 	if err := json.Unmarshal(content, &output); err != nil {
 		return cli.Internal(fmt.Errorf("decode agent output: %w", err))
 	}
-	if err := dependabotpolicy.GuardCreate(ctx, options.Repository, output, numbers, raw.REST,
-		func(message string) { fmt.Fprintf(os.Stderr, "::warning::%s\n", message) }); err != nil {
+	if err := dependabotpolicy.GuardCreate(ctx, c.Repository, output, numbers, c.raw.REST, c.warn); err != nil {
 		return cli.Incomplete("%v", err)
 	}
+	return writeAgentOutput(c.AgentOutput, output)
+}
+
+// writeAgentOutput replaces the agent output atomically so a failed write never
+// leaves a truncated file behind.
+func writeAgentOutput(path string, output map[string]any) error {
 	encoded, err := json.Marshal(output)
 	if err != nil {
 		return cli.Internal(err)
 	}
-	temporary, err := os.CreateTemp(filepath.Dir(options.AgentOutput), "dependabot-guard-*.json")
+	temporary, err := os.CreateTemp(filepath.Dir(path), "dependabot-guard-*.json")
 	if err != nil {
 		return cli.Internal(err)
 	}
 	name := temporary.Name()
 	if _, err := temporary.Write(append(encoded, '\n')); err != nil {
-		temporary.Close()
-		os.Remove(name)
+		_ = temporary.Close()
+		_ = os.Remove(name)
 		return cli.Internal(err)
 	}
 	if err := temporary.Close(); err != nil {
-		os.Remove(name)
+		_ = os.Remove(name)
 		return cli.Internal(err)
 	}
-	if err := os.Rename(name, options.AgentOutput); err != nil {
-		os.Remove(name)
+	if err := os.Rename(name, path); err != nil {
+		_ = os.Remove(name)
 		return cli.Internal(err)
 	}
 	return nil
 }
 
-// validateProposal checks one dependency proposal and prints its canonical form.
-func validateProposal(path string) error {
-	content, err := os.ReadFile(path)
+// newRetestReader builds the raw evidence API the retest guard reads.
+func newRetestReader(repository, token string) (dependabotpolicy.RawAPI, error) {
+	reader, err := ghapi.NewWithToken(repository, token)
 	if err != nil {
-		return cli.Internal(fmt.Errorf("read proposal: %w", err))
+		return nil, err
 	}
+	return reader.REST, nil
+}
+
+// runGuard runs the guard command phases in order.
+func runGuard(ctx context.Context, cmd *cobra.Command, options *GuardOptions) error {
+	validated, err := options.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(cmd.ErrOrStderr())
+	if err != nil {
+		return err
+	}
+	return completed.Run(ctx)
+}
+
+// ValidateProposalOptions are the unvalidated preflight inputs.
+type ValidateProposalOptions struct {
+	Path string
+}
+
+// ValidatedProposal are the preflight inputs that passed validation.
+type ValidatedProposal struct {
+	*ValidateProposalOptions
+}
+
+// Validate checks that a proposal path was supplied.
+func (o *ValidateProposalOptions) Validate() (*ValidatedProposal, error) {
+	if o.Path == "" {
+		return nil, cli.Invalid(errors.New("validate requires exactly one proposal path"))
+	}
+	return &ValidatedProposal{ValidateProposalOptions: o}, nil
+}
+
+// CompletedProposal are the preflight inputs with their content read.
+type CompletedProposal struct {
+	*ValidatedProposal
+	content []byte
+	out     io.Writer
+}
+
+// Complete reads the proposal, failing before any canonicalisation work.
+func (v *ValidatedProposal) Complete(out io.Writer) (*CompletedProposal, error) {
+	content, err := os.ReadFile(v.Path)
+	if err != nil {
+		return nil, cli.Internal(fmt.Errorf("read proposal: %w", err))
+	}
+	return &CompletedProposal{ValidatedProposal: v, content: content, out: out}, nil
+}
+
+// Run prints the proposal in its canonical form.
+func (c *CompletedProposal) Run() error {
 	var item map[string]any
-	if err := json.Unmarshal(content, &item); err != nil {
+	if err := json.Unmarshal(c.content, &item); err != nil {
 		return cli.Invalid(err)
 	}
 	candidate, err := dependabotpolicy.Group(item)
@@ -121,35 +215,88 @@ func validateProposal(path string) error {
 	if err != nil {
 		return cli.Internal(err)
 	}
-	fmt.Println(string(encoded))
+	fmt.Fprintln(c.out, string(encoded))
 	return nil
 }
 
+// runValidateProposal runs the preflight phases in order.
+func runValidateProposal(path string, out io.Writer) error {
+	raw := &ValidateProposalOptions{Path: path}
+	validated, err := raw.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(out)
+	if err != nil {
+		return err
+	}
+	return completed.Run()
+}
+
 // retestOptions are the unvalidated retest flags.
-type retestOptions struct {
+// RetestOptions are the unvalidated retest flags.
+type RetestOptions struct {
 	Repository  string
 	PullRequest int
 	Head        string
 	Evidence    string
 }
 
-// guardRetest verifies a retest request against current CI evidence.
-func guardRetest(ctx context.Context, options retestOptions) error {
-	if options.Repository == "" || options.PullRequest <= 0 || options.Head == "" || options.Evidence == "" {
-		return cli.Invalid(errors.New("--repository, --pull-request, --head and --evidence are required"))
+// ValidatedRetest are the retest options that passed validation.
+type ValidatedRetest struct {
+	*RetestOptions
+}
+
+// Validate checks the retest inputs before any client is built.
+func (o *RetestOptions) Validate() (*ValidatedRetest, error) {
+	if o.Repository == "" || o.PullRequest <= 0 || o.Head == "" || o.Evidence == "" {
+		return nil, cli.Invalid(errors.New("--repository, --pull-request, --head and --evidence are required"))
 	}
+	if !dependabotRepositoryPattern.MatchString(o.Repository) {
+		return nil, cli.Invalid(errors.New("--repository must be OWNER/REPO"))
+	}
+	return &ValidatedRetest{RetestOptions: o}, nil
+}
+
+// CompletedRetest are the retest options with their reader, clock and output.
+type CompletedRetest struct {
+	*ValidatedRetest
+	rest dependabotpolicy.RawAPI
+	now  func() time.Time
+	out  io.Writer
+}
+
+// Complete builds the evidence reader from the ambient token.
+func (v *ValidatedRetest) Complete(out io.Writer) (*CompletedRetest, error) {
 	token := os.Getenv("CI_TOKEN")
 	if token == "" {
 		token = os.Getenv("GH_TOKEN")
 	}
-	reader, err := ghapi.NewWithToken(options.Repository, token)
+	reader, err := newRetestReader(v.Repository, token)
 	if err != nil {
-		return cli.Incomplete("retest evidence reader: %v", err)
+		return nil, cli.Incomplete("retest evidence reader: %v", err)
 	}
-	if err := dependabotpolicy.GuardRetest(ctx, options.Repository, options.PullRequest,
-		options.Head, options.Evidence, reader.REST, time.Now().UTC()); err != nil {
+	return &CompletedRetest{ValidatedRetest: v, rest: reader, now: func() time.Time { return time.Now().UTC() }, out: out}, nil
+}
+
+// Run verifies the retest request against current CI evidence.
+func (c *CompletedRetest) Run(ctx context.Context) error {
+	if err := dependabotpolicy.GuardRetest(ctx, c.Repository, c.PullRequest, c.Head, c.Evidence, c.rest, c.now()); err != nil {
 		return cli.Incomplete("%v", err)
 	}
-	fmt.Printf("PR #%d: current failing check and comparison run verified; retest cooldown clear\n", options.PullRequest)
+	fmt.Fprintf(c.out, "PR #%d: current failing check and comparison run verified; retest cooldown clear\n", c.PullRequest)
 	return nil
+}
+
+// runRetest runs the retest phases in order.
+func runRetest(ctx context.Context, cmd *cobra.Command, options *RetestOptions) error {
+	validated, err := options.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
+	return completed.Run(ctx)
 }
