@@ -30,6 +30,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
@@ -117,6 +118,42 @@ func SelectControlPlaneVersion(ctx context.Context, roundTripper controlplanever
 	return retryOnTransientError(ctx, func() (*configv1.Release, error) {
 		return controlplaneversion.SelectControlPlaneVersion(ctx, roundTripper, updateService, channel, offset)
 	})
+}
+
+// LatestMinorLine returns the most recent "major.minor" line published for channelGroup, discovered
+// from the OpenShift update-service graph data. Unlike the RP's hcpOpenShiftVersions list (which only
+// advertises the default channel), the graph data enumerates every channel group, including candidate.
+// Tests can use it to anchor coverage to whatever minor currently ships instead of a hand-maintained
+// matrix (e.g. derive the previous minor as latest-1 for a y-stream upgrade). It returns an error when
+// no version is published for the channel group.
+func LatestMinorLine(ctx context.Context, channelGroup string) (string, error) {
+	profiles, err := retryOnTransientError(ctx, func() ([]coreapi.VersionProfile, error) {
+		return cincinnati.NewGraphDataClient().VersionProfiles(ctx)
+	})
+	if err != nil {
+		return "", fmt.Errorf("discovering OpenShift versions for channel group %q: %w", channelGroup, err)
+	}
+
+	var latest semver.Version
+	found := false
+	for _, p := range profiles {
+		if p.ChannelGroup != channelGroup {
+			continue
+		}
+		parsed, parseErr := semver.ParseTolerant(p.ID)
+		if parseErr != nil {
+			continue
+		}
+		minor := semver.Version{Major: parsed.Major, Minor: parsed.Minor}
+		if !found || minor.GT(latest) {
+			latest = minor
+			found = true
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("no OpenShift versions published for channel group %q", channelGroup)
+	}
+	return fmt.Sprintf("%d.%d", latest.Major, latest.Minor), nil
 }
 
 // GetLatestNightlyInstallVersion returns the latest accepted nightly tag for the given minor version
