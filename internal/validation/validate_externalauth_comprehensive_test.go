@@ -676,14 +676,16 @@ func TestValidateExternalAuth(t *testing.T) {
 			newObj: func() *coreapi.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.ProvisioningState = coreapi.ProvisioningStateSucceeded
-				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
+				// ValidationRules left empty: this case exercises provisioning-state
+				// immutability, not claim validation rules.
 				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{}
 				return obj
 			}(),
 			oldObj: func() *coreapi.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.ProvisioningState = coreapi.ProvisioningStateProvisioning
-				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
+				// ValidationRules left empty: this case exercises provisioning-state
+				// immutability, not claim validation rules.
 				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{}
 				return obj
 			}(),
@@ -768,6 +770,56 @@ func TestValidateExternalAuth(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.clients[0].type", Message: "confidential client type is not allowed for this component"},
 			},
+		},
+		{
+			name: "update with non-empty validation rules does not panic",
+			newObj: func() *coreapi.ExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
+					{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
+							Claim:         "iss",
+							RequiredValue: "https://valid.example.com",
+						},
+					},
+				}
+				return obj
+			}(),
+			oldObj:       createValidExternalAuth(),
+			op:           operation.Operation{Type: operation.Update},
+			expectErrors: nil,
+		},
+		{
+			name: "update resubmitting identical validation rules does not panic",
+			newObj: func() *coreapi.ExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
+					{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
+							Claim:         "iss",
+							RequiredValue: "https://valid.example.com",
+						},
+					},
+				}
+				return obj
+			}(),
+			oldObj: func() *coreapi.ExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
+					{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
+							Claim:         "iss",
+							RequiredValue: "https://valid.example.com",
+						},
+					},
+				}
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Update},
+			expectErrors: nil,
 		},
 	}
 
