@@ -15,17 +15,12 @@
 package dependabot
 
 import (
-	"encoding/json"
-	"errors"
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/cli"
-	"github.com/Azure/ARO-HCP/tooling/depctl/internal/dependabot"
 )
 
-// NewNativeCommand builds offline native Dependabot inventory operations.
+// Builds native Dependabot selection, validation and request commands.
 func newNativeCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "native",
@@ -35,31 +30,7 @@ func newNativeCommand() *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	var repository, inventory, group, target string
-	selectGroup := &cobra.Command{
-		Use:   "select-group",
-		Short: "Select one eligible native family and exact target without network access",
-		Args:  cli.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if repository == "" || inventory == "" || group == "" || target == "" {
-				return cli.Invalid(errors.New("--repository, --inventory, --group and --target are required"))
-			}
-			file, err := os.Open(inventory)
-			if err != nil {
-				return cli.Invalid(err)
-			}
-			defer file.Close()
-			selection, err := dependabot.SelectNativeInventoryGroup(file, repository, group, target)
-			if err != nil {
-				return cli.Invalid(err)
-			}
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(selection)
-		},
-	}
-	selectGroup.Flags().StringVar(&repository, "repository", "", "OWNER/REPO")
-	selectGroup.Flags().StringVar(&inventory, "inventory", "", "native inventory JSON file")
-	selectGroup.Flags().StringVar(&group, "group", "", "24-character native family group ID")
-	selectGroup.Flags().StringVar(&target, "target", "", "exact inventory target")
-	command.AddCommand(selectGroup)
+	command.AddCommand(newNativeSelectCommand(), newNativePrepareCommand(), newNativeValidateCommand(), newNativeSandboxReadCommand())
+	command.AddCommand(newNativeCheckTreeCommand(), newNativeCheckCoverageCommand(), newNativeCheckAdmissionCommand())
 	return command
 }

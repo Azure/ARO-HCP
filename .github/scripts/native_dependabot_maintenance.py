@@ -3,7 +3,7 @@
 
 The agent supplies patches, never shell commands. No candidate repository program
 is run in this credentialed process. Native Dependabot uses depctl for shared
-hold and current-head CI policy, with its own publication lifecycle.
+hold, CI, replacement tree, coverage and admission policy; Python owns lifecycle writes.
 """
 
 import base64
@@ -334,30 +334,6 @@ def normalize_compiler_headers(old_lines, new_lines, pins):
             old_lines[index] = new_lines[index] = prefix + "<VALIDATED>"
 
 
-def action_lock_changes(before, after, group):
-    old, new = json.loads(before), json.loads(after)
-    require(isinstance(old, dict) and isinstance(new, dict)
-            and isinstance(old.get("entries"), dict) and isinstance(new.get("entries"), dict),
-            "invalid compiler actions lock")
-    old_entries, new_entries = old.pop("entries"), new.pop("entries")
-    require(old == new, "compiler containers or non-action lock fields changed")
-    allowed = {(item["package"], item["target"]) for source in group["sources"]
-               for item in source["intents"] if item["ecosystem"] == "actions"}
-    for key in old_entries.keys() | new_entries.keys():
-        if old_entries.get(key) == new_entries.get(key):
-            continue
-        for entry in (old_entries.get(key), new_entries.get(key)):
-            if entry is not None:
-                require(isinstance(entry, dict) and set(entry) == {"repo", "version", "sha"}
-                        and key == entry["repo"] + "@" + entry["version"]
-                        and upgrade_family("actions", entry["repo"]) == group["family"],
-                        "unrelated or malformed action lock entry")
-        if key in new_entries:
-            entry = new_entries[key]
-            require((entry["repo"], entry["sha"]) in allowed, "lock pin is not the native intended upgrade")
-            official = api(f"repos/{upgrade_family('actions', entry['repo'])}/commits/{quote(entry['version'], safe='')}")
-            require(isinstance(official, dict) and official.get("sha") == entry["sha"],
-                    "action lock release is not the official intended commit")
 
 
 def changes(path, before, after, *, strict=True, cascade=False):
@@ -832,415 +808,29 @@ def patch_paths(patch):
     return paths
 
 
-def sdk_consumer(path):
-    return re.fullmatch(r"test/sdk/v[0-9]+(?:preview)?/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/.+", path) is not None
-
-
-def validate_sdk_module(path, before, after, workspace_go):
-    expected = "github.com/Azure/ARO-HCP/" + str(PurePosixPath(path).parent)
-    allowed = {"github.com/Azure/azure-sdk-for-go/sdk/azcore",
-               "github.com/Azure/azure-sdk-for-go/sdk/internal", "golang.org/x/net", "golang.org/x/text"}
-    def parse(text):
-        module = []
-        versions = []
-        in_require = False
-        for raw in text.splitlines():
-            line = raw.split("//", 1)[0].strip()
-            if not line:
-                continue
-            if line.startswith("module "):
-                module.append(line[7:].strip())
-            elif line.startswith("go "):
-                versions.append(line[3:].strip())
-            elif line == "require (":
-                require(not in_require, "nested SDK requirements")
-                in_require = True
-            elif line == ")":
-                require(in_require, "unmatched SDK requirement block")
-                in_require = False
-            else:
-                require(re.fullmatch(r"(?:require\s+)?[A-Za-z0-9._~+/-]+\s+v[0-9][A-Za-z0-9.+_-]*", line)
-                        and (in_require or line.startswith("require ")),
-                        "SDK module contains unsupported source/toolchain/replace configuration")
-        require(not in_require and module == [expected] and len(versions) == 1,
-                "SDK generated module identity is not exact")
-        require(re.fullmatch(r"1\.\d+(?:\.\d+)?", versions[0]), "unsupported generated SDK Go version")
-        return go_versions(text), tuple(map(int, (versions[0] + ".0").split(".")[:3]))
-    new, version = parse(after)
-    limit = tuple(map(int, (workspace_go + ".0").split(".")[:3]))
-    require(version <= limit, "SDK generator requires an unvalidated newer Go toolchain")
-    old, old_version = parse(before) if before else ({}, version)
-    require(version >= old_version, "SDK generator downgrades its Go requirement")
-    require(all(package in allowed or old.get(package) == target for package, target in new.items()),
-            "SDK metadata introduces an unrelated dependency upgrade")
-    require(all(package not in new or version_covers(new[package], target)
-                for package, target in old.items()), "SDK metadata downgrades an existing dependency")
-
-
-
-def validate_replacement_paths(paths, group):
-    ecosystem = group["ecosystem"]
-    for path in paths:
-        name = PurePosixPath(path).name
-        allowed = False
-        if ecosystem == "go":
-            allowed = name in ("go.mod", "go.sum", "go.work.sum") or path.startswith(VENDORS)
-        elif ecosystem == "npm":
-            allowed = name in ("package.json", "package-lock.json", "npm-shrinkwrap.json")
-            allowed |= group["family"] == "typespec" and (
-                path.startswith("api/redhatopenshift/") and path.endswith((".tsp", "/openapi.json"))
-                or path.startswith("internal/azureapi/") and "/generated/" in path and path.endswith(".go")
-                or sdk_consumer(path) and (path.endswith(".go") or path.endswith("/testdata/_metadata.json")
-                                           or name in ("go.mod", "go.sum", "LICENSE", "LICENSE.txt")))
-        elif ecosystem == "actions":
-            allowed = (path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml"))
-                       or path == ".github/aw/actions-lock.json")
-        require(allowed, "protected or unrelated replacement path: " + path)
+def native_policy(operation, evidence, *flags):
+    """Send fixed policy evidence to the trusted depctl; never fall back to Python."""
+    result = subprocess.run(
+        [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", operation, *flags],
+        input=json.dumps(evidence), capture_output=True, text=True,
+    )
+    require(result.returncode == 0, result.stderr.strip() or "native policy check failed")
+    return json.loads(result.stdout) if result.stdout.strip() else None
 
 
 def validate_tree(cwd, base, tree, paths, group, *, complete=True):
-    """Check dependency scope; only sandbox preflight may defer generated coverage."""
-    validate_replacement_paths(paths, group)
-    actual = git(cwd, "diff", "--name-only", base, tree).splitlines()
-    require(sorted(actual) == sorted(paths), "patch path list does not match resulting tree")
-    ecosystem = group["ecosystem"]
-    manifests = []
-    for path in paths:
-        modes = [git(cwd, "ls-tree", ref, "--", path).split(" ", 1)[0] for ref in (base, tree)]
-        generated = (ecosystem == "go" and path.startswith(VENDORS)
-                     or ecosystem == "npm" and group["family"] == "typespec"
-                     and (path.startswith("internal/azureapi/") and "/generated/" in path
-                          or sdk_consumer(path)))
-        require(all(mode in ("100644", "") for mode in modes) and "100644" in modes
-                and (all(modes) or generated),
-                "only regular files; additions/removals limited to generated consumers")
-        name = PurePosixPath(path).name
-        if path == ".github/aw/actions-lock.json":
-            action_lock_changes(git(cwd, "show", f"{base}:{path}"), git(cwd, "show", f"{tree}:{path}"), group)
-        elif ecosystem == "npm" and group["family"] == "typespec" and sdk_consumer(path) and name == "go.mod":
-            require(modes[1] == "100644", "generated SDK module metadata cannot be deleted")
-            before = git(cwd, "show", f"{base}:{path}") if modes[0] else ""
-            workspace = git(cwd, "show", f"{tree}:go.work")
-            go = re.findall(r"(?m)^go (1\.\d+(?:\.\d+)?)$", workspace)
-            require(len(go) == 1, "missing workspace Go toolchain")
-            validate_sdk_module(path, before, git(cwd, "show", f"{tree}:{path}"), go[0])
-        elif ecosystem == "npm" and sdk_consumer(path) and name == "go.sum" and modes[1]:
-            require(all(re.fullmatch(r"\S+ v[0-9]\S* h1:[A-Za-z0-9+/]+=*", line)
-                        for line in git(cwd, "show", f"{tree}:{path}").splitlines()),
-                    "malformed generated SDK checksum metadata")
-        elif name in ("go.mod", "package.json", "package-lock.json", "npm-shrinkwrap.json") or ecosystem == "actions":
-            before, after = (git(cwd, "show", f"{ref}:{path}") for ref in (base, tree))
-            entries = changes(path, before, after, strict=True,
-                              cascade=ecosystem == "go" or name in ("package-lock.json", "npm-shrinkwrap.json"))
-            if ecosystem == "go":
-                require(all(item["target"] is not None and (item["old"] is None
-                            or version_covers(item["target"], item["old"]))
-                            for item in entries if upgrade_family("go", item["package"]) == group["family"]),
-                        "Go replacement downgrades/removes a preserved current-base family requirement")
-            if ecosystem in ("actions", "npm") and name not in ("package-lock.json", "npm-shrinkwrap.json"):
-                require(all(upgrade_family(ecosystem, item["package"]) == group["family"] for item in entries),
-                        "replacement changes an unrelated dependency family")
-            manifests += entries
-    require(any(upgrade_family(ecosystem, item["package"]) == group["family"] for item in manifests),
-            "replacement lacks the actual source upgrade family/target")
-    if ecosystem == "npm":
-        roots = {str(PurePosixPath(item["manifest"]).parent) for item in manifests}
-        require(all(str(PurePosixPath(path).parent) in roots for path in paths
-                    if PurePosixPath(path).name in ("package.json", "package-lock.json", "npm-shrinkwrap.json")),
-                "npm patch changes unrelated consumer roots")
-        for root in roots:
-            manifest_path = root + "/package.json" if root != "." else "package.json"
-            lock_path = root + "/package-lock.json" if root != "." else "package-lock.json"
-            base_files = set(git(cwd, "ls-tree", "-r", "--name-only", base).splitlines())
-            if lock_path in base_files:
-                old_lock = lock_versions(json.loads(git(cwd, "show", f"{base}:{lock_path}")))
-                new_lock = lock_versions(json.loads(git(cwd, "show", f"{tree}:{lock_path}")))
-                preserve_npm_resolutions(old_lock, new_lock)
-                if manifest_path in base_files:
-                    validate_npm_overrides(git(cwd, "show", f"{tree}:{manifest_path}"),
-                                           json.loads(git(cwd, "show", f"{tree}:{lock_path}")))
-    available = set(git(cwd, "ls-tree", "-r", "--name-only", tree).splitlines())
-    if ecosystem == "go" and complete:
-        family_targets = {item["package"]: item["target"] for source in group["sources"]
-                          for item in source["intents"] if item["target"] is not None
-                          and upgrade_family("go", item["package"]) == group["family"]}
-        for path in sorted(available):
-            if path.endswith("go.mod") and not path.startswith(VENDORS):
-                versions = go_versions(git(cwd, "show", f"{tree}:{path}"))
-                require(all(package not in versions or version_covers(versions[package], target)
-                            for package, target in family_targets.items()),
-                        "Go consumer still selects an older family version: " + path)
-        for prefix in VENDORS:
-            if not any(path.startswith(prefix) for path in available):
-                continue
-            module_file = prefix + "modules.txt"
-            require(module_file in available, "vendor consumer lacks module provenance")
-            text = git(cwd, "show", f"{tree}:{module_file}")
-            versions = dict(re.findall(r"(?m)^# (\S+) (v[0-9]\S*)(?: => .*)?$", text))
-            require(all(package not in versions or version_covers(versions[package], target)
-                        for package, target in family_targets.items()),
-                    "vendor consumer still selects an older family version: " + module_file)
-            if git(cwd, "ls-tree", base, "--", module_file):
-                old_text = git(cwd, "show", f"{base}:{module_file}")
-                old_versions = dict(re.findall(r"(?m)^# (\S+) (v[0-9]\S*)(?: => .*)?$", old_text))
-                require(all(package in versions and version_covers(versions[package], target)
-                            for package, target in old_versions.items()
-                            if upgrade_family("go", package) == group["family"]),
-                        "vendor replacement downgrades/removes a current-base family resolution")
-    if complete:
-        for source in group["sources"]:
-            verify_coverage(source["intents"], lambda path: git(cwd, "show", f"{tree}:{path}"), available)
-
-
-def version_covers(actual, target):
-    if actual is None or target is None:
-        return actual is None and target is None
-    if not isinstance(actual, str) or not isinstance(target, str):
-        return False
-    pattern = r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?"
-    left, right = re.fullmatch(pattern, actual), re.fullmatch(pattern, target)
-    if left is None or right is None:
-        return False
-    if any(part.isdigit() and len(part) > 1 and part.startswith("0")
-           for match in (left, right) for part in (match[4] or "").split(".")):
-        return False
-    left_release, right_release = tuple(map(int, left.groups()[:3])), tuple(map(int, right.groups()[:3]))
-    if left_release != right_release:
-        return left_release > right_release
-    left_pre, right_pre = left[4], right[4]
-    if right_pre is None:
-        return left_pre is None
-    if left_pre is None:
-        return True
-    left_parts, right_parts = left_pre.split("."), right_pre.split(".")
-    for a, b in zip(left_parts, right_parts):
-        if a == b:
-            continue
-        if a.isdigit() and b.isdigit():
-            return int(a) > int(b)
-        if a.isdigit() != b.isdigit():
-            return not a.isdigit()
-        return a > b
-    return len(left_parts) >= len(right_parts)
-
-
-def npm_version(value):
-    if not isinstance(value, str):
-        return None
-    match = re.fullmatch(r"([~^]?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value)
-    return (match[1], tuple(map(int, match.groups()[1:]))) if match else None
-
-
-def npm_covers(actual, target, *, resolved=False):
-    left, right = npm_version(actual), npm_version(target)
-    if left is None or right is None:
-        return False
-    op, version = left
-    target_op, floor = right
-    if version[0] != floor[0] or version < floor:
-        return False
-    if floor[0] == 0 and version[1] != floor[1]:
-        return False
-    if target_op == "~" and version[1] != floor[1]:
-        return False
-    return (not op if resolved else op == target_op or not op or target_op == "^" and op == "~")
-
-
-def override_selector(value, version):
-    match = re.fullmatch(r"(@[^/]+/[^@]+|[^@]+)(?:@(.+))?", value)
-    require(match is not None, "invalid npm override selector")
-    package, selector = match.groups()
-    if selector is None:
-        return package, True
-    actual = npm_version(version)
-    require(actual is not None and not actual[0], "unverifiable overridden npm version")
-    constraint = re.fullmatch(r"(\^|~|>=)?(\d+)(?:\.(\d+|x|\*))?(?:\.(\d+|x|\*))?(?:-[A-Za-z0-9_.-]+)?", selector)
-    require(constraint is not None, "unsupported npm override selector range")
-    operator, major, minor, patch = constraint.groups()
-    floor = (int(major), int(minor) if minor not in (None, "x", "*") else 0,
-             int(patch) if patch not in (None, "x", "*") else 0)
-    current = actual[1]
-    if operator == ">=":
-        return package, current >= floor
-    if operator == "^":
-        return package, current >= floor and current[0] == floor[0] and (floor[0] != 0 or current[1] == floor[1])
-    if operator == "~":
-        return package, current >= floor and current[:2] == floor[:2]
-    return package, current[0] == floor[0] and (minor in (None, "x", "*") or current[1] == floor[1]) \
-        and (patch in (None, "x", "*") or current[2] == floor[2])
-
-
-def validate_npm_overrides(manifest_text, lock_document):
-    """Apply each preserved override only to its selected package/parent scope."""
-    manifest = npm_versions(manifest_text)
-    resolved = lock_versions(lock_document)
-    def child(parent, package):
-        scope = parent
-        while scope:
-            candidate = scope + "/node_modules/" + package
-            if candidate in resolved:
-                return candidate
-            scope = scope.rsplit("/node_modules/", 1)[0] if "/node_modules/" in scope else ""
-        candidate = "node_modules/" + package
-        return candidate if candidate in resolved else None
-    for key, floor in manifest.items():
-        if key[0] != "overrides":
-            continue
-        if floor.startswith("$"):
-            reference = floor[1:]
-            choices = [manifest[(section, reference)] for section in
-                       ("dependencies", "devDependencies", "optionalDependencies")
-                       if (section, reference) in manifest]
-            require(bool(choices) and len(set(choices)) == 1, "unresolved npm override dependency reference")
-            floor = choices[0]
-        contexts = [None]
-        for selector in key[1:]:
-            selected = set()
-            for parent in contexts:
-                if selector == ".":
-                    require(parent is not None, "root self override has no parent package")
-                    selected.add(parent)
-                    continue
-                package = re.split(r"(?<!^)@", selector, maxsplit=1)[0]
-                candidates = [path for path, entry in resolved.items() if entry[0] == package] if parent is None \
-                    else [child(parent, package)]
-                for path in candidates:
-                    if path is not None and override_selector(selector, resolved[path][1])[1]:
-                        selected.add(path)
-            contexts = sorted(selected)
-        def satisfies(path):
-            actual = resolved[path][1]
-            if len(key) > 2:
-                return npm_covers(actual, floor, resolved=True)
-            left, right = npm_version(actual), npm_version(floor)
-            # Global security floors do not force every existing transitive
-            # major into one compatibility range (e.g. minimatch v3 and v10).
-            return bool(left and right and not left[0] and left[1] >= right[1])
-        require(all(satisfies(path) for path in contexts),
-                "npm lock violates preserved security override scope: " + "/".join(key[1:]))
-
-
-def preserve_npm_resolutions(old, new):
-    for path in old.keys() & new.keys():
-        old_package, old_version, _, _ = old[path]
-        new_package, new_version, _, _ = new[path]
-        require(old_package == new_package, "npm lock path changed package identity")
-        if old_version == new_version:
-            continue
-        left, right = npm_version(old_version), npm_version(new_version)
-        require(left is not None and right is not None and right[1] >= left[1],
-                "npm regeneration downgrades an existing resolution or has unverifiable versions")
-
-
-def verify_action_coverage(item, reader, paths, available):
-    package, target = item["package"], item["target"]
-    lock_path = ".github/aw/actions-lock.json"
-    entries = {}
-    if available is not None and lock_path in available and any(path.endswith((".md", ".lock.yml")) for path in paths):
-        document = json.loads(reader(lock_path))
-        require(isinstance(document, dict) and isinstance(document.get("entries"), dict),
-                "invalid compiler actions lock")
-        entries = document["entries"]
-    references = set()
-    for path in paths:
-        text = reader(path)
-        pins = [pin for (_, repo), pin in action_versions(text).items() if repo == package]
-        # Compiler-injected actions need not occur in the editable source.
-        injected = item["manifest"].endswith(".lock.yml") and path.endswith(".md") and not pins
-        require(bool(pins) or injected, "live Actions source/lock does not cover target: " + path)
-        for pin in pins:
-            if pin == target:
-                continue
-            require(path.endswith(".md") and not SHA.fullmatch(pin),
-                    "live Actions source/lock does not cover target: " + path)
-            entry = entries.get(package + "@" + pin)
-            require(isinstance(entry, dict)
-                    and entry == {"repo": package, "version": pin, "sha": target},
-                    "live Actions source tag lacks intended compiler lock resolution: " + path)
-            official = api(f"repos/{upgrade_family('actions', package)}/commits/{quote(pin, safe='')}")
-            require(isinstance(official, dict) and official.get("sha") == target,
-                    "Actions source release is not the official intended commit")
-            references.add(pin)
-        if path.endswith(".lock.yml"):
-            prefix = "# gh-aw-manifest: "
-            headers = [line[len(prefix):] for line in text.splitlines() if line.startswith(prefix)]
-            require(len(headers) <= 1, "ambiguous compiler action inventory")
-            if headers:
-                manifest = json.loads(headers[0])
-                require(isinstance(manifest, dict) and isinstance(manifest.get("actions"), list)
-                        and all(isinstance(entry, dict) for entry in manifest["actions"]),
-                        "invalid compiler action inventory")
-                actions = [entry for entry in manifest["actions"] if entry.get("repo") == package]
-                require(bool(actions) and all(set(entry) == {"repo", "version", "sha"}
-                        and isinstance(entry["version"], str) and entry["version"]
-                        and entry["sha"] == target for entry in actions),
-                        "compiler action inventory does not cover target: " + path)
-                references.update(entry["version"] for entry in actions)
-    for key, entry in entries.items():
-        relevant = key.startswith(package + "@") or isinstance(entry, dict) and entry.get("repo") == package
-        if not relevant:
-            continue
-        require(isinstance(entry, dict) and set(entry) == {"repo", "version", "sha"}
-                and entry["repo"] == package and isinstance(entry["version"], str)
-                and key == package + "@" + entry["version"], "malformed relevant compiler action lock entry")
-        if not references or entry["version"] in references:
-            require(entry["sha"] == target, "compiler actions lock does not cover target: " + key)
-
-
-def verify_coverage(intents, reader, available=None):
-    require(bool(intents), "missing coverage intent")
-    for item in intents:
-        paths = [item["manifest"]]
-        if item["ecosystem"] == "actions" and available is not None and paths[0].endswith(".md"):
-            lock = paths[0][:-3] + ".lock.yml"
-            require(lock in available, "live action source lacks compiled consumer coverage")
-            paths.append(lock)
-        if item["ecosystem"] == "actions" and available is not None and paths[0].endswith(".lock.yml"):
-            source = paths[0][:-9] + ".md"
-            if source in available:
-                paths.append(source)
-        if item["ecosystem"] == "actions" and available is not None and paths[0] not in available:
-            stem = paths[0][:-9] if paths[0].endswith(".lock.yml") else re.sub(r"\.(?:yml|yaml)$", "", paths[0])
-            paths = [stem + ".md", stem + ".lock.yml"]
-            require(all(path in available for path in paths),
-                    "obsolete workflow has no live source and compiled replacement")
-        if item["ecosystem"] == "actions":
-            verify_action_coverage(item, reader, paths, available)
-            continue
-        for path in paths:
-            _, versions = version_map(path, reader(path))
-            key = tuple(item["key"]) if isinstance(item["key"], list) else item["key"]
-            require(version_covers(versions.get(key), item["target"]) if item["ecosystem"] == "go"
-                    else npm_covers(versions.get(key), item["target"],
-                                    resolved=PurePosixPath(path).name != "package.json"),
-                    "upgrade intent is not covered: " + path + " " + item["package"])
-        if item["ecosystem"] == "npm" and PurePosixPath(item["manifest"]).name == "package.json":
-            lock_paths = set(item.get("lock_manifests", []))
-            if available is not None:
-                parent = PurePosixPath(item["manifest"]).parent
-                lock_paths.update(str(parent / name) for name in ("package-lock.json", "npm-shrinkwrap.json")
-                                  if str(parent / name) in available)
-            for lock_path in sorted(lock_paths):
-                resolutions = lock_versions(json.loads(reader(lock_path)))
-                resolved = resolutions.get("node_modules/" + item["package"])
-                require(resolved is not None and npm_covers(resolved[1], item["target"], resolved=True),
-                        "npm primary family lacks compatible lock resolution: " + lock_path + " " + item["package"])
+    native_policy("check-tree", {"root": str(Path(cwd).resolve()), "base": base, "tree": tree,
+                                "paths": paths, "group": group, "complete": complete})
 
 
 def coverage_paths(intents):
-    paths = set()
-    for item in intents:
-        path = item["manifest"]
-        paths.add(path)
-        paths.update(item.get("lock_manifests", []))
-        if item["ecosystem"] == "npm" and PurePosixPath(path).name == "package.json":
-            paths.update(str(PurePosixPath(path).with_name(name))
-                         for name in ("package-lock.json", "npm-shrinkwrap.json"))
-        if item["ecosystem"] == "actions":
-            stem = path[:-9] if path.endswith(".lock.yml") else re.sub(r"\.(?:md|yml|yaml)$", "", path)
-            paths.update((stem + ".md", stem + ".lock.yml"))
-            paths.add(".github/aw/actions-lock.json")
-    return paths
+    return set(native_policy("check-coverage", {"intents": intents}, "--paths-only"))
+
+
+def verify_coverage(intents, reader, available):
+    wanted = coverage_paths(intents) & set(available)
+    native_policy("check-coverage", {"intents": intents, "available": sorted(available),
+                                    "contents": {path: reader(path) for path in sorted(wanted)}})
 
 
 def tree_paths(repo, sha, wanted, cache=None):
@@ -1276,35 +866,16 @@ def tree_paths(repo, sha, wanted, cache=None):
 
 
 def admission_safe(repo, snap, intent):
-    """Admission is narrower than discovery; incomplete consumers need replacement."""
-    require(intent["ecosystem"] != "go", "native Go workspace/vendor completeness requires a validated replacement")
-    require(intent["family"] != "typespec", "TypeSpec generated consumers require a validated replacement")
-    paths = {file["filename"] for file in snap["files"]}
+    """Gather immutable consumer evidence; depctl alone decides native eligibility."""
     head = snap["pull"]["head"]["sha"]
     wanted = coverage_paths(intent["intents"])
     available = tree_paths(repo, head, wanted)
-    if intent["ecosystem"] == "actions":
-        live = tree_paths(repo, main_sha(repo), wanted)
-        require(all(item["manifest"] in live for item in intent["intents"]),
-                "obsolete native workflow cannot be admitted")
-        for path in paths:
-            if path.endswith(".md"):
-                lock = path[:-3] + ".lock.yml"
-                require(lock in paths, "native workflow source lacks regenerated compiler lock")
-            elif path.endswith(".lock.yml"):
-                source = path[:-9] + ".md"
-                require(source not in live or source in available,
-                        "native compiled workflow lost its existing source")
-        verify_coverage(intent["intents"], lambda path: content(repo, head, path), available)
-    else:
-        for item in intent["intents"]:
-            if PurePosixPath(item["manifest"]).name == "package.json":
-                lock = str(PurePosixPath(item["manifest"]).with_name("package-lock.json"))
-                require(lock in paths, "native npm manifest lacks updated lock consumer")
-                resolved = lock_versions(json.loads(content(repo, head, lock)))
-                resolution = resolved.get("node_modules/" + item["package"])
-                require(resolution is not None and npm_covers(resolution[1], item["target"], resolved=True),
-                        "native npm lock does not resolve intended target")
+    live = tree_paths(repo, main_sha(repo), wanted) if intent["ecosystem"] == "actions" else set()
+    native_policy("check-admission", {
+        "group": intent, "paths": [file["filename"] for file in snap["files"]],
+        "available": sorted(available), "live": sorted(live),
+        "contents": {path: content(repo, head, path) for path in sorted(available & wanted)},
+    })
 
 
 def safe_text(text, *, title=False):
@@ -1348,62 +919,6 @@ def validate_replacement_request(request):
     safe_text(request["title"], title=True)
     safe_text(request["body"])
     return patch_paths(request["patch"])
-
-
-def native_inventory_selection(repo, inventory_file, group_id, target):
-    """Read the offline selection from the trusted Go binary without Python policy."""
-    try:
-        result = subprocess.run(
-            [os.environ.get("DEPCTL_BINARY", "depctl"), "dependabot", "native", "select-group",
-             "--repository", repo, "--inventory", str(inventory_file),
-             "--group", group_id, "--target", target],
-            capture_output=True, text=True, check=True,
-        )
-    except subprocess.CalledProcessError as error:
-        raise ValueError(error.stderr.strip() or "native inventory selection failed") from error
-    return json.loads(result.stdout)
-
-
-def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd=None):
-    """Build the offline request artifact after the candidate validator succeeds."""
-    selected = native_inventory_selection(repo, inventory_file, group_id, target)
-    base, group = selected["base_sha"], selected["group"]
-    sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
-    root = git(cwd, "rev-parse", "--show-toplevel")
-    require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
-    # Diff must not execute worktree-supplied diff/textconv or clean/process
-    # drivers. Empty driver commands disable configured filters without writes.
-    settings = git(root, "config", "--null", "--list", "--name-only", strip=False).split("\x00")
-    disabled = [argument for key in sorted(set(settings)) if re.fullmatch(r"filter\..+\.(clean|process)", key)
-                for argument in ("-c", key + "=")]
-    candidate_patch = git(root, *disabled, "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
-                          "--no-color", "--no-relative", "--full-index", "--binary",
-                          "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3",
-                          "--inter-hunk-context=0", "--src-prefix=a/", "--dst-prefix=b/",
-                          "--output-indicator-new=+", "--output-indicator-old=-", "--output-indicator-context= ",
-                          base, "--", ".", strip=False)
-    request = {"source_prs": sources, "expected_base_sha": base, "patch": candidate_patch,
-               "title": Path(title_file).read_bytes().decode("utf-8").rstrip("\r\n"),
-               "body": Path(body_file).read_bytes().decode("utf-8")}
-    paths = validate_replacement_request(request)
-    validate_replacement_paths(paths, group)
-    payload = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    require(len(payload) <= MAX_REQUEST, "replacement request artifact exceeds size limit")
-    destination = Path(artifact_dir)
-    destination.mkdir(parents=True, exist_ok=True)
-    directory = os.open(destination, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        descriptor = os.open(REQUEST_FILE, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             0o600, dir_fd=directory)
-        with os.fdopen(descriptor, "wb") as payload_file:
-            info = os.fstat(payload_file.fileno())
-            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
-                    "replacement request destination must be a singly linked regular file")
-            payload_file.truncate(0)
-            payload_file.write(payload)
-    finally:
-        os.close(directory)
-    return {"request_sha256": hashlib.sha256(payload).hexdigest()}
 
 
 def sources_group(repo, sources):

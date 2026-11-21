@@ -142,6 +142,11 @@ func SelectNativeInventoryGroup(input io.Reader, repository, groupID, target str
 
 // ValidateNativeJSON rejects duplicate fields at every depth before typed decoding.
 func validateNativeJSON(decoder *json.Decoder, depth int) error {
+	return validateNativeJSONValue(decoder, depth, true)
+}
+
+// ValidateNativeJSONValue checks JSON structure independently of inventory key rules.
+func validateNativeJSONValue(decoder *json.Decoder, depth int, inventory bool) error {
 	if depth > 256 {
 		return errors.New("inventory nesting is too deep")
 	}
@@ -165,22 +170,24 @@ func validateNativeJSON(decoder *json.Decoder, depth int) error {
 			if !ok || seen[name] {
 				return errors.New("duplicate or invalid JSON field")
 			}
-			switch canonical := strings.ToLower(name); canonical {
-			case "repository", "base_sha", "groups", "group", "target", "ecosystem", "family",
-				"next_action", "action", "blockers", "sources", "number", "head_sha", "intents",
-				"package", "manifest", "lock_manifests":
-				if name != canonical {
-					return errors.New("noncanonical inventory field")
+			if inventory {
+				switch canonical := strings.ToLower(name); canonical {
+				case "repository", "base_sha", "groups", "group", "target", "ecosystem", "family",
+					"next_action", "action", "blockers", "sources", "number", "head_sha", "intents",
+					"package", "manifest", "lock_manifests":
+					if name != canonical {
+						return errors.New("noncanonical inventory field")
+					}
 				}
 			}
 			seen[name] = true
-			if err := validateNativeJSON(decoder, depth+1); err != nil {
+			if err := validateNativeJSONValue(decoder, depth+1, inventory); err != nil {
 				return err
 			}
 		}
 	case '[':
 		for decoder.More() {
-			if err := validateNativeJSON(decoder, depth+1); err != nil {
+			if err := validateNativeJSONValue(decoder, depth+1, inventory); err != nil {
 				return err
 			}
 		}

@@ -286,6 +286,55 @@ Candidate validation and request preparation use this shared Go selection
 policy. Family markers, publication request shape and branch identity do not
 change when multiple target versions coexist.
 
+The trusted Python publisher and reconciler also call `dependabot native
+check-tree`, `check-coverage` (or `--paths-only`) and `check-admission` with JSON
+evidence on stdin. Go owns replacement scope, immutable consumer coverage and
+native admission eligibility; the Python lifecycle retains discovery parsing,
+targeted immutable tree proofs, GitHub writes and publication orchestration.
+These read-only commands accept evidence, not executable commands. They use the
+trusted default-branch binary and official release GETs through `gh`; a missing
+binary or rejected check fails closed, with no Python policy fallback.
+
+### dependabot native validate-candidate
+
+```bash
+depctl dependabot native validate-candidate --repository OWNER/REPO --repo PATH \
+  --inventory FILE --group ID --target TARGET --title-file FILE --body-file FILE \
+  --artifact-dir DIR [--compiler PATH]
+```
+
+Selects the exact inventory entry, runs its fixed Go/npm/Actions consumers,
+compares generated output with an isolated baseline and checks generation
+convergence. Scope and coverage guards run before consumer execution and against
+the complete committed candidate. Late changes to the candidate or request
+inputs prevent publication-request construction.
+
+Artifacts and complete per-step logs stay outside the checkout. Successful
+execution prints only the prepared request digest; failures retain machine
+evidence and logs without leaving a publication request. The compiler is
+required for Actions and must be the trusted pinned executable.
+
+The command uses the read-only `gh` CLI proxy inside the sandbox without
+exporting a GitHub credential. Run `depctl dependabot native check-sandbox-read`
+inside that sandbox before executing candidate consumers. Keep the binary and
+compiler from the original trusted checkout, not the candidate.
+
+### dependabot native prepare-request
+
+```bash
+depctl dependabot native prepare-request --repository OWNER/REPO --repo PATH \
+  --inventory FILE --group ID --target TARGET --title-file FILE --body-file FILE \
+  --artifact-dir DIR
+```
+
+Packages the complete tracked candidate diff and notification-safe metadata into
+`native-replacement-request.json`, returning its SHA-256 digest as JSON. This
+offline packaging step follows candidate validation; it neither validates
+dependency consumers nor authorizes publication.
+
+Run `make verify-agentic-maintenance` from the repository root for Go validation
+and remaining Python publisher regressions, metadata parity and Darwin/arm64 coverage.
+
 ### maintenance inventory
 
 ```bash
