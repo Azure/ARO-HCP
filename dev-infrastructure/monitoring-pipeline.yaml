@@ -55,6 +55,18 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+  # Previous region-only stack name for public/int/westus3.
+  - name: remove-region-only-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: lqkbvpbbzei47mhnbn3okrzxxl5v6ppa7wek5io6bjspy-westus3
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: monitoring
     action: ARMStack
     template: templates/monitoring.bicep
@@ -70,6 +82,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: remove-legacy-monitoring-stack
+    - resourceGroup: regional
+      step: remove-region-only-stack
     variables:
     - name: azureMonitoringWorkspaceId
       input:
