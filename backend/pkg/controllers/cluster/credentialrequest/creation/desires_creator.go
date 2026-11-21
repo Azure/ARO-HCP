@@ -44,10 +44,10 @@ import (
 )
 
 type desiresCreator struct {
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	credentialRequestLister      corelisters.SystemAdminCredentialRequestLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
 }
@@ -73,14 +73,15 @@ func NewDesiresCreatorController(
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &desiresCreator{
-		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		credentialRequestLister:      credentialRequestLister,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
 	}
@@ -128,17 +129,16 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 
-	// Get the specific credential request.
-	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	// Use cached credential data only — CSR PEM is immutable while pending, and
+	// desire ensures are keyed by credential name.
+	cachedCred, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRequest: %w", err))
 	}
-
-	if !c.needsWork(existingCluster, cred) {
+	if !c.needsWork(existingCluster, cachedCred) {
 		return nil
 	}
 
@@ -177,7 +177,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	// Owner for annotations is the cluster's ARM resource ID.
 	clusterResourceID := key.GetClusterResourceID()
 
-	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, controlPlaneNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
+	if err := c.ensureDesires(ctx, key, cachedCred, key.CredentialName, controlPlaneNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
 		return err
 	}
 
