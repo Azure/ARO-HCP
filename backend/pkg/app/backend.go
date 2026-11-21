@@ -55,6 +55,8 @@ type Backend struct {
 }
 
 type BackendOptions struct {
+	EnableHostedClusterDataPlaneIdentityWriter bool
+
 	StorageFactory          StorageFactory
 	AppShortDescriptionName string
 	AppVersion              string

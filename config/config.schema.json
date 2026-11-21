@@ -1456,6 +1456,10 @@
             "Disabled"
           ]
         },
+        "enableHostedClusterDataPlaneIdentityWriter": {
+          "type": "boolean",
+          "description": "Enable the controller that maintains HostedCluster data-plane identity intent in ServiceProviderCluster"
+        },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
@@ -1486,6 +1490,7 @@
         "maestro",
         "backupCadenceProfile",
         "backupScheduleState",
+        "enableHostedClusterDataPlaneIdentityWriter",
         "exitOnPanic",
         "logVerbosity",
         "clusterScopedIdentitiesConfig"

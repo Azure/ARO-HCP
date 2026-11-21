@@ -210,7 +210,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, spc, clusterServiceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -220,14 +220,14 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, spc *coreapi.ServiceProviderCluster, clusterServiceID metadataapi.InternalID) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
+		if err := c.processClusterResources(ctx, key, spc, resources, clusterServiceID.ID()); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -262,7 +262,8 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	spc *coreapi.ServiceProviderCluster, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	managementCluster := spc.Status.ManagementClusterResourceID
 
 	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if err != nil {
@@ -282,22 +283,26 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
+	allResourcesIdentified := true
 	var errs []error
 	for resourceKey, resourceValue := range resourceMap {
 		var unstructuredObj unstructured.Unstructured
 		if err := json.Unmarshal([]byte(resourceValue), &unstructuredObj); err != nil {
+			allResourcesIdentified = false
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to unmarshal resource %s: %w", resourceKey, err)))
 			continue
 		}
 
 		gvr, err := restmapper.ResourceFor(unstructuredObj.GroupVersionKind())
 		if err != nil {
+			allResourcesIdentified = false
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to resolve resource %s: %w", resourceKey, err)))
 			continue
 		}
 
 		classified, err := classifyClusterResource(&unstructuredObj)
 		if err != nil {
+			allResourcesIdentified = false
 			errs = append(errs, utils.TrackError(err))
 			continue
 		}
@@ -326,6 +331,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		switch {
 		case len(classified.nodePoolName) != 0:
+			resourceID := kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
+				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.nodePoolName, classified.desireName,
+			)
+			desiredResourceIDs[strings.ToLower(resourceID)] = true
 			np, npErr := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.nodePoolName)
 			if npErr != nil && !cosmosstorageutils.IsNotFoundError(npErr) {
 				errs = append(errs, utils.TrackError(fmt.Errorf("failed to get nodepool %s: %w", classified.nodePoolName, npErr)))
@@ -347,6 +356,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			// disappears entirely once the backend owns NodePool deletion directly.
 			//  TODO: remove this comment once ACM and Maestro are removed.
 			if np == nil || np.ServiceProviderProperties.DeletionTimestamp != nil {
+				delete(desiredResourceIDs, strings.ToLower(resourceID))
 				continue
 			}
 
@@ -364,6 +374,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				managementCluster, target, &unstructuredObj, tags,
 			)
 		default:
+			resourceID := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.desireName,
+			)
+			desiredResourceIDs[strings.ToLower(resourceID)] = true
 			crud = applyDesireCRUD
 
 			// Ensure backend-managed settings on HostedCluster before creating ApplyDesire
@@ -385,6 +399,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
 					continue
 				}
+				if err := overlayDataPlaneClientIDs(&unstructuredObj, spc.Spec.DesiredHostedCluster); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("overlay data plane identities for %s: %w", resourceKey, err)))
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -398,9 +416,12 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		desiredResourceIDs[strings.ToLower(desire.ResourceID.String())] = true
-
-		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire); err != nil {
+		if classified.desireName == DesireNameHostedCluster {
+			err = c.ensureHostedClusterDesire(ctx, crud, desire, spc.InstanceVersion)
+		} else {
+			err = kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire)
+		}
+		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -451,6 +472,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				errs = append(errs, err)
 			}
 		}
+	}
+	// An unclassified input may own any existing desire. Once every input is
+	// identified, an error updating one desire can safely be retried after cleanup.
+	if !allResourcesIdentified {
+		return errors.Join(errs...)
 	}
 	if err := c.deleteStaleApplyDesires(ctx, key, managementCluster, desiredResourceIDs); err != nil {
 		errs = append(errs, err)

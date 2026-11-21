@@ -47,6 +47,8 @@ import (
 )
 
 type BackendRootCmdFlags struct {
+	EnableHostedClusterDataPlaneIdentityWriter bool
+
 	Kubeconfig                                                                                    string
 	K8sNamespace                                                                                  string
 	AzureLocation                                                                                 string
@@ -199,6 +201,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"'--insecure-azure-managed-identity-mock-principal-id' (or '--insecure-azure-managed-identity-mock-principal-id-path') flags.",
 	)
 
+	cmd.Flags().BoolVar(&f.EnableHostedClusterDataPlaneIdentityWriter, "enable-hosted-cluster-data-plane-identity-writer", false,
+		"Enable publication of data plane identity intent into ServiceProviderCluster.DesiredHostedCluster")
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
 	)
@@ -604,6 +608,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	backendOptions := &app.BackendOptions{
+		EnableHostedClusterDataPlaneIdentityWriter: f.EnableHostedClusterDataPlaneIdentityWriter,
+
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
 		AzureLocation:                      f.AzureLocation,

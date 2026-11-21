@@ -111,8 +111,9 @@ func newSPC(mcResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster 
 	))
 	return &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   spcResourceID,
-			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+			ResourceID:      spcResourceID,
+			PartitionKey:    strings.ToLower(spcResourceID.SubscriptionID),
+			InstanceVersion: 1,
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
@@ -717,6 +718,36 @@ func TestGetClusterResourcesCache(t *testing.T) {
 	})
 }
 
+func TestStaleCleanupAfterResourceError(t *testing.T) {
+	const hostedCluster = `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"hc","namespace":"ns"}}`
+	for _, tt := range []struct {
+		name             string
+		manifest         string
+		wantError        string
+		wantNodePoolType kubeapplierapi.ApplyDesireType
+	}{
+		{"identified HostedCluster fails publication", hostedCluster, "invalid HostedCluster source version", kubeapplierapi.ApplyDesireTypeDelete},
+		{"identified HostedCluster fails normalization", strings.Replace(hostedCluster, `"metadata"`, `"spec":{"autoscaling":"invalid"},"metadata"`, 1), "autoscaling", kubeapplierapi.ApplyDesireTypeDelete},
+		{"unidentified manifest defers cleanup", "{", "failed to unmarshal", kubeapplierapi.ApplyDesireTypeServerSideApply},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			hc := newOwnedClusterDesire(DesireNameHostedCluster)
+			hc.Tags[hostedClusterSourceVersionTag] = "invalid"
+			fixture := newDestructFixture(t, ctx, "pool", hc, newOwnedNodePoolDesire("pool", DesireNameNodePool))
+			err := fixture.controller.processClusterResources(ctx, testKey(), newSPC(testManagementClusterResourceID),
+				buildClusterResources(map[string]string{"hc": tt.manifest}), "abc123")
+			require.ErrorContains(t, err, tt.wantError)
+			kept, err := fixture.clusterCRUD.Get(ctx, DesireNameHostedCluster)
+			require.NoError(t, err)
+			require.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, kept.Spec.Type)
+			stale, err := fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantNodePoolType, stale.Spec.Type)
+		})
+	}
+}
+
 func TestDeleteStaleApplyDesires(t *testing.T) {
 	t.Parallel()
 
@@ -1238,7 +1269,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			seedSyncer.nodePoolLister = &corelistertesting.SliceNodePoolLister{
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
-			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), newSPC(testManagementClusterResourceID),
 				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
@@ -1246,7 +1277,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
-			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+			require.NoError(t, syncer.processClusterResources(ctx, testKey(), newSPC(testManagementClusterResourceID),
 				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
 				"processClusterResources should succeed")
 
