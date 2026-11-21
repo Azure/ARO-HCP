@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	armdeploymentstacks "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -81,10 +80,10 @@ func (c *MockServiceManagedIdentityClientBuilderBuilderTypeCall) DoAndReturn(f f
 }
 
 // DeploymentStacksClient mocks base method.
-func (m *MockServiceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (*armdeploymentstacks.Client, error) {
+func (m *MockServiceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (DeploymentStacksClient, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeploymentStacksClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
-	ret0, _ := ret[0].(*armdeploymentstacks.Client)
+	ret0, _ := ret[0].(DeploymentStacksClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -102,19 +101,19 @@ type MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Return(arg0 *armdeploymentstacks.Client, arg1 error) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Return(arg0 DeploymentStacksClient, arg1 error) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (*armdeploymentstacks.Client, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (DeploymentStacksClient, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (*armdeploymentstacks.Client, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (DeploymentStacksClient, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

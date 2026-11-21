@@ -44,7 +44,7 @@ type InsecureARMPermissionsManagerClientBuilder interface {
 	// ensure this interface is incompatible with other client builder interfaces
 	// that might have the same set of methods.
 	BuilderType() InsecureARMPermissionsManagerClientBuilderType
-	DeploymentStacksClient(subscriptionID string) (*armdeploymentstacks.Client, error)
+	DeploymentStacksClient(subscriptionID string) (DeploymentStacksClient, error)
 }
 
 type insecureARMPermissionsManagerClientBuilder struct {
@@ -71,7 +71,7 @@ func (b *insecureARMPermissionsManagerClientBuilder) BuilderType() InsecureARMPe
 	return InsecureARMPermissionsManagerClientBuilderTypeValue
 }
 
-func (b *insecureARMPermissionsManagerClientBuilder) DeploymentStacksClient(subscriptionID string) (*armdeploymentstacks.Client, error) {
+func (b *insecureARMPermissionsManagerClientBuilder) DeploymentStacksClient(subscriptionID string) (DeploymentStacksClient, error) {
 	creds, err := b.tokenCredRetriever.RetrieveCredential()
 	if err != nil {
 		return nil, err

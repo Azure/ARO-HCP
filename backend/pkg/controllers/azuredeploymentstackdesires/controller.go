@@ -298,7 +298,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 
 // newLazyAzureDeploymentStackGet returns a function that allows you to get the Azure deployment stack associated to the target in desired, using
 // the authentication defined in desire.
-func (c *controller) newLazyAzureDeploymentStackGet(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire, getClient func() (*armdeploymentstacks.Client, error)) func() (*armdeploymentstacks.DeploymentStack, error) {
+func (c *controller) newLazyAzureDeploymentStackGet(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire, getClient func() (azureclient.DeploymentStacksClient, error)) func() (*armdeploymentstacks.DeploymentStack, error) {
 	return func() (*armdeploymentstacks.DeploymentStack, error) {
 		deploymentStacksClient, err := getClient()
 		if err != nil {
@@ -312,19 +312,19 @@ func (c *controller) newLazyAzureDeploymentStackGet(ctx context.Context, desire 
 // validated. The returned function is scoped to a single SyncOnce call: for SMI it caches the
 // built client (and the token fetch behind it) so it is reused across both the lazy GET and the
 // submission path in one reconcile, instead of hitting ClusterIdentityURL twice.
-func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (func() (*armdeploymentstacks.Client, error), error) {
+func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (func() (azureclient.DeploymentStacksClient, error), error) {
 	authentication := desire.Spec.Authentication
 	switch authentication.Type {
 	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI:
 		return c.newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx, authentication.ServiceManagedIdentity, desire.Spec.TargetResourceID), nil
 	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA:
 		tenantID, subscriptionID := authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID
-		return func() (*armdeploymentstacks.Client, error) {
+		return func() (azureclient.DeploymentStacksClient, error) {
 			return c.firstPartyApplicationClientBuilder.DeploymentStacksClient(tenantID, subscriptionID)
 		}, nil
 	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager:
 		subscriptionID := desire.Spec.TargetResourceID.SubscriptionID
-		return func() (*armdeploymentstacks.Client, error) {
+		return func() (azureclient.DeploymentStacksClient, error) {
 			return c.insecureARMPermissionsManager.DeploymentStacksClient(subscriptionID)
 		}, nil
 	default:
@@ -342,9 +342,9 @@ func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire
 // that both calls the lazy GET and submits to Azure would pay that round trip twice. The cache
 // lives only as long as the returned closure (i.e. one SyncOnce call). Callers must obtain a
 // fresh getter per call rather than reusing one across reconciles or desires.
-func (c *controller) newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx context.Context, authentication *azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity, targetResourceID *azcorearm.ResourceID) func() (*armdeploymentstacks.Client, error) {
-	var deploymentStacksClient *armdeploymentstacks.Client
-	return func() (*armdeploymentstacks.Client, error) {
+func (c *controller) newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx context.Context, authentication *azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity, targetResourceID *azcorearm.ResourceID) func() (azureclient.DeploymentStacksClient, error) {
+	var deploymentStacksClient azureclient.DeploymentStacksClient
+	return func() (azureclient.DeploymentStacksClient, error) {
 		if deploymentStacksClient != nil {
 			return deploymentStacksClient, nil
 		}
@@ -667,7 +667,7 @@ func classifyError(detail *armdeploymentstacks.ErrorDetail) (string, bool) {
 // If the deployment stack is not found, it returns nil and no error.
 // If the deployment stack is found, it returns the deployment stack and no error.
 // If there's an error when trying to get the deployment stack, it returns nil and the error.
-func getDeploymentStack(ctx context.Context, client *armdeploymentstacks.Client, target *azcorearm.ResourceID) (*armdeploymentstacks.DeploymentStack, error) {
+func getDeploymentStack(ctx context.Context, client azureclient.DeploymentStacksClient, target *azcorearm.ResourceID) (*armdeploymentstacks.DeploymentStack, error) {
 	var stack armdeploymentstacks.DeploymentStack
 	var err error
 	switch strings.ToLower(target.Parent.ResourceType.String()) {
@@ -696,7 +696,7 @@ func getDeploymentStack(ctx context.Context, client *armdeploymentstacks.Client,
 	return &stack, nil
 }
 
-func submitApply(ctx context.Context, client *armdeploymentstacks.Client, spec azureresourcesapi.DeploymentStackDesireSpec) (*armdeploymentstacks.DeploymentStack, error) {
+func submitApply(ctx context.Context, client azureclient.DeploymentStacksClient, spec azureresourcesapi.DeploymentStackDesireSpec) (*armdeploymentstacks.DeploymentStack, error) {
 	target := spec.TargetResourceID
 	var response *http.Response
 	// BeginCreateOrUpdate returns a poller, whose Result cannot expose the initial
@@ -734,7 +734,7 @@ func submitApply(ctx context.Context, client *armdeploymentstacks.Client, spec a
 	return &initialStack, nil
 }
 
-func submitDelete(ctx context.Context, client *armdeploymentstacks.Client, spec azureresourcesapi.DeploymentStackDesireSpec) error {
+func submitDelete(ctx context.Context, client azureclient.DeploymentStacksClient, spec azureresourcesapi.DeploymentStackDesireSpec) error {
 	target := spec.TargetResourceID
 	stack := ptr.Deref(spec.Stack, armdeploymentstacks.DeploymentStack{})
 	properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})

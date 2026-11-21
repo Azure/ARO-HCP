@@ -12,7 +12,6 @@ package client
 import (
 	reflect "reflect"
 
-	armdeploymentstacks "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -79,10 +78,10 @@ func (c *MockInsecureARMPermissionsManagerClientBuilderBuilderTypeCall) DoAndRet
 }
 
 // DeploymentStacksClient mocks base method.
-func (m *MockInsecureARMPermissionsManagerClientBuilder) DeploymentStacksClient(subscriptionID string) (*armdeploymentstacks.Client, error) {
+func (m *MockInsecureARMPermissionsManagerClientBuilder) DeploymentStacksClient(subscriptionID string) (DeploymentStacksClient, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeploymentStacksClient", subscriptionID)
-	ret0, _ := ret[0].(*armdeploymentstacks.Client)
+	ret0, _ := ret[0].(DeploymentStacksClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -100,19 +99,19 @@ type MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall st
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) Return(arg0 *armdeploymentstacks.Client, arg1 error) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
+func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) Return(arg0 DeploymentStacksClient, arg1 error) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) Do(f func(string) (*armdeploymentstacks.Client, error)) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
+func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) Do(f func(string) (DeploymentStacksClient, error)) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(string) (*armdeploymentstacks.Client, error)) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
+func (c *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(string) (DeploymentStacksClient, error)) *MockInsecureARMPermissionsManagerClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

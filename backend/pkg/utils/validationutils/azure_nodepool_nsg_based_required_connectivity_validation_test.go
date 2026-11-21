@@ -26,7 +26,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -50,7 +49,7 @@ func (f *fakeSMIClientBuilder) UserAssignedIdentitiesClient(context.Context, str
 	return nil, nil
 }
 
-func (f *fakeSMIClientBuilder) DeploymentStacksClient(context.Context, string, *azcorearm.ResourceID, string) (*armdeploymentstacks.Client, error) {
+func (f *fakeSMIClientBuilder) DeploymentStacksClient(context.Context, string, *azcorearm.ResourceID, string) (azureclient.DeploymentStacksClient, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
