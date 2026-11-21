@@ -57,12 +57,15 @@ spec:
   # Latency family below (a different SLI, a different problem).
   #
   # Each alert multiplies its burn-rate condition by
-  # `hostedClusterAPI_kubeapiserver_available` (joined on _id, via
+  # `hostedClusterAPI_kubeapiserver_available:live` (joined on _id, via
   # group_left) to attach resource_id for on-call triage -- the canary
   # metrics themselves never carry resource_id (see the recording rule's
-  # confirmed production label set). This mirrors
+  # confirmed production label set). `:live` filters the raw
+  # hostedClusterAPI_kubeapiserver_available metric to status="True" and
+  # excludes HCPs with a deletion timestamp set (see the recording rule's
+  # header comment; flagged by @swiencki). This mirrors
   # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml,
-  # which already depends on this same metric for its own (higher-severity)
+  # which already depends on the raw metric for its own (higher-severity)
   # alerting, so this does not introduce a new class of dependency. The `* 0
   # + 1` neutralizes the joined value so only its resource_id label is
   # consumed; the join is an inner join, so an _id with no corresponding
@@ -101,7 +104,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 10m
       labels:
         severity: "4"
@@ -134,7 +137,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 30m
       labels:
         severity: "4"
@@ -167,7 +170,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 3h
       labels:
         severity: "4"
@@ -190,14 +193,14 @@ spec:
   # These alerts fire on an operational 400ms threshold, not the #6516
   # (ARO-22170) published 99.5%/200ms SLO objective -- that objective is
   # tracked unchanged for dashboards via latency:ingress_canary:ratio in the
-  # recording rule file, not alerted on (flagged by Copilot review, which
-  # pointed out that paging on the published value would be dishonest: a
-  # production check found p99 running 250-380ms with ~30% of HCPs already
-  # over the 0.5% budget in a normal week at 200ms, so that threshold isn't
-  # a latency regression signal, it's permanently unachievable for a
-  # healthy fleet). 400ms is the next available histogram bucket boundary
-  # and comfortably covers the reported p99 range; if a normal week still
-  # overspends the budget at 400ms, 800ms is the next bucket to try.
+  # recording rule file, not alerted on. Paging on the published value would
+  # be dishonest: a production check found p99 running 250-380ms with ~30%
+  # of HCPs already over the 0.5% budget in a normal week at 200ms, so that
+  # threshold isn't a latency regression signal, it's permanently
+  # unachievable for a healthy fleet. 400ms is the next available histogram
+  # bucket boundary and comfortably covers the reported p99 range; if a
+  # normal week still overspends the budget at 400ms, 800ms is the next
+  # bucket to try.
   #
   # 99.5% is closer to a P99 latency objective than a P95 one, so this
   # SLI's alerts are named LatencyP99 rather than bare Latency; the
@@ -221,7 +224,7 @@ spec:
   # the Availability family above (different SLI, different problem) while
   # still correlating this family's own three burn tiers per _id.
   #
-  # Same resource_id enrichment via hostedClusterAPI_kubeapiserver_available
+  # Same resource_id enrichment via hostedClusterAPI_kubeapiserver_available:live
   # as the availability group above -- see its header comment for the full
   # rationale. Same interim Sev 4 downgrade on the fast/medium tiers too,
   # same reasoning (ARO-30462): the canary can't distinguish a customer-caused
@@ -271,7 +274,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 10m
       labels:
         severity: "4"
@@ -304,7 +307,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 30m
       labels:
         severity: "4"
@@ -337,7 +340,7 @@ spec:
           )
         )
         * on (_id) group_left(resource_id)
-        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
       for: 3h
       labels:
         severity: "4"
@@ -370,15 +373,19 @@ spec:
   # The 7d window alone is still, by construction, bounded -- an HCP silent
   # for longer than 7d straight would drop out of the reference side and
   # this alert would clear even though reporting never recovered. Joining
-  # the reference side on _id against hostedClusterAPI_kubeapiserver_available
+  # the reference side on _id against hostedClusterAPI_kubeapiserver_available:live
   # (the same metric UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-
   # KSM.yaml already depends on) closes that gap for the common case: once
   # an HCP is actually deleted, its HostedCluster record disappears from
   # that metric too, so the join drops it immediately rather than waiting
-  # out the full 7d. It does not close the gap for an HCP that still exists
-  # but is silent for longer than 7d straight -- that residual case would
-  # need a reference with no time window at all, which doesn't fit this
-  # metric's semantics. The join also attaches resource_id for on-call
+  # out the full 7d. `:live` also drops it as soon as a deletion timestamp
+  # is set, before the record is fully gone, so a cluster being torn down
+  # stops alerting for "canary gone silent" immediately rather than at the
+  # end of deletion. It does not close the gap for an HCP that still exists,
+  # isn't being deleted, but is silent for longer than 7d straight -- that
+  # residual case would need a reference with no time window at all, which
+  # doesn't fit this metric's semantics. The join also attaches resource_id
+  # for on-call
   # triage, which the canary metric itself never carries. Sev 4: loss of the
   # canary signal is not itself confirmed customer impact, but on-call has
   # lost all visibility into this HCP's ingress health and needs to
@@ -392,7 +399,7 @@ spec:
         (
           count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
           * on (_id) group_left(resource_id)
-          group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+          group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)
         )
         unless on (_id, cluster, region)
         count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))

@@ -46,6 +46,37 @@ spec:
   # ingress-availability-slo-prometheusRule.yaml) detects this case directly
   # against the raw metric, since a missing series cannot be observed through
   # these recording rules by definition.
+  # ========================================
+  # Shared HCP Liveness Filter
+  # ========================================
+  # Every burn-rate alert and the canary-absence alert in
+  # ingress-availability-slo-prometheusRule.yaml join against
+  # hostedClusterAPI_kubeapiserver_available purely to attach resource_id
+  # and confirm the HostedCluster record still exists -- not to check
+  # whether KAS is actually available (that is
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml's
+  # job). Joining against the raw metric directly matches any status value
+  # (True/False/Unknown), so a KAS outage or an HCP mid-deletion would still
+  # be treated as "live" for ingress-alert purposes. Flagged by @swiencki.
+  #
+  # Filters to status="True" (mirroring
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml's own
+  # SLI rules) and excludes HCPs with a deletion timestamp set, via
+  # hostedClusterAPI_deletion_timestamp_seconds (observability/prometheus/
+  # values-mgmt.yaml's customResourceState config exports this from
+  # metadata.deletionTimestamp, 0 when unset). Does NOT yet exclude HCPs
+  # younger than some grace period the way the KAS SLI rules do with
+  # `offset 15m` on the same metric -- doing so here would require every
+  # existing ingress alert test's eval_time to clear that same grace period,
+  # which most don't (23 of ~40 are under 30m); tracked as a follow-up
+  # alongside the per-management-cluster scope discussion.
+  - name: arohcp_ingress_hcp_liveness_filter
+    interval: 1m
+    rules:
+    - record: hostedClusterAPI_kubeapiserver_available:live
+      expr: |
+        hostedClusterAPI_kubeapiserver_available{status="True"}
+        unless on (_id) (hostedClusterAPI_deletion_timestamp_seconds > 0)
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:
@@ -261,8 +292,8 @@ spec:
   # This 200ms baseline is the SLI #6516 (ARO-22170) originally published as
   # `latency:ingress_canary:ratio` / `errors:ingress_canary_latency:error_rate`
   # for dashboards/SLI reporting -- left unchanged here rather than silently
-  # redefined, since other consumers may already depend on its 200ms meaning
-  # (flagged by Copilot review). It was never actually functional though: the
+  # redefined, since other consumers may already depend on its 200ms meaning.
+  # It was never actually functional though: the
   # bucket selector was `le="200"` without the trailing ".0" prod requires
   # (see below), so it has matched zero series since #6516 merged; fixed here
   # alongside the alerting-specific threshold below. The windowed group
@@ -342,7 +373,7 @@ spec:
     # pod's "+inf" total while `and` admits both pods' "200.0" counts into
     # the numerator -- a mismatch that can make the fast count exceed the
     # total and the error rate go negative, silently suppressing a real
-    # alert (flagged by Copilot review). Keeping every label except
+    # alert. Keeping every label except
     # `prometheus_replica` (the only thing we actually want to dedup across)
     # and `le` (which differs by construction between the two bucket
     # selectors) in the grouping key means only true same-pod HA-replica
@@ -385,8 +416,8 @@ spec:
   #
   # Reads le="400.0", not the le="200.0" the #6516 baseline SLI above uses,
   # and deliberately does not claim to still be measuring that published
-  # 99.5%/200ms objective (flagged by Copilot review): a production check
-  # found p99 running 250-380ms with ~30% of HCPs already over the 0.5%
+  # 99.5%/200ms objective: a production check found p99 running 250-380ms
+  # with ~30% of HCPs already over the 0.5%
   # error budget in a normal week at 200ms, so alerting on the published
   # value would page constantly on a target a healthy fleet structurally
   # can't meet, not on genuine degradation. This is an operational

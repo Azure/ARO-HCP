@@ -590,7 +590,7 @@ tests:
 # own. If a future change collapsed this alert down to only the long-window
 # condition, this case would incorrectly fire; every other burn-rate fixture
 # in this file is either continuously failing or continuously healthy, so
-# none of them would have caught that regression (Copilot review feedback).
+# none of them would have caught that regression.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_route_reachable{_id="recovered-fast", cluster="mgmt-1", region="uksouth", host="canary.apps.recovered-fast.example.io", instance="10.0.0.1:60000"}'
@@ -667,8 +667,7 @@ tests:
   # the long-window floor, not on `for:` timing. Querying the real ALERTS
   # series (rather than a copy of the gate's own thresholds, which would
   # keep passing even if the real alert's floor regressed back to 30)
-  # follows certificate-rotation-prometheusRule_test.yaml's pattern
-  # (flagged by Copilot review).
+  # follows certificate-rotation-prometheusRule_test.yaml's pattern.
   - expr: count(ALERTS{alertname="userJourneyIngressLatencyP99Errors6h30m", alertstate=~"pending|firing", _id="lat-thin-medium"}) or vector(0)
     eval_time: 21m
     exp_samples:

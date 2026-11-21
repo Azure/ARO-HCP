@@ -648,7 +648,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary availability critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary availability critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -683,7 +683,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary availability degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary availability degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -718,7 +718,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary availability trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary availability trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -766,7 +766,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary latency critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary latency critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -801,7 +801,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary latency degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary latency degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 300 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 300 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -836,7 +836,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary latency trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary latency trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '((errors:ingress_canary_latency:total_6h >= 300 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 1000 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)'
+        expression: '((errors:ingress_canary_latency:total_6h >= 300 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 1000 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -882,7 +882,7 @@ Resource ID: {{ $labels.resource_id }}
           summary: 'Ingress canary has stopped reporting for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
           title: 'Ingress canary has stopped reporting for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})'
         }
-        expression: '(count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))'
+        expression: '(count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

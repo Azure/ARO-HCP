@@ -256,6 +256,24 @@ resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheus
   }
 }
 
+resource arohcpIngressHcpLivenessFilter 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_hcp_liveness_filter'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hostedClusterAPI_kubeapiserver_available:live'
+        expression: 'hostedClusterAPI_kubeapiserver_available{status="True"} unless on (_id) (hostedClusterAPI_deletion_timestamp_seconds > 0)'
+      }
+    ]
+  }
+}
+
 resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_ingress_availability_slo_recording_rules'
   location: location
