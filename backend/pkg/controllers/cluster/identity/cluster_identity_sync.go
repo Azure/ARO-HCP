@@ -43,6 +43,11 @@ type clusterIdentitySyncer struct {
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	// managedIdentitiesDataPlaneServiceAvailable. When true,the identity metadata
+	// is fetchdd from the MetadataFromManagedIdentitiesDataplaneService identity
+	// metadata source. When false, the real Managed Identities Data Plane is not
+	// available and the identity metadata is fetched from MetadataFromHardcodedIdentity.
+	managedIdentitiesDataPlaneServiceAvailable bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterIdentitySyncer)(nil)
@@ -61,14 +66,16 @@ func NewClusterIdentitySyncController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	managedIdentitiesDataPlaneServiceAvailable bool,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 
 	syncer := &clusterIdentitySyncer{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                              clusterLister,
+		serviceProviderClusterLister:               serviceProviderClusterLister,
+		resourcesDBClient:                          resourcesDBClient,
+		managedIdentitiesDataPlaneServiceAvailable: managedIdentitiesDataPlaneServiceAvailable,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -136,8 +143,7 @@ func (c *clusterIdentitySyncer) SyncOnce(ctx context.Context, key controllerutil
 	replacement := cachedCluster.DeepCopy()
 	c.updateIdentityUserAssignedIdentitiesFromServiceProviderCluster(
 		replacement.Identity.UserAssignedIdentities,
-		existingServiceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities,
-		existingServiceProviderCluster.Status.MSIManagedIdentities.ServiceManagedIdentity,
+		existingServiceProviderCluster.Status.ManagedIdentityDetails,
 	)
 
 	if equality.Semantic.DeepEqual(cachedCluster.Identity, replacement.Identity) {
@@ -167,30 +173,38 @@ func (c *clusterIdentitySyncer) SyncOnce(ctx context.Context, key controllerutil
 // previously resolved values are cleared rather than left stale.
 func (c *clusterIdentitySyncer) updateIdentityUserAssignedIdentitiesFromServiceProviderCluster(
 	identityUserAssignedIdentities map[string]*coreapi.UserAssignedIdentity,
-	serviceProviderClusterControlPlaneOperatorsIdentities map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity,
-	serviceProviderClusterServiceManagedIdentity *coreapi.ServiceProviderClusterServiceManagedIdentity,
+	managedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata,
 ) {
 	for identityResourceIDStr := range identityUserAssignedIdentities {
-		lowerResourceIDStr := strings.ToLower(identityResourceIDStr)
+		metadata := managedIdentityDetails[strings.ToLower(identityResourceIDStr)]
+		identityUserAssignedIdentities[identityResourceIDStr] = c.resolveUserAssignedIdentity(metadata)
+	}
+}
 
-		switch controlPlaneOperatorIdentity, ok := serviceProviderClusterControlPlaneOperatorsIdentities[lowerResourceIDStr]; {
-		// The identity is one of the ServiceProviderCluster control plane operator identities.
-		case ok && controlPlaneOperatorIdentity != nil:
-			identityUserAssignedIdentities[identityResourceIDStr] = &coreapi.UserAssignedIdentity{
-				ClientID:    controlPlaneOperatorIdentity.ClientID,
-				PrincipalID: controlPlaneOperatorIdentity.PrincipalID,
-			}
-		// The identity is the ServiceProviderCluster service managed identity.
-		case serviceProviderClusterServiceManagedIdentity != nil &&
-			serviceProviderClusterServiceManagedIdentity.ResourceID != nil &&
-			strings.ToLower(serviceProviderClusterServiceManagedIdentity.ResourceID.String()) == lowerResourceIDStr:
-			identityUserAssignedIdentities[identityResourceIDStr] = &coreapi.UserAssignedIdentity{
-				ClientID:    serviceProviderClusterServiceManagedIdentity.ClientID,
-				PrincipalID: serviceProviderClusterServiceManagedIdentity.PrincipalID,
-			}
-		// We have no resolved data for this identity yet, so set an empty value.
-		default:
-			identityUserAssignedIdentities[identityResourceIDStr] = &coreapi.UserAssignedIdentity{}
-		}
+// resolveUserAssignedIdentity picks ClientID/PrincipalID from the ARM or hardcoded metadata
+// source depending on managedIdentitiesDataPlaneServiceAvailable, returning an empty
+// UserAssignedIdentity when no matching source data is available so that any previously
+// resolved values are cleared rather than left stale.
+func (c *clusterIdentitySyncer) resolveUserAssignedIdentity(metadata *coreapi.ManagedIdentityMetadata) *coreapi.UserAssignedIdentity {
+	// If the metadata hasn't been set yet, we return an empty UserAssignedIdentity
+	if metadata == nil {
+		return &coreapi.UserAssignedIdentity{}
+	}
+
+	source := metadata.MetadataFromHardcodedIdentity
+	if c.managedIdentitiesDataPlaneServiceAvailable {
+		source = metadata.MetadataFromManagedIdentitiesDataplaneService
+	}
+
+	// If the metadata source has not been set yet we return an empty UserAssignedIdentity
+	if source == nil {
+		return &coreapi.UserAssignedIdentity{}
+	}
+
+	// If the metadata source has been set, we return the ClientID and PrincipalID from it. The values themselves
+	// might not be resolved yet, but we return them anyway so that any previously resolved values are cleared rather than left stale.
+	return &coreapi.UserAssignedIdentity{
+		ClientID:    source.ClientID,
+		PrincipalID: source.PrincipalID,
 	}
 }
