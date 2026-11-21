@@ -21,17 +21,35 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationv1client "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	"k8s.io/utils/set"
 )
 
-type verifyAllAPIServicesAvailableImpl struct{}
+// APIServicesAvailableTimeout bounds how long the verifier waits for every aggregated
+// APIService to report Available.
+//
+// HyperShift reports a HostedCluster as provisioned before the guest cluster's aggregated
+// API servers are serving. In particular v1beta1.metrics.k8s.io is backed by metrics-server
+// in openshift-monitoring, which only rolls out once the first worker nodes join, and the
+// kube-aggregator reports an x509 verification failure against that endpoint until
+// service-ca has issued its serving cert and the APIService caBundle has converged. That
+// window is routinely a couple of minutes on a freshly created cluster, so the verifier has
+// to tolerate it rather than fail a healthy-but-slow cluster.
+const APIServicesAvailableTimeout = 5 * time.Minute
+
+// apiServiceLister is the slice of the APIService client that checkOnce actually uses.
+// Depending on this rather than the full client keeps the per-attempt logic unit-testable
+// without the generated fake clientset, whose package is not vendored.
+type apiServiceLister interface {
+	List(ctx context.Context, opts metav1.ListOptions) (*apiregistrationv1.APIServiceList, error)
+}
+
+type verifyAllAPIServicesAvailableImpl struct {
+	timeout time.Duration
+}
 
 func (v verifyAllAPIServicesAvailableImpl) Name() string {
 	return "VerifyAllAPIServicesAvailable"
@@ -43,74 +61,52 @@ func (v verifyAllAPIServicesAvailableImpl) Verify(ctx context.Context, adminREST
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	retryCtx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, errors.New("API service retry timeout"))
-	defer cancel()
-
-	var lastErr error
-	verifyErr := wait.ExponentialBackoffWithContext(retryCtx, wait.Backoff{
-		Duration: 800 * time.Millisecond,
-		Factor:   2,
-		Jitter:   0.1,
-		Steps:    10,
-		Cap:      20 * time.Second,
-	}, func(ctx context.Context) (done bool, err error) {
-		allAPIServices, err := apiserviceClient.APIServices().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, fmt.Errorf("failed to list all APIServices: %w", err)
-		}
-
-		requiredAPIServices := set.New("v1.route.openshift.io")
-		foundAPIServices := set.Set[string]{}
-		unavailableAPIServices := []apiregistrationv1.APIService{}
-		for _, apiService := range allAPIServices.Items {
-			foundAPIServices.Insert(apiService.Name)
-			availableConditon := getAPIServiceCondition(apiService.Status.Conditions, "Available")
-			if availableConditon == nil {
-				unavailableAPIServices = append(unavailableAPIServices, apiService)
-				continue
-			}
-			if availableConditon.Status != "True" {
-				unavailableAPIServices = append(unavailableAPIServices, apiService)
-				continue
-			}
-		}
-		if len(unavailableAPIServices) != 0 {
-			failureReasonErrs := []error{}
-			for _, unavailableAPIService := range unavailableAPIServices {
-				availableCondition := getAPIServiceCondition(unavailableAPIService.Status.Conditions, "Available")
-				if availableCondition == nil {
-					failureReasonErrs = append(failureReasonErrs, fmt.Errorf("apiservice/%s is not available because it has no status", unavailableAPIService.Name))
-				} else {
-					failureReasonErrs = append(failureReasonErrs, fmt.Errorf("apiservice/%s is not available because: %v", unavailableAPIService.Name, availableCondition.Message))
-				}
-			}
-			ginkgo.GinkgoLogr.Info("APIServices not yet ready.", "errors", errors.Join(failureReasonErrs...))
-			lastErr = errors.Join(failureReasonErrs...)
-			return false, nil
-		}
-		if !foundAPIServices.HasAll(requiredAPIServices.UnsortedList()...) {
-			ginkgo.GinkgoLogr.Info("required apiservices are missing", "missing", strings.Join(requiredAPIServices.Difference(foundAPIServices).SortedList(), ", "))
-			lastErr = fmt.Errorf("required apiservices are missing: %v", strings.Join(requiredAPIServices.Difference(foundAPIServices).SortedList(), ", "))
-			return false, nil
-		}
-		return true, nil
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		return v.checkOnce(ctx, apiserviceClient.APIServices())
 	})
+}
 
-	if verifyErr == nil {
-		// even if we had an error at some point, the loop succeeded on the last run
-		return nil
-	}
-	if lastErr != nil {
-		// if the loop failed, and we have some specific error that caused it, return that so
-		// our consumers don't just get a "context deadline exceeded"
-		return lastErr
+func (v verifyAllAPIServicesAvailableImpl) checkOnce(ctx context.Context, apiServices apiServiceLister) error {
+	allAPIServices, err := apiServices.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list all APIServices: %w", err)
 	}
 
-	return verifyErr
+	requiredAPIServices := set.New("v1.route.openshift.io")
+	foundAPIServices := set.Set[string]{}
+	unavailableAPIServices := []apiregistrationv1.APIService{}
+	for _, apiService := range allAPIServices.Items {
+		foundAPIServices.Insert(apiService.Name)
+		availableConditon := getAPIServiceCondition(apiService.Status.Conditions, "Available")
+		if availableConditon == nil {
+			unavailableAPIServices = append(unavailableAPIServices, apiService)
+			continue
+		}
+		if availableConditon.Status != "True" {
+			unavailableAPIServices = append(unavailableAPIServices, apiService)
+			continue
+		}
+	}
+	if len(unavailableAPIServices) != 0 {
+		failureReasonErrs := []error{}
+		for _, unavailableAPIService := range unavailableAPIServices {
+			availableCondition := getAPIServiceCondition(unavailableAPIService.Status.Conditions, "Available")
+			if availableCondition == nil {
+				failureReasonErrs = append(failureReasonErrs, fmt.Errorf("apiservice/%s is not available because it has no status", unavailableAPIService.Name))
+			} else {
+				failureReasonErrs = append(failureReasonErrs, fmt.Errorf("apiservice/%s is not available because: %v", unavailableAPIService.Name, availableCondition.Message))
+			}
+		}
+		return errors.Join(failureReasonErrs...)
+	}
+	if !foundAPIServices.HasAll(requiredAPIServices.UnsortedList()...) {
+		return fmt.Errorf("required apiservices are missing: %v", strings.Join(requiredAPIServices.Difference(foundAPIServices).SortedList(), ", "))
+	}
+	return nil
 }
 
 func verifyAllAPIServicesAvailable() HostedClusterVerifier {
-	return verifyAllAPIServicesAvailableImpl{}
+	return verifyAllAPIServicesAvailableImpl{timeout: APIServicesAvailableTimeout}
 }
 
 func getAPIServiceCondition(conditions []apiregistrationv1.APIServiceCondition, name string) *apiregistrationv1.APIServiceCondition {
