@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -169,6 +170,8 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
+			activeVersionsClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
 			By("verifying control plane reached desired version and cluster remains viable")
 			convergenceStart := time.Now()
 			var convergenceErr error
@@ -176,11 +179,22 @@ var _ = Describe("Customer", func() {
 				tc.RecordTestOperation(timing.KindConvergence, "Verify control plane converged", convergenceStart, time.Now(), convergenceErr)
 			}()
 			Eventually(func() error {
-				convergenceErr = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						installVersionId,
-						upgradeVersionId))
+				// The guest-side check confirms the data plane observed the new version; the
+				// activeVersions check confirms the control plane itself finished rolling out,
+				// which a Partial guest CVO would otherwise mask. Both must pass.
+				convergenceErr = errors.Join(
+					verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+						verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
+						verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+							installVersionId,
+							upgradeVersionId)),
+					verifiers.VerifyClusterActiveVersionsSettledAtMinor(
+						ctx,
+						activeVersionsClient,
+						*resourceGroup.Name,
+						clusterName,
+						upgradeVersionId),
+				)
 				return convergenceErr
 			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 		},
