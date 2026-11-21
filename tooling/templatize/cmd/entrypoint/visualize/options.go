@@ -149,13 +149,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		var details ExecutionDetails
 		if item.Details != nil {
 			if item.Details.ARM != nil {
-				var ops []ARMOperation
-				for _, op := range item.Details.ARM.Operations {
-					parsed, err := operationFor(op)
-					if err != nil {
-						return nil, err
-					}
-					ops = append(ops, parsed)
+				ops, err := operationsFor(item.Details.ARM.Operations)
+				if err != nil {
+					return nil, err
 				}
 				details.ARM = ARMExecutionDetails{Operations: ops}
 			}
@@ -180,14 +176,38 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	}, nil
 }
 
-func operationFor(op pipeline.Operation) (ARMOperation, error) {
-	var children []ARMOperation
-	for _, child := range op.Children {
-		c, err := operationFor(child)
-		if err != nil {
-			return c, err
+// hasTiming reports whether ARM returned the start time and duration of the operation. ARM may omit them (the
+// operation is still recorded for its diagnostics), and such an operation cannot be placed on a timeline.
+func hasTiming(op pipeline.Operation) bool {
+	return op.StartTimestamp != "" && op.Duration != ""
+}
+
+// operationsFor converts operations for the timeline. An operation without timing cannot be placed on it, so its
+// timed descendants take its place.
+func operationsFor(ops []pipeline.Operation) ([]ARMOperation, error) {
+	var out []ARMOperation
+	for _, op := range ops {
+		if !hasTiming(op) {
+			lifted, err := operationsFor(op.Children)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, lifted...)
+			continue
 		}
-		children = append(children, c)
+		parsed, err := operationFor(op)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, parsed)
+	}
+	return out, nil
+}
+
+func operationFor(op pipeline.Operation) (ARMOperation, error) {
+	children, err := operationsFor(op.Children)
+	if err != nil {
+		return ARMOperation{}, err
 	}
 
 	startTime, err := time.Parse(time.RFC3339, op.StartTimestamp)

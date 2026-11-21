@@ -172,7 +172,7 @@ func TestOperationFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := operationFor(tt.item)
+			op, err := operationFor(tt.item, "")
 			if tt.wantErr {
 				require.Error(t, err)
 				return
