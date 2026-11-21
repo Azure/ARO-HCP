@@ -144,26 +144,6 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					Message:   "Required value",
-					FieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
-				},
-				{
-					Message:   "Invalid value: 0: must be greater than or equal to 1",
-					FieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
-				},
-				{
-					Message:   "Required value",
-					FieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
-				},
-				{
-					Message:   "Invalid value: 0: must be greater than or equal to 1",
-					FieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
-				},
-				{
-					Message:   "Required value",
-					FieldPath: "customerProperties.autoscaling.podPriorityThreshold",
-				},
-				{
-					Message:   "Required value",
 					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
 				},
 				{
