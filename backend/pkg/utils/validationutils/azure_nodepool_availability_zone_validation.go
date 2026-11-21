@@ -21,8 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // AzureNodePoolAvailabilityZoneValidation validates that a node pool requesting a specific

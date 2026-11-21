@@ -20,9 +20,9 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/azureresourcesapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 

@@ -22,11 +22,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 

@@ -21,8 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
