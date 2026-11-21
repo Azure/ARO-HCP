@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/dev-infrastructure/scripts/aks-cluster-create
 
-go 1.26.0
+go 1.26.10
 
 replace github.com/Azure/ARO-HCP/fleet => ../../../fleet
 

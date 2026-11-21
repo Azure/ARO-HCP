@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90

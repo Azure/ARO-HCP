@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/kube-applier
 
-go 1.26.0
+go 1.26.10
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
 
