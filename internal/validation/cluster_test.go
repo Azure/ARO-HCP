@@ -389,7 +389,7 @@ func TestClusterValidate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{
-					Message:   "supported values: \"fast\", \"stable\"",
+					Message:   "supported values: \"eus\", \"fast\", \"stable\"",
 					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},
@@ -466,6 +466,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "ChannelGroup eus is allowed without experimental flag",
+			resource: func() *coreapi.Cluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "eus"
+				return r
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "Version must be at least 4.20 without experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
@@ -495,7 +504,7 @@ func TestClusterValidate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{
-					Message:   "supported values: \"fast\", \"stable\"",
+					Message:   "supported values: \"eus\", \"fast\", \"stable\"",
 					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},
@@ -588,7 +597,7 @@ func TestClusterValidate(t *testing.T) {
 			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{
 				{
-					Message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
+					Message:   "supported values: \"candidate\", \"eus\", \"fast\", \"nightly\", \"stable\"",
 					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},

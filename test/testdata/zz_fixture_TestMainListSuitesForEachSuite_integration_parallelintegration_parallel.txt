@@ -7,6 +7,7 @@ Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
 Customer should downgrade a nodepool to a lower minor version from 4.22.zLatest to 4.20.zLatest
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should create a fully private cluster with private KAS and private ingress and verify both are only reachable from VNet
+ARO-HCP should perform a control plane and node pool install on the OCP eus channel
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.0
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.1
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.21

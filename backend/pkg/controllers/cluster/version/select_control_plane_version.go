@@ -27,16 +27,19 @@ import (
 // stableChannelGroup is the OpenShift channel group of generally-available stable releases.
 const stableChannelGroup = "stable"
 
+// eusChannelGroup is the OpenShift channel group of generally-available extended-update-support releases.
+const eusChannelGroup = "eus"
+
 // defaultControlPlaneVersionOffset is the offset from the tip of a channel used when selecting a
 // desired control plane version. Offset 0 selects the most recent (tip) release in the channel.
 const defaultControlPlaneVersionOffset uint = 0
 
 // GetZStreamOffset returns the offset from the tip of a channel to use when selecting a z-stream
-// control plane version (offset 0 = the most recent release). The stable channel group uses the
-// penultimate release (offset 1) to avoid selecting a brand-new stable z-stream immediately; all
+// control plane version (offset 0 = the most recent release). The stable and eus channel groups use
+// the penultimate release (offset 1) to avoid selecting a brand-new z-stream immediately; all
 // other channel groups use the tip.
 func GetZStreamOffset(channel string) uint {
-	if channel == stableChannelGroup {
+	if channel == stableChannelGroup || channel == eusChannelGroup {
 		return 1
 	}
 	return defaultControlPlaneVersionOffset

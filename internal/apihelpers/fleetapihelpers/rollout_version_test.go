@@ -24,7 +24,7 @@ import (
 )
 
 func TestRolloutVersionFromName(t *testing.T) {
-	for _, group := range []string{"stable", "fast", "candidate", "nightly"} {
+	for _, group := range []string{"stable", "fast", "eus", "candidate", "nightly"} {
 		profile, err := RolloutVersionFromName(group + "-4.21")
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(coreapi.VersionProfile{ID: "4.21", ChannelGroup: group}, profile))

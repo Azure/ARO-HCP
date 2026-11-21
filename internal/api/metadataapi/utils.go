@@ -51,6 +51,7 @@ var AllowControlPlaneNodePoolMajorVersionSkew = map[string][]string{
 const (
 	ChannelGroupStable    = "stable"
 	ChannelGroupFast      = "fast"
+	ChannelGroupEus       = "eus"
 	ChannelGroupCandidate = "candidate"
 	// ChannelGroupNightly builds are published to the CI releasestream API rather
 	// than the Cincinnati graph API used for version selection, so a nightly
@@ -61,10 +62,10 @@ const (
 )
 
 // AllowedChannelGroups is the set ARO-HCP allows to use for customer purposes
-var AllowedChannelGroups = sets.New(ChannelGroupStable, ChannelGroupFast)
+var AllowedChannelGroups = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupEus)
 
 // AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
-var AllowedChannelGroupsWithExperimentalFlag = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupCandidate, ChannelGroupNightly)
+var AllowedChannelGroupsWithExperimentalFlag = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupEus, ChannelGroupCandidate, ChannelGroupNightly)
 
 // GetMinorOpenShiftVersion extracts the minor version (x.y) from a full OpenShift version string.
 func GetMinorOpenShiftVersion(v string) (string, error) {
