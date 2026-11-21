@@ -1,10 +1,10 @@
 digraph cluster_convergence {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster create · observed convergence and ARM completion", dpi=110];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.3", ranksep="0.4", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster create · observed convergence and ARM completion", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   cs [label="Cluster Service\nconfirmed cluster ID", fillcolor="#fff0da", color="#b27624"];
   place [label="ManagementClusterPlacementSync", fillcolor="#e6f0fa", color="#35648a"];
-  resources [label="ClusterResources\nalways stamp ingress defaultCertificate\nlegacy suppression: unconditional names\nexisting legacy desires retained; see ingress panel", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources\nalways stamp ingress defaultCertificate\nlegacy suppression: unconditional names\nowned legacy desires deleted; see ingress panel", fillcolor="#e6f0fa", color="#35648a"];
   ingress [label="IngressServingCertificateK8sResources\nALL: CS ID + observed cert + placement + namespace\nservice tenant + fleet vault/identity", fillcolor="#e6f0fa", color="#35648a"];
   certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\nbackend identity: read-only Key Vault GETs\n(fresh client per call), independent per cert\nPendingReference -> AzureReference\ncertificate exists; operation completed or 404", fillcolor="#e6f0fa", color="#35648a"];
   read [label="CreateClusterScopedReadDesires", fillcolor="#e6f0fa", color="#35648a"];
@@ -18,6 +18,8 @@ digraph cluster_convergence {
   azure [label="Azure role assignments\nconfirmed group + resolved identities", fillcolor="#fff0da", color="#b27624"];
   validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterCreate", fillcolor="#e6f0fa", color="#35648a"];
+  federation [label="Data-plane OIDC federation panel\nall required operator targets ensured\nlast observation, not live Azure health", fillcolor="#e4f2e5", color="#4c8053"];
+  federation -> op [label="matching ensured identity; not draining\nAND all other completion observations"];
   done [label="ARM operation Succeeded\nActiveOperationID cleared", fillcolor="#e4f2e5", color="#4c8053"];
   uid [label="Frontend PUT Cluster\nadmission-generated ClusterUID", fillcolor="#eee7fb", color="#7b59a4"];
   billing [label="CreateBillingDoc", fillcolor="#e6f0fa", color="#35648a"];
@@ -44,20 +46,22 @@ digraph cluster_convergence {
   selected -> op [label="placement completion"];
   cs -> op [label="Cluster Service state"];
   mirror -> op [label="HostedCluster endpoint +\nIngressDefaultCertificateSynced = True;\navailability / history: qualifying versions only"];
-  mirror -> op [label="ingress SecretSync ReadDesire:\nobserved + SecretCreated condition True"];
+  mirror -> op [label="ingress SecretSync: successful ReadDesire observation\n+ nonzero lastSuccessfulSyncTime\ninitial milestone; later condition failures do not undo it"];
   props -> op [label="serving CA populated"];
   armprops -> op [label="API endpoint populated"];
   role -> azure [label="GET / create missing"];
   role -> op [label="confirmed nonempty; none\npending"];
   certificates -> op [label="KAS + ingress\nAzureReference non-nil"];
-  validation -> op [label="non-True (False / Unknown): InvalidResource;\nages >= 10m + fresh probe: Failed;\nprobe absent: legacy age-only; stale: wait;\nall True: ready"];
+  validation -> op [label="non-True (False / Unknown): InvalidResource;\nboth nonzero ages >= 10m: Failed;\notherwise pending; no probe-freshness gate;\nall True or empty list: ready"];
   op -> done [label="all completion checks\nsatisfied"];
   failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];
-  op -> failed [label="validation non-True + both ages >= 10m;\nprobe absent or nonzero age <= 8m;\nnonzero timestamps: InvalidResource"];
-  op -> failed [label="pending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
+  op -> failed [label="validation non-True + both ages >= 10m;\nnonzero condition + operation timestamps;\nInvalidResource; no additional freshness gate"];
+  op -> failed [label="pending / observation error past deadline: fail;\nfully observed terminal result wins; see deadline table"];
   done -> billing [label="Succeeded; billing reference\nmissing"];
   uid -> billing [label="ClusterUID available"];
   azure -> role [label="created stays pending until\nGET confirms", style=dashed, color="#857456", constraint=false];
-  op -> op [label="pending: observe again", style=dashed, color="#857456", constraint=false];
+  pending [label="Pending observations\nnext operation reconcile", fillcolor="#e4f2e5", color="#4c8053"];
+  op -> pending [label="nonterminal result", style=dashed, color="#857456"];
+  pending:n -> op:sw [style=dashed, color="#857456", constraint=false];
   resources -> resources [label="30s resync / subscribed events\nprocess manifests each pass\ncache is not a cooldown; no desire watch", style=dashed, color="#857456", constraint=false];
 }
