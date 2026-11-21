@@ -16,6 +16,7 @@ package gatherobservability
 
 import (
 	"encoding/xml"
+	"strings"
 	"testing"
 	"time"
 
@@ -254,6 +255,85 @@ func TestComputeGroupDuration(t *testing.T) {
 	}
 }
 
+func TestRenderFirings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		firings []alert
+		want    string
+	}{
+		{
+			name: "resolved with expression and annotations",
+			firings: []alert{{Alert: alertData{
+				Condition: "Resolved", Severity: armalertsmanagement.SeveritySev3,
+				StartsAt: mustTime("2026-04-13T07:00:00Z"), EndsAt: mustTime("2026-04-13T07:12:34Z"),
+				Labels:      map[string]string{"pod": "frontend-abc123", "namespace": "aro-hcp"},
+				Description: "Azure alert description",
+				Expression:  `sum(up{namespace="aro-hcp"}) < 1`,
+				Annotations: map[string]string{
+					"description": "No healthy targets\nCheck the deployment.",
+					"summary":     "Scrape targets unavailable",
+					"runbook_url": "https://example.com/runbook?alert=down&env=test",
+				},
+			}}},
+			want: `Firing 1:
+  State:       Resolved
+  Duration:    12m34s
+  Started:     2026-04-13T07:00:00Z
+  Ended:       2026-04-13T07:12:34Z
+  Severity:    Sev3
+  Labels:      namespace="aro-hcp", pod="frontend-abc123"
+  Description: Azure alert description
+  Expression:  sum(up{namespace="aro-hcp"}) < 1
+  Annotation description: No healthy targets
+Check the deployment.
+  Summary:     Scrape targets unavailable
+  Runbook URL: https://example.com/runbook?alert=down&env=test
+`,
+		},
+		{
+			name: "still firing without optional fields",
+			firings: []alert{{Alert: alertData{
+				Condition: "Fired", Severity: armalertsmanagement.SeveritySev3,
+				StartsAt: mustTime("2026-04-13T09:00:00+02:00"),
+			}}},
+			want: `Firing 1:
+  State:       Fired (not resolved) [STILL FIRING]
+  Duration:    still firing
+  Started:     2026-04-13T07:00:00Z
+  Ended:       still firing
+  Severity:    Sev3
+`,
+		},
+		{
+			name: "resolved without start time",
+			firings: []alert{{Alert: alertData{
+				Condition: "Resolved", Severity: armalertsmanagement.SeveritySev3,
+				EndsAt: mustTime("2026-04-13T07:12:34Z"),
+			}}},
+			want: `Firing 1:
+  State:       Resolved
+  Duration:    unknown (missing start time)
+  Ended:       2026-04-13T07:12:34Z
+  Severity:    Sev3
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := renderFirings("", tt.firings); got != tt.want {
+				t.Errorf("renderFirings() =\n%s\nwant:\n%s", got, tt.want)
+			}
+			firings := append(append([]alert{}, tt.firings...), tt.firings...)
+			want := "Unknown alerts\n" + tt.want + strings.Replace(tt.want, "Firing 1:", "Firing 2:", 1)
+			if got := renderFirings("Unknown alerts", firings); got != want {
+				t.Errorf("renderFirings() with multiple firings =\n%s\nwant:\n%s", got, want)
+			}
+		})
+	}
+}
+
 func TestAlertsToJUnit(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -293,8 +373,14 @@ func TestAlertsToJUnit(t *testing.T) {
 						{
 							Alert: alertData{
 								Name: "KubePodImagePull", Severity: armalertsmanagement.SeveritySev4, Condition: "Fired",
-								StartsAt: mustTime("2026-04-13T07:00:00Z"),
-								Labels:   map[string]string{"alertname": "KubePodImagePull", "severity": "warning", "cluster": "prow-j3151872-svc", "pod": "frontend-abc123", "namespace": "aro-hcp"},
+								StartsAt:   mustTime("2026-04-13T07:00:00Z"),
+								Labels:     map[string]string{"alertname": "KubePodImagePull", "severity": "warning", "cluster": "prow-j3151872-svc", "pod": "frontend-abc123", "namespace": "aro-hcp"},
+								Expression: `kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} > 0`,
+								Annotations: map[string]string{
+									"description": "Pod frontend-abc123 cannot pull its image",
+									"summary":     "Pod image pull is failing",
+									"runbook_url": "https://example.com/runbooks/KubePodImagePull",
+								},
 							},
 						},
 					},
