@@ -1,0 +1,15 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if gt (len .ManagementClusterNames) 0 }}
+| where cluster in ({{ range $i, $c := .ManagementClusterNames }}{{ if $i }}, {{ end }}'{{ $c }}'{{ end }})
+{{- end }}
+| where objectKind == 'VolumeSnapshotLocation'
+| where namespace == 'velero'
+| extend
+    location = name,
+    provider = tostring(object.spec.provider),
+    config = object.spec.config,
+    phase = tostring(object.status.phase)
+| extend isHealthy = phase == 'Available'
+| project timestamp, event, cluster, location, provider, config, phase, isHealthy
+| order by timestamp asc
