@@ -27,6 +27,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
+	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
@@ -37,6 +39,7 @@ import (
 	nodepoolstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/status"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -87,6 +90,9 @@ type interestBackendInformers struct {
 
 func (i *interestBackendInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
 	return i.sources["cluster"], i.clusters
+}
+func (i *interestBackendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
+	return i.sources["subscription"], nil
 }
 func (i *interestBackendInformers) NodePools() (cache.SharedIndexInformer, corelisters.NodePoolLister) {
 	return i.sources["nodepool"], i.nodePools
@@ -172,6 +178,31 @@ func TestControllerResourceInterests(t *testing.T) {
 		newController constructor
 		events        []event
 	}{
+		{
+			name: "CS creation watches node-pool egress public IP stack without mock FPA",
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clustercreation.NewClusterClusterServiceCreateController(db, nil, nil, inf, azureResources, false, false)
+			},
+			events: []event{
+				{"stack", "/azureDeploymentStackDesires/" + azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName, true},
+				{"stack", "/azureDeploymentStackDesires/" + azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName, false},
+				{"stack", "/nodePools/np/azureDeploymentStackDesires/" + azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName, false},
+				{"spc", "/serviceProviderClusters/default", true},
+			},
+		},
+		{
+			name: "node-pool egress public IPs watch their stack and cluster prerequisites",
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clusterazureresources.NewNodePoolEgressPublicIPsController(db, nil, inf, azureResources, nil)
+			},
+			events: []event{
+				{"stack", "/azureDeploymentStackDesires/" + azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName, true},
+				{"stack", "/azureDeploymentStackDesires/unrelated", false},
+				{"stack", "/nodePools/np/azureDeploymentStackDesires/" + azureresourcesapi.NodePoolEgressPublicIPsDeploymentStackDesireName, false},
+				{"spc", "/serviceProviderClusters/default", true},
+				{"spc", "/serviceProviderClusters/unrelated", false},
+			},
+		},
 		{
 			name: "cluster properties read only the HostedCluster mirror",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
@@ -330,7 +361,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		for _, mode := range []string{"add", "update", "resync", "delete", "tombstone"} {
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				sources := map[string]*interestInformer{}
-				for _, name := range []string{"cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation", "stack"} {
+				for _, name := range []string{"cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation", "stack", "subscription"} {
 					sources[name] = &interestInformer{}
 				}
 				observed := make(chan string, len(tc.events)+1)

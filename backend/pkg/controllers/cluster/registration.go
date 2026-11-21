@@ -293,6 +293,23 @@ func instantiateSystemAdminCredentialRevocationDeletionController(controllerCont
 	), nil
 }
 
+func registerNodePoolEgressPublicIPsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateNodePoolEgressPublicIPsController, false),
+	}
+}
+
+func instantiateNodePoolEgressPublicIPsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterazureresources.NewNodePoolEgressPublicIPsController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
+		controllerContext.ClustersServiceClient,
+	), nil
+}
+
 func registerClusterDenyAssignmentController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -362,6 +379,7 @@ func instantiateOperationClusterCreateController(controllerContext controllercon
 		activeOperationInformer,
 		controllerContext.BackendInformers,
 		unionReadDesireLister,
+		controllerContext.AzureResourcesInformers,
 	), nil
 }
 
@@ -1440,6 +1458,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
 	registry[strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)] = registerOrphanedManagedResourceGroupWatchingController()
 	registry[strings.ToLower(clusterazureresources.ManagedResourceGroupControllerName)] = registerEnsureManagedResourceGroupController()
+	registry[strings.ToLower(clusterazureresources.NodePoolEgressPublicIPsControllerName)] = registerNodePoolEgressPublicIPsController()
 	registry[strings.ToLower(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName)] = registerClusterDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(clusterdeletion.ClusterDeletionClusterServiceIDClearerControllerName)] = registerClusterClusterServiceIDClearerController()
 	registry[strings.ToLower(clusterdeletion.ClusterCredentialDeletionMarkerControllerControllerName)] = registerClusterCredentialDeletionMarkerController()
