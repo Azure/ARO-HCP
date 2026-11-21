@@ -42,7 +42,7 @@ import (
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
-	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	clusterstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/status"
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
@@ -361,7 +361,9 @@ func instantiateOperationClusterCreateController(controllerContext controllercon
 		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		unionReadDesireLister,
+		!controllerContext.HasRealFPA,
 	), nil
 }
 
@@ -1148,25 +1150,39 @@ func instantiateDataPlaneWorkloadsOIDCFederationController(controllerContext con
 	), nil
 }
 
-func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
+func registerClusterRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateIdentityRoleAssignmentsController, true),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterRoleAssignmentsController, true),
 	}
 }
 
-func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
-	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	return clusterroleassignments.NewRoleAssignmentsController(
+func instantiateClusterRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return roleassignments.NewClusterRoleAssignmentsController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
+		!controllerContext.HasRealFPA,
+	), nil
+}
+
+func registerClusterRoleAssignmentsIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterRoleAssignmentsIntentController, true),
+	}
+}
+
+func instantiateClusterRoleAssignmentsIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return roleassignments.NewClusterRoleAssignmentsIntentController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
-		serviceProviderClusterLister,
-		subscriptionLister,
-		controllerContext.FPAClientBuilder,
-		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.BackendInformers,
-		controllerContext.UnionKubeApplierInformers,
+		controllerContext.AzureResourcesInformers,
+		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
 	), nil
 }
 
@@ -1459,7 +1475,8 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
-	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(roleassignments.ClusterRoleAssignmentsControllerName)] = registerClusterRoleAssignmentsController()
+	registry[strings.ToLower(roleassignments.ClusterRoleAssignmentsIntentControllerName)] = registerClusterRoleAssignmentsIntentController()
 	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsIntentControllerName)] = registerMockFPARoleAssignmentIntentController()
 	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsControllerName)] = registerMockFPARoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()

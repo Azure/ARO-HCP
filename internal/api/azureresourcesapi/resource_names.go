@@ -22,4 +22,10 @@ const (
 	// MockFPARoleAssignmentsDeploymentStackDesireName identifies the mock First Party Application
 	// Owner role assignment intent as a cluster-scoped DeploymentStackDesire.
 	MockFPARoleAssignmentsDeploymentStackDesireName = "mock-fpa-role-assignments-over-mrg"
+
+	// RoleAssignmentsDeploymentStackDesireName identifies the cluster-scoped deployment stack desire for the role
+	// assignments over the managed resource group of the cluster. The role assignments here do not include the
+	// Mock First Party Application role assignments over the managed resource group of the cluster. Those belong in
+	// MockFPARoleAssignmentsDeploymentStackDesireName.
+	RoleAssignmentsDeploymentStackDesireName = "role-assignments-over-mrg"
 )
