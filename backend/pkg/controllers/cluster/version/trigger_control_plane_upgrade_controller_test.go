@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
@@ -346,25 +348,82 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	deletingCluster := clusterInCache()
+	deletingCluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.NewTime(now))
+	csDeletingCluster := clusterInCache()
+	csDeletingCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = ptr.To(metav1.NewTime(now))
+	uninstallingCluster := clusterInCache()
+	uninstallingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
+	previouslyObservedSPC := spcInCache("4.19.15", "4.19.22")
+	previouslyObservedSPC.Status.Conditions = []metav1.Condition{{
+		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionTrue,
+		Reason: "Active", Message: "Cluster is not deleting or uninstalling.",
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+	}}
+	recoveringSPC := spcInCache("4.19.15", "4.19.22")
+	recoveringSPC.Status.Conditions = []metav1.Condition{{
+		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionFalse,
+		Reason: "Uninstalling", LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+	}}
+	initializingSPC := spcInCache("4.19.15", "4.19.22")
+	initializingSPC.Status.ControlPlaneVersion.ActiveVersions = nil
+	unselectedSPC := spcInCache("4.19.15", "4.19.22")
+	unselectedSPC.Spec.ControlPlaneVersion.DesiredVersion = nil
+	invalidVersionSPC := spcInCache("4.19.15", "4.19.22")
+	invalidVersionSPC.Status.ControlPlaneVersion.ActiveVersions[0].Version = nil
 
 	tests := []struct {
-		name      string
-		clusters  []*coreapi.Cluster
-		spcs      []*coreapi.ServiceProviderCluster
-		mockSetup func(*ocm.MockClusterServiceClientSpec)
+		name         string
+		clusters     []*coreapi.Cluster
+		spcs         []*coreapi.ServiceProviderCluster
+		mockSetup    func(*ocm.MockClusterServiceClientSpec)
+		csState      arohcpv1alpha1.ClusterState
+		csError      error
+		wantError    string
+		disabled     bool
+		missingState bool
+		nilStatus    bool
+		unobserved   bool
+		repeat       bool
+		probe        bool
 	}{
 		{
 			name:      "cluster absent from cache returns nil",
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
 		},
 		{
-			name:      "desired version matches latest active version returns nil",
-			clusters:  []*coreapi.Cluster{clusterInCache()},
-			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.15")},
-			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
+			name:       "initializing cluster does not probe CS",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{initializingSPC},
+			unobserved: true,
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
 		},
 		{
-			name:     "desired version differs from active version triggers upgrade policy from cached cluster read",
+			name:       "cluster with no desired target does not probe CS",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{unselectedSPC},
+			unobserved: true,
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:       "missing active version fails before any CS request",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{invalidVersionSPC},
+			unobserved: true,
+			wantError:  "latest active control plane version is missing",
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:       "desired version matches latest active version returns nil",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.15")},
+			mockSetup:  func(mc *ocm.MockClusterServiceClientSpec) {},
+			repeat:     true,
+			unobserved: true,
+		},
+		{
+			name:  "desired version differs from active version triggers upgrade policy from cached cluster read",
+			probe: true, unobserved: true,
 			clusters: []*coreapi.Cluster{clusterInCache()},
 			spcs:     []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
@@ -377,6 +436,96 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 		},
+		{
+			name:      "RP deletion disables monitoring without calling CS",
+			clusters:  []*coreapi.Cluster{deletingCluster},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:      "CS deletion timestamp disables without a CS probe",
+			clusters:  []*coreapi.Cluster{csDeletingCluster},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:      "CS uninstalling blocks dispatch without an RP deletion timestamp",
+			probe:     true,
+			clusters:  []*coreapi.Cluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			csState:   arohcpv1alpha1.ClusterStateUninstalling,
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:       "converged cluster with no observation neither probes nor writes",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{spcInCache("4.19.22", "4.19.22")},
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
+			unobserved: true,
+			repeat:     true,
+		},
+		{
+			name:      "durable uninstallation observation is rechecked before dispatch",
+			clusters:  []*coreapi.Cluster{uninstallingCluster},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+			csState:   arohcpv1alpha1.ClusterStateUninstalling,
+			probe:     true,
+		},
+		{
+			name:     "a later healthy dispatch candidate recovers a spurious uninstallation observation",
+			clusters: []*coreapi.Cluster{uninstallingCluster.DeepCopy()},
+			spcs:     []*coreapi.ServiceProviderCluster{recoveringSPC},
+			probe:    true,
+			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
+				mc.EXPECT().ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
+					Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator(nil, nil))
+				builder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.22")
+				mc.EXPECT().PostControlPlaneUpgradePolicy(gomock.Any(), testClusterServiceID, builder).
+					Return(metadataapi.Must(builder.Build()), nil)
+			},
+		},
+		{
+			name:      "CS lookup failure blocks dispatch and preserves the previous observation",
+			probe:     true,
+			clusters:  []*coreapi.Cluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{previouslyObservedSPC},
+			csError:   errors.New("CS unavailable"),
+			wantError: "failed to observe cluster lifecycle before upgrade",
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:       "CS lookup failure before observation does not publish recovery",
+			probe:      true,
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			csError:    errors.New("CS unavailable"),
+			wantError:  "failed to observe cluster lifecycle before upgrade",
+			unobserved: true,
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:     "nil CS status blocks a dispatch candidate",
+			clusters: []*coreapi.Cluster{clusterInCache()},
+			spcs:     []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			probe:    true, nilStatus: true, unobserved: true,
+			wantError: "cluster service returned no cluster lifecycle state",
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:         "missing CS lifecycle state blocks dispatch",
+			probe:        true,
+			clusters:     []*coreapi.Cluster{clusterInCache()},
+			spcs:         []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			missingState: true,
+			wantError:    "cluster service returned no cluster lifecycle state",
+			unobserved:   true,
+			mockSetup:    func(*ocm.MockClusterServiceClientSpec) {},
+		},
 	}
 
 	for _, tt := range tests {
@@ -388,21 +537,105 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
+			if tt.probe {
+				if tt.csError != nil {
+					mockClusterServiceClient.EXPECT().GetClusterStatus(gomock.Any(), testClusterServiceID).Return(nil, tt.csError)
+				} else {
+					state := tt.csState
+					if state == "" {
+						state = arohcpv1alpha1.ClusterStateReady
+					}
+					builder := arohcpv1alpha1.NewClusterStatus()
+					if !tt.missingState {
+						builder.State(state)
+					}
+					csStatus := metadataapi.Must(builder.Build())
+					if tt.nilStatus {
+						csStatus = nil
+					}
+					calls := 1
+					if tt.repeat {
+						calls = 2
+					}
+					readContext := gomock.Cond[context.Context](func(ctx context.Context) bool {
+						deadline, ok := ctx.Deadline()
+						remaining := time.Until(deadline)
+						return ok && remaining > controllerutils.CSReadTimeout-time.Second && remaining <= controllerutils.CSReadTimeout
+					})
+					mockClusterServiceClient.EXPECT().GetClusterStatus(readContext, testClusterServiceID).Return(csStatus, nil).Times(calls)
+				}
+			}
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			if tt.csState == arohcpv1alpha1.ClusterStateUninstalling || (len(tt.clusters) > 0 && tt.clusters[0].ServiceProviderProperties.ClusterServiceUninstallingObserved) {
+				tt.clusters[0].PartitionKey = testSubscriptionID
+				created, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, tt.clusters[0], nil)
+				require.NoError(t, err)
+				tt.clusters[0] = created
+			}
+			for i, spc := range tt.spcs {
+				spc.PartitionKey = testSubscriptionID
+				created, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
+				require.NoError(t, err)
+				tt.spcs[i] = created
+			}
 
+			spcLister := &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs}
+			clock := clocktesting.NewFakeClock(now)
 			syncer := &triggerControlPlaneUpgradeSyncer{
-				clock:                        clocktesting.NewFakePassiveClock(now),
+				clock:                        clock,
+				resourcesDBClient:            db,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: tt.clusters},
 				clusterServiceClient:         mockClusterServiceClient,
 				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs},
+				serviceProviderClusterLister: spcLister,
 			}
 
-			err := syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+			key := controllerutils.HCPClusterKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
-			})
-			assertSyncResult(t, err, false, "")
+			}
+			err := syncer.SyncOnce(ctx, key)
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.csState == arohcpv1alpha1.ClusterStateUninstalling || (len(tt.clusters) > 0 && tt.clusters[0].ServiceProviderProperties.ClusterServiceUninstallingObserved) {
+				parent, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.Equal(t, tt.csState == arohcpv1alpha1.ClusterStateUninstalling, parent.ServiceProviderProperties.ClusterServiceUninstallingObserved, "persist the latest dispatch-path observation")
+			}
+			if len(tt.spcs) > 0 {
+				stored, getErr := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, getErr)
+				condition := apimeta.FindStatusCondition(stored.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled)
+				if tt.unobserved {
+					require.Nil(t, condition, "an unsuccessful first observation must not enable or disable monitoring")
+				} else {
+					require.NotNil(t, condition)
+					wantStatus := metav1.ConditionTrue
+					if tt.disabled {
+						wantStatus = metav1.ConditionFalse
+					}
+					require.Equal(t, wantStatus, condition.Status)
+				}
+				if tt.csError != nil && !tt.unobserved {
+					previous := previouslyObservedSPC.Status.Conditions[0]
+					require.Equal(t, previous.Reason, condition.Reason)
+					require.Equal(t, previous.Message, condition.Message)
+					require.True(t, previous.LastTransitionTime.Equal(&condition.LastTransitionTime), "failed lifecycle reads must preserve the observation timestamp")
+				}
+				if tt.repeat {
+					firstETag := stored.CosmosETag
+					spcLister.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{stored}
+					clock.Step(time.Minute)
+					require.NoError(t, syncer.SyncOnce(ctx, key))
+					again, getErr := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, getErr)
+					require.Equal(t, firstETag, again.CosmosETag, "unchanged lifecycle observations must not rewrite Cosmos")
+				}
+			}
 		})
 	}
 }
