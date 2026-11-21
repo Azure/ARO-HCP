@@ -132,7 +132,10 @@ func TestRolloutConditionalSoftDelete(t *testing.T) {
 				var deleted GenericDocument[map[string]interface{}]
 				require.NoError(t, json.Unmarshal(stored, &deleted))
 				require.NotNil(t, deleted.DeletionTimestamp)
-				require.WithinDuration(t, time.Now(), deleted.DeletionTimestamp.Time, time.Second)
+				// metav1.Time serializes at second precision (RFC3339), so the
+				// stored timestamp is floored and can trail time.Now() by up to a
+				// full second; allow for that truncation plus execution slack.
+				require.WithinDuration(t, time.Now(), deleted.DeletionTimestamp.Time, 2*time.Second)
 				require.EqualValues(t, SoftDeleteTTLSeconds, deleted.TimeToLive)
 				require.Equal(t, float64(4), deleted.Content["cosmosMetadata"].(map[string]interface{})["instanceVersion"])
 			} else {
