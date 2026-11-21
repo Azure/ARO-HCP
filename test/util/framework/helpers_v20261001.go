@@ -344,6 +344,11 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20261001(
 	imageDigestMirrors []*hcpsdk20261001.ImageDigestMirror,
 	timeout time.Duration,
 ) (operationErr error) {
+	// Pace the creation start before the per-call timeout is armed, so the
+	// wait consumes the spec's budget rather than ClusterCreationTimeout.
+	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, parameters.ClusterName); err != nil {
+		return err
+	}
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20261001FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
@@ -536,6 +541,15 @@ func CreateHCPClusterAndWait20261001(
 	cluster hcpsdk20261001.HcpOpenShiftCluster,
 	timeout time.Duration,
 ) (createdCluster *hcpsdk20261001.HcpOpenShiftCluster, operationErr error) {
+	// Pace the creation start before the per-call timeout is armed (a no-op
+	// when a CreateHCPClusterFromParam wrapper already paced this cluster).
+	//
+	// Admission runs before the timing recorder starts: the pacing wait is
+	// test-framework delay, not part of the operation, so it must not inflate
+	// the recorded creation timings.
+	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, hcpClusterName); err != nil {
+		return nil, err
+	}
 	recorder := beginOperation()
 	startTime := time.Now()
 	defer func() {
