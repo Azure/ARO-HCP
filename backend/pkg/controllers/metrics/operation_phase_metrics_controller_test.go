@@ -575,7 +575,7 @@ func TestOperationPhaseMetricsHandler_DeleteClearsSoleOperation(t *testing.T) {
 // documents the design decision that multiple operations of DIFFERENT types
 // sharing one ARM resource id coexist as independent Prometheus series. The
 // handler emits one series per (resource_id, operation_type) combination;
-// only operations of the SAME type collapse (last-emitted-labels-win).
+// only operations of the SAME type collapse to the newest retained attempt.
 //
 // This ensures that e.g. a completed "create" operation does not clobber
 // an in-flight "delete" operation's metrics on informer relists, which
@@ -612,7 +612,7 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 
 // TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries
 // verifies that multiple operations of the SAME type on one ARM resource
-// still collapse: the last-processed operation's labels win.
+// still collapse to the newest retained attempt.
 func TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
@@ -625,13 +625,133 @@ func TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries(t *t
 	handler.Sync(context.Background(), op1)
 	handler.Sync(context.Background(), op2)
 
-	// Only op2's labels remain (same operation_type, last writer wins).
+	// Only op2's labels remain (same operation_type, newest attempt wins).
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+}
+
+func requireOperationMetrics(t *testing.T, reg *prometheus.Registry, op *coreapi.Operation) {
+	t.Helper()
+
+	labels := fmt.Sprintf(`operation_type="%s",phase="%s",resource_id="%s",resource_type="%s",subscription_id="%s"`,
+		operationTypeMetricLabel(op.Request), phaseMetricLabel(op.Status), resourceIDMetricLabel(op.ExternalID),
+		resourceIDToTypeMetricLabel(op.ExternalID), subscriptionIDMetricLabel(op.ExternalID))
+	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
+# TYPE backend_resource_operation_phase_info gauge
+backend_resource_operation_phase_info{%s} 1
+# HELP backend_resource_operation_last_transition_time_seconds Unix timestamp when the operation last changed phase.
+# TYPE backend_resource_operation_last_transition_time_seconds gauge
+backend_resource_operation_last_transition_time_seconds{%s} %d
+`, labels, labels, op.LastTransitionTime.Unix())
+	if !op.StartTime.IsZero() {
+		expected += fmt.Sprintf(`# HELP backend_resource_operation_start_time_seconds Unix timestamp when the operation started.
+# TYPE backend_resource_operation_start_time_seconds gauge
+backend_resource_operation_start_time_seconds{%s} %d
+`, labels, op.StartTime.Unix())
+	}
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_phase_info", "backend_resource_operation_start_time_seconds",
+		"backend_resource_operation_last_transition_time_seconds"))
+}
+
+func TestOperationPhaseMetricsHandler_NewestOperationWinsRegardlessOfSyncOrder(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+	for _, request := range []coreapi.OperationRequest{coreapi.OperationRequestCreate, coreapi.OperationRequestUpdate, coreapi.OperationRequestDelete} {
+		t.Run(string(request), func(t *testing.T) {
+			for _, order := range [][]int{{0, 1}, {1, 0}, {1, 0, 1, 0}} {
+				t.Run(fmt.Sprint(order), func(t *testing.T) {
+					// The older attempt transitions later, but must not replace the newer attempt.
+					older := newTestOperation(t, "op-z", request, coreapi.ProvisioningStateSucceeded, armID, now, now.Add(2*time.Hour))
+					newer := newTestOperation(t, "op-a", request, coreapi.ProvisioningStateFailed, armID, now.Add(time.Hour), now.Add(65*time.Minute))
+					ops := []*coreapi.Operation{older, newer}
+					handler, reg := newTestOperationHandler(t)
+					for _, index := range order {
+						handler.Sync(context.Background(), ops[index])
+					}
+					requireOperationMetrics(t, reg, newer)
+				})
+			}
+		})
+	}
+}
+
+func TestOperationPhaseMetricsHandler_EqualStartTimesUseStableKey(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+	for _, start := range []time.Time{now, {}} {
+		t.Run(start.String(), func(t *testing.T) {
+			a := newTestOperation(t, "op-a", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateSucceeded, armID, start, now.Add(time.Hour))
+			b := newTestOperation(t, "op-b", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateFailed, armID, start, now)
+			for _, order := range [][]*coreapi.Operation{{a, b}, {b, a}} {
+				handler, reg := newTestOperationHandler(t)
+				for _, op := range order {
+					handler.Sync(context.Background(), op)
+				}
+				requireOperationMetrics(t, reg, b)
+			}
+		})
+	}
+}
+
+func TestOperationPhaseMetricsHandler_NewerRetryAndPhaseTransitions(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+	failed := newTestOperation(t, "op-1", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateFailed, armID, now, now.Add(time.Minute))
+	retry := newTestOperation(t, "op-2", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
+	handler, reg := newTestOperationHandler(t)
+	handler.Sync(context.Background(), failed)
+	handler.Sync(context.Background(), retry)
+	handler.Sync(context.Background(), failed)
+	requireOperationMetrics(t, reg, retry)
+
+	retry.Status = coreapi.ProvisioningStateSucceeded
+	retry.LastTransitionTime = now.Add(65 * time.Minute)
+	handler.Sync(context.Background(), retry)
+	handler.Sync(context.Background(), failed)
+	requireOperationMetrics(t, reg, retry)
+}
+
+func TestOperationPhaseMetricsHandler_KnownStartTimeWinsOverMissing(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+	unknownStart := newTestOperation(t, "op-z", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateSucceeded, armID, time.Time{}, now.Add(time.Hour))
+	knownStart := newTestOperation(t, "op-a", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateFailed, armID, now, now)
+	for _, order := range [][]*coreapi.Operation{{unknownStart, knownStart}, {knownStart, unknownStart}} {
+		handler, reg := newTestOperationHandler(t)
+		for _, op := range order {
+			handler.Sync(context.Background(), op)
+		}
+		requireOperationMetrics(t, reg, knownStart)
+	}
+}
+
+func TestOperationPhaseMetricsHandler_DeleteNewestSelectsNewestSurvivor(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+	older := newTestOperation(t, "op-1", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateSucceeded, armID, now, now)
+	middle := newTestOperation(t, "op-2", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateFailed, armID, now.Add(time.Hour), now.Add(time.Hour))
+	newer := newTestOperation(t, "op-3", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now.Add(2*time.Hour), now.Add(2*time.Hour))
+	handler, reg := newTestOperationHandler(t)
+	for _, op := range []*coreapi.Operation{middle, newer, older} {
+		handler.Sync(context.Background(), op)
+	}
+	requireOperationMetrics(t, reg, newer)
+
+	handler.Delete(resourceIDMetricLabel(newer.GetResourceID()))
+	requireOperationMetrics(t, reg, middle)
+	handler.Sync(context.Background(), older)
+	requireOperationMetrics(t, reg, middle)
+	handler.Delete(resourceIDMetricLabel(older.GetResourceID()))
+	requireOperationMetrics(t, reg, middle)
+	handler.Delete(resourceIDMetricLabel(middle.GetResourceID()))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime))
 }
 
 // TestOperationPhaseMetricsHandler_DeleteDifferentTypeClearsOnlyExpired
@@ -673,7 +793,7 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 
 // TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge
 // verifies that when two Cosmos docs share the same (resourceID, operationType),
-// deleting one does NOT clear the gauge — the refcount goes from 2 to 1.
+// deleting an older sibling does not clear the newest operation's gauges.
 func TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
@@ -685,7 +805,7 @@ func TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge(t *tes
 	handler.Sync(context.Background(), op1)
 	handler.Sync(context.Background(), op2)
 
-	// Same type collapses to 1 series (last writer wins), but refcount is 2.
+	// Same type collapses to the newest of the two retained operations.
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
 		"same-type ops collapse to 1 series")
 
@@ -693,11 +813,11 @@ func TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge(t *tes
 	require.NoError(t, err)
 	handler.Delete(op1Key)
 
-	// Refcount goes from 2 to 1 — gauge preserved.
+	// The older sibling is removed; the newest operation still owns the gauges.
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
 		"gauge should survive when a same-type sibling still exists")
 
-	// Now delete the second — refcount reaches 0, gauge cleared.
+	// Now delete the second; no operations remain.
 	op2Key, err := resourceIDStoreKeyForObject(op2)
 	require.NoError(t, err)
 	handler.Delete(op2Key)
@@ -708,9 +828,8 @@ func TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge(t *tes
 
 // TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry
 // simulates an informer relist cycle with two same-type operations where
-// the gauge owner (last writer) TTL-expires first. After Delete clears
-// the gauge, the surviving sibling is re-synced on the next relist,
-// re-emitting the gauge with the survivor's labels.
+// the newest operation expires first. Delete immediately selects the surviving
+// sibling, and a later resync preserves that selection.
 func TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
@@ -720,14 +839,13 @@ func TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry(t 
 
 	handler, reg := newTestOperationHandler(t)
 
-	// Initial sync: both operations tracked, op2 wins the gauge (last writer).
+	// Initial sync: both operations tracked, op2 is the newest.
 	handler.Sync(context.Background(), op1)
 	handler.Sync(context.Background(), op2)
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
 		"same-type ops collapse to 1 series")
 
-	// op2 (the gauge owner) TTL-expires. Delete decrements refcount to 1,
-	// gauge preserved because op1 is still tracked.
+	// The newest operation expires; op1 is now the newest retained operation.
 	op2Key, err := resourceIDStoreKeyForObject(op2)
 	require.NoError(t, err)
 	handler.Delete(op2Key)
@@ -800,8 +918,8 @@ func TestOperationPhaseMetricsHandler_DeleteUnknownKeyIsNoOp(t *testing.T) {
 }
 
 // TestOperationPhaseMetricsHandler_ResyncIdempotency verifies that
-// Sync called multiple times for the same operation does not inflate
-// the refcount. The counter should stay at 1, so a single Delete clears.
+// Sync called multiple times for the same operation retains only one
+// snapshot, so a single Delete clears the gauges.
 func TestOperationPhaseMetricsHandler_ResyncIdempotency(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(
@@ -828,18 +946,17 @@ func TestOperationPhaseMetricsHandler_ResyncIdempotency(t *testing.T) {
 	require.NoError(t, err)
 	handler.Delete(cosmosKey)
 
-	// A single Delete should clear the gauge (refcount was 1, not 3).
+	// A single Delete should clear the gauges despite repeated Syncs.
 	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
 		"gauge should be cleared after a single Delete despite multiple Syncs")
 }
 
-// TestOperationPhaseMetricsHandler_SyncIdentityChangeAdjustsRefcount
+// TestOperationPhaseMetricsHandler_SyncIdentityChangeUpdatesTracking
 // exercises the defensive branch where the same cosmosKey is synced
-// with a different (resourceID, operationType) identity. The old
-// identity's refcount is decremented and the new identity's is
-// incremented. If the old identity has no other contributors, its
-// gauge is cleared.
-func TestOperationPhaseMetricsHandler_SyncIdentityChangeAdjustsRefcount(t *testing.T) {
+// with a different (resourceID, operationType) identity. The snapshot
+// moves to the new identity, clearing the old identity's gauges when
+// it has no remaining operations.
+func TestOperationPhaseMetricsHandler_SyncIdentityChangeUpdatesTracking(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
@@ -866,13 +983,13 @@ func TestOperationPhaseMetricsHandler_SyncIdentityChangeAdjustsRefcount(t *testi
 	require.NoError(t, err)
 	handler.Delete(cosmosKey)
 
-	// The "update" gauge should be cleared (refcount was 1 for the new identity).
+	// The "update" gauges should be cleared (sole operation for the new identity).
 	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
 		"phaseInfo should be cleared after Delete")
 	require.Equal(t, 0, len(handler.operationsBookkeeper),
 		"operationsBookkeeper should be empty after final Delete")
-	require.Equal(t, 0, len(handler.operationsCounter),
-		"operationsCounter should be empty after final Delete")
+	require.Equal(t, 0, len(handler.operationsByIdentity),
+		"operationsByIdentity should be empty after final Delete")
 }
 
 // TestOperationPhaseMetricsHandler_SyncReestablishesAfterDelete
