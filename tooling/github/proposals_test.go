@@ -87,3 +87,53 @@ func TestOpenProposalsRejectsAnEmptySelector(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseContainsComparesCommitAgainstBase(t *testing.T) {
+	const commit, base = "1111111111111111111111111111111111111111", "main"
+	for _, tc := range []struct {
+		name    string
+		status  string
+		wantErr bool
+	}{
+		{name: "base ahead of the commit", status: "ahead"},
+		{name: "identical", status: "identical"},
+		{name: "commit ahead of base", status: "behind", wantErr: true},
+		{name: "diverged", status: "diverged", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/repos/owner/repo/compare/") {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if !strings.HasSuffix(r.URL.Path, "/"+commit+"..."+base) {
+					t.Errorf("comparison path = %s, want %s...%s", r.URL.Path, commit, base)
+				}
+				respond(t, w, &gh.CommitsComparison{Status: gh.Ptr(tc.status)})
+			})
+			err := client.BaseContains(context.Background(), base, commit)
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), tc.status) {
+					t.Fatalf("err = %v, want a %s rejection", err, tc.status)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestOpenPullRequestsRejectsDuplicateNumbers(t *testing.T) {
+	duplicate := proposalPull(9001, "robot", "bot/test-priorities-1", "body")
+	second := proposalPull(9001, "someone", "unrelated", "body")
+	client := proposalClient(t, duplicate, second)
+	if _, err := client.OpenPullRequests(context.Background()); err == nil || !strings.Contains(err.Error(), "duplicate pull request number") {
+		t.Fatalf("err = %v, want a duplicate rejection", err)
+	}
+	if _, err := client.OpenProposals(context.Background(), "robot", "<!-- owned -->", "bot/test-priorities-"); err == nil {
+		t.Fatal("the gate accepted a duplicated inventory")
+	}
+}

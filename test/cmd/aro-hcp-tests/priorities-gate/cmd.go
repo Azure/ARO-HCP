@@ -65,9 +65,8 @@ type completedOptions struct {
 	marker     string
 	prefix     string
 	out        io.Writer
-	actorOf    func(context.Context) (string, error)
-	contains   func(context.Context, string, string) error
-	proposals  func(context.Context, string, string, string) ([]int, error)
+	contains   func(ctx context.Context, base, commit string) error
+	proposals  func(ctx context.Context, actor, marker, prefix string) ([]int, error)
 }
 
 // NewCommand builds the priorities-gate command.
@@ -79,6 +78,12 @@ func NewCommand() *cobra.Command {
 		Long: `Check the preconditions publication needs: a usable installation token, a
 checkout commit that is part of the base branch, and no generated pull request
 already open for this repository.
+
+The expected writer identity comes from trusted configuration: an installation
+token cannot read /user, so the gate binds --actor instead of discovering it,
+and it cannot prove that a token belongs to that actor. A token that cannot read
+the repository fails here; a token that can read it is assumed to be the one the
+minting step produced.
 
 The result is one JSON object on stdout. A blocked gate still exits zero: being
 blocked is an ordinary outcome for a scheduled run, not a failure.`,
@@ -93,7 +98,7 @@ blocked is an ordinary outcome for a scheduled run, not a failure.`,
 	flags.StringVar(&raw.Repository, "repo", "Azure/ARO-HCP", "Repository the proposal is opened in")
 	flags.StringVar(&raw.Base, "base", "main", "Base branch of the proposal")
 	flags.StringVar(&raw.BaseCommit, "base-commit", "", "Commit the refresh was computed against (required)")
-	flags.StringVar(&raw.Actor, "actor", "aro-hcp-robot[bot]", "Login the proposal is expected to be authored by")
+	flags.StringVar(&raw.Actor, "actor", "aro-hcp-robot[bot]", "Trusted login the proposal is authored by (never discovered from the token)")
 	flags.StringVar(&raw.Marker, "marker", "", "Marker line identifying generated proposals")
 	flags.StringVar(&raw.BranchPrefix, "branch-prefix", "", "Prefix of a generated proposal branch")
 	flags.StringVar(&raw.TokenPath, "token-path", "", "File holding the GitHub App installation token (required)")
@@ -149,12 +154,17 @@ func (v *validatedOptions) Complete(out io.Writer) (*completedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	completed.actorOf = func(ctx context.Context) (string, error) { return client.Actor(ctx) }
-	completed.contains = func(ctx context.Context, commit, base string) error {
-		return client.BaseContains(ctx, commit, base)
+	// App installation tokens cannot read /user, so the expected writer identity
+	// is bound from trusted configuration instead of discovered from the token.
+	bound, err := client.WithActor(raw.Actor)
+	if err != nil {
+		return nil, fmt.Errorf("bind the expected actor: %w", err)
+	}
+	completed.contains = func(ctx context.Context, base, commit string) error {
+		return bound.BaseContains(ctx, base, commit)
 	}
 	completed.proposals = func(ctx context.Context, actor, marker, prefix string) ([]int, error) {
-		return client.OpenProposals(ctx, actor, marker, prefix)
+		return bound.OpenProposals(ctx, actor, marker, prefix)
 	}
 	return completed, nil
 }
@@ -175,17 +185,12 @@ func newClient(repository, tokenPath string) (*githublib.Client, error) {
 
 // Run evaluates the gate and reports the outcome as JSON.
 func (c *completedOptions) Run(ctx context.Context) error {
-	actor, err := c.actorOf(ctx)
-	if err != nil {
-		return fmt.Errorf("the installation token is not usable: %w", err)
+	// The compare call is the first authenticated read, so an unusable token is
+	// reported here rather than as a confusing ancestry failure.
+	if err := c.contains(ctx, c.base, c.baseCommit); err != nil {
+		return fmt.Errorf("the installation token cannot read %s: %w", c.repository, err)
 	}
-	if actor != c.actor {
-		return fmt.Errorf("the token authenticates as %q, not %q", actor, c.actor)
-	}
-	if err := c.contains(ctx, c.baseCommit, c.base); err != nil {
-		return err
-	}
-	numbers, err := c.proposals(ctx, actor, c.marker, c.prefix)
+	numbers, err := c.proposals(ctx, c.actor, c.marker, c.prefix)
 	if err != nil {
 		return fmt.Errorf("list open proposals: %w", err)
 	}

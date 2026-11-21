@@ -24,15 +24,18 @@ import (
 )
 
 // completed returns gate options with the network dependencies stubbed.
-func completed(actor string, proposals []int, containsErr error) (*completedOptions, *bytes.Buffer) {
+func completed(proposals []int, containsErr error) (*completedOptions, *bytes.Buffer, *[][2]string) {
 	out := &bytes.Buffer{}
+	order := &[][2]string{}
 	return &completedOptions{
 		repository: "Azure/ARO-HCP", base: "main", baseCommit: "abc123",
 		actor: "robot", marker: "<!-- owned -->", prefix: "bot/test-priorities-", out: out,
-		actorOf:   func(context.Context) (string, error) { return actor, nil },
-		contains:  func(context.Context, string, string) error { return containsErr },
+		contains: func(_ context.Context, base, commit string) error {
+			*order = append(*order, [2]string{base, commit})
+			return containsErr
+		},
 		proposals: func(context.Context, string, string, string) ([]int, error) { return proposals, nil },
-	}, out
+	}, out, order
 }
 
 func TestValidateRequiresEveryPrecondition(t *testing.T) {
@@ -74,7 +77,7 @@ func TestValidateRequiresEveryPrecondition(t *testing.T) {
 }
 
 func TestRunBlocksOnAnOpenProposal(t *testing.T) {
-	options, out := completed("robot", []int{9001, 9002}, nil)
+	options, out, _ := completed([]int{9001, 9002}, nil)
 	if err := options.Run(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +91,7 @@ func TestRunBlocksOnAnOpenProposal(t *testing.T) {
 }
 
 func TestRunAllowsAnEmptyInventory(t *testing.T) {
-	options, out := completed("robot", nil, nil)
+	options, out, _ := completed(nil, nil)
 	if err := options.Run(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -101,15 +104,26 @@ func TestRunAllowsAnEmptyInventory(t *testing.T) {
 	}
 }
 
-func TestRunRejectsAForeignToken(t *testing.T) {
-	options, _ := completed("someone-else", nil, nil)
-	if err := options.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "not") {
-		t.Fatalf("err = %v, want a token mismatch", err)
+func TestRunChecksBaseAncestryInLibraryOrder(t *testing.T) {
+	options, _, order := completed(nil, nil)
+	if err := options.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(*order) != 1 || (*order)[0] != [2]string{"main", "abc123"} {
+		t.Fatalf("ancestry check received %v, want base main and commit abc123", *order)
+	}
+}
+
+func TestRunRejectsAnUnusableToken(t *testing.T) {
+	options, _, _ := completed(nil, errors.New("401 Bad credentials"))
+	err := options.Run(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "installation token cannot read") {
+		t.Fatalf("err = %v, want a token failure", err)
 	}
 }
 
 func TestRunRejectsABaseCommitOffTheBranch(t *testing.T) {
-	options, _ := completed("robot", nil, errors.New("abc123 is not on main (compare status \"behind\")"))
+	options, _, _ := completed(nil, errors.New("abc123 is not on main (compare status \"behind\")"))
 	if err := options.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "not on main") {
 		t.Fatalf("err = %v, want a base ancestry failure", err)
 	}

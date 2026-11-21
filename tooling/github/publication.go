@@ -90,13 +90,8 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 	if err != nil {
 		return nil, err
 	}
-	seen := map[int]bool{}
 	var owned []PullRequest
 	for _, p := range open {
-		if seen[p.Number] {
-			return nil, fmt.Errorf("duplicate pull request number in inventory: %w", ErrEvidenceIncomplete)
-		}
-		seen[p.Number] = true
 		sameBranch := p.HeadRepo == r.HeadRepository && p.HeadRef == r.HeadRef
 		sameMarker := hasMarker(p.Body, r.Marker)
 		if !sameBranch && !sameMarker {
@@ -133,6 +128,7 @@ func (c *Client) OpenPullRequests(ctx context.Context) ([]PullRequest, error) {
 		return nil, err
 	}
 	open := make([]PullRequest, 0, len(records))
+	seen := map[int]bool{}
 	for _, raw := range records {
 		v, err := decodePull(raw)
 		if err != nil {
@@ -145,6 +141,12 @@ func (c *Client) OpenPullRequests(ctx context.Context) ([]PullRequest, error) {
 		if p.BaseRepo != c.owner+"/"+c.repo || p.State != "open" {
 			return nil, fmt.Errorf("open pull request inventory contains a foreign target or state: %w", ErrEvidenceIncomplete)
 		}
+		// A duplicate number means the inventory cannot be trusted to describe a
+		// pull request once, so every consumer rejects it rather than deduplicating.
+		if seen[p.Number] {
+			return nil, fmt.Errorf("duplicate pull request number in inventory: %w", ErrEvidenceIncomplete)
+		}
+		seen[p.Number] = true
 		open = append(open, p)
 	}
 	return open, nil
