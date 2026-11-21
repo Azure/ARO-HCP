@@ -102,7 +102,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
+	return startAndWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -166,7 +166,7 @@ func portalDeploymentURI(subscriptionID, resourceGroup, deploymentName string) s
 	return "https://ms.portal.azure.com/#view/Microsoft_Azure_Resources/DeploymentDetails.MenuView/~/overview/id/" + url.PathEscape(resourceID)
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
+func startAndWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
