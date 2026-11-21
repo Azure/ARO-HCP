@@ -92,7 +92,9 @@ Generate models: `cd api && make models VERSION=NEW_PKG`
 Then copy every non-generated `.go` file from `internal/api/PREV_PKG/` to `internal/api/NEW_PKG/`. In each copied file:
 - Change the `package` declaration from PREV_PKG to NEW_PKG
 - Update the copyright year to the current year
+- Add an `APIVersionV<NEW_PKG>` constant to `internal/api/metadataapi/apiversions.go`
 - In `register.go`: update the version string returned by `String()` to the new version
+- In `conversion_fuzz_test.go`: pass the new `metadataapi.APIVersionV<NEW_PKG>` constant to `coreapitesting.RoundTripFuzzFuncs`. The per-version field overrides live centrally in `internal/apitesting/coreapitesting/fuzz.go` — when the new version adds a field, add one version guard there rather than editing each version's test
 
 The files to copy are all `.go` files in the previous version's directory that are NOT inside `generated/`. This typically includes a `register.go`, several `*_methods.go` files, and `*_test.go` files.
 

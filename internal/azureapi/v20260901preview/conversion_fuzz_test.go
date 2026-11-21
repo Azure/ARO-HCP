@@ -24,9 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"sigs.k8s.io/randfill"
-
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
@@ -34,18 +33,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
-		// ContainerRegistry was added in v20261001 and does not exist in v20260901preview.
-		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
-		},
-		// KeyVaultType was added in v20261001 and does not exist in v20260901preview.
-		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.KeyVaultType = ""
-		},
-	), rand.NewSource(seed))
+	fuzzer := coreapitesting.FuzzerFor(
+		coreapitesting.RoundTripFuzzFuncs(metadataapi.APIVersionV20260901Preview),
+		rand.NewSource(seed),
+	)
 
 	for i := 0; i < 200; i++ {
 		original := &coreapi.Cluster{}
