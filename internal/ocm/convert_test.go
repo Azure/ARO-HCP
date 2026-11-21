@@ -529,6 +529,28 @@ func TestBuildCSNodePool(t *testing.T) {
 	}
 }
 
+func TestBuildCSNodePoolClearsLabelsOnUpdate(t *testing.T) {
+	nodePool := getHCPNodePoolResource()
+	nodePool.Properties.Labels = nil // Empty labels are omitted when the node pool is stored in Cosmos.
+
+	for _, updating := range []bool{false, true} {
+		builder, err := BuildCSNodePool(context.Background(), nodePool, updating)
+		require.NoError(t, err)
+		csNodePool, err := builder.Build()
+		require.NoError(t, err)
+
+		var body bytes.Buffer
+		require.NoError(t, arohcpv1alpha1.MarshalNodePool(csNodePool, &body))
+		var payload map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(body.Bytes(), &payload))
+		if updating {
+			assert.JSONEq(t, `{}`, string(payload["labels"]))
+		} else {
+			assert.NotContains(t, payload, "labels")
+		}
+	}
+}
+
 func externalAuthResource(opts ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	externalAuth := coreapi.NewDefaultExternalAuth(nil)
 
