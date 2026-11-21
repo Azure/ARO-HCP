@@ -12,6 +12,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/entra-app-credentials v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/tooling/github v0.0.0
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
@@ -43,6 +44,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.6.7
 	github.com/go-logr/stdr v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/go-github/v69 v69.2.0
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
@@ -422,6 +424,8 @@ replace github.com/Azure/ARO-HCP/internal => ../internal
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 
 replace github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../tooling/cifailurepatterns
+
+replace github.com/Azure/ARO-HCP/tooling/github => ../tooling/github
 
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
