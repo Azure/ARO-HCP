@@ -236,6 +236,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 	}
 	clientOpts.PerCallPolicies = []policy.Policy{
+		suiteHCPAPIVersionUsage,
 		NewRetryVersionNotFoundPolicy(),
 		&sanitizeAuthHeaderPolicy{},
 	}
@@ -264,6 +265,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			&requestIDPolicy{},
 			&armSystemDataPolicy{},
 			&armResourceGroupValidationPolicy{rgClient: &defaultResourceGroupClient{cred: tc.azureCredentials}},
+			suiteHCPAPIVersionUsage,
 			NewRetryVersionNotFoundPolicy(),
 			&sanitizeAuthHeaderPolicy{},
 		}
