@@ -205,15 +205,17 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		return skip, nil, nil
 	}
 
-	// when there's no step cache, there's no digest
+	// With a step cache, deployments are named after a digest of their inputs, so a rerun with the same inputs finds
+	// its earlier deployment. Without one, every deployment gets a new random name.
+	namedByInputs := stepCacheDir != ""
 	deploymentName := randString()
-	if digest != "" {
+	if namedByInputs {
 		deploymentName = digest
 	}
 
 	var output ArmOutput
 	var details DetailsProducer
-	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, inputs, namedByInputs)
 	if err != nil {
 		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
@@ -316,7 +318,7 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 
 	logger.V(2).Info("Waiting for existing deployment to complete")
 	remainingTime := timeoutSeconds
-	for remainingTime > 0 {
+	for firstLookup := true; remainingTime > 0; firstLookup = false {
 		if err != nil {
 			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 		}
@@ -325,10 +327,16 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 		}
 		switch *output.ProvisioningState {
 		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
+			var err error
 			if output.Error != nil {
-				return false, nil, details, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+				err = fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+			} else {
+				err = fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
 			}
-			return false, nil, details, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
+			if firstLookup && (*output.ProvisioningState == armresources.ProvisioningStateFailed || *output.ProvisioningState == armresources.ProvisioningStateCanceled) {
+				err = &endedDeploymentError{state: *output.ProvisioningState, err: err}
+			}
+			return false, nil, details, err
 		case armresources.ProvisioningStateSucceeded:
 			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
 			return true, armOutputFromOutputs(output.Outputs), details, nil
@@ -342,6 +350,16 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	}
 	return false, nil, details, errors.New("timed out waiting for pre-existing deployment to finish")
 }
+
+// endedDeploymentError reports a deployment that had already failed or been cancelled when first looked up, rather
+// than one that ended while we waited for it: it was left behind by an earlier run of the same inputs.
+type endedDeploymentError struct {
+	state armresources.ProvisioningState
+	err   error
+}
+
+func (e *endedDeploymentError) Error() string { return e.err.Error() }
+func (e *endedDeploymentError) Unwrap() error { return e.err }
 
 func isDeploymentActiveError(err error) bool {
 	var respErr *azcore.ResponseError
