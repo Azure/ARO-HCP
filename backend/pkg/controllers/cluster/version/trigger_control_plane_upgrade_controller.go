@@ -17,27 +17,28 @@ package version
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
 
 	utilsclock "k8s.io/utils/clock"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // clusterCreateGracePeriod is how long after a cluster's CreatedAt we suppress
@@ -46,11 +47,15 @@ import (
 // upgrade triggering is safe.
 const clusterCreateGracePeriod = 2 * time.Hour
 
+const controlPlaneVersionLookupTimeout = 30 * time.Second
+
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
-	clusterServiceClient         ocm.ClusterServiceClientSpec
+	cincinnatiClientCache        cincinnati.ClientCache
+	ocpImagesACRHostname         string
 	activeOperationLister        corelisters.ActiveOperationLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
@@ -61,13 +66,13 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
 
 // NewTriggerControlPlaneUpgradeController creates a new controller that triggers control plane upgrades.
-// It gates new upgrade policies on the mirrored HostedCluster conditions, after
-// checking whether the latest policy already targets the desired version.
+// It accepts a desired minor version after checking the mirrored HostedCluster
+// conditions, then writes the selected exact release image to the SPC.
 func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
+	ocpImagesACRHostname string,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
@@ -76,8 +81,10 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
+		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
-		clusterServiceClient:         clusterServiceClient,
+		cincinnatiClientCache:        cincinnati.NewClientCache(),
+		ocpImagesACRHostname:         ocpImagesACRHostname,
 		activeOperationLister:        activeOperationLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		readDesireLister:             readDesireLister,
@@ -104,8 +111,8 @@ func NewTriggerControlPlaneUpgradeController(
 // High-level flow:
 //  1. Fetch the customer's desired cluster configuration and service provider state
 //  2. Check if desiredVersion differs from latest actual version
-//  3. If different, check the latest policy and evaluate upgrade conditions
-//  4. Submit an eligible target to Cluster Service for upgrade orchestration
+//  3. If different, evaluate upgrade conditions for a new minor
+//  4. Store the accepted minor and selected exact release image together
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -119,7 +126,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// if we have no clusterService cluster, we have nothing to trigger.
+		// ClusterResources cannot apply a release without a Cluster Service cluster.
 		return nil
 	}
 
@@ -153,94 +160,132 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	// Get latest actual version from active versions
-	actualLatestVersion := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
+	activeVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+	for _, activeVersion := range activeVersions {
+		if activeVersion.Version == nil {
+			return utils.TrackError(fmt.Errorf("control plane active version is missing"))
+		}
+	}
+
+	// The mirror stores active versions newest first.
+	actualLatestVersion := activeVersions[0].Version
 
 	// If desired version matches latest actual version, nothing to do
 	if desiredVersion.EQ(*actualLatestVersion) {
 		return nil
 	}
 
-	// Classify the transition against the last completed version, falling back
-	// to the newest observed one. ActiveVersions is non-empty here, so this
-	// never withholds dispatch.
-	sourceVersion := controlPlaneUpgradeBaseline(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
-
-	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, sourceVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	// The lowest observed version preserves the minor gate while an earlier
+	// minor upgrade remains in progress.
+	sourceVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(activeVersions)
+	return c.acceptDesiredRelease(ctx, key, existingCluster, existingServiceProviderCluster, desiredVersion, sourceVersion)
 }
 
-// createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.
-// It creates a new policy only if the most recently created policy does not match the desired version.
-//
-// The method:
-//  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
-//  2. Checks if the latest policy matches the desired version - returns nil if it does
-//  3. Otherwise, evaluates upgrade conditions before creating a new policy
-func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion, sourceVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
+// acceptDesiredRelease atomically stores the accepted minor and the image for
+// this exact desired version. A later exact-version assignment clears the image
+// so the release writer cannot apply an old payload to a new version.
+func (c *triggerControlPlaneUpgradeSyncer) acceptDesiredRelease(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, desiredVersion, sourceVersion *semver.Version) error {
 	logger := utils.LoggerFromContext(ctx)
-
-	// Query existing control plane upgrade policies from Cluster Service
-	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
-	defer cancel()
-
-	iterator := c.clusterServiceClient.ListControlPlaneUpgradePolicies(clusterServiceID, "creation_timestamp desc")
-
-	// Only create a new upgrade policy if the latest created policy doesn't match the desired version
-	for policy := range iterator.Items(csCtx) {
-		// Only check the first (latest) policy
-		if latestPolicyVersion, ok := policy.GetVersion(); ok {
-			if latestPolicyVersion == desiredVersion.String() {
-				return nil
-			}
-		}
-		break // Only need to check the first policy
+	minor := fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor)
+	alreadyAccepted := spc.Spec.ControlPlaneVersion.AcceptedMinorVersion != nil && *spc.Spec.ControlPlaneVersion.AcceptedMinorVersion == minor
+	if alreadyAccepted && spc.Spec.DesiredHostedCluster != nil && spc.Spec.DesiredHostedCluster.Spec.Release.Image != "" {
+		return nil
 	}
-
-	if err := iterator.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list control plane upgrade policies: %w", err))
+	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, sourceVersion, !alreadyAccepted); err != nil {
+		return err
 	}
-
-	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, sourceVersion); err != nil {
-		return utils.TrackError(err)
+	image, channel, err := c.resolveRelease(ctx, key, cluster.CustomerProperties.Version.ChannelGroup, desiredVersion)
+	if err != nil {
+		return err
 	}
-
-	// Create a new control plane upgrade policy for the desired version
-	logger.Info("Creating control plane upgrade policy", "desiredVersion", desiredVersion)
-
-	_, policyErr := c.clusterServiceClient.PostControlPlaneUpgradePolicy(csCtx, clusterServiceID, arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version(desiredVersion.String()))
-	if policyErr != nil {
-		return utils.TrackError(fmt.Errorf("failed to create control plane upgrade policy: %w", policyErr))
+	replacement := spc.DeepCopy()
+	replacement.Spec.ControlPlaneVersion.AcceptedMinorVersion = &minor
+	if replacement.Spec.DesiredHostedCluster == nil {
+		replacement.Spec.DesiredHostedCluster = &hsv1beta1.HostedCluster{}
 	}
-
-	logger.Info("Successfully created control plane upgrade policy", "desiredVersion", desiredVersion)
-
+	replacement.Spec.DesiredHostedCluster.Spec.Release.Image = image
+	replacement.Spec.DesiredHostedCluster.Spec.Channel = channel
+	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		logger.Info("Acceptance write conflicted; waiting for current ServiceProviderCluster")
+		return nil
+	} else if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+	}
+	logger.Info("Accepted control plane release", "minor", minor, "desiredVersion", desiredVersion, "releaseImage", image)
 	return nil
 }
 
+// resolveRelease uses the requested exact version as the Cincinnati current
+// release. The first GetUpdates result supplies its multi-architecture payload;
+// outgoing edges are irrelevant to the catalog lookup. Nightly releases use
+// the CI graph and must be pulled through the service's ACR mirror.
+func (c *triggerControlPlaneUpgradeSyncer) resolveRelease(ctx context.Context, key controllerutils.HCPClusterKey, channelGroup string, desiredVersion *semver.Version) (string, string, error) {
+	if channelGroup == "" {
+		return "", "", utils.TrackError(fmt.Errorf("channel group is missing for control plane version %s", desiredVersion))
+	}
+	uri, err := cincinnati.GetCincinnatiURI(channelGroup)
+	if err != nil {
+		return "", "", utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for %s: %w", channelGroup, err))
+	}
+	minor := desiredVersion.Minor
+	if channelGroup == "eus" && minor%2 == 1 {
+		minor++
+	}
+	graphChannel := fmt.Sprintf("%s-%d.%d", channelGroup, desiredVersion.Major, minor)
+	hostedChannel := graphChannel
+	if channelGroup == "nightly" {
+		hostedChannel = ""
+	}
+	clusterUUID, _, err := kubeapplierhelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		utils.LoggerFromContext(ctx).Info("Cannot read HostedCluster UUID for Cincinnati request", "error", err)
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, controlPlaneVersionLookupTimeout)
+	defer cancel()
+	release, _, _, err := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID).GetUpdates(lookupCtx, uri, "multi", "multi", graphChannel, *desiredVersion)
+	if err != nil {
+		return "", "", utils.TrackError(fmt.Errorf("failed to resolve control plane release %s in %s: %w", desiredVersion, graphChannel, err))
+	}
+	if release.Version != desiredVersion.String() {
+		return "", "", utils.TrackError(fmt.Errorf("cincinnati returned release %q for control plane version %s", release.Version, desiredVersion))
+	}
+	if release.Image == "" {
+		return "", "", utils.TrackError(fmt.Errorf("release image is missing for control plane version %s", desiredVersion))
+	}
+	image := release.Image
+	if channelGroup == "nightly" && strings.HasPrefix(image, "quay.io/") {
+		if c.ocpImagesACRHostname == "" {
+			return "", "", utils.TrackError(fmt.Errorf("OCP image ACR hostname is missing for nightly control plane version %s", desiredVersion))
+		}
+		image = c.ocpImagesACRHostname + strings.TrimPrefix(image, "quay.io")
+	}
+	return image, hostedChannel, nil
+}
+
 // checkUpgradeConditions evaluates the observed HostedCluster conditions
-// against the transition being requested, before a new policy is dispatched.
-func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion, sourceVersion *semver.Version) error {
+// against the transition being requested, before persisting acceptance.
+func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion, sourceVersion *semver.Version, checkMinor bool) error {
 	minorUpgrade, err := isControlPlaneMinorUpgrade(sourceVersion, desiredVersion)
 	if err != nil {
-		return fmt.Errorf("failed to classify control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
+		return utils.TrackError(fmt.Errorf("failed to classify control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err))
 	}
 
 	// Use cached content even when the latest read failed.
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return fmt.Errorf("failed to observe HostedCluster for control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
+		return utils.TrackError(fmt.Errorf("failed to observe HostedCluster for control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err))
 	}
 	if hostedCluster == nil {
-		return fmt.Errorf("missing HostedCluster observation for control plane upgrade from %s to %s", sourceVersion, desiredVersion)
+		return utils.TrackError(fmt.Errorf("missing HostedCluster observation for control plane upgrade from %s to %s", sourceVersion, desiredVersion))
 	}
-	decision, err := controlPlaneUpgradeConditions(hostedCluster.Status.Conditions, minorUpgrade)
+	decision, err := controlPlaneUpgradeConditions(hostedCluster.Status.Conditions, minorUpgrade && checkMinor)
 	if err != nil {
-		return fmt.Errorf("cannot evaluate control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
+		return utils.TrackError(fmt.Errorf("cannot evaluate control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err))
 	}
 	if !decision.eligible {
 		// An expected eligibility wait intentionally uses the existing error path:
 		// rate-limited retry and controller Degraded until reconciliation succeeds.
-		return fmt.Errorf("control plane upgrade from %s to %s blocked by %s: reason=%q, message=%q", sourceVersion, desiredVersion, decision.conditionType, decision.reason, decision.message)
+		return utils.TrackError(fmt.Errorf("control plane upgrade from %s to %s blocked by %s: reason=%q, message=%q", sourceVersion, desiredVersion, decision.conditionType, decision.reason, decision.message))
 	}
 	return nil
 }
@@ -255,8 +300,8 @@ func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Co
 //     create in flight there is nothing to race with, so we can run.
 //
 // Otherwise (cluster still young, Create in flight) we skip so a freshly
-// created cluster doesn't have a control plane upgrade policy posted while
-// creation is still in progress.
+// created cluster doesn't have a release update applied while creation is
+// still in progress.
 func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if c.clusterOlderThanGracePeriod(cluster) {

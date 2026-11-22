@@ -57,6 +57,7 @@ type ControllerContext struct {
 	BillingDBClient                   billingcosmosstorage.BillingDBClient
 	CheckAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
 	CloudEnvironment                  *azureconfig.AzureCloudEnvironment
+	OCPImagesACRHostname              string
 	ClusterScopedIdentitiesConfig     *internalazure.ClusterScopedIdentitiesConfig
 	ClustersServiceClient             ocm.ClusterServiceClientSpec
 	VersionProfileSource              cincinnati.VersionProfileSource

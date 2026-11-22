@@ -61,6 +61,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		BackupConfig:                      b.options.BackupConfig,
 		CheckAccessV2ClientBuilder:        b.options.CheckAccessV2ClientBuilder,
 		CloudEnvironment:                  b.options.CloudEnvironment,
+		OCPImagesACRHostname:              b.options.OCPImagesACRHostname,
 		ClusterScopedIdentitiesConfig:     b.options.ClusterScopedIdentitiesConfig,
 		ClustersServiceClient:             b.options.ClustersServiceClient,
 		VersionProfileSource:              b.options.VersionProfileSource,

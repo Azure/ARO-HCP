@@ -23,10 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestIsControlPlaneMinorUpgrade(t *testing.T) {
@@ -43,7 +40,7 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 		// Same release line, so the minor gate does not apply and classification
 		// stops here. A nightly sorts below a stable release of the same minor
 		// even when its content is ahead; whether the target is genuinely newer
-		// is admission's and Cluster Service's call, not this classifier's.
+		// is admission's and the version selector's call, not this classifier's.
 		{name: "same minor with prerelease target", source: "4.22.5", target: "4.22.0-0.nightly-2026-10-20"},
 		{name: "lower patch", source: "4.19.2", target: "4.19.1"},
 		{name: "lower minor", source: "4.20.1", target: "4.19.1", wantErr: "downgrade"},
@@ -72,28 +69,6 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 	}
 }
 
-func TestControlPlaneUpgradeBaseline(t *testing.T) {
-	base := ptr.To(semver.MustParse("4.19.1"))
-	partial := ptr.To(semver.MustParse("4.20.1"))
-	older := ptr.To(semver.MustParse("4.19.0"))
-
-	// A completed entry wins over a newer in-flight target.
-	require.Equal(t, base, controlPlaneUpgradeBaseline([]coreapi.ServiceProviderClusterActiveVersion{
-		{Version: partial, State: configv1.PartialUpdate},
-		{Version: base, State: configv1.CompletedUpdate},
-	}))
-
-	// Partial-only history still yields a baseline. A control-plane-only
-	// cluster can sit Partial indefinitely while worker-dependent operators
-	// are unavailable, and must not have its upgrades suppressed.
-	require.Equal(t, partial, controlPlaneUpgradeBaseline([]coreapi.ServiceProviderClusterActiveVersion{
-		{Version: partial, State: configv1.PartialUpdate},
-		{Version: older, State: configv1.PartialUpdate},
-	}))
-
-	require.Nil(t, controlPlaneUpgradeBaseline(nil))
-}
-
 func TestControlPlaneUpgradeConditions(t *testing.T) {
 	condition := func(kind string, status metav1.ConditionStatus, reason string) metav1.Condition {
 		return metav1.Condition{Type: kind, Status: status, Reason: reason, Message: "original diagnostic"}
@@ -113,7 +88,7 @@ func TestControlPlaneUpgradeConditions(t *testing.T) {
 		{name: "patch ignores blocked minor condition", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "Blocked")}, eligible: true},
 		{name: "missing minor condition", conditions: []metav1.Condition{active}, minor: true, wantErr: upgradeable},
 		{name: "minor true", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionTrue, "")}, minor: true, eligible: true},
-		{name: "admin ack", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "AdminAckRequired")}, minor: true, eligible: true},
+		{name: "admin ack permits forced upgrade", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "AdminAckRequired")}, minor: true, eligible: true},
 		{name: "old updating reason", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "UpdateInProgress")}, minor: true, eligible: true},
 		{name: "new updating reason", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "ClusterVersionUpdating")}, minor: true, eligible: true},
 		{name: "unknown passes", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionUnknown, "Blocked")}, minor: true, eligible: true},

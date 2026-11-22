@@ -466,7 +466,7 @@ func instantiateTriggerControlPlaneUpgradeController(controllerContext controlle
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		clusterLister,
-		controllerContext.ClustersServiceClient,
+		controllerContext.OCPImagesACRHostname,
 		activeOperationLister,
 		serviceProviderClusterLister,
 		controllerContext.BackendInformers,

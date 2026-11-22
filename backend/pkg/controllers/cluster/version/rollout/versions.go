@@ -84,6 +84,13 @@ func setDesiredVersion(serviceProviderCluster *coreapi.ServiceProviderCluster, n
 	if current != nil && newDesired != nil && current.EQ(*newDesired) && !serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime.IsZero() {
 		return
 	}
+	// The accepted minor permits exact-version changes within that minor, but
+	// the previous release image must not be used for a newly selected z-stream.
+	if serviceProviderCluster.Spec.ControlPlaneVersion.AcceptedMinorVersion != nil &&
+		(current == nil || newDesired == nil || !current.EQ(*newDesired)) &&
+		serviceProviderCluster.Spec.DesiredHostedCluster != nil {
+		serviceProviderCluster.Spec.DesiredHostedCluster.Spec.Release.Image = ""
+	}
 	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = newDesired
 	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &now
 }
