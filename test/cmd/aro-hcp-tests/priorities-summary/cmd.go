@@ -28,19 +28,43 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/citests"
 )
 
-// options holds the resolved command configuration.
-type options struct {
-	reportPath     string
-	changesPath    string
-	note           string
-	publicationURL string
-	outputPath     string
-	out            io.Writer
+// RawOptions holds the flag values before validation.
+type RawOptions struct {
+	ReportPath      string
+	ChangesPath     string
+	Note            string
+	PublicationURL  string
+	OutputPath      string
+	PublicationBody string
+	JobName         string
+	JobURL          string
+	BuildID         string
+	BaseCommit      string
+}
+
+// validatedOptions holds the raw values that passed validation.
+type validatedOptions struct {
+	raw *RawOptions
+}
+
+// completedOptions holds the decoded reports and the requested outputs.
+type completedOptions struct {
+	report          *citests.PriorityReport
+	summary         *priorityrefresh.Summary
+	note            string
+	publicationURL  string
+	outputPath      string
+	publicationBody string
+	jobName         string
+	jobURL          string
+	buildID         string
+	baseCommit      string
+	out             io.Writer
 }
 
 // NewCommand builds the priorities-summary command.
 func NewCommand() *cobra.Command {
-	opts := &options{}
+	raw := &RawOptions{}
 	cmd := &cobra.Command{
 		Use:   "priorities-summary",
 		Short: "Render the start-priority refresh summary page",
@@ -51,71 +75,139 @@ unchanged, insufficient and unmatched totals.
 The page is rendered from the reports the other commands already produced, so it
 can be regenerated at any point of a run, including after a pull request was
 opened. With no report the command renders only the note, which is what a run
-that stopped before collecting needs.`,
+that stopped before collecting needs.
+
+With --publication-body the same reports also render the pull request body, so
+both outputs read one source of values. Each renderer still chooses its own
+fields and formats, so the text is not identical.`,
 		Example: `  aro-hcp-tests priorities-summary --report report.json --changes changes.json --note "read-only" --output summary.html
-  aro-hcp-tests priorities-summary --note "Publication skipped: an open generated pull request exists" --output summary.html`,
+  aro-hcp-tests priorities-summary --note "Publication skipped: an open generated pull request exists" --output summary.html
+  aro-hcp-tests priorities-summary --report report.json --changes changes.json --output summary.html --publication-body body.md --job-name periodic-ci-Azure-ARO-HCP-main-e2e-test-priorities-refresh --build-id 42 --base-commit abc123`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.out = cmd.OutOrStdout()
-			if err := opts.Validate(); err != nil {
-				return err
-			}
-			return opts.Run()
+			return summarize(cmd.OutOrStdout(), raw)
 		},
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&opts.reportPath, "report", "", "Priority report produced by the priorities command")
-	flags.StringVar(&opts.changesPath, "changes", "", "Change summary produced by the refresh-priorities command")
-	flags.StringVar(&opts.note, "note", "", "Outcome line rendered under the run header")
-	flags.StringVar(&opts.publicationURL, "publication-url", "", "Pull request opened by this run, rendered as a link")
-	flags.StringVar(&opts.outputPath, "output", "", "File to write the summary to (required)")
+	flags.StringVar(&raw.ReportPath, "report", "", "Priority report produced by the priorities command")
+	flags.StringVar(&raw.ChangesPath, "changes", "", "Change summary produced by the refresh-priorities command")
+	flags.StringVar(&raw.Note, "note", "", "Outcome line rendered under the run header")
+	flags.StringVar(&raw.PublicationURL, "publication-url", "", "Pull request opened by this run, rendered as a link")
+	flags.StringVar(&raw.OutputPath, "output", "", "File to write the summary to (required)")
+	flags.StringVar(&raw.PublicationBody, "publication-body", "", "File to write the pull request body to")
+	flags.StringVar(&raw.JobName, "job-name", "", "Job that produced the run, named in the publication body")
+	flags.StringVar(&raw.JobURL, "job-url", "", "Run URL linked from the publication body")
+	flags.StringVar(&raw.BuildID, "build-id", "", "Prow build ID named in the publication body")
+	flags.StringVar(&raw.BaseCommit, "base-commit", "", "Commit the proposals were computed against")
 	return cmd
 }
 
+// summarize runs the command phases in order.
+func summarize(out io.Writer, raw *RawOptions) error {
+	validated, err := raw.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(out)
+	if err != nil {
+		return err
+	}
+	return completed.Run()
+}
+
 // Validate rejects incomplete input before any file is read.
-func (o *options) Validate() error {
-	if o.outputPath == "" {
-		return fmt.Errorf("--output is required")
+func (r *RawOptions) Validate() (*validatedOptions, error) {
+	if r.OutputPath == "" {
+		return nil, fmt.Errorf("--output is required")
 	}
-	if (o.reportPath == "") != (o.changesPath == "") {
-		return fmt.Errorf("--report and --changes must be given together")
+	if (r.ReportPath == "") != (r.ChangesPath == "") {
+		return nil, fmt.Errorf("--report and --changes must be given together")
 	}
-	if o.reportPath == "" && o.note == "" {
-		return fmt.Errorf("a notice summary requires --note")
+	if r.ReportPath == "" && r.Note == "" {
+		return nil, fmt.Errorf("a notice summary requires --note")
 	}
+	if r.PublicationBody == "" {
+		return &validatedOptions{raw: r}, nil
+	}
+	if r.ReportPath == "" {
+		return nil, fmt.Errorf("--publication-body requires --report and --changes")
+	}
+	if r.JobName == "" {
+		return nil, fmt.Errorf("--publication-body requires --job-name")
+	}
+	if r.BaseCommit == "" {
+		return nil, fmt.Errorf("--publication-body requires --base-commit")
+	}
+	return &validatedOptions{raw: r}, nil
+}
+
+// Complete decodes the reports the outputs are rendered from.
+func (v *validatedOptions) Complete(out io.Writer) (*completedOptions, error) {
+	raw := v.raw
+	completed := &completedOptions{
+		note: raw.Note, publicationURL: raw.PublicationURL, outputPath: raw.OutputPath,
+		publicationBody: raw.PublicationBody, jobName: raw.JobName, jobURL: raw.JobURL,
+		buildID: raw.BuildID, baseCommit: raw.BaseCommit, out: out,
+	}
+	if raw.ReportPath == "" {
+		return completed, nil
+	}
+	report, err := readReport(raw.ReportPath)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := readChanges(raw.ChangesPath)
+	if err != nil {
+		return nil, err
+	}
+	completed.report = &report
+	completed.summary = &summary
+	return completed, nil
+}
+
+// Run writes the requested outputs.
+func (c *completedOptions) Run() error {
+	input := priorityrefresh.SummaryInput{Note: c.note, PublicationURL: c.publicationURL}
+	if c.report != nil {
+		input.Report = c.report
+		input.Summary = c.summary
+	}
+	if err := writeOutput(c.outputPath, func(w io.Writer) error {
+		return priorityrefresh.WriteSummaryHTML(w, input)
+	}); err != nil {
+		return fmt.Errorf("write summary: %w", err)
+	}
+	if c.publicationBody != "" {
+		body := priorityrefresh.PublicationBodyInput{
+			Report: c.report, Summary: c.summary, JobName: c.jobName,
+			JobURL: c.jobURL, BuildID: c.buildID, BaseCommit: c.baseCommit,
+		}
+		if err := writeOutput(c.publicationBody, func(w io.Writer) error {
+			return priorityrefresh.WritePublicationBody(w, body)
+		}); err != nil {
+			return fmt.Errorf("write publication body: %w", err)
+		}
+	}
+	fmt.Fprintf(c.out, "Wrote %s\n", c.outputPath)
 	return nil
 }
 
-// Run renders the summary to the requested file.
-func (o *options) Run() error {
-	input := priorityrefresh.SummaryInput{Note: o.note, PublicationURL: o.publicationURL}
-	if o.reportPath != "" {
-		report, err := readReport(o.reportPath)
-		if err != nil {
-			return err
-		}
-		summary, err := readChanges(o.changesPath)
-		if err != nil {
-			return err
-		}
-		input.Report = &report
-		input.Summary = &summary
-	}
-
-	file, err := os.Create(o.outputPath)
+// writeFile creates the file and passes it to the renderer, closing it on every
+// path so a renderer failure cannot leak a descriptor.
+func writeOutput(path string, render func(io.Writer) error) error {
+	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("create summary: %w", err)
+		return fmt.Errorf("create %s: %w", path, err)
 	}
-	if err := priorityrefresh.WriteSummaryHTML(file, input); err != nil {
+	if err := render(file); err != nil {
 		_ = file.Close()
 		return err
 	}
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("close summary: %w", err)
+		return fmt.Errorf("close %s: %w", path, err)
 	}
-	fmt.Fprintf(o.out, "Wrote %s\n", o.outputPath)
 	return nil
 }
 
