@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	gh "github.com/google/go-github/v69/github"
@@ -85,38 +86,12 @@ func (c *Client) publicationHeads(ctx context.Context, r PublicationRequest) err
 
 // OwnedPulls inventories all open proposals before selecting an exact owned identity.
 func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRequest, error) {
-	// Decode list bodies explicitly because an absent body cannot establish marker ownership.
-	records, err := paginate(func(o *gh.ListOptions) ([]json.RawMessage, *gh.Response, error) {
-		path := fmt.Sprintf("repos/%s/%s/pulls?state=open&per_page=%d&page=%d", c.owner, c.repo, o.PerPage, o.Page)
-		req, err := c.api.NewRequest("GET", path, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		var page []json.RawMessage
-		response, err := c.api.Do(ctx, req, &page)
-		return page, response, err
-	})
+	open, err := c.OpenPullRequests(ctx)
 	if err != nil {
 		return nil, err
 	}
-	seen := map[int]bool{}
 	var owned []PullRequest
-	for _, raw := range records {
-		v, err := decodePull(raw)
-		if err != nil {
-			return nil, fmt.Errorf("list open pull requests: %w", err)
-		}
-		p, err := pullIdentity(v)
-		if err != nil {
-			return nil, fmt.Errorf("list open pull requests: %w", err)
-		}
-		if seen[p.Number] {
-			return nil, fmt.Errorf("duplicate pull request number in inventory: %w", ErrEvidenceIncomplete)
-		}
-		seen[p.Number] = true
-		if p.BaseRepo != c.owner+"/"+c.repo || p.State != "open" {
-			return nil, fmt.Errorf("open pull request inventory contains a foreign target or state: %w", ErrEvidenceIncomplete)
-		}
+	for _, p := range open {
 		sameBranch := p.HeadRepo == r.HeadRepository && p.HeadRef == r.HeadRef
 		sameMarker := hasMarker(p.Body, r.Marker)
 		if !sameBranch && !sameMarker {
@@ -134,6 +109,75 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 		return nil, fmt.Errorf("multiple owned proposals: %w", ErrConflict)
 	}
 	return owned, nil
+}
+
+// OpenPullRequests reads the complete open pull request inventory, rejecting
+// pages that could hide an entry or describe a foreign target.
+func (c *Client) OpenPullRequests(ctx context.Context) ([]PullRequest, error) {
+	records, err := paginate(func(o *gh.ListOptions) ([]json.RawMessage, *gh.Response, error) {
+		path := fmt.Sprintf("repos/%s/%s/pulls?state=open&per_page=%d&page=%d", c.owner, c.repo, o.PerPage, o.Page)
+		req, err := c.api.NewRequest("GET", path, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		var page []json.RawMessage
+		response, err := c.api.Do(ctx, req, &page)
+		return page, response, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	open := make([]PullRequest, 0, len(records))
+	seen := map[int]bool{}
+	for _, raw := range records {
+		v, err := decodePull(raw)
+		if err != nil {
+			return nil, fmt.Errorf("list open pull requests: %w", err)
+		}
+		p, err := pullIdentity(v)
+		if err != nil {
+			return nil, fmt.Errorf("list open pull requests: %w", err)
+		}
+		if p.BaseRepo != c.owner+"/"+c.repo || p.State != "open" {
+			return nil, fmt.Errorf("open pull request inventory contains a foreign target or state: %w", ErrEvidenceIncomplete)
+		}
+		// A duplicate number means the inventory cannot be trusted to describe a
+		// pull request once, so every consumer rejects it rather than deduplicating.
+		if seen[p.Number] {
+			return nil, fmt.Errorf("duplicate pull request number in inventory: %w", ErrEvidenceIncomplete)
+		}
+		seen[p.Number] = true
+		open = append(open, p)
+	}
+	return open, nil
+}
+
+// OpenProposals reports the numbers of open pull requests authored by actor that
+// carry marker or whose head branch starts with branchPrefix. A run uses it to
+// stop before doing expensive work while its own proposal is still pending.
+func (c *Client) OpenProposals(ctx context.Context, actor, marker, branchPrefix string) ([]int, error) {
+	if actor == "" || (marker == "" && branchPrefix == "") {
+		return nil, fmt.Errorf("proposal inventory requires an actor and a marker or a branch prefix")
+	}
+	open, err := c.OpenPullRequests(ctx)
+	if err != nil {
+		return nil, err
+	}
+	numbers := make([]int, 0, len(open))
+	for _, p := range open {
+		if p.Author != actor {
+			continue
+		}
+		if marker != "" && hasMarker(p.Body, marker) {
+			numbers = append(numbers, p.Number)
+			continue
+		}
+		if branchPrefix != "" && strings.HasPrefix(p.HeadRef, branchPrefix) {
+			numbers = append(numbers, p.Number)
+		}
+	}
+	sort.Ints(numbers)
+	return numbers, nil
 }
 
 // PublicationIdentity checks the exact owner, source, target, and head of a selected proposal.

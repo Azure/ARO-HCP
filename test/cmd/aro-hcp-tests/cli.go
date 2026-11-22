@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra"
 	mergegate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/merge-gate"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities"
+	prioritiesgate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-gate"
 	prioritiespublish "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-publish"
 	prioritiesrun "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-run"
 	prioritiessummary "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-summary"
@@ -289,6 +290,7 @@ func setupCli() (*cobra.Command, error) {
 	root.AddCommand(cleanup.NewCommand())
 	root.AddCommand(priorities.NewCommand())
 	root.AddCommand(prioritiesrun.NewCommand())
+	root.AddCommand(prioritiesgate.NewCommand())
 	root.AddCommand(prioritiespublish.NewCommand())
 	root.AddCommand(prioritiessummary.NewCommand())
 	root.AddCommand(refreshpriorities.NewCommand())
