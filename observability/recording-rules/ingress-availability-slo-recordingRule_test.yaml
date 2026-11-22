@@ -570,17 +570,29 @@ tests:
       value: 0.5263157894736842
 # ========================================
 # Test 18: hostedClusterAPI_kubeapiserver_available:live must exclude
-# status != "True" and HCPs with a deletion timestamp set (per @swiencki)
+# status != "True" and HCPs with a deletion timestamp set (per @swiencki),
+# and must not be fooled by the StateSet's zero-valued status="True" row
+# (per Copilot review)
 # ========================================
-# Three HCPs: "healthy" has status="True" and no deletion timestamp -- live.
-# "down" has status="False" -- excluded regardless of deletion timestamp.
-# "deleting" has status="True" but a non-zero deletion_timestamp_seconds --
-# excluded even though KAS itself still reports available, since the
-# HostedCluster is being torn down.
+# This is a KSM StateSet metric: every HCP gets one row per possible status
+# (True/False/Unknown), with exactly one of them at value 1 and the rest at
+# 0 -- an HCP that is actually down still has a status="True" row, just
+# with value 0. "healthy" has status="True"=1 (the other two rows at 0) and
+# no deletion timestamp -- live. "down" has status="False"=1 and, like every
+# real StateSet series, a status="True"=0 row too -- a bare `{status="True"}`
+# label match (no `== 1`) would incorrectly treat "down" as live by picking
+# up that zero row and neutralizing it to 1 via the alerts' `* 0 + 1`.
+# "deleting" has status="True"=1 (KAS itself still reports available) but a
+# non-zero deletion_timestamp_seconds -- excluded because the HostedCluster
+# is being torn down.
 - interval: 1m
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="healthy", namespace="clusters-healthy", _id="healthy", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/healthy"}'
     values: "1+0x10"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="False", name="healthy", namespace="clusters-healthy", _id="healthy", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/healthy"}'
+    values: "0+0x10"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="down", namespace="clusters-down", _id="down", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/down"}'
+    values: "0+0x10"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="False", name="down", namespace="clusters-down", _id="down", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/down"}'
     values: "1+0x10"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="deleting", namespace="clusters-deleting", _id="deleting", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/deleting"}'

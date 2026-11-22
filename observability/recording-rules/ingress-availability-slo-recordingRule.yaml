@@ -70,12 +70,22 @@ spec:
   # existing ingress alert test's eval_time to clear that same grace period,
   # which most don't (23 of ~40 are under 30m); tracked as a follow-up
   # alongside the per-management-cluster scope discussion.
+  #
+  # `{status="True"}` alone is a LABEL match, not a value check: this is a
+  # KSM StateSet metric (values-mgmt.yaml:150-157), so it emits one row per
+  # possible status (True/False/Unknown) for every HCP, with exactly one of
+  # them at value 1 and the rest at 0. An HCP whose real status is False or
+  # Unknown still has a `status="True"` row -- just with value 0 -- so
+  # `{status="True"}` alone matches it too. Every alert then neutralizes
+  # whatever value survives via `* 0 + 1`, so without the explicit `== 1`
+  # below, an unavailable HCP's zero would still turn into 1 and be treated
+  # as live, exactly defeating the filter this record exists to add.
   - name: arohcp_ingress_hcp_liveness_filter
     interval: 1m
     rules:
     - record: hostedClusterAPI_kubeapiserver_available:live
       expr: |
-        hostedClusterAPI_kubeapiserver_available{status="True"}
+        hostedClusterAPI_kubeapiserver_available{status="True"} == 1
         unless on (_id) (hostedClusterAPI_deletion_timestamp_seconds > 0)
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m

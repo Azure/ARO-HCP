@@ -268,7 +268,7 @@ resource arohcpIngressHcpLivenessFilter 'Microsoft.AlertsManagement/prometheusRu
     rules: [
       {
         record: 'hostedClusterAPI_kubeapiserver_available:live'
-        expression: 'hostedClusterAPI_kubeapiserver_available{status="True"} unless on (_id) (hostedClusterAPI_deletion_timestamp_seconds > 0)'
+        expression: 'hostedClusterAPI_kubeapiserver_available{status="True"} == 1 unless on (_id) (hostedClusterAPI_deletion_timestamp_seconds > 0)'
       }
     ]
   }
