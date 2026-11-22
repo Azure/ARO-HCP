@@ -125,7 +125,6 @@ backend:
   backupScheduleState: Disabled
   clusterScopedIdentitiesConfig:
     roleSetName: dev
-  enableHostedClusterDataPlaneIdentityWriter: false
   exitOnPanic: true
   image:
     digest: ""

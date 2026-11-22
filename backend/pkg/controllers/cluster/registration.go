@@ -1132,7 +1132,6 @@ func instantiateDataPlaneWorkloadsOIDCFederationIntentController(controllerConte
 func registerHostedClusterDataPlaneIdentitiesController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers: 20,
-		Enabled: func(c controllerconfig.ControllerContext) bool { return c.EnableHostedClusterDataPlaneIdentityWriter },
 		Instantiate: controllerconfig.WithCacheSyncs(func(c controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 			return clusterdataplaneworkloads.NewHostedClusterDataPlaneIdentitiesController(c.ResourcesDBClient, c.BackendInformers), nil
 		}, false),

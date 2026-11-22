@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -135,7 +134,11 @@ func TestIdentityPublication(t *testing.T) {
 	liveLister := c.applyDesireLister
 	c.applyDesireLister = &kubeapplierlistertesting.SliceApplyDesireLister{Desires: []*kubeapplierapi.ApplyDesire{previouslyPublished}}
 	err = c.processClusterResources(ctx, testKey(), older, resources, "abc123")
-	require.True(t, cosmosstorageutils.IsPreconditionFailedError(err))
+	require.NoError(t, err)
+	afterConflict, err := crud.Get(ctx, DesireNameHostedCluster)
+	require.NoError(t, err)
+	require.Equal(t, stored.InstanceVersion, afterConflict.InstanceVersion)
+	require.Equal(t, stored.Spec, afterConflict.Spec)
 	c.applyDesireLister = liveLister
 	stale := publish(partial, "rp-img", "rotated-disk", "rp-file")
 	require.Equal(t, stored.InstanceVersion, stale.InstanceVersion)

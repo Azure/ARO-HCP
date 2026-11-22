@@ -70,7 +70,7 @@ const hostedClusterSourceVersionTag = "hostedClusterSourceInstanceVersion"
 
 // The SPC and the ApplyDesire are separate Cosmos documents. Compare the SPC
 // version before replacing the desire with its ETag so an older snapshot
-// cannot undo a newer identity publication. The workqueue retries conflicts.
+// cannot undo a newer identity publication. The next resync picks up a lost ETag race.
 func (c *clusterResourcesController) ensureHostedClusterDesire(
 	ctx context.Context,
 	crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
@@ -121,6 +121,9 @@ func (c *clusterResourcesController) ensureHostedClusterDesire(
 			next.Status = kubeapplierapi.ApplyDesireStatus{}
 		}
 		_, err = crud.Replace(ctx, next, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("publish HostedCluster desire: %w", err))

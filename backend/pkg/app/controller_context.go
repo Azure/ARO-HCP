@@ -54,8 +54,6 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 	)
 
 	return ControllerContext{
-		EnableHostedClusterDataPlaneIdentityWriter: b.options.EnableHostedClusterDataPlaneIdentityWriter,
-
 		AzureLocation:                     b.options.AzureLocation,
 		ServiceTenantID:                   b.options.ServiceTenantID,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,

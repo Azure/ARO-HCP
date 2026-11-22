@@ -115,6 +115,9 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 	}
 	auth.ManagedIdentities.DataPlane = ids
 	_, err = c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("replace desired HostedCluster data plane identities: %w", err))
 	}
