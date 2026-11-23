@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -38,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -51,6 +54,8 @@ const (
 	testNodePoolName        = "test-nodepool"
 	testClusterServiceIDStr = "/api/aro_hcp/v1alpha1/clusters/abc123"
 	testNodePoolCSIDStr     = testClusterServiceIDStr + "/node_pools/" + testNodePoolName
+	testOperationName       = "11111111-1111-1111-1111-111111111111"
+	testAzureLocation       = "eastus"
 )
 
 func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
@@ -79,6 +84,24 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be set")
 		assert.Equal(t, testNodePoolCSIDStr, stored.ServiceProviderProperties.ClusterServiceID.String())
+	}
+
+	verifyCreateOperationFailed := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+		t.Helper()
+
+		op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+		require.NoError(t, err)
+		assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status, "expected active operation to be marked Failed")
+		require.NotNil(t, op.Error, "expected operation to carry a customer-facing error")
+		assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+		assert.Equal(t, "Machine type not supported", op.Error.Message)
+
+		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain unset since CS never created the node pool")
+		assert.Empty(t, stored.ServiceProviderProperties.ActiveOperationID, "ActiveOperationID should be cleared once the operation reaches a terminal state")
+		assert.Equal(t, coreapi.ProvisioningStateFailed, stored.Properties.ProvisioningState)
 	}
 
 	testCases := []struct {
@@ -189,7 +212,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			wantErrContain: "post failed",
 		},
 		{
-			name:             "when PostNodePool returns 400 OCM error reconciler returns error",
+			name:             "when PostNodePool returns 400 OCM error the create operation is failed instead of retried",
 			listerCluster:    newTestCluster(t, nil),
 			existingNodePool: newTestNodePoolForCreate(t, nil),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -200,9 +223,17 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 					PostNodePool(gomock.Any(), clusterCSInternalID, gomock.Any()).
 					Return(nil, fakeOCMError(http.StatusBadRequest, "Machine type not supported"))
 			},
-			wantErr:        true,
-			wantErrContain: "Machine type not supported",
-			verifyDB:       verifyClusterServiceIDIsNil,
+			// No error is returned: retrying this exact request will never succeed, so the
+			// controller fails the operation directly rather than requeuing forever.
+			verifyDB: verifyCreateOperationFailed,
+		},
+		{
+			name:          "when node pool has no active operation no-op is performed",
+			listerCluster: newTestCluster(t, nil),
+			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.NodePool) {
+				np.ServiceProviderProperties.ActiveOperationID = ""
+			}),
+			verifyDB: verifyClusterServiceIDIsNil,
 		},
 		{
 			name:             "when PostNodePool returns 500 OCM error it is propagated for retry",
@@ -231,6 +262,9 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
+			// Seed the active create operation referenced by newTestNodePoolForCreate's default
+			// ActiveOperationID so failCreateOperation has something to look up and fail.
+			resources = append(resources, newTestOperation(t, nil))
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
@@ -254,10 +288,13 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceCreateSyncer{
+				clock:                 clocktesting.NewFakePassiveClock(time.Now()),
 				nodePoolLister:        &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
+				// notificationClient is left nil; PostAsyncNotificationFn only invokes it when
+				// the operation has a NotificationURI, which test fixtures don't set.
 			}
 
 			err = syncer.SyncOnce(ctx, testKey)
@@ -352,11 +389,44 @@ func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.NodePool)) *corea
 			},
 		},
 		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
-			ClusterServiceID: nil,
+			ClusterServiceID:  nil,
+			ActiveOperationID: testOperationName,
 		},
 	}
 	if opts != nil {
 		opts(np)
 	}
 	return np
+}
+
+// newTestOperation returns the active create operation for testNodePoolName, matching the
+// ActiveOperationID set by default on newTestNodePoolForCreate.
+func newTestOperation(t *testing.T, opts func(*coreapi.Operation)) *coreapi.Operation {
+	t.Helper()
+	nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName))
+	operationID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/locations/" + testAzureLocation +
+			"/operationstatuses/" + testOperationName))
+	cosmosOperationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + testOperationName))
+	op := &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(cosmosOperationResourceID.SubscriptionID),
+		},
+		Status:      coreapi.ProvisioningStateAccepted,
+		Request:     cosmosstorageutils.OperationRequestCreate,
+		ExternalID:  nodePoolResourceID,
+		OperationID: operationID,
+	}
+	if opts != nil {
+		opts(op)
+	}
+	return op
 }
