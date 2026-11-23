@@ -154,6 +154,17 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
+	// Once the cluster's operation has reached a terminal failure state, stop
+	// re-running validations. Returning here schedules no further requeue, which ends
+	// the repeated Azure reads (e.g. the subnet Get) that otherwise continue every
+	// cooldown interval for a cluster whose create/update has already failed.
+	// Succeeded is intentionally not gated so healthy clusters keep refreshing their
+	// validation conditions. A later operation moves the cluster back to a
+	// non-terminal state and validations resume via the resulting informer event.
+	switch existingCluster.ServiceProviderProperties.ProvisioningState {
+	case coreapi.ProvisioningStateFailed, coreapi.ProvisioningStateCanceled:
+		return nil
+	}
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {

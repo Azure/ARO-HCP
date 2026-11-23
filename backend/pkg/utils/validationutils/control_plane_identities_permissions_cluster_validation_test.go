@@ -1479,3 +1479,81 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+// TestValidate_SubnetReadPermissionDenied verifies that when the SMI cannot read the
+// cluster subnet (the prerequisite Get returns 403 / AuthorizationFailed), the
+// validation returns a terminal Failed with reason SubnetReadPermissionDenied instead
+// of a retryable Unknown/InternalError. This is the ARO-30004 behavior change.
+func TestValidate_SubnetReadPermissionDenied(t *testing.T) {
+	const (
+		testTenantID       = "11111111-1111-1111-1111-111111111111"
+		testSubscriptionID = "00000000-0000-0000-0000-000000000000"
+		testIdentityURL    = "https://identity.example.com"
+		// Synthetic scope: the subnet-denial path returns before the scope is used,
+		// so this value only needs to be non-empty (and must avoid real Azure hosts
+		// per the repository URL policy).
+		testCheckAccessScope = "https://management.example.com/.default"
+	)
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
+	smiResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-smi"))
+
+	clusterSubscription := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To(testTenantID)},
+	}
+	cluster := &coreapi.Cluster{
+		TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterResourceID}},
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
+		},
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{
+				SubnetID: subnetResourceID,
+				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
+						ServiceManagedIdentity: smiResourceID,
+					},
+				},
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockCheckAccessBuilder := azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
+	mockCheckAccessClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+	mockSMIBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+	mockSubnetsClient := azureclient.NewMockSubnetsClient(ctrl)
+	mockTokenBuilder := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(ctrl)
+	mockCachedReader := cachedreader.NewMockRoleDefinitionsCachedReader(ctrl)
+
+	// A 403 is detected by its ErrorCode; StatusCode is not required.
+	authzErr := &azcore.ResponseError{ErrorCode: "AuthorizationFailed"}
+
+	mockCheckAccessBuilder.EXPECT().Build(testTenantID).Return(mockCheckAccessClient, nil)
+	mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(mockSubnetsClient, nil)
+	mockSubnetsClient.EXPECT().Get(gomock.Any(), subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil).
+		Return(armnetwork.SubnetsClientGetResponse{}, authzErr)
+	// The denial returns before any CheckAccessV2, role-definition, or token work runs.
+
+	v := NewControlPlaneIdentitiesPermissionsClusterValidation(
+		mockSMIBuilder,
+		&azure.ClusterScopedIdentitiesConfig{},
+		&cachedreader.BackendIdentityAzureCachedReaders{RoleDefinitionsCachedReader: mockCachedReader},
+		mockCheckAccessBuilder,
+		mockTokenBuilder,
+		testCheckAccessScope,
+	)
+
+	result := v.Validate(context.Background(), clusterSubscription, cluster)
+	require.NoError(t, result.Validate())
+	assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+	assert.Equal(t, ReasonSubnetReadPermissionDenied, result.Reason())
+
+	// Assert the customer-facing condition message (not just the internal message)
+	// carries the actionable facts: the missing permission, the SMI, and the subnet.
+	condMessage := result.ToCondition(v.Name()).Message
+	assert.Contains(t, condMessage, "Microsoft.Network/virtualNetworks/subnets/read")
+	assert.Contains(t, condMessage, smiResourceID.String())
+	assert.Contains(t, condMessage, subnetResourceID.String())
+}

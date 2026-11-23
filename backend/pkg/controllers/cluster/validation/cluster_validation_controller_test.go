@@ -569,3 +569,104 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
 }
+
+// TestClusterValidationSyncer_TerminalOperationSkipsValidation verifies that once the
+// cluster's operation has reached a terminal FAILURE state (Failed/Canceled), SyncOnce
+// skips validation entirely (no Azure reads, no condition write, no requeue) — this is
+// what ends the repeated subnet reads for a cluster whose create/update has already
+// failed (ARO-31025, scope 3). Succeeded clusters are intentionally NOT gated, so they
+// keep re-validating.
+func TestClusterValidationSyncer_TerminalOperationSkipsValidation(t *testing.T) {
+	cases := []struct {
+		state       coreapi.ProvisioningState
+		wantSkipped bool
+	}{
+		{coreapi.ProvisioningStateFailed, true},
+		{coreapi.ProvisioningStateCanceled, true},
+		{coreapi.ProvisioningStateSucceeded, false},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.state), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			cluster.ServiceProviderProperties.ProvisioningState = tc.state
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
+
+			validation := NewMockClusterValidation(testValidationName).WithFailed(
+				"GateTest", "gate test", "gate test",
+			)
+
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
+
+			require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+			spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
+
+			if tc.wantSkipped {
+				assert.Nil(t, cond, "validation must be skipped for a terminal failure state")
+				assert.Empty(t, enqueuer.enqueuedKeys, "no requeue should be scheduled for a terminal failure state")
+			} else {
+				require.NotNil(t, cond, "Succeeded clusters should still be re-validated")
+				assert.Equal(t, "GateTest", cond.Reason, "Succeeded cluster should have been re-validated")
+				assert.NotEmpty(t, enqueuer.enqueuedKeys, "a Failed validation result should schedule a requeue")
+			}
+		})
+	}
+}
+
+// TestClusterValidationSyncer_ResumesAfterRetry covers the other half of the gate's
+// promise (pairs with TestClusterValidationSyncer_TerminalOperationSkipsValidation):
+// after a failed cluster is moved back to a non-terminal state — i.e. the customer
+// fixes the permission and retries — validation runs again and records its outcome.
+func TestClusterValidationSyncer_ResumesAfterRetry(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	cluster := newTestCluster(t)
+	cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateFailed
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+	require.NoError(t, err)
+
+	validation := NewMockClusterValidation(testValidationName).WithPassed()
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+
+	// While the operation is terminal (Failed), validation is gated off entirely.
+	require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.Nil(t, meta.FindStatusCondition(spc.Status.Validations, testValidationName),
+		"validation should be gated off while the operation is terminal")
+
+	// A retry moves the same cluster back to a non-terminal (Provisioning) state.
+	stored, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Get(ctx, testClusterName)
+	require.NoError(t, err)
+	stored.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateProvisioning
+	_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Replace(ctx, stored, nil)
+	require.NoError(t, err)
+
+	// Validation now resumes and records its (passing) outcome.
+	require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+	spc, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
+	require.NotNil(t, cond, "validation should resume once the cluster is back in a non-terminal state")
+	assert.Equal(t, metav1.ConditionTrue, cond.Status)
+	assert.Equal(t, coreapi.ControllerConditionReasonAsExpected, cond.Reason)
+}

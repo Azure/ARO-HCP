@@ -96,6 +96,12 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	subnetResourceID := cluster.CustomerProperties.Platform.SubnetID
 	subnet, err := subnetsClient.Get(ctx, subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil)
 	if err != nil {
+		if isSubnetReadPermissionDenied(err) {
+			return subnetReadPermissionDeniedResult(
+				subnetResourceID,
+				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity,
+			)
+		}
 		return UnknownValidation(
 			"InternalError",
 			"Unable to verify control plane identities permissions.",

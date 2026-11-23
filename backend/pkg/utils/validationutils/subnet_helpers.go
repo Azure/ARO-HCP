@@ -46,6 +46,42 @@ func getSubnet(ctx context.Context, subnetsClient azureclient.SubnetsClient, sub
 	return &resp.Subnet, nil
 }
 
+// ReasonSubnetReadPermissionDenied is the ValidationResult reason used when the
+// cluster's service-managed identity (SMI) is denied
+// Microsoft.Network/virtualNetworks/subnets/read on the cluster subnet. It is a
+// terminal, customer-fixable misconfiguration (not a transient error).
+const ReasonSubnetReadPermissionDenied = "SubnetReadPermissionDenied"
+
+// isSubnetReadPermissionDenied reports whether err is a definite Azure authorization
+// failure (403 / AuthorizationFailed) from reading the subnet as the SMI. Only this
+// case is treated specially; all other errors are handled by the caller as before.
+func isSubnetReadPermissionDenied(err error) bool {
+	return azureclient.IsAzureAuthorizationFailedError(err)
+}
+
+// subnetReadPermissionDeniedResult builds the terminal Failed result for a denied SMI
+// subnet read, with a specific, user-actionable message. It is returned instead of
+// the generic retryable UnknownValidation so the create fails with an actionable
+// error and the validation controller stops reporting the failure as a controller
+// error (which otherwise floods the logs; see cluster_validation_controller.go).
+func subnetReadPermissionDeniedResult(subnetID, smiResourceID *azcorearm.ResourceID) ValidationResult {
+	msg := fmt.Sprintf(
+		"The cluster's service-managed identity %q cannot read subnet %q "+
+			"(missing Microsoft.Network/virtualNetworks/subnets/read). Grant the "+
+			"identity a role that includes subnets/read on the subnet or its "+
+			"virtual network, then retry.",
+		resourceIDString(smiResourceID), resourceIDString(subnetID))
+	return FailedValidation(ReasonSubnetReadPermissionDenied, msg, msg)
+}
+
+// resourceIDString renders a resource ID defensively (nil-safe).
+func resourceIDString(id *azcorearm.ResourceID) string {
+	if id == nil {
+		return "<unknown>"
+	}
+	return id.String()
+}
+
 // subnetAddressPrefixes returns parsed subnet address prefixes from Azure.
 // Azure sets either AddressPrefixes (plural, for dual-stack) or AddressPrefix (singular).
 func subnetAddressPrefixes(subnet *armnetwork.Subnet) ([]netip.Prefix, error) {
