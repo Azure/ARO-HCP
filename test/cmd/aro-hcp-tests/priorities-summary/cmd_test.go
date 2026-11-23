@@ -170,7 +170,7 @@ func TestRunRendersPublicationLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(page), `Published pull request: <a href="https://github.com/Azure/ARO-HCP/pull/9000">`) {
+	if !strings.Contains(string(page), `Published pull request: <a href="https://github.com/Azure/ARO-HCP/pull/9000" target="_blank" rel="noopener noreferrer">`) {
 		t.Fatalf("publication link missing from the page:\n%s", page)
 	}
 }

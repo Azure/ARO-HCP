@@ -205,9 +205,9 @@ details ul { max-height: 132px; overflow: auto; margin: 4px 0 0; padding-left: 2
 Window {{.WindowFrom}} to {{.WindowTo}} UTC, <code>{{.Origin}}</code>,
 algorithm <code>{{.Algorithm}}</code>, minimum {{.MinSamples}} builds per spec and environment,
 global median {{.GlobalMedian}}.
-<br>{{.Note}}{{if .PublicationURL}}<br>Published pull request: <a href="{{.PublicationURL}}">{{.PublicationURL}}</a>{{end}}
+<br>{{.Note}}{{if .PublicationURL}}<br>Published pull request: <a href="{{.PublicationURL}}" target="_blank" rel="noopener noreferrer">{{.PublicationURL}}</a>{{end}}
 </p>
-{{else}}<p class="meta">{{.Note}}{{if .PublicationURL}}<br>Published pull request: <a href="{{.PublicationURL}}">{{.PublicationURL}}</a>{{end}}</p>
+{{else}}<p class="meta">{{.Note}}{{if .PublicationURL}}<br>Published pull request: <a href="{{.PublicationURL}}" target="_blank" rel="noopener noreferrer">{{.PublicationURL}}</a>{{end}}</p>
 {{end}}
 {{if .HasChangesTable}}<p class="meta">{{.Unchanged}} unchanged, {{.Insufficient}} insufficient, {{.Unmatched}} unmatched.</p>
 {{if .UnmatchedNames}}<details><summary>Unmatched specs (retired or absent from this catalog)</summary><ul>
