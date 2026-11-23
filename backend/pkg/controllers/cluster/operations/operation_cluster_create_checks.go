@@ -32,10 +32,12 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -328,6 +330,7 @@ func (c *clusterCreateServingCACheck) CalculateOperationStatus(ctx context.Conte
 
 type clusterCreateRoleAssignmentsCheck struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	deploymentStackDesireLister  azureresourceslisters.DeploymentStackDesireLister
 }
 
 var _ operationbase.OperationStatusCalculator[struct{}] = (*clusterCreateRoleAssignmentsCheck)(nil)
@@ -344,9 +347,75 @@ func (c *clusterCreateRoleAssignmentsCheck) CalculateOperationStatus(ctx context
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
+
+	// The role assignments over the managed resource group are applied through a
+	// DeploymentStackDesire. Verify completion against that desire's observed Azure state
+	// (every reserved assignment managed by a current, successful apply) rather than the
+	// legacy per-resource AzureMultiReference.
+	desire, err := c.deploymentStackDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, azureresourcesapi.RoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// Not published yet: RoleAssignmentsConfigured treats a nil desire as not configured,
+		// but passing it explicitly keeps the intent clear.
+		desire = nil
+	} else if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	configured, err := coreapihelpers.RoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !configured {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+// clusterCreateMockFPARoleAssignmentsCheck mirrors clusterCreateRoleAssignmentsCheck for the
+// mock First Party Application role assignments over the managed resource group. These only
+// exist in environments without a real FPA (where the mock FPA principal must hold Owner over
+// the managed resource group before Cluster Service can provision into it). It is registered
+// only when mock FPA role assignments are enabled (no real FPA). With a real FPA nothing
+// publishes these grants, so the source is not registered at all rather than reporting a
+// meaningless, always-succeeded status.
+type clusterCreateMockFPARoleAssignmentsCheck struct {
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	deploymentStackDesireLister  azureresourceslisters.DeploymentStackDesireLister
+}
+
+var _ operationbase.OperationStatusCalculator[struct{}] = (*clusterCreateMockFPARoleAssignmentsCheck)(nil)
+
+func (c *clusterCreateMockFPARoleAssignmentsCheck) GetSourceName() string {
+	return "mockFirstPartyApplicationRoleAssignments"
+}
+
+func (c *clusterCreateMockFPARoleAssignmentsCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	// The mock FPA role assignments over the managed resource group are applied through a
+	// DeploymentStackDesire. Verify completion against that desire's observed Azure state
+	// (every reserved assignment managed by a current, successful apply).
+	desire, err := c.deploymentStackDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// Not published yet: MockFPARoleAssignmentsConfigured treats a nil desire as not
+		// configured, but passing it explicitly keeps the intent clear.
+		desire = nil
+	} else if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	configured, err := coreapihelpers.MockFPARoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !configured {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "mock FPA role assignments not yet confirmed"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }

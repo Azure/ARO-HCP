@@ -30,21 +30,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	secretsyncv1alpha1 "sigs.k8s.io/secrets-store-sync-controller/api/v1alpha1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -505,17 +510,12 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
-								Validations:     tc.validations,
-								ServingCABundle: "fake-ca-data",
+								Validations:                             tc.validations,
+								ServingCABundle:                         "fake-ca-data",
+								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignmentsStatus(),
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
 								},
 							},
 						},
@@ -529,6 +529,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 						Desires: []*kubeapplierapi.ReadDesire{succeededDesire(t), operationtesting.NewIngressSecretSyncReadDesire(t)},
 					}
 				}(),
+				deploymentStackDesireLister: &fakeDeploymentStackDesireLister{desire: managedRoleAssignmentsDesire(t, testRoleAssignmentReservedID)},
 			}
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
@@ -722,6 +723,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				},
 				serviceProviderClusterLister: spcLister,
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
+				deploymentStackDesireLister:  &fakeDeploymentStackDesireLister{},
 				resourcesDBClient:            db,
 			}
 			controller.statusCalculators, err = controller.newStatusCalculators()
@@ -1271,10 +1273,11 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 			}
 
 			controller := &operationClusterCreate{
-				clock:                utilsclock.RealClock{},
-				clusterLister:        tt.clusterLister,
-				readDesireLister:     tt.readDesireLister,
-				clusterServiceClient: setupCSMock(ctrl),
+				clock:                       utilsclock.RealClock{},
+				clusterLister:               tt.clusterLister,
+				readDesireLister:            tt.readDesireLister,
+				clusterServiceClient:        setupCSMock(ctrl),
+				deploymentStackDesireLister: &fakeDeploymentStackDesireLister{desire: managedRoleAssignmentsDesire(t, testRoleAssignmentReservedID)},
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 						{
@@ -1289,16 +1292,11 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
-								ServingCABundle: "fake-ca-data",
+								ServingCABundle:                         "fake-ca-data",
+								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignmentsStatus(),
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
 								},
 							},
 						},
@@ -1562,16 +1560,66 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 	})
 }
 
+// fakeDeploymentStackDesireLister returns a fixed desire/err for GetForCluster.
+type fakeDeploymentStackDesireLister struct {
+	azureresourceslisters.DeploymentStackDesireLister
+	desire *azureresourcesapi.DeploymentStackDesire
+	err    error
+}
+
+func (l *fakeDeploymentStackDesireLister) GetForCluster(context.Context, string, string, string, string) (*azureresourcesapi.DeploymentStackDesire, error) {
+	return l.desire, l.err
+}
+
+// managedRoleAssignmentsDesire builds a role assignments DeploymentStackDesire whose
+// currently published spec was successfully applied and reports every reservedID as managed,
+// so RoleAssignmentsConfigured treats assignments reserving those IDs as configured.
+func managedRoleAssignmentsDesire(t *testing.T, reservedIDs ...*azcorearm.ResourceID) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(reservedIDs))
+	for _, id := range reservedIDs {
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{ID: ptr.To(id.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)})
+	}
+	d := &azureresourcesapi.DeploymentStackDesire{
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
+		Status: azureresourcesapi.DeploymentStackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{Resources: resources},
+			},
+		},
+	}
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(d.Spec)
+	require.NoError(t, err)
+	d.Status.ObservedSpecHash = hash
+	d.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	return d
+}
+
+// testRoleAssignmentReservedID is the reserved role assignment resource ID the full-controller
+// create tests use; paired with managedRoleAssignmentsDesire(t, testRoleAssignmentReservedID)
+// and configuredRoleAssignmentsStatus() it makes the role assignments check report Succeeded.
+var testRoleAssignmentReservedID = metadataapi.Must(azcorearm.ParseResourceID(
+	"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111"))
+
+// configuredRoleAssignmentsStatus returns a RoleAssignmentsOverManagedResourceGroup map whose
+// single entry reserves testRoleAssignmentReservedID.
+func configuredRoleAssignmentsStatus() map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus {
+	return map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		{PrincipalID: "operator", RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}: {
+			ReservedAzureResourceID: testRoleAssignmentReservedID,
+		},
+	}
+}
+
 func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
-	roleAssignmentID := func(name string) *azcorearm.ResourceID {
-		return metadataapi.Must(azcorearm.ParseResourceID(
-			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
-	}
+	reserved := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111"))
+	key := coreapi.RoleAssignmentKey{PrincipalID: "operator", RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}
 
-	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+	spcLister := func(assignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 				{
@@ -1582,9 +1630,7 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 								coreapi.ServiceProviderClusterResourceName)),
 					},
 					Status: coreapi.ServiceProviderClusterStatus{
-						AzureResources: coreapi.AzureResources{
-							RoleAssignments: ra,
-						},
+						RoleAssignmentsOverManagedResourceGroup: assignments,
 					},
 				},
 			},
@@ -1592,30 +1638,36 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		roleAssignments coreapi.AzureMultiReference
-		expectedState   coreapi.ProvisioningState
-		wantMsgSubstr   string
+		name          string
+		assignments   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
+		desire        *azureresourcesapi.DeploymentStackDesire
+		expectedState coreapi.ProvisioningState
+		wantMsgSubstr string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
-			},
+			name:          "all reserved assignments managed under current applied spec → Succeeded",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t, reserved),
 			expectedState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:            "none confirmed → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{},
-			expectedState:   coreapi.ProvisioningStateProvisioning,
-			wantMsgSubstr:   "role assignments not yet confirmed",
+			name:          "no role assignments recorded yet → Provisioning",
+			assignments:   nil,
+			desire:        managedRoleAssignmentsDesire(t, reserved),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
 		},
 		{
-			name: "some still pending → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
-				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
-			},
+			name:          "DeploymentStackDesire not published yet → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+		{
+			name:          "assignment not yet managed by the stack → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t), // applied, but does not manage reserved
 			expectedState: coreapi.ProvisioningStateProvisioning,
 			wantMsgSubstr: "role assignments not yet confirmed",
 		},
@@ -1625,7 +1677,8 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			controller := &clusterCreateRoleAssignmentsCheck{
-				serviceProviderClusterLister: spcLister(tt.roleAssignments),
+				serviceProviderClusterLister: spcLister(tt.assignments),
+				deploymentStackDesireLister:  &fakeDeploymentStackDesireLister{desire: tt.desire},
 			}
 
 			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
@@ -1637,6 +1690,108 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMockFPARoleAssignmentsOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	reserved := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/22222222-2222-2222-2222-222222222222"))
+	key := coreapi.RoleAssignmentKey{PrincipalID: "mock-fpa", RoleDefinitionResourceID: "/providers/microsoft.authorization/roledefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}
+
+	spcLister := func(assignments map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup: assignments,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		assignments   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus
+		desire        *azureresourcesapi.DeploymentStackDesire
+		expectedState coreapi.ProvisioningState
+		wantMsgSubstr string
+	}{
+		{
+			name:          "all reserved assignments managed under current applied spec → Succeeded",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t, reserved),
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "no mock FPA role assignments recorded yet → Provisioning",
+			assignments:   nil,
+			desire:        managedRoleAssignmentsDesire(t, reserved),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+		{
+			name:          "DeploymentStackDesire not published yet → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+		{
+			name:          "assignment not yet managed by the stack → Provisioning",
+			assignments:   map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{key: {ReservedAzureResourceID: reserved}},
+			desire:        managedRoleAssignmentsDesire(t), // applied, but does not manage reserved
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "mock FPA role assignments not yet confirmed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &clusterCreateMockFPARoleAssignmentsCheck{
+				serviceProviderClusterLister: spcLister(tt.assignments),
+				deploymentStackDesireLister:  &fakeDeploymentStackDesireLister{desire: tt.desire},
+			}
+
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+// TestMockFPARoleAssignmentsCheckRegistration verifies the mock FPA role assignments source is
+// registered only when mock FPA role assignments are enabled (no real FPA), and omitted
+// otherwise so the operation does not report a meaningless always-succeeded source.
+func TestMockFPARoleAssignmentsCheckRegistration(t *testing.T) {
+	sourceName := (&clusterCreateMockFPARoleAssignmentsCheck{}).GetSourceName()
+
+	t.Run("registered when enabled", func(t *testing.T) {
+		calcs, err := (&operationClusterCreate{mockFirstPartyApplicationRoleAssignmentsEnabled: true}).newStatusCalculators()
+		require.NoError(t, err)
+		_, ok := calcs[sourceName]
+		assert.True(t, ok, "expected the mock FPA role assignments source to be registered")
+	})
+
+	t.Run("not registered when disabled", func(t *testing.T) {
+		calcs, err := (&operationClusterCreate{mockFirstPartyApplicationRoleAssignmentsEnabled: false}).newStatusCalculators()
+		require.NoError(t, err)
+		_, ok := calcs[sourceName]
+		assert.False(t, ok, "expected the mock FPA role assignments source to be absent with a real FPA")
+	})
 }
 
 func TestDataPlaneOIDCFederationOperationStatus(t *testing.T) {

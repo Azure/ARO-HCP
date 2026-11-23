@@ -185,6 +185,47 @@ func setDataPlaneOIDCFederationCreated(spc *coreapi.ServiceProviderCluster) {
 	spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = federation
 }
 
+// roleAssignmentsReservedID is the reserved operator role assignment resource ID used by the
+// SyncOnce fixtures. setRoleAssignmentsCreated records it on the status map, and
+// managedRoleAssignmentsStackDesire reports it managed, so RoleAssignmentsConfigured (and the
+// createPreconditionRoleAssignmentsCreated precondition) report ready.
+var roleAssignmentsReservedID = metadataapi.Must(azcorearm.ParseResourceID(
+	"/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup + "/providers/Microsoft.Authorization/roleAssignments/33333333-3333-3333-3333-333333333333"))
+
+// setRoleAssignmentsCreated seeds spc so the operator role assignments over the managed
+// resource group report as configured (paired with managedRoleAssignmentsStackDesire).
+func setRoleAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
+	spc.Status.RoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		{PrincipalID: "operator", RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"}: {
+			ReservedAzureResourceID: roleAssignmentsReservedID,
+		},
+	}
+}
+
+// managedRoleAssignmentsStackDesire builds a role assignments DeploymentStackDesire whose
+// currently published spec was successfully applied and reports roleAssignmentsReservedID as
+// managed.
+func managedRoleAssignmentsStackDesire(t *testing.T) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	d := &azureresourcesapi.DeploymentStackDesire{
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
+		Status: azureresourcesapi.DeploymentStackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{
+					Resources: []*armdeploymentstacks.ManagedResourceReference{
+						{ID: ptr.To(roleAssignmentsReservedID.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)},
+					},
+				},
+			},
+		},
+	}
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(d.Spec)
+	require.NoError(t, err)
+	d.Status.ObservedSpecHash = hash
+	d.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	return d
+}
+
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
@@ -214,6 +255,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setRoleAssignmentsCreated(spc)
 				setDataPlaneOIDCFederationCreated(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
@@ -344,6 +386,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// passes; this case isolates the OIDC federation gate. OIDC federation is left
 				// unseeded, so no operator has an ensured entry yet.
 				setDenyAssignmentsCreated(spc)
+				setRoleAssignmentsCreated(spc)
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				// No CS calls are expected: gomock fails the test if the controller dispatches.
@@ -373,6 +416,9 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// case isolates the deny-assignment behaviour.
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDataPlaneOIDCFederationCreated(spc)
+				// Role assignments are configured so the (independent) role-assignments gate does
+				// not block; this case isolates the deny-assignment behaviour.
+				setRoleAssignmentsCreated(spc)
 			}),
 			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			denyAssignmentsDisabled: true,
@@ -411,6 +457,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				setDenyAssignmentsCreated(spc)
+				setRoleAssignmentsCreated(spc)
 				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = nil
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -436,6 +483,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// Deny assignments are already created so the (independent) deny-assignment gate
 				// passes; this case isolates the placement gate.
 				setDenyAssignmentsCreated(spc)
+				setRoleAssignmentsCreated(spc)
 				// Spec.ManagementClusterResourceID intentionally left nil: placement not resolved.
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -467,6 +515,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setRoleAssignmentsCreated(spc)
 				setDataPlaneOIDCFederationCreated(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
@@ -533,6 +582,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
 				clustersServiceClient:        mockCS,
 				denyAssignmentsEnabled:       !tt.denyAssignmentsDisabled,
+				deploymentStackDesireLister:  &fakeDeploymentStackDesireLister{desire: managedRoleAssignmentsStackDesire(t)},
 			}
 
 			key := controllerutils.HCPClusterKey{

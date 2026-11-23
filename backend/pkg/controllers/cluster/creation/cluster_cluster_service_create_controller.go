@@ -82,6 +82,8 @@ func NewClusterClusterServiceCreateController(
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
+	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
+
 	syncer := &clusterClusterServiceCreateSyncer{
 		resourcesDBClient:                               resourcesDBClient,
 		clusterLister:                                   clusterLister,
@@ -91,6 +93,7 @@ func NewClusterClusterServiceCreateController(
 		clustersServiceClient:                           clustersServiceClient,
 		denyAssignmentsEnabled:                          denyAssignmentsEnabled,
 		mockFirstPartyApplicationRoleAssignmentsEnabled: mockFirstPartyApplicationRoleAssignmentsEnabled,
+		deploymentStackDesireLister:                     deploymentStackDesireLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -106,17 +109,16 @@ func NewClusterClusterServiceCreateController(
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
 
+	// Wake this controller when the stack desires controller writes an observed Azure status back
+	// onto the desire, so the POST fires promptly once the grant lands rather than only on resync.
+	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.RoleAssignmentsDeploymentStackDesireName)
 	// Only watch (and read) the mock FPA role assignments DeploymentStackDesire when the
 	// MockFPARoleAssignments controller runs. When a real FPA is available nothing publishes it,
 	// so wiring the watch would be dead weight and the precondition short-circuits to ready.
 	if mockFirstPartyApplicationRoleAssignmentsEnabled {
-		deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
-		syncer.deploymentStackDesireLister = deploymentStackDesireLister
-		// Wake this controller when the stack desires controller writes an observed Azure status back
-		// onto the desire, so the POST fires promptly once the grant lands rather than only on resync.
-		if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
-			panic(err)
-		}
 		controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	}
 
@@ -203,6 +205,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	ready, err = c.createPreconditionDenyAssignmentsCreated(ctx, existingServiceProviderCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !ready {
+		return nil
+	}
+
+	ready, err = c.createPreconditionRoleAssignmentsCreated(ctx, key, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -359,6 +369,40 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignm
 	}
 	if !configured {
 		logger.Info("Mock FPA role assignments not yet live in Azure, waiting for MockFPARoleAssignments controller")
+		return false, nil
+	}
+	return true, nil
+}
+
+// createPreconditionRoleAssignmentsCreated reports whether the role assignments over the managed resource group
+// are live in Azure.
+//
+// Readiness is read from the role assignments DeploymentStackDesire's observed Azure state via
+// coreapihelpers.MockFPARoleAssignmentsConfigured, which gates on the observation being
+// current (ObservedSpecHash matches the published spec), the apply having succeeded, and
+// every desired assignment being managed. Reading the whole desired set from the status
+// map means this scales to more than one role assignment without changes here. An empty
+// map (the grant intent has not been recorded yet, the common case for a fresh cluster) is
+// reported as not configured, so the POST waits. Returns (false, nil) when this controller
+// should wait and retry.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionRoleAssignmentsCreated(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	desire, err := c.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.RoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Role assignments DeploymentStackDesire not yet published, waiting for ClusterRoleAssignments controller")
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
+	}
+
+	configured, err := coreapihelpers.RoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
+	if err != nil {
+		return false, utils.TrackError(err)
+	}
+	if !configured {
+		logger.Info("Role assignments not yet live in Azure, waiting for ClusterRoleAssignments controller")
 		return false, nil
 	}
 	return true, nil
