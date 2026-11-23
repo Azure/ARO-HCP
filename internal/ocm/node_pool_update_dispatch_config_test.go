@@ -15,7 +15,9 @@
 package ocm
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -527,6 +529,101 @@ func TestNodePoolUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	assert.NotEqual(t, desiredJSON, actualJSON)
 }
 
+// ARO-30427: the nil/empty distinction carries the difference between "customer did not
+// specify taints" and "customer asked for no taints", and must survive this conversion.
+func TestNodePoolUpdateDispatchConfigTaintsFromRP(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		taints  []coreapi.Taint
+		want    []NodePoolUpdateDispatchConfigTaint
+		wantNil bool
+	}{
+		{
+			name:    "nil taints stay nil so the field is omitted",
+			taints:  nil,
+			want:    nil,
+			wantNil: true,
+		},
+		{
+			name:    "empty non-nil taints stay empty non-nil so the field is sent as []",
+			taints:  []coreapi.Taint{},
+			want:    []NodePoolUpdateDispatchConfigTaint{},
+			wantNil: false,
+		},
+		{
+			name:    "populated taints are copied",
+			taints:  []coreapi.Taint{{Effect: metadataapi.EffectNoSchedule, Key: "dedicated", Value: "infra"}},
+			want:    []NodePoolUpdateDispatchConfigTaint{{Effect: string(metadataapi.EffectNoSchedule), Key: "dedicated", Value: "infra"}},
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := NodePoolUpdateDispatchConfigTaintsFromRP(tt.taints)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantNil, got == nil, "nil-ness must be preserved; it decides whether Cluster Service is told to clear taints")
+		})
+	}
+}
+
+// ARO-30427: end-to-end over the path the dispatch controller uses, asserting the bytes that
+// reach Cluster Service. A removal is only expressible if "taints" is present and empty.
+func TestBuildCSNodePoolTaintRemovalReachesTheWire(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		taints []coreapi.Taint
+		want   string
+	}{
+		{
+			name:   "taints unspecified omits the field",
+			taints: nil,
+			want:   `{"kind":"NodePool","replicas":2}`,
+		},
+		{
+			name:   "taints explicitly empty sends an empty list",
+			taints: []coreapi.Taint{},
+			want:   `{"kind":"NodePool","replicas":2,"taints":[]}`,
+		},
+		{
+			name:   "taints populated sends the list",
+			taints: []coreapi.Taint{{Effect: metadataapi.EffectNoSchedule, Key: "key1", Value: "value1"}},
+			want:   `{"kind":"NodePool","replicas":2,"taints":[{"effect":"NoSchedule","key":"key1","value":"value1"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			nodePool := &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
+					Replicas: 2,
+					Taints:   tt.taints,
+				},
+			}
+
+			builder, err := BuildCSNodePool(context.Background(), nodePool, true)
+			require.NoError(t, err)
+			csNodePool, err := builder.Build()
+			require.NoError(t, err)
+
+			var buf bytes.Buffer
+			require.NoError(t, arohcpv1alpha1.MarshalNodePool(csNodePool, &buf))
+
+			var got any
+			require.NoError(t, json.Unmarshal(buf.Bytes(), &got))
+			var want any
+			require.NoError(t, json.Unmarshal([]byte(tt.want), &want))
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
 func TestNodePoolUpdateDispatchConfigTaintsFromCS(t *testing.T) {
 	t.Parallel()
 
@@ -630,11 +727,27 @@ func TestNodePoolUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 			},
 		},
 		{
+			// Asserted on the builder's own field presence rather than through
+			// NodePoolUpdateDispatchConfigTaintsFromCS, which collapses empty to nil and so
+			// cannot tell "taints omitted" from "taints: []".
 			name:   "nil taints does not set taints on builder",
 			config: nodePoolUpdateDispatchConfig{Replicas: 3},
 			verify: func(t *testing.T, csNodePool *arohcpv1alpha1.NodePool) {
 				t.Helper()
-				assert.Nil(t, NodePoolUpdateDispatchConfigTaintsFromCS(csNodePool))
+				_, ok := csNodePool.GetTaints()
+				assert.False(t, ok, "nil taints must leave the field unset so Cluster Service keeps its existing taints")
+			},
+		},
+		{
+			// ARO-30427: an explicitly empty list is a removal request and has to reach the
+			// wire as "taints": [], otherwise Cluster Service is never told to clear.
+			name:   "empty non-nil taints sets an empty taints list on builder",
+			config: nodePoolUpdateDispatchConfig{Replicas: 3, Taints: []NodePoolUpdateDispatchConfigTaint{}},
+			verify: func(t *testing.T, csNodePool *arohcpv1alpha1.NodePool) {
+				t.Helper()
+				taints, ok := csNodePool.GetTaints()
+				assert.True(t, ok, "empty taints must set the field so Cluster Service clears existing taints")
+				assert.Empty(t, taints)
 			},
 		},
 		{

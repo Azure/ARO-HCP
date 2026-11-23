@@ -210,8 +210,16 @@ func nodePoolUpdateDispatchConfigFromRP(nodePool *coreapi.NodePool) *nodePoolUpd
 }
 
 // NodePoolUpdateDispatchConfigTaintsFromRP copies taints from RP into the dispatch canonical form.
+//
+// Nil and empty are NOT equivalent here and must not be conflated: nil means the customer did
+// not specify taints, so applyToCSBuilder omits the field and Cluster Service leaves its taints
+// alone; an empty non-nil slice means the customer explicitly asked for no taints, so the field
+// is sent as [] and Cluster Service clears them. Collapsing empty to nil makes a taint removal
+// unrepresentable on the wire, which leaves the update operation waiting forever to observe a
+// clear it never requested (ARO-30427). Labels work the same way by passing the map straight
+// through.
 func NodePoolUpdateDispatchConfigTaintsFromRP(taints []coreapi.Taint) []NodePoolUpdateDispatchConfigTaint {
-	if len(taints) == 0 {
+	if taints == nil {
 		return nil
 	}
 
@@ -329,6 +337,9 @@ func (c *nodePoolUpdateDispatchConfig) applyToCSBuilder(nodePoolBuilder *arohcpv
 		nodePoolBuilder.Replicas(int(c.Replicas))
 	}
 
+	// Keep this nil check: a nil slice must omit "taints" so Cluster Service leaves existing
+	// taints alone, while an empty non-nil slice must reach Taints() so it marshals as
+	// "taints": [] and clears them. Switching this to len() > 0 reintroduces ARO-30427.
 	if c.Taints != nil {
 		taintBuilders := make([]*arohcpv1alpha1.TaintBuilder, 0, len(c.Taints))
 		for _, t := range c.Taints {

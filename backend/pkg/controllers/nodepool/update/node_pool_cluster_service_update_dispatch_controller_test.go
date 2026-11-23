@@ -15,7 +15,9 @@
 package update
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -266,6 +268,82 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestNodePoolUpdateDispatchSyncer_SyncOnce_ExplicitTaintClearReachesClusterService(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	csID := metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))
+
+	// RP desired state after PATCH {"taints": []}: empty, but not nil.
+	storedNodePool := newTestNodePool(func(np *coreapi.NodePool) {
+		np.Properties.Taints = []coreapi.Taint{}
+	})
+
+	// Cluster Service still carries the taint the customer asked to remove.
+	existingCSNodePool := metadataapi.Must(arohcpv1alpha1.NewNodePool().
+		Replicas(int(storedNodePool.Properties.Replicas)).
+		Taints(arohcpv1alpha1.NewTaint().
+			Effect(string(metadataapi.EffectNoSchedule)).
+			Key("key1").
+			Value("value1")).
+		Build())
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{storedNodePool})
+	require.NoError(t, err)
+
+	reloaded, err := mockResourcesDB.
+		HCPClusters(testSubscriptionID, testResourceGroupName).
+		NodePools(testClusterName).
+		Get(ctx, testNodePoolName)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.Properties.Taints,
+		"explicit taint clear was lost by the Cosmos round trip")
+	require.Empty(t, reloaded.Properties.Taints,
+		"Cosmos round trip changed the stored taints")
+
+	var patchPayload string
+	mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockCSClient.EXPECT().
+		GetNodePool(gomock.Any(), csID).
+		Return(existingCSNodePool, nil)
+	mockCSClient.EXPECT().
+		UpdateNodePool(gomock.Any(), csID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
+			patch, buildErr := builder.Build()
+			require.NoError(t, buildErr)
+
+			var buf bytes.Buffer
+			require.NoError(t, arohcpv1alpha1.MarshalNodePool(patch, &buf))
+			patchPayload = buf.String()
+			return patch, nil
+		})
+
+	syncer := &nodePoolClusterServiceUpdateDispatchSyncer{
+		minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+		nodePoolLister:                      &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDB},
+		resourcesDBClient:                   mockResourcesDB,
+		clusterServiceClient:                mockCSClient,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}))
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(patchPayload), &payload))
+
+	rawTaints, present := payload["taints"]
+	require.Truef(t, present,
+		"Cluster Service PATCH omitted taints, so CS treats it as \"leave taints alone\" and the clear never happens: %s", patchPayload)
+	taintList, isList := rawTaints.([]any)
+	require.Truef(t, isList, "Cluster Service PATCH taints was %T, want a list: %s", rawTaints, patchPayload)
+	assert.Emptyf(t, taintList, "Cluster Service PATCH should clear taints with an empty list: %s", patchPayload)
 }
 
 func TestNeedsWork(t *testing.T) {
