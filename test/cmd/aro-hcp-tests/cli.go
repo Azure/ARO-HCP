@@ -239,6 +239,7 @@ func setupCli() (*cobra.Command, error) {
 			os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" {
 			specs = specs.MustFilter([]string{
 				`name == "Customer should sustain ingress degradation for health signal validation"`,
+				`name == "Customer should report healthy after sustained ingress degradation for health signal validation"`,
 				`name == "Customer should produce intermittent ingress degradation for health signal validation"`,
 			})
 		}
