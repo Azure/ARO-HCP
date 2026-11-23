@@ -333,6 +333,25 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 	return admissionContext, nil
 }
 
+// newClusterCapacityAdmissionContext creates the admission context for the
+// capacity check on cluster creation. The cluster inventory is read-only,
+// eventually consistent cache data and is only loaded when a limit is set.
+func (f *Frontend) newClusterCapacityAdmissionContext(ctx context.Context) (*admission.ClusterCapacityAdmissionContext, error) {
+	admissionContext := &admission.ClusterCapacityAdmissionContext{
+		MaxE2EMinimalSwiftClusters: f.maxE2EMinimalSwiftClusters,
+	}
+	if admissionContext.MaxE2EMinimalSwiftClusters == 0 {
+		return admissionContext, nil
+	}
+
+	clusters, err := f.clusterLister.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list clusters for cluster capacity admission: %w", err)
+	}
+	admissionContext.Clusters = clusters
+	return admissionContext, nil
+}
+
 func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
@@ -386,6 +405,13 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, nil)...)
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
+	}
+	capacityAdmissionContext, err := f.newClusterCapacityAdmissionContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if err := admission.AdmitClusterCapacity(ctx, capacityAdmissionContext, newInternalCluster); err != nil {
+		return utils.TrackError(coreapi.NewCapacityExceededError(err))
 	}
 
 	// we must validate using user provided .Identity.UserAssignedIdentities because that is the intent expressed by the user to allow

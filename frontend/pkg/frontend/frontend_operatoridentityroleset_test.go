@@ -90,6 +90,7 @@ func TestArmResourceListOperatorIdentityRoleSets(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(tt.roleDefinitionConfigName),
+				0,
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -192,6 +193,7 @@ func TestGetOperatorIdentityRoleSet(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(tt.roleDefinitionConfigName),
+				0,
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))

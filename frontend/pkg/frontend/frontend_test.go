@@ -107,6 +107,7 @@ func TestOperationsList(t *testing.T) {
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+		0,
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -211,6 +212,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			// Pre-populate subscription in the mock database
@@ -361,6 +363,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -716,6 +719,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			subs := map[string]*coreapi.Subscription{
@@ -857,6 +861,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -974,6 +979,7 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -1102,6 +1108,7 @@ func TestRevokeCredentials(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			// Pre-populate the mock database with cluster
@@ -1248,6 +1255,7 @@ func TestDeleteCluster(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				0,
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))

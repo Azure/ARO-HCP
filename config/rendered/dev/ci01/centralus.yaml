@@ -342,6 +342,7 @@ frontend:
     serviceAccountName: frontend
   logVerbosity: 0
   managedIdentityName: frontend
+  maxE2EMinimalSwiftClusters: 0
 geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
