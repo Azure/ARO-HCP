@@ -20,8 +20,25 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+func TestSetDesiredVersionClearsAcceptedReleaseImage(t *testing.T) {
+	accepted := "4.20"
+	spc := &coreapi.ServiceProviderCluster{Spec: coreapi.ServiceProviderClusterSpec{
+		ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: v("4.20.1"), AcceptedMinorVersion: &accepted},
+		DesiredHostedCluster: &hsv1beta1.HostedCluster{Spec: hsv1beta1.HostedClusterSpec{
+			Release: hsv1beta1.Release{Image: "quay.io/example/release:4.20.1"},
+		}},
+	}}
+	setDesiredVersion(spc, v("4.20.2"), metav1.Now())
+	assert.Empty(t, spc.Spec.DesiredHostedCluster.Spec.Release.Image)
+	assert.Equal(t, "4.20", *spc.Spec.ControlPlaneVersion.AcceptedMinorVersion)
+}
 
 func TestEarliestActiveVersion(t *testing.T) {
 	t.Parallel()

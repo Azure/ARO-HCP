@@ -210,7 +210,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -220,14 +220,15 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID,
+	spc *coreapi.ServiceProviderCluster) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), spc); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -262,7 +263,8 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
+	spc *coreapi.ServiceProviderCluster) error {
 
 	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if err != nil {
@@ -368,6 +370,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 			// Ensure backend-managed settings on HostedCluster before creating ApplyDesire
 			if classified.desireName == DesireNameHostedCluster {
+				if err := ensureHostedClusterAcceptedRelease(&unstructuredObj, spc); err != nil {
+					// Keep the existing ApplyDesire when the accepted release is incomplete.
+					return utils.TrackError(fmt.Errorf("failed to set HostedCluster release for %s: %w", resourceKey, err))
+				}
 				if err := ensureHostedClusterAnnotations(&unstructuredObj); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
 					continue
@@ -457,6 +463,41 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 	}
 
 	return errors.Join(errs...)
+}
+
+// ensureHostedClusterAcceptedRelease applies the image selected by upgrade
+// validation only after the desired minor has been accepted.
+func ensureHostedClusterAcceptedRelease(hostedCluster *unstructured.Unstructured, spc *coreapi.ServiceProviderCluster) error {
+	if spc == nil || spc.Spec.ControlPlaneVersion.AcceptedMinorVersion == nil {
+		return nil
+	}
+	acceptedMinorVersion := *spc.Spec.ControlPlaneVersion.AcceptedMinorVersion
+	desiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
+	if desiredVersion == nil {
+		return fmt.Errorf("desired control plane version is missing for accepted minor version %s", acceptedMinorVersion)
+	}
+	if acceptedMinorVersion != fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor) {
+		return fmt.Errorf("desired control plane version %s does not match accepted minor version %s", desiredVersion, acceptedMinorVersion)
+	}
+	if spc.Spec.DesiredHostedCluster == nil || spc.Spec.DesiredHostedCluster.Spec.Release.Image == "" {
+		return fmt.Errorf("release image is missing for accepted control plane minor version %s and desired version %s", acceptedMinorVersion, desiredVersion)
+	}
+	image := spc.Spec.DesiredHostedCluster.Spec.Release.Image
+	if err := unstructured.SetNestedField(hostedCluster.Object, image, "spec", "release", "image"); err != nil {
+		return err
+	}
+	if err := unstructured.SetNestedField(hostedCluster.Object, spc.Spec.DesiredHostedCluster.Spec.Channel, "spec", "channel"); err != nil {
+		return err
+	}
+	// CS set the force annotation to the release image when it dispatched an
+	// upgrade. Preserve that behavior after the backend accepts the target.
+	annotations := hostedCluster.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[v1beta1.ForceUpgradeToAnnotation] = image
+	hostedCluster.SetAnnotations(annotations)
+	return nil
 }
 
 // ensureHostedClusterAnnotations sets backend-managed annotations on a HostedCluster.

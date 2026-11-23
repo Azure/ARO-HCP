@@ -99,6 +99,7 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OCPImagesACRHostname                                string
 	OrphanedMRGCleanupConfig                            *controllerconfig.OrphanedMRGCleanupConfig
 	// ClusterOIDCIssuerBaseURL is the OIDC issuer base URL that clusters use to specify their OIDC Issuer URL. The
 	// OIDC issuer URL configured for them uses this base url as a base prefix of its full URL. The full OIDC issuer URL is then used as the issuer

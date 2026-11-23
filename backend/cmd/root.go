@@ -629,6 +629,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CheckAccessV2ClientBuilder:                 checkAccessV2ClientBuilder,
 		ClusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
 		CloudEnvironment:                           azureConfig.CloudEnvironment,
+		OCPImagesACRHostname:                       azureConfig.AzureRuntimeConfig.OCPImagesACR.Hostname,
 		MetricsRegisterer:                          legacyregistry.Registerer(),
 		MetricsGatherer:                            legacyregistry.DefaultGatherer,
 		OrphanedMRGCleanupConfig:                   orphanedMRGCleanupConfig,
