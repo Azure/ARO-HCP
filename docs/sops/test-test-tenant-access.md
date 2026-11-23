@@ -108,139 +108,123 @@ Once approved, verify your access:
 
 ## CI/CD Service Principal Configuration
 
-**✅ Status**: Service principals and credentials for the Test Test Azure Red Hat OpenShift tenant have **already been configured** for ARO HCP CI/CD.
+The "OpenShift Release Bot MSFT Test" app in the Test Test Azure Red Hat OpenShift tenant is the CI identity for the
+jobs that use the `prod` profile (subscription "ARO HCP E2E", `403d9de9-132b-4974-94a5-5b78bdfa191e`) and for cleaning
+up expired app registrations in this tenant.
 
-### Key Mechanism: Cluster Profiles
+### How CI Gets the Credentials
 
-ARO HCP uses **OpenShift CI Cluster Profiles** to manage multi-tenant authentication. Each environment (INT, STAGE, PROD) uses a different cluster profile, which automatically injects the correct Azure credentials into test jobs.
+1. Credentials are stored in **Google Secret Manager (GSM)**, collection `hcm-aro`, one group per CI identity
+2. CI steps in [openshift/release](https://github.com/openshift/release/tree/main/ci-operator/step-registry/aro-hcp)
+   mount the groups they need as files under `/var/run/<group>`
+3. The `VAULT_SECRET_PROFILE` variable selects which mounted group a step uses
+   (`/var/run/aro-hcp-${VAULT_SECRET_PROFILE}`)
 
-**How it works:**
-1. **Cluster Profiles** define environment-specific configurations
-2. Each profile references a **Kubernetes secret** containing Azure credentials
-3. **Secret Sync Controller** syncs credentials from Vault to Kubernetes secrets
-4. **ci-operator** mounts these secrets into test pods automatically
+### GSM Groups for the Test Test Tenant
 
-### Environment to Credential Mapping
+| GSM group | `VAULT_SECRET_PROFILE` | Used by |
+|-----------|------------------------|---------|
+| `aro-hcp-prod` | `prod` | `prod-e2e-parallel`, `production` (CAPZ), `delete-expired-prod-resource-groups` (hourly) |
+| `aro-hcp-msft-test-tenant` | `msft-test-tenant` | `delete-expired-msft-test-tenant-app-registrations` (hourly) |
 
-| Environment | Cluster Profile | Azure Subscription | Vault Secret Path | K8s Secret Name |
-|-------------|----------------|-------------------|-------------------|-----------------|
-| **INT** | `aro-hcp-int` | MSIT INT | `selfservice/hcm-aro/aro-hcp-int` | `cluster-secrets-aro-hcp-int` |
-| **STAGE** | `aro-hcp-stg` | ARO HCP E2E - Staging<br>`99399281-00a2-4b39-bb3d-b2645bbbdb93` | `selfservice/hcm-aro/aro-hcp-stg` | `cluster-secrets-aro-hcp-stg` |
-| **PROD** | `aro-hcp-prod` | ARO HCP E2E<br>`403d9de9-132b-4974-94a5-5b78bdfa191e` | `selfservice/hcm-aro/aro-hcp-prod` | `cluster-secrets-aro-hcp-prod` |
+Other profiles (`dev`, `int-rh`, `stg-rh`, `prod-rh`) use their own groups and are not covered by this SOP.
+GSM values cannot be read back; `sm describe` shows a secret's metadata only.
 
-**STAGE and PROD** use the **Test Test Azure Red Hat OpenShift tenant** (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`).
+### Rotating the CI Client Secret
 
-### Scripts Overview
+The app lives in this Microsoft tenant, but CI reads its secret from GSM, which needs Red Hat SSO. Run each step on a
+machine with the access it needs: **Azure** = `az` logged in to this tenant
+(`az login --tenant 93b21e64-4824-439a-b893-46c9b2a51082`), **GSM** = the
+[Secret Manager CLI](https://docs.ci.openshift.org/architecture/cli-secret-manager/) after `sm login`, with access to the
+`hcm-aro` collection. Rotate before the current secret expires; check its expiry with step 2.
 
-Scripts are located in [`dev-infrastructure/openshift-ci/`](../../dev-infrastructure/openshift-ci/):
+1. **GSM**: confirm you can update both groups. Stop here if a line is missing, before any secret is created:
 
-| Script | Purpose |
-|--------|---------|
-| `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
-| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-test-tenant` Vault secrets |
-| `switch-vault-tenant.sh` | Switch active secrets between Test Test tenant and legacy tenant |
+   ```bash
+   sm list -c hcm-aro | grep -E '^(aro-hcp-prod|aro-hcp-msft-test-tenant)/client-secret'
+   ```
 
-For detailed usage, see [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md).
+2. **Azure**: note the current secrets (their key IDs are deleted in step 6):
 
-### Vault Secret Structure
+   ```bash
+   APP_ID=$(az ad app list --filter "displayName eq 'OpenShift Release Bot MSFT Test'" --query '[].appId' -o tsv)
+   echo "${APP_ID}"   # must be exactly one app ID: stop if it is empty or lists more than one
+   az ad app credential list --id "${APP_ID}" --query '[].{keyId:keyId,name:displayName,end:endDateTime}' -o table
+   ```
 
-```
-selfservice/hcm-aro/
-├── aro-hcp-stg              # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-stg-test-tenant  # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-├── aro-hcp-stg-legacy       # Original legacy tenant credentials (backup, no secretsync)
-├── aro-hcp-prod             # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-prod-test-tenant # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-└── aro-hcp-prod-legacy      # Original legacy tenant credentials (backup, no secretsync)
-```
+3. **Azure**: create a new secret (existing ones keep working). It is shown once, with a short hash for step 4:
 
-### Rollback to Legacy Tenant
+   ```bash
+   S=$(az ad app credential reset --id "${APP_ID}" --append --display-name "OpenShift CI $(date -u +%F)" --query password -o tsv)
+   echo "${S}"; printf '%s' "${S}" | sha256sum | cut -c1-8; unset S
+   ```
 
+   Enter the secret yourself where you run step 4. Never paste it into chat, tickets, email or AI tools, and do not
+   run this step in a terminal that is logged or recorded.
 
-```bash
-cd dev-infrastructure/openshift-ci/
+4. **GSM**: enter the secret at the hidden prompt and check that the hash matches step 3 before publishing
+   (in steps 3 and 4, use `sha256sum` or `shasum -a 256`, whichever your system has). A file is used so the
+   secret stays out of shell history:
 
-# Check current tenant status
-./switch-vault-tenant.sh --status
+   ```bash
+   read -rs S; printf '%s' "${S}" | shasum -a 256 | cut -c1-8
+   # only if the hash matches step 3:
+   F=$(mktemp "${HOME}/.release-bot-secret.XXXXXX") && printf '%s' "${S}" > "${F}" && unset S \
+     && sm update -c hcm-aro aro-hcp-prod/client-secret --from-file="${F}" \
+     && sm update -c hcm-aro aro-hcp-msft-test-tenant/client-secret --from-file="${F}" \
+     && echo "PUBLISHED to both groups"
+   rm -f "${F}"
+   ```
 
-# Rollback BOTH environments to legacy tenant
-./switch-vault-tenant.sh --to legacy
+   Continue only if `PUBLISHED to both groups` is printed. Otherwise fix the error and run step 4 again with the same
+   secret; do not go on to step 6 while a group may still hold the old secret.
 
-# Or rollback only specific environment
-./switch-vault-tenant.sh --to legacy --env stg
-./switch-vault-tenant.sh --to legacy --env prod
-```
+5. **Verify**: new CI jobs use the new secret immediately. Before step 6, wait for a run that started after step 4
+   to pass for each group: `delete-expired-msft-test-tenant-app-registrations` (hourly, `aro-hcp-msft-test-tenant`)
+   and one job with the `prod` profile, for example `delete-expired-prod-resource-groups` (hourly, `aro-hcp-prod`).
 
-**What this does:**
-- Copies credentials from `aro-hcp-{env}-legacy` → `aro-hcp-{env}`
-- Preserves the `secretsync` fields in the active secret
-- Changes propagate to Prow jobs in **5-10 minutes**
+6. **Azure**: wait until every CI run that started before step 4 has finished (for example 24 hours), because a
+   running job keeps requesting tokens with the secret it loaded at start. Then delete the previous secrets noted in
+   step 2:
 
-**When to rollback:**
-- E2E tests consistently fail with authentication errors
-- Azure subscription quota issues in Test Test tenant
-- Test Test tenant access is revoked or expired
+   ```bash
+   az ad app credential delete --id "${APP_ID}" --key-id <old-key-id>
+   ```
 
-**After rollback:**
-- Verify with `./switch-vault-tenant.sh --status`
-- Test by running `/test stage-e2e-parallel` in Azure/ARO-HCP repo
-
-### Switching to Test Test Tenant
-
-```bash
-cd dev-infrastructure/openshift-ci/
-
-# Switch BOTH environments to Test Test tenant
-./switch-vault-tenant.sh --to test-tenant
-
-# Or switch only specific environment
-./switch-vault-tenant.sh --to test-tenant --env stg
-./switch-vault-tenant.sh --to test-tenant --env prod
-```
-
-### Current Configuration
-
-**Credential Storage** (Vault secrets used by Prow jobs):
-- **STAGE**: `selfservice/hcm-aro/aro-hcp-stg`
-- **PROD**: `selfservice/hcm-aro/aro-hcp-prod`
-- Access: Requires OpenShift CI Vault permissions
-
-**Cluster Profiles Configuration**:
-- Repository: [openshift/release](https://github.com/openshift/release)
-- File: [`ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml)
-- Defines `aro-hcp-int`, `aro-hcp-stg`, and `aro-hcp-prod` profiles
-
-**Prow Job Definitions**:
-- Repository: [openshift/release](https://github.com/openshift/release)
-- File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
-- Specifies `cluster_profile: aro-hcp-stg` or `cluster_profile: aro-hcp-prod` for each test job
-
-### Credential Expiration and Rotation
-
-> **⚠️ IMPORTANT: Service Principal Credential Expires on September 30, 2026**
-> 
-> The OpenShift CI service principal credential must be rotated before this date to prevent CI/CD pipeline failures.
-
-**Credential Rotation:**
-
-```bash
-cd dev-infrastructure/openshift-ci/
-
-# Rotate credentials (keeps old credentials as backup)
-./recycle-openshift-release-bot-creds.sh
-
-# Rotate and delete old credentials
-./recycle-openshift-release-bot-creds.sh --delete-old
-
-# Apply rotated credentials to active secrets (if Test Test tenant is active)
-./switch-vault-tenant.sh --to test-tenant
-```
-
-This updates the `*-test-tenant` secrets, then `switch-vault-tenant.sh` copies them to the active secrets.
+If jobs fail after step 4, fix forward: GSM keeps older versions, but the CLI cannot restore them and the old value
+cannot be read back. Repeat steps 3 and 4 with a new secret, then delete the failed one.
 
 > **⚠️ Important**: 
-> - You must have Azure AD admin permissions to reset app credentials
+> - You must have Azure AD admin permissions (or be an owner of the app) to reset app credentials
 > - **Audit Trail**: Document all credential rotations in a team ticket (date, who, reason)
+
+### Recreating the App
+
+Only needed if the app was deleted. You need Global Administrator (for admin consent) and Owner or User Access
+Administrator on the "ARO HCP E2E" subscription (for role assignments), both via PIM.
+
+```bash
+APP_ID=$(az ad app create --display-name "OpenShift Release Bot MSFT Test" --query appId -o tsv)
+az ad sp create --id "${APP_ID}"
+SCOPE="/subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e"
+
+az role assignment create --assignee "${APP_ID}" --role "Contributor" --scope "${SCOPE}"
+
+# Can assign any role except Owner, User Access Administrator and Role Based Access Control Administrator
+CONDITION="((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, f58310d9-a9f6-439a-9e8d-f62e7b41a168})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, f58310d9-a9f6-439a-9e8d-f62e7b41a168}))"
+az role assignment create --assignee "${APP_ID}" --role "Role Based Access Control Administrator" --scope "${SCOPE}" \
+  --condition "${CONDITION}" --condition-version "2.0"
+
+# Microsoft Graph: User.Read (delegated) and Application.ReadWrite.OwnedBy (application)
+az ad app permission add --id "${APP_ID}" --api 00000003-0000-0000-c000-000000000000 \
+  --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope 18a4783c-866b-4cc7-a460-3d5e5662c884=Role
+az ad app permission admin-consent --id "${APP_ID}"
+```
+
+Then follow [Rotating the CI Client Secret](#rotating-the-ci-client-secret). The app ID is new, so in step 4 also
+update the `client-id` and `tenant` fields of both groups:
+`sm update -c hcm-aro <group>/client-id --from-literal=<app-id>` and
+`sm update -c hcm-aro <group>/tenant --from-literal=93b21e64-4824-439a-b893-46c9b2a51082`.
 
 
 ## Common Tasks
