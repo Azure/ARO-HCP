@@ -175,3 +175,17 @@ func TestRunDryRunStopsBeforePublishing(t *testing.T) {
 		t.Errorf("a dry run pushed: %v", *calls)
 	}
 }
+
+func TestNewPublicationClientBindsTheActor(t *testing.T) {
+	client, err := newPublicationClient("Azure/ARO-HCP", "token", "aro-hcp-robot[bot]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := client.Actor(context.Background())
+	if err != nil {
+		t.Fatalf("Actor queried the API instead of using the bound identity: %v", err)
+	}
+	if actor != "aro-hcp-robot[bot]" {
+		t.Fatalf("actor = %q, want the bound login", actor)
+	}
+}
