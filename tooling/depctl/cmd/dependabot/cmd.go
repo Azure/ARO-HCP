@@ -66,13 +66,13 @@ func newInventoryCommand() (*cobra.Command, error) {
 
 // newGuardCommand builds the guarded publication step.
 func newGuardCommand() *cobra.Command {
-	options := guardOptions{}
+	options := &GuardOptions{}
 	command := &cobra.Command{
 		Use:   "guard",
 		Short: "Validate proposals and defer open dependency overlaps",
 		Args:  cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return guardCreate(cmd.Context(), options)
+			return runGuard(cmd.Context(), cmd, options)
 		},
 	}
 	command.Flags().StringVar(&options.Repository, "repository", "", "OWNER/REPO")
@@ -91,21 +91,21 @@ func newValidateCommand() *cobra.Command {
 			}
 			return nil
 		},
-		RunE: func(_ *cobra.Command, args []string) error {
-			return validateProposal(args[0])
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runValidateProposal(args[0], cmd.OutOrStdout())
 		},
 	}
 }
 
 // newRetestCommand builds the guarded retest step.
 func newRetestCommand() *cobra.Command {
-	options := retestOptions{}
+	options := &RetestOptions{}
 	command := &cobra.Command{
 		Use:   "retest",
 		Short: "Verify a transient-failure retest request",
 		Args:  cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return guardRetest(cmd.Context(), options)
+			return runRetest(cmd.Context(), cmd, options)
 		},
 	}
 	command.Flags().StringVar(&options.Repository, "repository", "", "OWNER/REPO")

@@ -2,8 +2,10 @@
 
 import base64
 import copy
+from contextlib import contextmanager
 import hashlib
 import io
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
@@ -12,7 +14,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+import threading
+from unittest.mock import Mock, patch
 from urllib.parse import unquote
 
 import native_dependabot_maintenance as native
@@ -23,6 +26,59 @@ OLD = "v1.0.0"
 NEW = "v1.1.0"
 PIN = "a" * 40
 STAMP = "2026-10-01T00:00:00Z"
+
+_policy_api = None
+
+
+@contextmanager
+def mock_api(**kwargs):
+    """Bind one fixture mock to both lifecycle calls and the Go evidence bridge."""
+    global _policy_api
+    mocked = Mock(**kwargs)
+    previous = _policy_api
+    with patch.object(native, "api", mocked):
+        _policy_api = mocked
+        try:
+            yield mocked
+        finally:
+            _policy_api = previous
+
+
+def setUpModule():
+    """Keep depctl real while its gh GETs use each test's existing API fixtures."""
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            try:
+                callback = _policy_api
+                if callback is None:
+                    raise ValueError("unmocked native policy network access")
+                request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                value = callback(request["endpoint"], pages=request["pages"])
+                payload = json.dumps(value).encode()
+                self.send_response(200)
+            except Exception as error:
+                payload = str(error).encode()
+                self.send_response(500)
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *args):
+            pass
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    unittest.addModuleCleanup(server.server_close)
+    unittest.addModuleCleanup(server.shutdown)
+    directory = tempfile.TemporaryDirectory()
+    unittest.addModuleCleanup(directory.cleanup)
+    gh = Path(directory.name) / "gh"
+    gh.write_text(f"#!{sys.executable}\nimport json, sys, urllib.request\n"
+                  f"url = 'http://127.0.0.1:{server.server_port}'\n"
+                  "data = json.dumps({'endpoint': sys.argv[-1], 'pages': '--paginate' in sys.argv}).encode()\n"
+                  "print(urllib.request.urlopen(urllib.request.Request(url, data=data)).read().decode())\n")
+    gh.chmod(0o700)
+    environment = patch.dict(os.environ, {"PATH": directory.name + os.pathsep + os.environ["PATH"]})
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
 
 
 def git(cwd, *args):
@@ -45,6 +101,30 @@ def replacement_output(directory, request=None, *, payload=None, nested=False):
     path = directory / "agent_output.json"
     path.write_text(json.dumps({"items": [item]}))
     return path
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, target, cwd):
+    """Exercise the real Go producer in the Python publisher integration fixtures."""
+    result = subprocess.run(
+        [os.environ["DEPCTL_BINARY"], "dependabot", "native", "prepare-request",
+         "--repository", repo, "--repo", str(cwd), "--inventory", str(inventory_file),
+         "--group", group_id, "--target", target, "--title-file", str(title_file),
+         "--body-file", str(body_file), "--artifact-dir", str(artifact_dir)],
+        capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise ValueError(result.stderr.strip())
+    return json.loads(result.stdout)
+
+
+class PolicyBridgeTests(unittest.TestCase):
+    def test_unbound_bridge_cannot_call_production_api(self):
+        with patch.object(native, "api", side_effect=AssertionError("production API reached")) as production:
+            result = subprocess.run(["gh", "api", "repos/actions/checkout/commits/v7.0.1"],
+                                    capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        production.assert_not_called()
 
 
 class RepositoryFixture(unittest.TestCase):
@@ -83,7 +163,6 @@ class RepositoryFixture(unittest.TestCase):
         self.statuses = {}
         self.checks = {}
         self.policy = {}
-        self.selection_commands = []
         real_run = subprocess.run
 
         def run(command, **kwargs):
@@ -93,8 +172,6 @@ class RepositoryFixture(unittest.TestCase):
                     "active_holds": [], "cancellation_pending": False,
                     "trusted_hold_label": False, "ci": {"positive": [], "blocked": []}})
                 return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
-            if command[1:4] == ["dependabot", "native", "select-group"]:
-                self.selection_commands.append(command)
             return real_run(command, **kwargs)
 
         process_patch = patch.object(native.subprocess, "run", side_effect=run)
@@ -104,9 +181,9 @@ class RepositoryFixture(unittest.TestCase):
         self.calls = []
         self.next_number = 100
         self.source(1, "backend/go.mod", manifest(NEW))
-        self.api_patch = patch.object(native, "api", side_effect=self.api)
-        self.api_patch.start()
-        self.addCleanup(self.api_patch.stop)
+        api_context = mock_api(side_effect=self.api)
+        api_context.__enter__()
+        self.addCleanup(api_context.__exit__, None, None, None)
         remote_patch = patch.object(native, "remote_url", return_value=str(self.remote))
         remote_patch.start()
         self.addCleanup(remote_patch.stop)
@@ -304,15 +381,13 @@ class RepositoryFixture(unittest.TestCase):
         self.calls.clear()
         artifact_root = self.root / "artifacts"
         before_index = (self.seed / ".git/index").read_bytes()
-        first = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        first = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         first_bytes = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
-        second_args = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        second_args = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(first, second_args)
         self.assertEqual((artifact_root / "agent" / native.REQUEST_FILE).read_bytes(), first_bytes)
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
         self.assertEqual(self.calls, [])
-        self.assertEqual(len(self.selection_commands), 2)
-        self.assertTrue(all(command[0] == binary for command in self.selection_commands))
         output = artifact_root / "agent_output.json"
         output.write_text(json.dumps({"items": [{"type": "native_replacement", **first}]}))
         request = native.read_request(output, "native_replacement")
@@ -336,7 +411,7 @@ class RepositoryFixture(unittest.TestCase):
         inputs[2].write_text("chore(deps): upgrade example library\n")
         self.upgrade_consumers()
         artifact_root = self.root / "artifacts"
-        arguments = native.prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
+        arguments = prepare_request(REPO, *inputs, artifact_root / "agent", target=NEW, cwd=self.seed)
         self.assertEqual(set(arguments), {"request_sha256"})
         payload = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
         self.assertEqual(arguments["request_sha256"], hashlib.sha256(payload).hexdigest())
@@ -427,7 +502,7 @@ class RepositoryFixture(unittest.TestCase):
         git(self.seed, "config", "filter.fixture.process", command)
         (self.seed / ".git/info/attributes").write_text("*.mod diff=fixture filter=fixture\n")
         self.calls.clear()
-        arguments = native.prepare_request(REPO, *inputs, self.root / "artifacts", target=NEW, cwd=self.seed)
+        arguments = prepare_request(REPO, *inputs, self.root / "artifacts", target=NEW, cwd=self.seed)
         self.assertRegex(arguments["request_sha256"], r"^[0-9a-f]{64}$")
         self.assertFalse(sentinel.exists())
         self.assertEqual(self.calls, [])
@@ -441,9 +516,7 @@ class RepositoryFixture(unittest.TestCase):
         before_index = (self.seed / ".git/index").read_bytes()
         self.calls.clear()
         with self.assertRaises(ValueError):
-            native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
-        self.assertEqual(len(self.selection_commands), 1)
-        self.assertEqual(self.selection_commands[0][0], os.environ["DEPCTL_BINARY"])
+            prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
         self.assertFalse(artifact_root.exists())
         self.assertEqual((self.seed / ".git/index").read_bytes(), before_index)
         self.assertEqual(self.calls, [])
@@ -454,13 +527,13 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(json.loads(inputs[0].read_text())["groups"][0]["next_action"]["action"],
                          "maintain_replacement")
         with self.assertRaises(ValueError):
-            native.prepare_request(REPO, *inputs, self.root / "empty", target=NEW, cwd=self.seed)
+            prepare_request(REPO, *inputs, self.root / "empty", target=NEW, cwd=self.seed)
         self.upgrade_consumers()
         self.write("backend/Dockerfile", "FROM attacker.invalid/image:1\n")
         with self.assertRaisesRegex(ValueError, "protected"):
-            native.prepare_request(REPO, *inputs, self.root / "protected", target=NEW, cwd=self.seed)
+            prepare_request(REPO, *inputs, self.root / "protected", target=NEW, cwd=self.seed)
         git(self.seed, "restore", "backend/Dockerfile")
-        result = native.prepare_request(REPO, *inputs, self.root / "valid", target=NEW, cwd=self.seed)
+        result = prepare_request(REPO, *inputs, self.root / "valid", target=NEW, cwd=self.seed)
         self.assertRegex(result["request_sha256"], r"^[0-9a-f]{64}$")
 
     def test_prepare_request_rejects_invalid_metadata_before_writing_artifact(self):
@@ -473,10 +546,77 @@ class RepositoryFixture(unittest.TestCase):
             path.write_bytes(content)
             artifact_root = self.root / "rejected"
             with self.subTest(content=content), self.assertRaises(ValueError):
-                native.prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+                prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
             self.assertFalse(artifact_root.exists())
             inputs[2].write_bytes(originals[0])
             inputs[3].write_bytes(originals[1])
+
+    def test_preparation_and_publisher_agree_on_unicode_decimal_directives(self):
+        inputs = self.prepare_inputs()
+        request = self.request()
+        native.git(self.seed, "apply", "-", input=request["patch"])
+        cases = (("Fixes #12", False), ("Fixes #١٢", False),
+                 ("Resolves #१२", False), ("Closes #１２", False),
+                 ("Fixes #𝟙𝟚", False), ("Fixes #1٢", False),
+                 ("Fixes #²", True), ("prefixFixes #١٢", True),
+                 ("Update issue #١٢", True))
+        for field in ("title", "body"):
+            for index, (text, accepted) in enumerate(cases):
+                candidate = {**request, field: "chore(deps): " + text if field == "title" else text}
+                inputs[2].write_text(candidate["title"], encoding="utf-8")
+                inputs[3].write_text(candidate["body"], encoding="utf-8")
+                artifacts = self.root / "parity" / field / str(index)
+                with self.subTest(field=field, text=text):
+                    if accepted:
+                        prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
+                        prepared = json.loads((artifacts / native.REQUEST_FILE).read_bytes())
+                        native.validate_replacement_request(prepared)
+                        self.assertEqual(prepared[field], candidate[field])
+                    else:
+                        with self.assertRaises(ValueError):
+                            native.validate_replacement_request(candidate)
+                        with self.assertRaises(ValueError):
+                            prepare_request(REPO, *inputs, artifacts, target=NEW, cwd=self.seed)
+                        self.assertFalse(artifacts.exists())
+
+    def test_prepare_request_normalizes_mentions_without_changing_patch_bytes(self):
+        inputs = self.prepare_inputs()
+        self.upgrade_consumers()
+        inputs[2].write_text("chore(deps): upgrade @scope/package\r\n", encoding="utf-8")
+        body = "Evidence: café 🦉 @user\n`@Azure/reviewers` and \\@user\n"
+        inputs[3].write_text(body, encoding="utf-8")
+        generated = "vendor/example.com/library/library.go"
+        self.write(generated, "package library\n// @Azure/reviewers stays literal\n")
+        artifact_root = self.root / "artifacts"
+        result = prepare_request(REPO, *inputs, artifact_root, target=NEW, cwd=self.seed)
+        payload = (artifact_root / native.REQUEST_FILE).read_bytes()
+        request = json.loads(payload)
+        self.assertEqual(request["title"], "chore(deps): upgrade ＠scope/package")
+        self.assertEqual(request["body"], body.replace("@", "＠"))
+        self.assertIn("@Azure/reviewers stays literal", request["patch"])
+        self.assertEqual(result["request_sha256"], hashlib.sha256(payload).hexdigest())
+        self.assertIn("café 🦉".encode("utf-8"), payload)
+
+    def test_prepare_request_rejects_linked_artifact_without_modifying_target(self):
+        inputs = self.prepare_inputs()
+        self.upgrade_consumers()
+        destination = self.root / "artifacts"
+        destination.mkdir()
+        victim = self.root / "victim"
+        victim.write_bytes(b"preserve existing content")
+        artifact = destination / native.REQUEST_FILE
+        for kind in ("symlink", "hardlink"):
+            with self.subTest(kind=kind):
+                if kind == "symlink":
+                    artifact.symlink_to(victim)
+                else:
+                    os.link(victim, artifact)
+                try:
+                    with self.assertRaises(ValueError):
+                        prepare_request(REPO, *inputs, destination, target=NEW, cwd=self.seed)
+                    self.assertEqual(victim.read_bytes(), b"preserve existing content")
+                finally:
+                    artifact.unlink()
 
     def test_artifact_publication_still_requires_all_consumers_and_respects_replacement_hold(self):
         request = self.request()
@@ -756,7 +896,7 @@ class RepositoryFixture(unittest.TestCase):
             if "/pulls/2/files?" in endpoint:
                 return [[]]
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=partial):
+        with mock_api(side_effect=partial):
             result = native.inventory(REPO)
         group = next(row for row in result["groups"] if row["group"] is not None)
         self.assertEqual(group["next_action"]["action"], "blocked")
@@ -874,7 +1014,7 @@ class RepositoryFixture(unittest.TestCase):
                 self.assertEqual(self.remote_git("for-each-ref", "--format=%(refname)",
                                                 "refs/heads/native-dependabot-"), "")
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=with_publication_boundary):
+        with mock_api(side_effect=with_publication_boundary):
             result = native.publish(REPO, self.request())
         self.assertEqual(result["number"], 100)
         self.assertIn(native.LABEL, self.repository_labels)
@@ -887,7 +1027,7 @@ class RepositoryFixture(unittest.TestCase):
             if endpoint == f"repos/{REPO}/pulls" and kwargs.get("method") == "POST":
                 raise subprocess.CalledProcessError(1, ["gh", "api"])
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=failed_create), self.assertRaises(subprocess.CalledProcessError):
+        with mock_api(side_effect=failed_create), self.assertRaises(subprocess.CalledProcessError):
             native.publish(REPO, request)
         branch = "native-dependabot-" + native.sources_group(REPO, request["source_prs"])["group"]
         old = self.remote_git("rev-parse", "refs/heads/" + branch)
@@ -903,7 +1043,7 @@ class RepositoryFixture(unittest.TestCase):
             if endpoint.endswith("/labels") and kwargs.get("method") == "POST":
                 raise subprocess.CalledProcessError(1, ["gh", "api"])
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=failed_label), self.assertRaises(subprocess.CalledProcessError):
+        with mock_api(side_effect=failed_label), self.assertRaises(subprocess.CalledProcessError):
             native.publish(REPO, request)
         self.assertEqual(self.next_number, 101)
         self.assertTrue(native.inventory(REPO)["replacements"][0]["publication_pending"])
@@ -946,12 +1086,12 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(candidate["next_action"]["action"], "prepare_replacement")
         inputs = self.prepare_inputs(observed)
         native.git(self.seed, "apply", "-", input=request["patch"])
-        native.prepare_request(REPO, *inputs, self.root / "candidate", target=candidate["target"], cwd=self.seed)
+        prepare_request(REPO, *inputs, self.root / "candidate", target=candidate["target"], cwd=self.seed)
         prepared = json.loads((self.root / "candidate" / native.REQUEST_FILE).read_text())
         self.assertEqual(prepared["source_prs"], request["source_prs"])
         for target in (NEW, "v9.0.0"):
             with self.subTest(target=target), self.assertRaises(ValueError):
-                native.prepare_request(REPO, *inputs, self.root / "rejected", target=target, cwd=self.seed)
+                prepare_request(REPO, *inputs, self.root / "rejected", target=target, cwd=self.seed)
         self.assertFalse((self.root / "rejected").exists())
         git(self.seed, "restore", ".")
         mixed = copy.deepcopy(request)
@@ -989,7 +1129,7 @@ class RepositoryFixture(unittest.TestCase):
             if endpoint == f"repos/{REPO}/pulls" and kwargs.get("method") == "POST":
                 raise subprocess.CalledProcessError(1, ["gh", "api"])
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=failed_create), self.assertRaises(subprocess.CalledProcessError):
+        with mock_api(side_effect=failed_create), self.assertRaises(subprocess.CalledProcessError):
             native.publish(REPO, request)
         branch = self.pulls[first["number"]]["head"]["ref"]
         orphan = self.remote_git("rev-parse", "refs/heads/" + branch)
@@ -1228,12 +1368,12 @@ class RepositoryFixture(unittest.TestCase):
             if "/pulls/1/commits?" in endpoint:
                 return [[]]
             return original(endpoint, **kwargs)
-        with patch.object(native, "api", side_effect=partial):
+        with mock_api(side_effect=partial):
             result = native.inventory(REPO)
             self.assertTrue(result["groups"][0]["blockers"])
             with self.assertRaisesRegex(ValueError, "commit evidence"):
                 native.reconcile(REPO, self.action("admit"))
-        with patch.object(native, "api", side_effect=subprocess.CalledProcessError(1, ["gh", "api"])):
+        with mock_api(side_effect=subprocess.CalledProcessError(1, ["gh", "api"])):
             with self.assertRaises(subprocess.CalledProcessError):
                 native.inventory(REPO)
 
@@ -1260,7 +1400,7 @@ class RepositoryFixture(unittest.TestCase):
             if "/pulls/1/commits?" in endpoint:
                 result[0][0]["author"] = {"login": "human", "type": "User"}
             return result
-        with patch.object(native, "api", side_effect=changed_author), self.assertRaisesRegex(ValueError, "non-Dependabot"):
+        with mock_api(side_effect=changed_author), self.assertRaisesRegex(ValueError, "non-Dependabot"):
             native.publish(REPO, self.request())
         self.assertEqual(self.next_number, 100)
 
@@ -1313,9 +1453,9 @@ class RequestTransportTests(unittest.TestCase):
                       '-{"@scope/package":"1.0.0"}\n+{"@scope/package":"1.1.0"}\n'),
             "title": "chore(deps): update @scope/package",
             "body": "Upgrade @scope/package.\nPreserve café and Unicode: 🦉.\n"}
-        boundary = patch.object(native, "api", side_effect=AssertionError("transport must not use the API"))
-        boundary.start()
-        self.addCleanup(boundary.stop)
+        api_context = mock_api(side_effect=AssertionError("transport must not use the API"))
+        api_context.__enter__()
+        self.addCleanup(api_context.__exit__, None, None, None)
 
     def test_flattened_and_nested_digest_envelopes_preserve_entire_request(self):
         for nested in (False, True):
@@ -1552,7 +1692,7 @@ class EvidenceTests(unittest.TestCase):
                     + "\npermissions: read-all\non: push\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@" + pin
                     + "\n      - run: echo safe\n")
         before, after = compiled("b" * 40, "d"), compiled(PIN, "e", "v2.0.0")
-        with patch.object(native, "api", return_value={"sha": PIN}):
+        with mock_api(return_value={"sha": PIN}):
             entries = native.changes(".github/workflows/example.lock.yml", before, after)
             self.assertEqual(entries[0]["target"], PIN)
             for unsafe in (after.replace("read-all", "write-all"), after.replace("echo safe", "echo unsafe"),
@@ -1562,27 +1702,13 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(unsafe=unsafe), self.assertRaises(ValueError):
                     native.changes(".github/workflows/example.lock.yml", before, unsafe)
 
-    def test_actions_lock_accepts_only_official_native_pin_and_preserves_containers(self):
-        old_entry = {"repo": "actions/checkout", "version": "v1.0.0", "sha": "b" * 40}
-        new_entry = {"repo": "actions/checkout", "version": "v2.0.0", "sha": PIN}
-        before = {"entries": {"actions/checkout@v1.0.0": old_entry}, "containers": {"fixed": {"digest": "unchanged"}}}
-        after = {"entries": {"actions/checkout@v2.0.0": new_entry}, "containers": copy.deepcopy(before["containers"])}
-        group = {"family": "actions/checkout", "sources": [{"intents": [{"ecosystem": "actions", "package": "actions/checkout", "target": PIN}]}]}
-        with patch.object(native, "api", return_value={"sha": PIN}):
-            native.action_lock_changes(json.dumps(before), json.dumps(after), group)
-            unsafe = copy.deepcopy(after)
-            unsafe["containers"]["fixed"]["digest"] = "changed"
-            with self.assertRaises(ValueError):
-                native.action_lock_changes(json.dumps(before), json.dumps(unsafe), group)
-        with patch.object(native, "api", return_value={"sha": "f" * 40}), self.assertRaises(ValueError):
-            native.action_lock_changes(json.dumps(before), json.dumps(after), group)
 
     def test_official_action_commit_requires_release_tag_not_network_visibility(self):
-        with patch.object(native, "api", return_value=[[{"name": "v2.0.0", "commit": {"sha": PIN}}]]):
+        with mock_api(return_value=[[{"name": "v2.0.0", "commit": {"sha": PIN}}]]):
             native.official_action_pin("actions/checkout", PIN)
             with self.assertRaisesRegex(ValueError, "release-tag"):
                 native.official_action_pin("actions/checkout", "f" * 40)
-        with patch.object(native, "api", return_value=[[{"name": "development", "commit": {"sha": PIN}}]]):
+        with mock_api(return_value=[[{"name": "development", "commit": {"sha": PIN}}]]):
             with self.assertRaises(ValueError):
                 native.official_action_pin("actions/checkout", PIN)
 
@@ -1591,7 +1717,7 @@ class EvidenceTests(unittest.TestCase):
         blob = "d" * 40
         replies = [{"type": "file", "encoding": "none", "sha": blob, "size": len(value)},
                    {"encoding": "base64", "sha": blob, "size": len(value), "content": base64.b64encode(value).decode()}]
-        with patch.object(native, "api", side_effect=replies) as api:
+        with mock_api(side_effect=replies) as api:
             self.assertEqual(native.content(REPO, PIN, "api/package-lock.json"), value.decode())
             self.assertEqual(api.call_args_list[1].args[0], f"repos/{REPO}/git/blobs/{blob}")
 
@@ -1600,9 +1726,9 @@ class EvidenceTests(unittest.TestCase):
         after = manifest(NEW).replace(")\n", "\tother.example/indirect v2.0.0 // indirect\n)\n")
         entries = native.changes("backend/go.mod", before, after, cascade=True)
         self.assertEqual({row["package"] for row in entries if row["direct"]}, {PACKAGE})
-        native.verify_coverage(entries, lambda path: after)
+        native.verify_coverage(entries, lambda path: after, {"backend/go.mod"})
         with self.assertRaises(ValueError):
-            native.verify_coverage(entries, lambda path: manifest(NEW))
+            native.verify_coverage(entries, lambda path: manifest(NEW), {"backend/go.mod"})
         with self.assertRaises(ValueError):
             native.changes("backend/go.mod", before, after.replace("go 1.26.0", "go 1.27.0"), cascade=True)
 
@@ -1623,7 +1749,7 @@ class EvidenceTests(unittest.TestCase):
         after = before.replace("3.9.9", "3.9.10")
         entries = native.changes("api/package.json", before, after)
         self.assertEqual([entry["package"] for entry in entries], ["prettier"])
-        native.verify_coverage(entries, lambda path: after)
+        native.verify_coverage(entries, lambda path: after, {"api/package.json"})
         bad = json.loads(after)
         del bad["overrides"]["oav"]
         with self.assertRaises(ValueError):
@@ -1646,20 +1772,21 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(native, "tree_paths", side_effect=lambda *args: set(files)), \
                 patch.object(native, "main_sha", return_value=PIN), \
                 patch.object(native, "content", side_effect=lambda repo, sha, path: files[path]):
-            with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+            with self.assertRaises(ValueError):
                 native.verify_coverage(intents, files.__getitem__, set(files))
-            with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+            with self.assertRaises(ValueError):
                 native.admission_safe(REPO, snap, intent)
             files[source] = new
             native.verify_coverage(intents, files.__getitem__, set(files))
             native.admission_safe(REPO, snap, intent)
         with patch.object(native, "tree_paths", side_effect=[{lock}, set(files)]), \
                 patch.object(native, "main_sha", return_value=PIN), \
+                patch.object(native, "content", side_effect=lambda repo, sha, path: files[path]), \
                 self.assertRaisesRegex(ValueError, "lost its existing source"):
             native.admission_safe(REPO, snap, intent)
         source_intents = native.changes(source, old, new)
         files[lock] = old
-        with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+        with self.assertRaises(ValueError):
             native.verify_coverage(source_intents, files.__getitem__, set(files))
 
     def test_generated_action_coverage_validates_source_tags_and_relevant_compiler_metadata(self):
@@ -1676,7 +1803,7 @@ class EvidenceTests(unittest.TestCase):
         compiled = "# gh-aw-manifest: " + json.dumps({"version": 1, "actions": [action]}) + "\n" + new
         files = {source: "steps:\n  - uses: actions/checkout@v2.0.0\n", lock: compiled,
                  metadata: json.dumps(document)}
-        with patch.object(native, "api", return_value={"sha": PIN}):
+        with mock_api(return_value={"sha": PIN}):
             native.verify_coverage(intents, files.__getitem__, set(files))
             # Historical lock entries belonging to other consumers are not
             # current references from this source/compiled workflow.
@@ -1704,7 +1831,7 @@ class EvidenceTests(unittest.TestCase):
                 native.verify_coverage(intents, files.__getitem__, set(files))
         files[source] = "steps:\n  - uses: actions/checkout@v2.0.0\n"
         files[metadata] = json.dumps(document)
-        with patch.object(native, "api", return_value={"sha": "f" * 40}), \
+        with mock_api(return_value={"sha": "f" * 40}), \
                 self.assertRaisesRegex(ValueError, "not the official intended"):
             native.verify_coverage(intents, files.__getitem__, set(files))
 
@@ -1726,18 +1853,40 @@ class EvidenceTests(unittest.TestCase):
                 native.admission_safe(REPO, snap, intent)
 
     def test_npm_coverage_accepts_compatible_newer_stable_versions_not_downgrades(self):
+        def covered(actual, target):
+            intent = {"ecosystem": "npm", "package": "one", "manifest": "api/package.json",
+                      "key": ["dependencies", "one"], "target": target}
+            native.verify_coverage([intent], lambda path: json.dumps({"dependencies": {"one": actual}}),
+                                   {"api/package.json"})
         for actual, target in (("3.9.11", "3.9.10"), ("^1.18.0", "^1.17.0"), ("7.30.1", "^7.29.0")):
-            self.assertTrue(native.npm_covers(actual, target))
+            covered(actual, target)
         for actual, target in (("3.9.9", "3.9.10"), ("4.0.0", "3.9.10"), ("latest", "^1.17.0"),
                                ("^1.18.0", "1.17.0"), ("^0.74.0", "^0.73.2")):
-            self.assertFalse(native.npm_covers(actual, target))
-        old = {"node_modules/undici": ("undici", "7.30.1", None, None),
-               "node_modules/prettier": ("prettier", "3.9.9", None, None)}
-        new = {**old, "node_modules/prettier": ("prettier", "3.9.11", None, None)}
-        native.preserve_npm_resolutions(old, new)
-        new["node_modules/undici"] = ("undici", "7.0.0", None, None)
-        with self.assertRaises(ValueError):
-            native.preserve_npm_resolutions(old, new)
+            with self.subTest(actual=actual, target=target), self.assertRaises(ValueError):
+                covered(actual, target)
+
+    def test_shared_native_admission_requires_eligible_complete_npm_consumers(self):
+        item = {"ecosystem": "npm", "package": "one", "manifest": "api/package.json",
+                "key": ["dependencies", "one"], "target": "^1.2.0"}
+        lock = "api/package-lock.json"
+        evidence = {"group": {"ecosystem": "npm", "family": "one", "intents": [item]},
+                    "paths": ["api/package.json", lock], "available": ["api/package.json", lock],
+                    "contents": {lock: json.dumps({"lockfileVersion": 3, "packages": {
+                        "node_modules/one": {"version": "1.2.3"}}})}}
+        native.native_policy("check-admission", evidence)
+        for mutation, reason in (({"ecosystem": "go"}, "Go workspace/vendor"),
+                                 ({"family": "typespec"}, "TypeSpec generated")):
+            blocked = copy.deepcopy(evidence)
+            blocked["group"].update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, reason):
+                native.native_policy("check-admission", blocked)
+        evidence["paths"] = ["api/package.json"]
+        with self.assertRaisesRegex(ValueError, "lacks updated lock"):
+            native.native_policy("check-admission", evidence)
+        evidence["paths"].append(lock)
+        evidence["contents"][lock] = evidence["contents"][lock].replace("1.2.3", "1.1.0")
+        with self.assertRaisesRegex(ValueError, "does not resolve intended target"):
+            native.native_policy("check-admission", evidence)
 
     def test_obsolete_workflow_requires_both_live_source_and_lock_coverage(self):
         old = "steps:\n  - uses: actions/checkout@" + "b" * 40 + "\n"
@@ -1755,7 +1904,8 @@ class EvidenceTests(unittest.TestCase):
     def test_unrelated_package_same_manifest_does_not_cover_upgrade(self):
         intents = native.changes("api/package.json", '{"dependencies":{"one":"1.0.0","two":"1.0.0"}}', '{"dependencies":{"one":"2.0.0","two":"1.0.0"}}')
         with self.assertRaises(ValueError):
-            native.verify_coverage(intents, lambda path: '{"dependencies":{"one":"1.0.0","two":"2.0.0"}}')
+            native.verify_coverage(intents, lambda path: '{"dependencies":{"one":"1.0.0","two":"2.0.0"}}',
+                                   {"api/package.json"})
 
     def test_typespec_primary_upgrade_allows_transitive_lock_graph_replacement(self):
         base, head = "0" * 40, "1" * 40
@@ -1783,7 +1933,7 @@ class EvidenceTests(unittest.TestCase):
         snap = {"pull": {"number": 7460, "base": {"sha": base}, "head": {"sha": head}},
                 "files": [{"filename": path, "status": "modified"}
                           for path in ("api/package-lock.json", "api/package.json")]}
-        with patch.object(native, "api", return_value={"merge_base_commit": {"sha": base}}), \
+        with mock_api(return_value={"merge_base_commit": {"sha": base}}), \
                 patch.object(native, "content", side_effect=lambda repo, sha, path: documents[(sha, path)]):
             group = native.source_intent(REPO, snap)
             self.assertEqual(group["family"], "typespec")
@@ -1800,7 +1950,6 @@ class EvidenceTests(unittest.TestCase):
         files = {"api/package.json": json.dumps(after_manifest),
                  "api/package-lock.json": json.dumps(regenerated)}
         native.verify_coverage(group["intents"], files.__getitem__, set(files))
-        native.preserve_npm_resolutions(native.lock_versions(before_lock), native.lock_versions(regenerated))
         regenerated["packages"]["node_modules/@typespec/http"]["version"] = "1.16.0"
         files["api/package-lock.json"] = json.dumps(regenerated)
         with self.assertRaisesRegex(ValueError, "upgrade intent is not covered"):
@@ -1832,26 +1981,32 @@ class EvidenceTests(unittest.TestCase):
         old = "steps:\n  - uses: actions/checkout@" + "b" * 40 + "\n"
         new = old.replace("b" * 40, PIN)
         intents = native.changes(".github/workflows/obsolete.yml", old, new)
-        with patch.object(native, "api", side_effect=api) as mocked:
+        with mock_api(side_effect=api) as mocked:
             cache = {}
             available = native.tree_paths(REPO, root, native.coverage_paths(intents), cache)
             self.assertEqual(available, {".github/workflows/obsolete.md", ".github/workflows/obsolete.lock.yml"})
             native.verify_coverage(intents, lambda path: new, available)
             native.tree_paths(REPO, root, native.coverage_paths(intents), cache)
             self.assertEqual(mocked.call_count, 3)
-        with patch.object(native, "api", return_value={"truncated": True, "tree": []}):
+        with mock_api(return_value={"truncated": True, "tree": []}):
             with self.assertRaisesRegex(ValueError, "incomplete targeted"):
                 native.tree_paths(REPO, root, {".github/workflows/obsolete.md"})
 
     def test_go_semver_prerelease_and_pseudo_version_ordering(self):
+        def covered(actual, target):
+            intent = {"ecosystem": "go", "package": PACKAGE, "manifest": "backend/go.mod",
+                      "key": PACKAGE, "target": target}
+            native.verify_coverage([intent], lambda path: manifest(actual), {"backend/go.mod"})
         for actual, target in (("v1.19.0", "v1.18.4"), ("v3.0.0-beta.10", "v3.0.0-beta.3"),
                                ("v3.0.0", "v3.0.0-rc.1"),
                                ("v0.0.0-20261030010000-abcdef123456", "v0.0.0-20261029010000-abcdef123456"),
                                ("v2.0.0+incompatible", "v2.0.0")):
-            self.assertTrue(native.version_covers(actual, target))
+            covered(actual, target)
             if actual.split("+")[0] != target.split("+")[0]:
-                self.assertFalse(native.version_covers(target, actual))
-        self.assertFalse(native.version_covers("unverifiable", "v1.0.0"))
+                with self.assertRaises(ValueError):
+                    covered(target, actual)
+        with self.assertRaises(ValueError):
+            covered("unverifiable", "v1.0.0")
 
     def test_typespec_recipe_changes_fail_preflight_and_publication_scope(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1894,31 +2049,15 @@ class EvidenceTests(unittest.TestCase):
                             native.validate_tree(root, base, candidate, paths, group,
                                                  complete=complete)
 
-    def test_generated_typespec_sdk_module_metadata_is_constrained(self):
-        path = "test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod"
-        prefix = "module github.com/Azure/ARO-HCP/" + str(Path(path).parent) + "\n\ngo 1.25.0\n\n"
-        before = prefix + "require github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0\n"
-        after = before.replace("go 1.25.0", "go 1.26.0").replace("v1.23.0", "v1.23.3")
-        after += "\nrequire (\n golang.org/x/net v0.59.0 // indirect\n golang.org/x/text v0.42.0 // indirect\n)\n"
-        native.validate_sdk_module(path, before, after, "1.26.0")
-        self.assertTrue(native.sdk_consumer(path))
-        self.assertFalse(native.sdk_consumer("test/sdk/arbitrary/go.mod"))
-        for unsafe in (after + "\nreplace example.com/package => /tmp/untrusted\n",
-                       after + "\ntoolchain go1.27.0\n",
-                       after + "\nrequire attacker.example/unrelated v1.0.0\n",
-                       after.replace("go 1.26.0", "go 1.27.0"),
-                       after.replace("module github.com/Azure/ARO-HCP/", "module attacker.example/")):
-            with self.subTest(unsafe=unsafe), self.assertRaises(ValueError):
-                native.validate_sdk_module(path, before, unsafe, "1.26.0")
 
     def test_fixed_label_creation_race_reads_back_exact_name_and_auth_errors_fail_closed(self):
         missing = subprocess.CalledProcessError(1, ["gh", "api"], stderr="gh: Not Found (HTTP 404)")
         raced = subprocess.CalledProcessError(1, ["gh", "api"], stderr="gh: Already exists (HTTP 422)")
-        with patch.object(native, "api", side_effect=[missing, raced, {"id": 1, "name": native.LABEL}]) as api:
+        with mock_api(side_effect=[missing, raced, {"id": 1, "name": native.LABEL}]) as api:
             native.ensure_label(REPO)
             self.assertEqual(api.call_args_list[1].kwargs["data"]["name"], native.LABEL)
         denied = subprocess.CalledProcessError(1, ["gh", "api"], stderr="gh: Forbidden (HTTP 403)")
-        with patch.object(native, "api", side_effect=denied) as api, self.assertRaises(subprocess.CalledProcessError):
+        with mock_api(side_effect=denied) as api, self.assertRaises(subprocess.CalledProcessError):
             native.ensure_label(REPO)
         self.assertEqual(api.call_count, 1)
 

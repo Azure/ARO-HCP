@@ -216,7 +216,7 @@ safe-outputs:
       if: needs.detection.result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       inputs:
         request_sha256:
-          description: SHA-256 of the complete native replacement request artifact produced by validate_native_candidate.py
+          description: SHA-256 of the complete native replacement request artifact produced by depctl candidate validation
           required: true
           type: string
       steps:
@@ -372,27 +372,20 @@ The runner clears inherited Make execution controls, including `MAKE`, before la
 
 ### Credential-free GitHub reads
 
-GitHub reads use the supported `tools.github.mode: gh-proxy` bridge, including `gh api` invoked by the trusted Python validator and its consumer subprocesses. The sandbox's `gh` executable forwards to an isolated CLI sidecar; the host DIFC proxy holds the GitHub credential and rejects REST writes and GraphQL mutations before forwarding. `read-only: true` remains explicit, but is not a substitute for that proxy enforcement. Do not export `GH_TOKEN`, `GITHUB_TOKEN`, `CI_TOKEN` or inference credentials into the sandbox, copy host CLI credentials, change API hosts, or replace authenticated release-pin checks with unchecked local data. Repository identities, official release resolution and immutable commit comparisons remain mandatory.
+GitHub reads use the supported `tools.github.mode: gh-proxy` bridge, including `gh api` invoked by the trusted Go validator and its consumer subprocesses. The sandbox's `gh` executable forwards to an isolated CLI sidecar; the host DIFC proxy holds the GitHub credential and rejects REST writes and GraphQL mutations before forwarding. `read-only: true` remains explicit, but is not a substitute for that proxy enforcement. Do not export `GH_TOKEN`, `GITHUB_TOKEN`, `CI_TOKEN` or inference credentials into the sandbox, copy host CLI credentials, change API hosts, or replace authenticated release-pin checks with unchecked local data. Repository identities, official release resolution and immutable commit comparisons remain mandatory.
 
-Before executing candidate code, check the validator's real Python-to-`gh` read path **inside this sandbox**, from the original trusted checkout:
+Before executing candidate code, check the validator's real Go-to-`gh` read path
+**inside this sandbox**, using the trusted default-branch binary:
 
 ```bash
-python3 - <<'PY'
-import os
-import sys
-sys.path.insert(0, ".github/scripts")
-import native_dependabot_maintenance as native
-native.require(not any(os.environ.get(name) for name in (
-    "GH_TOKEN", "GITHUB_TOKEN", "CI_TOKEN", "COPILOT_GITHUB_TOKEN",
-    "GITHUB_MCP_SERVER_TOKEN")), "GitHub credentials must not be visible in the sandbox")
-release = native.api("repos/actions/checkout/commits/v7.0.1")
-native.require(release.get("sha") == "3d3c42e5aac5ba805825da76410c181273ba90b1",
-               "sandbox cannot verify the official checkout release")
-print("Credential-free sandbox GitHub release read passed")
-PY
+"$DEPCTL_BINARY" dependabot native check-sandbox-read
 ```
 
-This fixed, read-only regression check exercises the same API adapter as release-pin validation without candidate code or repository writes. A host-shell check with a token is not sandbox evidence. Preserve the failure output and report a sandbox-access blocker if this check fails; do not add credentials or weaken the guard.
+This fixed read-only check rejects visible GitHub credentials and verifies an
+immutable official checkout release through the same adapter as release-pin
+validation. A host-shell check with a token is not sandbox evidence. Preserve
+the failure output and report a sandbox-access blocker if this check fails;
+do not add credentials or weaken the guard.
 
 The bridge and credential exclusions are supported by the [pinned compiler's GitHub tools reference](https://github.com/github/gh-aw/blob/v1.2.2/docs/src/content/docs/reference/github-tools.md) and [environment filtering](https://github.com/github/gh-aw/blob/v1.2.2/pkg/workflow/awf_env.go). Its pinned runtime provides the [subprocess-visible wrapper](https://github.com/github/gh-aw-firewall/blob/v0.29.11/containers/agent/gh-cli-proxy-wrapper.sh) and [API write rejection](https://github.com/github/gh-aw-mcpg/blob/v0.5.6/internal/proxy/handler.go).
 
@@ -400,12 +393,16 @@ The bridge and credential exclusions are supported by the [pinned compiler's Git
 
 Use the `native_replacement` safe-output tool only after successful sandbox validation. Its **only input** is required string `request_sha256`, identifying the complete UTF-8 JSON request in the run's agent artifact. Always construct it with the repository helper, never by hand or by copying a displayed diff into JSON.
 
-Write the complete proposed title and body to files outside the candidate checkout. The title identifies the dependency family and target; the body records source links and immutable heads and the intended upgrade. Both are required. Capture the trusted runner's absolute path from the original checkout before entering a candidate checkout: `validator=$(realpath .github/scripts/validate_native_candidate.py)`. Preserve the original checkout's built binary with `export DEPCTL_BINARY=$(realpath "$DEPCTL_BINARY")`; never rebuild it from or substitute a binary inside the candidate checkout.
+Write the complete proposed title and body to files outside the candidate checkout. The title identifies the dependency family and target; the body records source links and immutable heads and the intended upgrade. Both are required. Capture the trusted default-branch binary's absolute path from the original checkout before entering a candidate checkout with `export DEPCTL_BINARY=$(realpath "$DEPCTL_BINARY")`; never rebuild it from or substitute a binary inside the candidate checkout.
 
 From the prepared candidate checkout, run:
 
 ```bash
-python3 "$validator" Azure/ARO-HCP "$inventory" "$group" "$title_file" "$body_file" /tmp/gh-aw/agent --target "$target" --compiler "$compiler"
+"$DEPCTL_BINARY" dependabot native validate-candidate \
+  --repository Azure/ARO-HCP --repo . \
+  --inventory "$inventory" --group "$group" --target "$target" \
+  --title-file "$title_file" --body-file "$body_file" \
+  --artifact-dir /tmp/gh-aw/agent --compiler "$compiler"
 ```
 
 Here `inventory` is the absolute path to `native-maintenance-inventory.json`, and `group` and `target` are the exact selected inventory entry's fields. The runner requires exactly one matching pair, derives its complete source set and base, validates the actual candidate, and captures its complete tracked diff, including committed changes. Only a successful run writes `/tmp/gh-aw/agent/native-replacement-request.json` and returns `{"request_sha256":"..."}`. Pass that result unchanged to the safe-output function. On failure, inspect the full per-step logs, fix the candidate and rerun the complete validation; never construct the request manually or bypass a failed gate.
@@ -439,12 +436,12 @@ Prove actual outcomes rather than equating a green run with completion. After pu
 
 ## Usage
 
-The trusted default-branch checkout builds `depctl` for inventory and privileged
-recovery. The native helper uses `DEPCTL_BINARY` (or `depctl` on `PATH`) for shared
-hold/current-head CI policy and offline native inventory selection; it retains
-its separate Python publication lifecycle. `make verify-agentic-maintenance`
-builds a temporary trusted binary for both Python consumer suites and runs the
-Go dependency command and internal policy suites.
+The trusted default-branch checkout builds `depctl` for shared maintenance policy
+and native selection, consumer validation and request preparation. The native
+Python helper retains inventory discovery, privileged publication and
+reconciliation. `make verify-agentic-maintenance` runs the Go validation and
+policy suites, Darwin/arm64 and Linux builds, and real-binary producer/publisher
+integration tests for the remaining Python lifecycle.
 
 ```bash
 "$DEPCTL_BINARY" maintenance inventory --repository "$GITHUB_REPOSITORY" --kind non-compiler
