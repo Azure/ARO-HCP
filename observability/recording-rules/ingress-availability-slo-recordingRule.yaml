@@ -80,6 +80,15 @@ spec:
   # whatever value survives via `* 0 + 1`, so without the explicit `== 1`
   # below, an unavailable HCP's zero would still turn into 1 and be treated
   # as live, exactly defeating the filter this record exists to add.
+  #
+  # Side effect this introduces: requiring status="True" == 1 means an HCP
+  # whose KAS is down drops out of this join for as long as the outage
+  # lasts, same as if its HostedCluster record were gone. All seven ingress
+  # alerts (burn-rate and canary-absence) go silent for that HCP while that
+  # lasts. A cleared ingress alert during a KAS outage is therefore NOT
+  # evidence that ingress itself recovered -- it may just mean this join
+  # dropped the HCP. If ingress is independently failing while KAS is also
+  # down, that failure stays invisible until KAS comes back.
   - name: arohcp_ingress_hcp_liveness_filter
     interval: 1m
     rules:
