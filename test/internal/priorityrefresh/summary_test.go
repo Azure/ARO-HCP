@@ -161,8 +161,8 @@ func TestWriteSummaryHTMLPublicationLinkIsAnAnchor(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := out.String()
-	if !strings.Contains(page, `Published pull request: <a href="https://github.com/Azure/ARO-HCP/pull/9000">`) {
-		t.Errorf("publication link missing or not an anchor:\n%s", page)
+	if !strings.Contains(page, `Published pull request: <a href="https://github.com/Azure/ARO-HCP/pull/9000" target="_blank" rel="noopener noreferrer">`) {
+		t.Errorf("publication link missing, not an anchor, or not opening outside the summary frame:\n%s", page)
 	}
 	if strings.Contains(page, "<table") {
 		t.Errorf("notice page must not render tables:\n%s", page)
