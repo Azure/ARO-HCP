@@ -248,6 +248,97 @@ var _ = Describe("Customer", func() {
 			)
 		})
 
+	It("should report healthy after sustained ingress degradation for health signal validation",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.MIContainers(1),
+		func(ctx context.Context) {
+			const (
+				degradedDetectTimeout = 10 * time.Minute
+				degradedHoldDuration  = 2 * time.Hour
+				degradedPollInterval  = 5 * time.Minute
+				heartbeatInterval     = 30 * time.Minute
+				recoverySoakDuration  = 2 * time.Hour
+			)
+
+			kubeClient, configClient := setupClusterWithNodePool(ctx,
+				"ingress-healthy", "ingress-hlt-np", "rg-ingress-healthy",
+			)
+
+			By("verifying ingress cluster operator is available before applying break")
+			waitForIngressHealthy(ctx, configClient, degradedDetectTimeout)
+
+			By("applying NetworkPolicy to block ingress canary traffic")
+			createIngressBlockingNetworkPolicy(ctx, kubeClient)
+
+			By("waiting for ingress cluster operator to report Degraded")
+			waitForIngressDegraded(ctx, configClient, degradedDetectTimeout)
+
+			By(fmt.Sprintf("holding ingress degraded for %s to trigger Error health signal", degradedHoldDuration))
+			holdStart := time.Now()
+			lastState := ""
+			lastHeartbeat := holdStart
+
+			Consistently(func(g Gomega) {
+				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during hold")
+
+				degraded := getConditionStatus(co, configv1.OperatorDegraded) == configv1.ConditionTrue
+				available := getConditionStatus(co, configv1.OperatorAvailable) == configv1.ConditionTrue
+				elapsed := time.Since(holdStart).Round(time.Minute)
+
+				state := fmt.Sprintf("degraded=%t available=%t", degraded, available)
+				switch {
+				case state != lastState:
+					GinkgoLogr.Info("sustained hold state changed",
+						"state", state, "previous", lastState, "elapsed", elapsed.String())
+					lastState = state
+					lastHeartbeat = time.Now()
+				case time.Since(lastHeartbeat) >= heartbeatInterval:
+					GinkgoLogr.Info("sustained hold in progress",
+						"state", state, "elapsed", elapsed.String(),
+						"remaining", (degradedHoldDuration - time.Since(holdStart)).Round(time.Minute).String())
+					lastHeartbeat = time.Now()
+				}
+
+				g.Expect(degraded).To(BeTrue(),
+					"ingress operator stopped being Degraded after %s; health signal no longer valid", elapsed)
+			}).WithContext(ctx).WithTimeout(degradedHoldDuration).WithPolling(degradedPollInterval).Should(Succeed(),
+				"ingress operator did not stay Degraded for the full %s hold", degradedHoldDuration,
+			)
+
+			By("removing NetworkPolicy to restore ingress")
+			deleteIngressBlockingNetworkPolicy(ctx, kubeClient)
+
+			By("verifying ingress cluster operator recovers")
+			waitForIngressHealthy(ctx, configClient, degradedDetectTimeout)
+
+			By(fmt.Sprintf("holding healthy state for %s so the health function transitions from Error to Healthy", recoverySoakDuration))
+			recoverySoakStart := time.Now()
+			lastHeartbeat = time.Now()
+			Consistently(func(g Gomega) {
+				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during recovery soak")
+
+				elapsed := time.Since(recoverySoakStart).Round(time.Minute)
+				if time.Since(lastHeartbeat) >= heartbeatInterval {
+					GinkgoLogr.Info("recovery soak in progress",
+						"elapsed", elapsed.String(),
+						"remaining", (recoverySoakDuration - time.Since(recoverySoakStart)).Round(time.Minute).String())
+					lastHeartbeat = time.Now()
+				}
+
+				g.Expect(getConditionStatus(co, configv1.OperatorDegraded)).To(
+					Equal(configv1.ConditionFalse),
+					"ingress operator became Degraded again during recovery soak after %s",
+					elapsed,
+				)
+			}).WithContext(ctx).WithTimeout(recoverySoakDuration).WithPolling(degradedPollInterval).Should(Succeed(),
+				"ingress operator did not stay healthy for the full recovery soak",
+			)
+		})
+
 	It("should produce intermittent ingress degradation for health signal validation",
 		labels.RequireNothing,
 		labels.Medium,
