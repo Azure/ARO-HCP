@@ -162,7 +162,7 @@ func EnsureApplyDesire(
 		}
 		logger.Info("created ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
 		return nil
-	case !applyDesireSpecEqual(existing.Spec, desire.Spec) || !reflect.DeepEqual(existing.Tags, desire.Tags):
+	case !ApplyDesireSpecEqual(existing.Spec, desire.Spec) || !reflect.DeepEqual(existing.Tags, desire.Tags):
 		replacement := existing.DeepCopy()
 		replacement.Spec = desire.Spec
 		replacement.Tags = desire.Tags
@@ -233,10 +233,10 @@ func EnsureReadDesire(
 	}
 }
 
-// applyDesireSpecEqual reports whether an existing ApplyDesire spec already
+// ApplyDesireSpecEqual reports whether an existing ApplyDesire spec already
 // matches the desired spec (same management cluster, target, and rendered
 // content), so callers can avoid a redundant Cosmos write.
-func applyDesireSpecEqual(existing, desired kubeapplierapi.ApplyDesireSpec) bool {
+func ApplyDesireSpecEqual(existing, desired kubeapplierapi.ApplyDesireSpec) bool {
 	if !controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) {
 		return false
 	}
