@@ -143,14 +143,28 @@ func DoDeepCopyTest(t *testing.T, original runtime.Object, fuzzer *randfill.Fill
 	}
 }
 
-// CommonRoundTripFuzzFuncs returns fuzz funcs shared by all API version
-// round-trip conversion tests. It builds on CommonDeepCopyFuzzFuncs (which
-// generates valid data for every field) and appends overrides that zero
-// internal-only fields that do not survive the external API round-trip.
-// Version-specific overrides can be appended after this slice; randfill
-// uses the last-registered func for a type.
-func CommonRoundTripFuzzFuncs() []interface{} {
+// RoundTripFuzzFuncs returns the complete set of fuzz funcs for the round-trip
+// conversion test of the given API version. It builds on CommonDeepCopyFuzzFuncs
+// (which generates valid data for every field) and appends overrides that zero
+// the fields which cannot survive a round-trip through the external type.
+//
+// The overrides come in two flavors. The first group is version-independent: it
+// zeroes internal-only fields that no external API version exposes. The second
+// group is version-gated: older API versions do not know about fields that were
+// introduced in later versions, so those fields must be zeroed before the
+// comparison. Rather than each version's test carrying its own hand-maintained
+// list of overrides, all of the version-gated fields live here, each guarded by
+// a comparison against the API version that introduced it. Adding a field to
+// the latest API version therefore only requires one new guard in this function.
+//
+// NOTE: randfill dispatches on type and uses the last-registered func for a
+// type, so there must be at most one func per type below. When a type gains a
+// field in a new version, extend that type's existing func with another guard
+// instead of registering a second func for the same type.
+func RoundTripFuzzFuncs(apiVersion metadataapi.APIVersion) []interface{} {
 	return append(CommonDeepCopyFuzzFuncs(),
+		// Version-independent overrides.
+
 		// Override: round-trip always generates a value (no 5% nil chance).
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *FuzzArmResourceID("Microsoft.RedHatOpenShift/hcpOpenShiftClusters", GenName(c))
@@ -204,8 +218,61 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
 		},
+
+		// Version-gated overrides.
+
+		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if apiVersion.LT(metadataapi.APIVersionV20251223Preview) {
+				// ImageDigestMirrors was added in v20251223preview.
+				j.ImageDigestMirrors = nil
+			}
+			if apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
+				// Ingress and CryptoRestrictions were added in v20260630preview.
+				j.Ingress = coreapi.CustomerIngressProfile{}
+				j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
+			}
+		},
+		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+			fillCustomerPlatformProfile(j, c)
+			if apiVersion.LT(metadataapi.APIVersionV20251223Preview) {
+				// VnetIntegrationSubnetID was added in v20251223preview.
+				j.VnetIntegrationSubnetID = nil
+			}
+			if apiVersion.LT(metadataapi.APIVersionV20261001) {
+				// ContainerRegistry was added in v20261001.
+				j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+			}
+		},
+		func(j *coreapi.OSDiskProfile, c randfill.Continue) {
+			fillOSDiskProfile(j, c)
+			if apiVersion.LT(metadataapi.APIVersionV20251223Preview) {
+				// DiskType was added in v20251223preview.
+				j.DiskType = ""
+			}
+		},
+		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if apiVersion.LT(metadataapi.APIVersionV20251223Preview) {
+				// Visibility was added in v20251223preview.
+				j.Visibility = ""
+			}
+			if apiVersion.LT(metadataapi.APIVersionV20261001) {
+				// KeyVaultType was added in v20261001.
+				j.KeyVaultType = ""
+			}
+		},
 		func(j *coreapi.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
+			if apiVersion.LT(metadataapi.APIVersionV20251223Preview) {
+				// Without Visibility there is nothing left to distinguish an
+				// otherwise empty KMS profile from no KMS profile at all, so
+				// the external type round-trips it back as nil.
+				if j.Kms != nil && *j.Kms == (coreapi.KmsEncryptionProfile{}) {
+					j.Kms = nil
+				}
+				return
+			}
 			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
 				j.Kms = nil
 			}
@@ -234,18 +301,7 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			j.Name = j.ID.Name
 			j.Type = j.ID.ResourceType.String()
 		},
-		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j.SubnetID != nil {
-				j.SubnetID = FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", GenName(c))
-			}
-			if j.VnetIntegrationSubnetID != nil {
-				j.VnetIntegrationSubnetID = FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", GenName(c))
-			}
-			if j.NetworkSecurityGroupID != nil {
-				j.NetworkSecurityGroupID = FuzzArmResourceID("Microsoft.Network/networkSecurityGroups", GenName(c))
-			}
-		},
+		fillCustomerPlatformProfile,
 		func(j *coreapi.UserAssignedIdentitiesProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			for k := range j.ControlPlaneOperators {
@@ -264,12 +320,7 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 				j.SubnetID = FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", GenName(c))
 			}
 		},
-		func(j *coreapi.OSDiskProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j.EncryptionSetID != nil {
-				j.EncryptionSetID = FuzzArmResourceID("Microsoft.Compute/diskEncryptionSets", GenName(c))
-			}
-		},
+		fillOSDiskProfile,
 		func(j *coreapi.ClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
@@ -308,5 +359,30 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 		func(j *coreapi.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 		},
+	}
+}
+
+// fillCustomerPlatformProfile is the base fill behavior for
+// coreapi.CustomerPlatformProfile, shared by the deep-copy fuzz funcs and the
+// version-gated round-trip fuzz funcs.
+func fillCustomerPlatformProfile(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+	c.FillNoCustom(j)
+	if j.SubnetID != nil {
+		j.SubnetID = FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", GenName(c))
+	}
+	if j.VnetIntegrationSubnetID != nil {
+		j.VnetIntegrationSubnetID = FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", GenName(c))
+	}
+	if j.NetworkSecurityGroupID != nil {
+		j.NetworkSecurityGroupID = FuzzArmResourceID("Microsoft.Network/networkSecurityGroups", GenName(c))
+	}
+}
+
+// fillOSDiskProfile is the base fill behavior for coreapi.OSDiskProfile, shared
+// by the deep-copy fuzz funcs and the version-gated round-trip fuzz funcs.
+func fillOSDiskProfile(j *coreapi.OSDiskProfile, c randfill.Continue) {
+	c.FillNoCustom(j)
+	if j.EncryptionSetID != nil {
+		j.EncryptionSetID = FuzzArmResourceID("Microsoft.Compute/diskEncryptionSets", GenName(c))
 	}
 }
