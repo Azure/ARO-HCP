@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -35,10 +36,19 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 	operationOldEnough := !operationStartTime.IsZero() && now.Sub(operationStartTime) >= clusterValidationFailureTimeout
 	var messages []string
+
 	for _, validation := range serviceProviderCluster.Status.Validations {
 		if validation.Status == metav1.ConditionTrue {
 			continue
 		}
+
+		// TODO for now we exclude the service managed identity permissions validation from the operation state
+		// calculation gating. We rollout the validation without gating to first gather data about the impact of the validation
+		// and from that data we will decide how to proceed with the validation and the gating itself.
+		if validation.Type == validationutils.ServiceManagedIdentityPermissionsClusterValidationName {
+			continue
+		}
+
 		if state.ProvisioningState == coreapi.ProvisioningStateSucceeded {
 			state = operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "")
 		}
