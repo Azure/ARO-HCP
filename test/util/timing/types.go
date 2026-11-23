@@ -41,6 +41,8 @@ const (
 	KindConvergence = "convergence"
 	// KindDataPlaneKey covers key creation outside ARM, such as Managed HSM and Key Vault etcd keys.
 	KindDataPlaneKey = "data-plane-key"
+	// KindCapacityBackoff covers only the backoff after a capacity rejection, excluding requests and provisioning.
+	KindCapacityBackoff = "capacity-backoff"
 	// KindTestStep covers ginkgo steps and framework phases so no test work stays unattributed.
 	KindTestStep = "test-step"
 )

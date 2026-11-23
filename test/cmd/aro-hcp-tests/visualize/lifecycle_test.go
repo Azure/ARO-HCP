@@ -101,6 +101,7 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 			span(timing.KindDeleteCluster, "cluster-a", 22, 26), span(timing.KindResourceGroupCleanup, "group-a", 21, 38),
 			// A successful submission is not a completed provisioning sample.
 			span(timing.KindCreateClusterRequest, "cluster-still-creating", 0, 1),
+			span(timing.KindCapacityBackoff, "capacity backoff", 3, 5),
 		},
 	}
 	incomplete := span(timing.KindCreateCluster, "cluster-c", 18, 20)
@@ -133,6 +134,7 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 		{},
 		{},
 		{},
+		{1, 2 * time.Second, 2 * time.Second, 2 * time.Second},
 		{1, 20 * time.Second, 20 * time.Second, 20 * time.Second},
 	} {
 		got := summary.Rows[i]
