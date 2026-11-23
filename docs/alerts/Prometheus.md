@@ -1,8 +1,8 @@
 # Prometheus alerts
 
-This page describes the Prometheus self-monitoring alerts in `observability/alerts/prometheus-prometheusRule.yaml`, including the alerts added by [Azure/ARO-HCP#5535](https://github.com/Azure/ARO-HCP/pull/5535).
+This page describes the Prometheus self-monitoring alerts in `observability/alerts/prometheus-prometheusRule.yaml`, including the alerts added by [Azure/ARO-HCP#5535](https://github.com/Azure/ARO-HCP/pull/5535). It also covers `KubeStateMetricsDown` (`observability/alerts/kube-state-metrics-prometheusRule.yaml`), which watches a scrape target rather than Prometheus itself but is diagnosed through the same metrics pipeline.
 
-The timings below are approximate and exclude Azure Monitor evaluation jitter, IcM routing latency, and notification delivery latency. The alert generator maps `critical` to IcM Sev 2, `warning` to Sev 3, and `info` to Sev 4.
+The timings below are approximate and exclude Azure Monitor evaluation jitter, IcM routing latency, and notification delivery latency. The canonical Azure CEN vocabulary is the IcM Sev number itself (`2`, `2.5`, `3`, `4`); the alert generator also accepts the deprecated spellings and maps `critical` to Sev 2, `warning` to Sev 3, and `info` to Sev 4.
 
 ## Alert coverage summary
 
@@ -14,6 +14,7 @@ The timings below are approximate and exclude Azure Monitor evaluation jitter, I
 | `PrometheusUptime` | 10m | critical | More than 5% of present Prometheus self-`up` samples over 24h were `0`, weighted by sample count across all observed series. This does not count missing samples as downtime. |
 | `PrometheusPendingRate` | 15m | critical | Prometheus remote-write queue pressure is high: too many samples are pending relative to in-flight samples. |
 | `PrometheusFailedRate` | 15m | critical | More than 10% of remote-write samples are failing over the short rate window. |
+| `KubeStateMetricsDown` | 15m | 2 | A declared underlay cluster whose Prometheus is up has no successful `up{job="kube-state-metrics"} == 1` scrape. Every alert derived from kube-state-metrics series is silently not evaluating while this lasts. |
 | `PrometheusRemoteStorageFailures` | 15m | critical | Upstream Prometheus Operator alert: more than 1% of samples failed to send to remote storage. Metrics and alerts may be missing or inaccurate. |
 | `PrometheusNotIngestingSamples` | 10m | warning | Upstream Prometheus Operator alert: Prometheus is alive and has target metadata, but is not ingesting samples locally. |
 | `PrometheusBadConfig` | 10m | critical | Upstream Prometheus Operator alert: Prometheus could not reload its generated configuration and is running with the last known good config. |
@@ -31,6 +32,7 @@ This table assumes the worst useful "Prometheus is down" shape for each alert: P
 | `PrometheusMetricsAbsentPerCluster` | 10m | critical | ~20m | `count_over_time(...[10m])` remains non-empty until the last sample is older than 10m, then the `for: 10m` timer completes. |
 | `PrometheusUptimeSampleCount` | 10m | warning | ~82m | It fires once more than 5% of the expected 24h samples are missing: 72m of missing samples plus `for: 10m`. |
 | `PrometheusUptime` | 10m | critical | Never for pure absence; ~82m if `up=0` samples continue | It compares successful present `up` samples with total present `up` samples. Missing samples do not lower the average. |
+| `KubeStateMetricsDown` | 15m | 2 | Never | Deliberately gated on `up{job="prometheus/prometheus"} == 1`, so a cluster whose Prometheus is silent is left to `PrometheusJobUp` and `PrometheusMetricsAbsentPerCluster` instead of paging twice for one root cause. |
 | `PrometheusPendingRate` | 15m | critical | Never | Needs Prometheus to emit remote-write queue metrics. |
 | `PrometheusFailedRate` | 15m | critical | Never | Needs Prometheus to emit remote-write failure counters. |
 | `PrometheusRemoteStorageFailures` | 15m | critical | Never | Needs Prometheus to emit remote storage success/failure counters. |
@@ -117,6 +119,24 @@ Primary alert:
 | `PrometheusScrapeSampleLimitHit` | A scrape exceeded the configured sample limit. |
 
 This usually means a target is exposing too many series or has a cardinality spike. Prometheus may drop metrics from that target, so downstream alerts and dashboards can become incomplete.
+
+### Prometheus is alive, but kube-state-metrics is not being scraped
+
+Primary alert:
+
+| Alert | Signal |
+|---|---|
+| `KubeStateMetricsDown` | A cluster in the `underlay_clusters` inventory, whose own Prometheus reports `up == 1`, has no successful kube-state-metrics scrape. |
+
+Scrape failure (`up == 0`) and a fully absent target are the same case, since both mean "no `up == 1`". One successful scrape suffices, so a single failing Prometheus replica does not page while the other replica still delivers the series.
+
+This alert exists because a large part of the alert set is derived from kube-state-metrics, and several of those alerts **fail closed**: when the gating series disappears they stop evaluating instead of firing. The hosted-cluster kube-apiserver availability SLO family is the main example: the `userJourneyKubeApiserverAvailability*` alerts burn against recording rules built from the `hostedClusterAPI_*` gauges, which kube-state-metrics produces, so a scrape outage leaves them with no input series and nothing to fire on. While `KubeStateMetricsDown` is firing, treat every kube-state-metrics-derived alert as not evaluating and verify the gated conditions by hand.
+
+The anchor is the deploy-time inventory (`underlay_clusters`, see [alerts.md](../alerts.md)), the same anchor `userJourneyBackupMetricsAbsent` uses, and deliberately not a "was present recently" witness built from kube-state-metrics itself. Such a witness would erase itself after a long enough outage and silently resolve the page, and would never fire at all for a cluster whose kube-state-metrics never came up. A decommissioned cluster leaves the inventory with its own deployment, so it does not false-fire.
+
+Both service and management clusters declare themselves in the inventory and both run kube-state-metrics, so the alert is not scoped to one cluster role. Triage: check the kube-state-metrics pod for crashloops and OOMKills, its RBAC (including the `hypershift.openshift.io` and `velero.io` `extraRules` in `observability/prometheus/values-mgmt.yaml`), and the ServiceMonitor and Prometheus target page. The upstream <https://runbooks.prometheus-operator.dev/runbooks/general/targetdown/> covers the generic "scrape target is down" diagnosis.
+
+Not covered here: the HCP remote-write destination failing while the services one is healthy. The scrape is fine in that case, so this alert stays silent and the remote-write alerts above own it.
 
 ### Prometheus Operator cannot reconcile correctly
 

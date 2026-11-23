@@ -1,0 +1,212 @@
+rule_files:
+- kube-state-metrics-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# KSM target reachable but failing (up == 0) while Prometheus is up: fires after for: 15m.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeStateMetricsDown
+    exp_alerts:
+    - exp_labels:
+        cluster: prod-eastus-mgmt-1
+        component: monitoring-infrastructure
+        severity: "2"
+      exp_annotations:
+        summary: kube-state-metrics is down on cluster prod-eastus-mgmt-1.
+        description: |
+          Cluster prod-eastus-mgmt-1 is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# KSM healthy: silent. An empty-but-healthy cluster still reports up == 1, so having no workload is
+# not a failure.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+# Prometheus runs replicas: 2 (config.yaml), so every series arrives twice, distinguished by
+# prometheus_replica. One replica failing to scrape KSM is not an outage: the other replica still
+# delivers the KSM-derived series, so the gated alerts keep evaluating and this must stay silent.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-0"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-1"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-0"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-1"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+# Both replicas fail to scrape KSM: no KSM-derived series reach either workspace, so it pages once
+# for the cluster, not once per replica.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-0"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-1"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-0"}'
+    values: "0+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1",prometheus_replica="prom-agent-prometheus-1"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: KubeStateMetricsDown
+    exp_alerts:
+    - exp_labels:
+        cluster: prod-eastus-mgmt-1
+        component: monitoring-infrastructure
+        severity: "2"
+      exp_annotations:
+        summary: kube-state-metrics is down on cluster prod-eastus-mgmt-1.
+        description: |
+          Cluster prod-eastus-mgmt-1 is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# KSM target disappears entirely while Prometheus stays up:
+# same branch as up == 0, fires after for: 15m with no dependence on a KSM-derived witness.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x25"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x25"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x5 stale"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeStateMetricsDown
+    exp_alerts:
+    - exp_labels:
+        cluster: prod-eastus-mgmt-1
+        component: monitoring-infrastructure
+        severity: "2"
+      exp_annotations:
+        summary: kube-state-metrics is down on cluster prod-eastus-mgmt-1.
+        description: |
+          Cluster prod-eastus-mgmt-1 is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# A cluster whose KSM never came up at all still pages: there is no "was present recently" witness
+# to lose, so the long-outage and never-worked cases behave identically.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: KubeStateMetricsDown
+    exp_alerts:
+    - exp_labels:
+        cluster: prod-eastus-mgmt-1
+        component: monitoring-infrastructure
+        severity: "2"
+      exp_annotations:
+        summary: kube-state-metrics is down on cluster prod-eastus-mgmt-1.
+        description: |
+          Cluster prod-eastus-mgmt-1 is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# Prometheus itself is gone, so KSM samples stop too: deferred to the Prometheus self-health alerts,
+# no duplicate page from here.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x40"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x5 stale"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x5 stale"
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+# Prometheus is reporting itself down: the gate requires up == 1, so this cluster is left to
+# PrometheusJobUp rather than paging twice.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "0+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+# A decommissioned cluster leaves the inventory with its own deployment: no anchor, no page, even
+# though its KSM series are gone forever.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-mgmt-1", source="bicep"}'
+    values: "1+0x5 stale"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x5 stale"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-mgmt-1"}'
+    values: "1+0x5 stale"
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: KubeStateMetricsDown
+    exp_alerts: []
+# Service clusters are covered too: they declare themselves in the inventory and run KSM.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="prod-eastus-svc-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="prod-eastus-svc-1"}'
+    values: "1+0x30"
+  - series: 'up{job="kube-state-metrics",cluster="prod-eastus-svc-1"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: KubeStateMetricsDown
+    exp_alerts:
+    - exp_labels:
+        cluster: prod-eastus-svc-1
+        component: monitoring-infrastructure
+        severity: "2"
+      exp_annotations:
+        summary: kube-state-metrics is down on cluster prod-eastus-svc-1.
+        description: |
+          Cluster prod-eastus-svc-1 is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md

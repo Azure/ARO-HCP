@@ -1923,6 +1923,28 @@
             value: 0.8
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: kube-state-metrics-rules
+  alert: KubeStateMetricsDown
+  occurrence: 1
+  input: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1) and on (cluster) group by (cluster, region) (underlay_clusters)) unless on (cluster) group by (cluster, region) (up{job="kube-state-metrics"} == 1)
+  plan:
+    expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1) and on (cluster) group by (cluster, region) (underlay_clusters)) unless on (cluster) group by (cluster, region) (up{job="kube-state-metrics"} == 1)
+    conditions:
+      - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{job="kube-state-metrics"} == 1))
+        path: root/unless:left/and:left
+        queries:
+          - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{job="kube-state-metrics"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster, region) (underlay_clusters)) unless on (cluster) (group by (cluster, region) (up{job="kube-state-metrics"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster, region) (underlay_clusters)) unless on (cluster) (group by (cluster, region) (up{job="kube-state-metrics"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
@@ -10156,6 +10178,35 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/kube-state-metrics-prometheusRule.yaml
+  group: kube-state-metrics-rules
+  alert: KubeStateMetricsDown
+  occurrence: 1
+  input: |
+    (
+      group by (cluster) (up{job="prometheus/prometheus", namespace="prometheus"} == 1)
+      and on (cluster)
+      group by (cluster) (underlay_clusters)
+    )
+    unless on (cluster)
+    group by (cluster) (up{job="kube-state-metrics"} == 1)
+  plan:
+    expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1) and on (cluster) group by (cluster) (underlay_clusters)) unless on (cluster) group by (cluster) (up{job="kube-state-metrics"} == 1)
+    conditions:
+      - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{job="kube-state-metrics"} == 1))
+        path: root/unless:left/and:left
+        queries:
+          - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{job="kube-state-metrics"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster) (underlay_clusters)) unless on (cluster) (group by (cluster) (up{job="kube-state-metrics"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster) (underlay_clusters)) unless on (cluster) (group by (cluster) (up{job="kube-state-metrics"} == 1))
+            role: signal
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kubeContainerOOM-prometheusRule.yaml
   group: kube-container-oom-rules

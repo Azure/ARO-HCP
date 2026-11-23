@@ -14,6 +14,7 @@ prometheusRules:
   - alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
   - alerts/leaderelection-prometheusRule.yaml
+  - alerts/kube-state-metrics-prometheusRule.yaml
   - ../frontend/alerts/frontend-latency-prometheusRule.yaml
   - ../backend/alerts/backend-retryhotloop-prometheusRule.yaml
   untestedRules: []

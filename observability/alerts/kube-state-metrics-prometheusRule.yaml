@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: kube-state-metrics-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: kube-state-metrics-rules
+    labels:
+      component: monitoring-infrastructure
+    rules:
+    # Fires when no kube state metrics are available for 15 minutes,
+    # although there's a corresponding cluster present.
+    #
+    # The `up` vector is deliberately the left-hand side of the intersection:
+    # set operators keep the left-hand labels, and `underlay_clusters` is a
+    # bicep-declared series (dev-infrastructure/modules/metrics/underlay-clusters-metric.bicep)
+    # that carries only `cluster` and `source`. Anchoring on `underlay_clusters`
+    # would therefore emit alerts with an empty `region`.
+    - alert: KubeStateMetricsDown
+      expr: |
+        (
+          group by (cluster) (up{job="prometheus/prometheus", namespace="prometheus"} == 1)
+          and on (cluster)
+          group by (cluster) (underlay_clusters)
+        )
+        unless on (cluster)
+        group by (cluster) (up{job="kube-state-metrics"} == 1)
+      for: 15m
+      labels:
+        severity: "2"
+      annotations:
+        description: |
+          Cluster {{ $labels.cluster }} is in the underlay-cluster inventory and its Prometheus is up, but it has had
+          no successful kube-state-metrics scrape for 15 minutes.
+          Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+          fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+        summary: kube-state-metrics is down on cluster {{ $labels.cluster }}.

@@ -2064,6 +2064,55 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
   }
 }
 
+resource kubeStateMetricsRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kube-state-metrics-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeStateMetricsDown'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: '2'
+        }
+        annotations: {
+          correlationId: 'KubeStateMetricsDown/{{ $labels.cluster }}'
+          description: '''Cluster {{ $labels.cluster }} is in the underlay-cluster inventory and its Prometheus is up, but it has had
+no successful kube-state-metrics scrape for 15 minutes.
+Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+'''
+          info: '''Cluster {{ $labels.cluster }} is in the underlay-cluster inventory and its Prometheus is up, but it has had
+no successful kube-state-metrics scrape for 15 minutes.
+Every alert derived from kube-state-metrics series is silently disabled while this lasts, including the
+fail-closed userJourneyKubeApiserverAvailability* alerts that gate on hostedClusterAPI_* gauges.
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          summary: 'kube-state-metrics is down on cluster {{ $labels.cluster }}.'
+          title: 'kube-state-metrics is down on cluster {{ $labels.cluster }}.'
+        }
+        expression: '(group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1) and on (cluster) group by (cluster, region) (underlay_clusters)) unless on (cluster) group by (cluster, region) (up{job="kube-state-metrics"} == 1)'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'frontend-latency'
   location: location
