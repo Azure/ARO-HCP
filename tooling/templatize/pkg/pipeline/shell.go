@@ -254,6 +254,16 @@ func checkSentinel(logger logr.Logger, data any, stepCacheDir string) (bool, fun
 	}, nil
 }
 
+// stepDigest identifies a step's inputs: it names the step's cache entry and, for ARM steps, the deployment.
+func stepDigest(data any) (string, []byte, error) {
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to serialize step inputs: %w", err)
+	}
+	hash := sha256.Sum256(encoded)
+	return hex.EncodeToString(hash[:]), encoded, nil
+}
+
 func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string) (string, *T, func(T) error, error) {
 	if stepCacheDir == "" {
 		logger.V(4).Info("No cache directory provided, omitting step execution cache.")
@@ -262,14 +272,10 @@ func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string)
 		}, nil
 	}
 
-	encoded, err := json.Marshal(data)
+	digest, encoded, err := stepDigest(data)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to serialize registration options: %w", err)
+		return "", nil, nil, err
 	}
-	hash := sha256.New()
-	hash.Write(encoded)
-	hashBytes := hash.Sum(nil)
-	digest := hex.EncodeToString(hashBytes)
 	logger = logger.WithValues("digest", digest)
 	logger.V(4).Info("Calculated step input digest.")
 	logger.V(8).Info("Divulging step inputs.", "inputs", string(encoded))
