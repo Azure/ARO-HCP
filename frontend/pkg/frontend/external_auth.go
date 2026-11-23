@@ -234,6 +234,22 @@ func (f *Frontend) newExternalAuthAdmissionContext(ctx context.Context, op opera
 		if err := iterator.GetError(); err != nil {
 			return nil, utils.TrackError(err)
 		}
+
+		// All node pools for the cluster are needed so admission can enforce the at-least-one-node-pool
+		// prerequisite that Cluster Service applies when configuring the external auth's console clients.
+		// This reads the database rather than the informer cache: a stale cache would reject an external
+		// auth create that immediately follows a node pool create, which is exactly the sequence this
+		// check is telling users to perform.
+		nodePoolIterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).List(ctx, nil)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		for _, nodePool := range nodePoolIterator.Items(ctx) {
+			admissionContext.NodePools = append(admissionContext.NodePools, nodePool)
+		}
+		if err := nodePoolIterator.GetError(); err != nil {
+			return nil, utils.TrackError(err)
+		}
 	}
 	return admissionContext, nil
 }

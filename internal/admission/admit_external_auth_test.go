@@ -88,8 +88,10 @@ func TestAdmitExternalAuthNotDeleting(t *testing.T) {
 					oldObj.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				}
 			}
+			// A node pool is present so the unrelated at-least-one-node-pool create gate stays quiet.
+			admissionContext := &ExternalAuthAdmissionContext{NodePools: []*coreapi.NodePool{{}}}
 			// The stored object, not the incoming object, carries deletion intent.
-			errs := AdmitExternalAuth(t.Context(), &ExternalAuthAdmissionContext{}, operation.Operation{Type: tc.op}, &coreapi.ExternalAuth{}, oldObj)
+			errs := AdmitExternalAuth(t.Context(), admissionContext, operation.Operation{Type: tc.op}, &coreapi.ExternalAuth{}, oldObj)
 			if tc.deleting {
 				require.Equal(t, field.ErrorList{field.Forbidden(field.NewPath(""), "external auth is being deleted and cannot be updated")}, errs)
 			} else {
@@ -105,6 +107,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 	const (
 		existingExternalAuthResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/existing"
 		otherExternalAuthResourceID    = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/other"
+		nodePoolResourceID             = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np"
 	)
 
 	externalAuthWithResourceID := func(resourceID string) *coreapi.ExternalAuth {
@@ -114,6 +117,12 @@ func TestAdmitExternalAuth(t *testing.T) {
 	newExternalAuth := coreapitesting.MinimumValidExternalAuthTestCase()
 	existingExternalAuth := externalAuthWithResourceID(existingExternalAuthResourceID)
 	otherExternalAuth := externalAuthWithResourceID(otherExternalAuthResourceID)
+	nodePool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(nodePoolResourceID)), "uksouth")
+
+	noNodePoolError := utils.ExpectedError{
+		FieldPath: "name",
+		Message:   "External authentication requires at least one node pool",
+	}
 
 	tests := []struct {
 		name             string
@@ -128,6 +137,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
 				ExternalAuths: []*coreapi.ExternalAuth{},
+				NodePools:     []*coreapi.NodePool{nodePool},
 			},
 			newObj:       newExternalAuth,
 			expectErrors: []utils.ExpectedError{},
@@ -137,6 +147,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
 				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth},
+				NodePools:     []*coreapi.NodePool{nodePool},
 			},
 			newObj: newExternalAuth,
 			expectErrors: []utils.ExpectedError{
@@ -151,6 +162,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
 				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth, otherExternalAuth},
+				NodePools:     []*coreapi.NodePool{nodePool},
 			},
 			newObj: newExternalAuth,
 			expectErrors: []utils.ExpectedError{
@@ -159,6 +171,43 @@ func TestAdmitExternalAuth(t *testing.T) {
 					Message:   "Only one external auth is allowed per cluster",
 				},
 			},
+		},
+		{
+			name: "create: no node pools rejected",
+			op:   operation.Create,
+			admissionContext: &ExternalAuthAdmissionContext{
+				ExternalAuths: []*coreapi.ExternalAuth{},
+				NodePools:     []*coreapi.NodePool{},
+			},
+			newObj:       newExternalAuth,
+			expectErrors: []utils.ExpectedError{noNodePoolError},
+		},
+		{
+			name: "create: no node pools and an existing external auth reports both problems",
+			op:   operation.Create,
+			admissionContext: &ExternalAuthAdmissionContext{
+				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth},
+				NodePools:     []*coreapi.NodePool{},
+			},
+			newObj: newExternalAuth,
+			expectErrors: []utils.ExpectedError{
+				{
+					FieldPath: "name",
+					Message:   "Only one external auth is allowed per cluster",
+				},
+				noNodePoolError,
+			},
+		},
+		{
+			name: "update: no node pools allowed",
+			op:   operation.Update,
+			admissionContext: &ExternalAuthAdmissionContext{
+				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth},
+				NodePools:     []*coreapi.NodePool{},
+			},
+			newObj:       newExternalAuth,
+			oldObj:       existingExternalAuth,
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 

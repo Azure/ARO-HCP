@@ -41,6 +41,7 @@ var _ = Describe("Customer", func() {
 
 	testingPrefix := "ea-list"
 	dummyUID := "00000000-0000-0000-0000-000000000000"
+	nodePoolName := "ea-list-np-1"
 
 	It("should be able to lifecycle and confirm external auth on a cluster",
 		labels.RequireNothing,
@@ -86,6 +87,23 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for external auth list test")
+
+			By("creating the node pool")
+			// External auth creation is rejected on a cluster with no node pools, because Cluster Service
+			// cannot configure the console clients until the cluster has a node pool.
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.ClusterName = clusterName
+			nodePoolParams.NodePoolName = nodePoolName
+
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", nodePoolName)
 
 			expectedExternalAuth := hcpsdk20240610preview.ExternalAuth{
 				Name: to.Ptr(testingPrefix),

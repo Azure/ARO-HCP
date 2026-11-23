@@ -1,0 +1,3 @@
+"code": "InvalidRequestContent",
+    "message": "Forbidden: External authentication requires at least one node pool. Please create a node pool before configuring external authentication.",
+    "target": "name"
