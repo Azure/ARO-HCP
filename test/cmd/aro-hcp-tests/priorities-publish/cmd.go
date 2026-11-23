@@ -334,12 +334,27 @@ func (c *completedOptions) publishRequest(ctx context.Context, request githublib
 	if c.publish != nil {
 		return c.publish(ctx, request)
 	}
-	api := gh.NewClient(&http.Client{Transport: &tokenTransport{token: c.token}})
-	client, err := githublib.NewClient(c.headRepo, api)
+	client, err := newPublicationClient(c.headRepo, c.token, c.actor)
 	if err != nil {
 		return githublib.Receipt{}, err
 	}
 	return client.Publish(ctx, request)
+}
+
+// newPublicationClient builds the publishing client with the trusted writer
+// identity bound. App installation tokens cannot read /user, so discovery would
+// fail the first request instead of publishing.
+func newPublicationClient(repository, token, actor string) (*githublib.Client, error) {
+	api := gh.NewClient(&http.Client{Transport: &tokenTransport{token: token}})
+	client, err := githublib.NewClient(repository, api)
+	if err != nil {
+		return nil, err
+	}
+	bound, err := client.WithActor(actor)
+	if err != nil {
+		return nil, fmt.Errorf("bind the publication actor: %w", err)
+	}
+	return bound, nil
 }
 
 // remoteBranchSHA reads the base branch tip the publication must match.
