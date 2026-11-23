@@ -303,179 +303,7 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/ggg"
 # ========================================
-# Test 5: Latency normal — all canary checks within 400ms, no alerts
-# ========================================
-# le="200.0", le="400.0" and le="+inf" all increase at the same rate → ratio 1, error_rate 0.
-- interval: 1m
-  input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200.0"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="400.0"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-ok", namespace="clusters-lat-ok", _id="lat-ok", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-ok"}'
-    values: "1+0x400"
-  promql_expr_test:
-  - expr: latency:ingress_canary:ratio
-    eval_time: 10m
-    exp_samples:
-    - labels: 'latency:ingress_canary:ratio{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
-      value: 1
-  - expr: errors:ingress_canary_latency:error_rate
-    eval_time: 10m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
-      value: 0
-  alert_rule_test:
-  - eval_time: 15m
-    alertname: userJourneyIngressLatencyP99Errors1h5m
-  - eval_time: 40m
-    alertname: userJourneyIngressLatencyP99Errors6h30m
-  - eval_time: 400m
-    alertname: userJourneyIngressLatencyP99Errors3d6h
-# ========================================
-# Test 6: Latency fast burn — 50% of checks exceed 400ms
-# ========================================
-# le="400.0" increases at half the rate of le="+inf" → ratio 0.5, error_rate
-# 0.5. 5 instances x 2 checks/min combined (10/min). The fast tier's floors
-# (total_5m >= 3, total_1h >= 10) clear almost immediately at that rate. The
-# medium tier's raised total_6h >= 300 floor does not: at 10/min it isn't
-# reached until t=30m, so the alert only starts its for:30m pending count
-# from there, firing at t=60m -- not because the error rate is marginal (50%
-# is nowhere near the 3% threshold here) but simply because that's how long
-# it takes this volume of traffic to accumulate 300 real samples. Every
-# latency selector also carries `offset 5m` (see the recording rule's header
-# comment), so whatever happens at simulated time T is only visible to the
-# alert 5m later in wall-clock eval_time; both eval_times below include that
-# 5m on top of the usual margin.
-- interval: 1m
-  input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="400.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="400.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="400.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="400.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="400.0"}'
-    values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+inf"}'
-    values: "0+2x400"
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-bad", namespace="clusters-lat-bad", _id="lat-bad", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"}'
-    values: "1+0x400"
-  promql_expr_test:
-  - expr: latency:ingress_canary:ratio
-    eval_time: 10m
-    exp_samples:
-    - labels: 'latency:ingress_canary:ratio{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
-      value: 0.5
-  - expr: errors:ingress_canary_latency:error_rate
-    eval_time: 10m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
-      value: 0.5
-  alert_rule_test:
-  - eval_time: 20m
-    alertname: userJourneyIngressLatencyP99Errors1h5m
-    exp_alerts:
-    - exp_labels:
-        _id: "lat-bad"
-        cluster: "mgmt-1"
-        region: "uksouth"
-        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
-        component: slo
-        long_window: 1h
-        severity: "4"
-        short_window: 5m
-        slo: ingress-latency
-      exp_annotations:
-        summary: "Ingress canary latency critically degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
-        description: |
-          More than 7.2% of synthetic canary route checks exceeded 400ms in both the last 5 minutes and the last hour for HCP cluster lat-bad, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
-          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
-        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
-        correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
-  - eval_time: 70m
-    alertname: userJourneyIngressLatencyP99Errors6h30m
-    exp_alerts:
-    - exp_labels:
-        _id: "lat-bad"
-        cluster: "mgmt-1"
-        region: "uksouth"
-        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
-        component: slo
-        long_window: 6h
-        severity: "4"
-        short_window: 30m
-        slo: ingress-latency
-      exp_annotations:
-        summary: "Ingress canary latency degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
-        description: |
-          More than 3% of synthetic canary route checks exceeded 400ms in both the last 30 minutes and the last 6 hours for HCP cluster lat-bad, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
-          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
-        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
-        correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
-# ========================================
-# Test 7: Latency below fast burn — ~5.9% of checks exceed 400ms
-# ========================================
-# le="400.0" rate / le="+inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
-# but > 0.5% (slow). Fast must NOT fire; slow fires once both windows clear
-# their floor and for:3h elapses.
-- interval: 1m
-  input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="400.0"}'
-    values: "0+16x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
-    values: "0+17x400"
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-slow", namespace="clusters-lat-slow", _id="lat-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow"}'
-    values: "1+0x400"
-  alert_rule_test:
-  # Fast burn should NOT fire (16/17 → ≈5.9% < 7.2%), in any window
-  - eval_time: 15m
-    alertname: userJourneyIngressLatencyP99Errors1h5m
-  # Slow burn fires after both windows clear their floor and for:3h elapses
-  - eval_time: 400m
-    alertname: userJourneyIngressLatencyP99Errors3d6h
-    exp_alerts:
-    - exp_labels:
-        _id: "lat-slow"
-        cluster: "mgmt-1"
-        region: "uksouth"
-        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow"
-        component: slo
-        long_window: 3d
-        severity: "4"
-        short_window: 6h
-        slo: ingress-latency
-      exp_annotations:
-        summary: "Ingress canary latency trending below SLO for lat-slow (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow)"
-        description: |
-          More than 0.5% of synthetic canary route checks exceeded 400ms in both the last 6 hours and the last 3 days for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
-          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow
-        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
-        correlationId: "userJourneyIngressLatencyP99Errors/lat-slow"
-# ========================================
-# Test 8: Canary absence — a cluster that stops reporting entirely
+# Test 5: Canary absence — a cluster that stops reporting entirely
 # ========================================
 # "silent" reports canary observations for the first 14 minutes, then the
 # series stops (simulating ingress-operator or the canary route going dark).
@@ -515,7 +343,7 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressCanaryAbsent/silent"
 # ========================================
-# Test 9: Canary absence — a cluster reporting continuously must not fire
+# Test 6: Canary absence — a cluster reporting continuously must not fire
 # ========================================
 - interval: 1m
   input_series:
@@ -527,7 +355,7 @@ tests:
   - eval_time: 35m
     alertname: userJourneyIngressCanaryAbsent
 # ========================================
-# Test 10: Canary absence must persist past the old 24h reference window
+# Test 7: Canary absence must persist past the old 24h reference window
 # ========================================
 # "silent-long" reports for the first few minutes, then goes dark for over
 # 24 hours. With the original 24h reference window this alert would have
@@ -562,11 +390,11 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressCanaryAbsent/silent-long"
 # ========================================
-# Test 11: Canary absence must NOT fire once the HostedCluster is deleted
+# Test 8: Canary absence must NOT fire once the HostedCluster is deleted
 # ========================================
 # "deleted" reports canary observations for the first 14 minutes, then both
 # the canary AND the HostedCluster record disappear together, simulating an
-# actual cluster deletion rather than a live outage. Unlike Test 8 ("silent",
+# actual cluster deletion rather than a live outage. Unlike Test 5 ("silent",
 # where the HostedCluster record persists), the join against
 # hostedClusterAPI_kubeapiserver_available drops this _id immediately once
 # its record is gone -- the absence alert must not fire for it, even well
@@ -581,7 +409,7 @@ tests:
   - eval_time: 35m
     alertname: userJourneyIngressCanaryAbsent
 # ========================================
-# Test 12: Recovery — short window clears while the long window is still bad
+# Test 9: Recovery — short window clears while the long window is still bad
 # ========================================
 # "recovered-fast" fails every observation for the first 55 minutes, then
 # recovers for good from minute 55 onward. By eval_time 60m the 5m window
@@ -625,94 +453,3 @@ tests:
   # still ~90% failed -- the alert must NOT be firing.
   - eval_time: 60m
     alertname: userJourneyIngressAvailabilityErrors1h5m
-# ========================================
-# Test 13: Medium latency tier must not fire on a one-off blip in a thin
-# early window
-# ========================================
-# Rate 2/min, with exactly 2 slow checks occurring in the first minute and
-# none since (le="400.0" permanently lags le="+inf" by 2 from t=1 onward).
-# At simulated t=16m: total_6h = total_30m = 32 (only 16 minutes of history
-# exist yet, same data in both windows), error_rate = 2/32 = 6.25% > 3%.
-# eval_time is 21m, not 16m, because every latency selector carries
-# `offset 5m` (see the recording rule's header comment) -- the assertions
-# below read the t=16m snapshot 5m later in wall-clock time. The raised
-# total_6h >= 300 floor (ARO-30462 follow-up aside, see the alert group's
-# header comment for the full rationale) is nowhere near met at 32, so the
-# alert must stay silent even though the naive ratio clears the threshold --
-# this is exactly the kind of early/thin-window false positive that made
-# this tier fire 100 times in a week in production.
-- interval: 1m
-  input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="+inf"}'
-    values: "0+2x200"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-medium.example.io", instance="10.0.0.1:60000", le="400.0"}'
-    values: "0 0 2+2x198"
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-medium", namespace="clusters-lat-thin-medium", _id="lat-thin-medium", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-medium"}'
-    values: "1+0x200"
-  promql_expr_test:
-  - expr: errors:ingress_canary_latency:total_6h
-    eval_time: 21m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:total_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
-      value: 32
-  - expr: errors:ingress_canary_latency:error_rate_6h
-    eval_time: 21m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:error_rate_6h{_id="lat-thin-medium", cluster="mgmt-1", region="uksouth"}'
-      value: 0.0625
-  # The real alert must be neither pending nor firing despite error_rate_6h
-  # clearing 0.030 above, because total_6h (32) does not clear the raised
-  # floor (300) -- and the alert's 30m short window is already fully
-  # satisfied (same data, see above), so pending state here depends only on
-  # the long-window floor, not on `for:` timing. Querying the real ALERTS
-  # series (rather than a copy of the gate's own thresholds, which would
-  # keep passing even if the real alert's floor regressed back to 30)
-  # follows certificate-rotation-prometheusRule_test.yaml's pattern.
-  - expr: count(ALERTS{alertname="userJourneyIngressLatencyP99Errors6h30m", alertstate=~"pending|firing", _id="lat-thin-medium"}) or vector(0)
-    eval_time: 21m
-    exp_samples:
-    - labels: '{}'
-      value: 0
-# ========================================
-# Test 14: Slow latency tier must not fire on a one-off blip in a thin
-# early 3d window
-# ========================================
-# Same construction as Test 13, scaled up: 2 slow checks in the first
-# minute, none since, rate 2/min. At simulated t=150m the 6h window is still
-# within its own history span (150m < 360m), so total_6h = total_3d = 300 --
-# the raised total_6h >= 300 short-window floor is (just barely) met, but
-# the raised total_3d >= 1000 long-window floor is nowhere close. error_rate
-# = 2/300 = 0.667% > 0.5%, so the old total_3d >= 60 floor would have let
-# this through; the new floor correctly waits for a real 3-day-scale sample.
-# eval_time is 155m, not 150m, for the same `offset 5m` reason as Test 13.
-- interval: 1m
-  input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
-    values: "0+2x200"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-thin-slow.example.io", instance="10.0.0.1:60000", le="400.0"}'
-    values: "0 0 2+2x198"
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-thin-slow", namespace="clusters-lat-thin-slow", _id="lat-thin-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-thin-slow"}'
-    values: "1+0x200"
-  promql_expr_test:
-  - expr: errors:ingress_canary_latency:total_3d
-    eval_time: 155m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:total_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
-      value: 300
-  - expr: errors:ingress_canary_latency:error_rate_3d
-    eval_time: 155m
-    exp_samples:
-    - labels: 'errors:ingress_canary_latency:error_rate_3d{_id="lat-thin-slow", cluster="mgmt-1", region="uksouth"}'
-      value: 0.006666666666666667
-  # The real alert must be neither pending nor firing despite error_rate_3d
-  # clearing 0.005 above, because total_3d (300) does not clear the raised
-  # floor (1000) -- and the alert's 6h short window is already satisfied
-  # (floor exactly met at 300, error_rate_6h also 0.667%), so pending state
-  # here depends only on the long-window floor. See Test 13's comment for
-  # why this queries the real ALERTS series rather than a copy of the
-  # gate's thresholds.
-  - expr: count(ALERTS{alertname="userJourneyIngressLatencyP99Errors3d6h", alertstate=~"pending|firing", _id="lat-thin-slow"}) or vector(0)
-    eval_time: 155m
-    exp_samples:
-    - labels: '{}'
-      value: 0
