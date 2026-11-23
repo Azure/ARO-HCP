@@ -140,6 +140,25 @@ Why the mirror exists at all (frontend has no kube-applier container access, so
 a frontend compromise cannot create management-cluster resources) is written up
 in [docs/generated/service-provider-control-flow.md](../../docs/generated/service-provider-control-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
 
+## Capacity admission
+
+Capacity admission decides whether the service has room for a new resource.
+It is a separate entry point with its own context, and for now it runs on
+creation only:
+
+- `AdmitXxxCapacity(ctx, admissionContext, newObj) error` takes no `op` and
+  no old object, because an update or delete is never rejected for capacity.
+- It returns one `error`, not a `field.ErrorList`: a rejection is about the
+  service, not about a field of the request. The frontend turns it into an
+  `AROHCPCapacityExceeded` response, and the error message is sent to the
+  customer verbatim.
+- `frontend.newXxxCapacityAdmissionContext(ctx)` takes no `op` for the same
+  reason. It keeps `ctx` and the `error` return, and prefetches the inventory
+  like any other admission context.
+
+It runs after validation and `AdmitXxx` have passed, so a request is only
+rejected for capacity when nothing else is wrong with it.
+
 ## Tests
 
 - Unit tests live next to the implementation (`admit_xxx_test.go`).
