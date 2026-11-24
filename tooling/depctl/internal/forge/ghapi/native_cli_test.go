@@ -24,22 +24,29 @@ import (
 	"testing"
 )
 
+// TestNativeCLIReadSandboxBoundary verifies read-only transport and JSON preservation.
 func TestNativeCLIReadSandboxBoundary(t *testing.T) {
-	const endpoint = "repos/actions/checkout/commits/v7.0.1"
+	const endpoint = "repos/actions/checkout/tags?per_page=100&page=1"
 	for _, test := range []struct {
 		name, endpoint, script, want, failure string
 		pages, ci, invoked                    bool
 	}{
 		{name: "read-only JSON", endpoint: endpoint, script: `printf '%s' '{"sha":"release"}'`, want: `{"sha":"release"}`, invoked: true},
-		{name: "proxy evidence object", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"}]'`, want: `{"sha":"release"}`, invoked: true},
-		{name: "filtered evidence", endpoint: endpoint, script: `printf '%s' '[]'`, failure: "exactly one object", invoked: true},
-		{name: "ambiguous evidence", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"},{"sha":"other"}]'`, failure: "exactly one object", invoked: true},
-		{name: "nested collection", endpoint: endpoint, script: `printf '%s' '[[{"sha":"release"}]]'`, failure: "exactly one object", invoked: true},
-		{name: "null evidence", endpoint: endpoint, script: `printf '%s' 'null'`, failure: "exactly one object", invoked: true},
-		{name: "null collection item", endpoint: endpoint, script: `printf '%s' '[null]'`, failure: "exactly one object", invoked: true},
+		{name: "single tag remains array", endpoint: endpoint, script: `printf '%s' '[{"name":"v7.0.1","commit":{"sha":"release"}}]'`, want: `[{"name":"v7.0.1","commit":{"sha":"release"}}]`, invoked: true},
+		{name: "empty array preserved", endpoint: endpoint, script: `printf '%s' '[]'`, want: `[]`, invoked: true},
+		{name: "multiple records preserved", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"},{"sha":"other"}]'`, want: `[{"sha":"release"},{"sha":"other"}]`, invoked: true},
+		{name: "nested collection preserved", endpoint: endpoint, script: `printf '%s' '[[{"sha":"release"}]]'`, want: `[[{"sha":"release"}]]`, invoked: true},
+		{name: "whitespace preserved", endpoint: endpoint, script: `printf '  {"sha":"release"}\n'`, want: "  {\"sha\":\"release\"}\n", invoked: true},
+		{name: "null evidence", endpoint: endpoint, script: `printf '%s' 'null'`, failure: "JSON object or array", invoked: true},
+		{name: "null collection item preserved", endpoint: endpoint, script: `printf '%s' '[null]'`, want: `[null]`, invoked: true},
+		{name: "scalar rejected", endpoint: endpoint, script: `printf '%s' '"release"'`, failure: "JSON object or array", invoked: true},
 		{name: "pagination rejected", endpoint: endpoint, pages: true, failure: "does not support"},
 		{name: "CI credentials rejected", endpoint: endpoint, ci: true, failure: "does not support"},
 		{name: "absolute URL rejected", endpoint: "https://api.github.com/" + endpoint, failure: "relative repository"},
+		{name: "fragment rejected", endpoint: endpoint + "#fragment", failure: "relative repository"},
+		{name: "incomplete JSON rejected", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"}'`, failure: "complete UTF-8 JSON", invoked: true},
+		{name: "invalid UTF-8 rejected", endpoint: endpoint, script: `printf '{"sha":"\377"}'`, failure: "complete UTF-8 JSON", invoked: true},
+		{name: "empty response rejected", endpoint: endpoint, script: `printf ''`, failure: "complete UTF-8 JSON", invoked: true},
 		{name: "invalid JSON rejected", endpoint: endpoint, script: `printf '%s' '<html>denied</html>'`, failure: "complete UTF-8 JSON", invoked: true},
 		{name: "proxy failure reason", endpoint: endpoint, script: "printf 'HTTP 403: proxy denied repository read\\n' >&2\nexit 17", failure: "HTTP 403: proxy denied repository read", invoked: true},
 		{name: "empty stderr", endpoint: endpoint, script: "exit 17", failure: "exit status 17", invoked: true},

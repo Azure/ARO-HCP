@@ -28,8 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -55,7 +55,7 @@ var _ = Describe("Customer", func() {
 			labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @sjante, tracking: ARO-21125. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			labels.MIContainers(1),
-			labels.StartPriority(50),
+			labels.StartPriority(40),
 			func(ctx context.Context) {
 				const (
 					customerNetworkSecurityGroupName = "customer-nsg-name-"

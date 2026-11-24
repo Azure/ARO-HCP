@@ -40,7 +40,7 @@ import (
 )
 
 var _ = Describe("Region in-place upgrade", func() {
-	It("validates node pool stability after full region upgrade",
+	It("validates node pool stability after full region upgrade", labels.StartPriority(80),
 		labels.Critical,
 		labels.Positive,
 		labels.UpgradeInPlace,

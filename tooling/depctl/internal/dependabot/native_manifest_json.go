@@ -41,7 +41,7 @@ func nativeReject(reason string) error {
 }
 
 var nativeSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
-var nativeReleaseEndpoint = regexp.MustCompile(`^repos/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*/commits/[A-Za-z0-9%_.~-]+$`)
+var nativeReleaseEndpoint = regexp.MustCompile(`^repos/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*/tags\?per_page=100&page=([1-9]|[1-9][0-9]|100)$`)
 
 // NativeDecode rejects duplicate keys, trailing JSON and non-integer identity coercion.
 func nativeDecode(raw []byte) (any, error) {
@@ -62,7 +62,7 @@ func nativeDecode(raw []byte) (any, error) {
 	return value, nil
 }
 
-// NativeRead restricts callbacks to fixed official release commit GETs.
+// NativeRead restricts callbacks to bounded official repository tag-list GETs.
 func nativeRead(ctx context.Context, read NativeReadFunc, endpoint string, pages, ci bool) (any, error) {
 	if read == nil || pages || ci || !nativeReleaseEndpoint.MatchString(endpoint) {
 		return nil, nativeReject("unsupported official release GET")

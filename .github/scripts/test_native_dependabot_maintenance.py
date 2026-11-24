@@ -246,7 +246,8 @@ class RepositoryFixture(unittest.TestCase):
             if "/git/commits/" in endpoint:
                 return {"sha": endpoint.rsplit("/", 1)[1]}
             if "/tags?" in endpoint:
-                return [[{"name": "v1.2.3", "commit": {"sha": PIN}}]]
+                tags = [{"name": "v1.2.3", "commit": {"sha": PIN}}]
+                return [tags] if pages else tags
             self.fail("unexpected foreign API call " + endpoint)
         path = endpoint[len(prefix):]
         if path == "git/ref/heads/main":
@@ -1420,7 +1421,8 @@ class EvidenceTests(unittest.TestCase):
         compiled = "# gh-aw-manifest: " + json.dumps({"version": 1, "actions": [action]}) + "\n" + new
         files = {source: "steps:\n  - uses: actions/checkout@v2.0.0\n", lock: compiled,
                  metadata: json.dumps(document)}
-        with mock_api(return_value={"sha": PIN}):
+        with mock_api(return_value=[{"name": "v2.0.0", "commit": {"sha": PIN}},
+                                    {"name": "v1.0.0", "commit": {"sha": "b" * 40}}]):
             native.verify_coverage(intents, files.__getitem__, set(files))
             # Historical lock entries belonging to other consumers are not
             # current references from this source/compiled workflow.
@@ -1448,8 +1450,8 @@ class EvidenceTests(unittest.TestCase):
                 native.verify_coverage(intents, files.__getitem__, set(files))
         files[source] = "steps:\n  - uses: actions/checkout@v2.0.0\n"
         files[metadata] = json.dumps(document)
-        with mock_api(return_value={"sha": "f" * 40}), \
-                self.assertRaisesRegex(ValueError, "not the official intended"):
+        with mock_api(return_value=[{"name": "v2.0.0", "commit": {"sha": "f" * 40}}]), \
+                self.assertRaises(ValueError):
             native.verify_coverage(intents, files.__getitem__, set(files))
 
     def test_handwritten_action_yaml_does_not_require_generated_source_or_metadata_coverage(self):

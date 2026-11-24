@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 )
 
 type admitClients struct {
@@ -43,15 +44,15 @@ type admitClients struct {
 }
 
 func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error) {
-	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, nil)
+	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed creating managed identity client factory: %w", err)
 	}
-	roles, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, credential, nil)
+	roles, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed creating role assignments client: %w", err)
 	}
-	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, nil)
+	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed creating resource groups client: %w", err)
 	}

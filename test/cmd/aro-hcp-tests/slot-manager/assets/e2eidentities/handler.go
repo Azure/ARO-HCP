@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 	"github.com/Azure/ARO-HCP/test/e2e"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
@@ -178,7 +179,7 @@ func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc
 }
 
 func azurePoolClients(subscriptionID string, credential azcore.TokenCredential) (poolClients, error) {
-	client, err := armdeploymentstacks.NewClient(subscriptionID, credential, nil)
+	client, err := armdeploymentstacks.NewClient(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return poolClients{}, fmt.Errorf("failed creating deployment stack client: %w", err)
 	}

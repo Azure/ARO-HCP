@@ -227,7 +227,7 @@ revocation.
 
 ## Acceptance for this layer
 
-- `go build ./internal/api/...` passes.
+- `go build ./arohcp-cosmos-client/api/...` passes.
 - Generated deepcopy compiles and is committed.
 - Hand-written unit tests in `internal/api/kubeapplier/*_test.go` cover:
   - Round-trip JSON for each `*Desire` (mirror existing tests on

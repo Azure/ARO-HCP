@@ -17,7 +17,6 @@ package dependabot
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"path"
 	"reflect"
 	"regexp"
@@ -566,22 +565,11 @@ func nativeCompilerActions(ctx context.Context, read NativeReadFunc, left, right
 		if !allowed {
 			return nativeReject("unrelated compiler manifest pin")
 		}
-		before["sha"] = sha
-		if !reflect.DeepEqual(before["version"], after["version"]) {
-			endpoint := "repos/" + nativeUpgradeFamily("actions", repository) + "/commits/" + url.PathEscape(version)
-			value, err := nativeRead(ctx, read, endpoint, false, false)
-			if err != nil {
-				return err
-			}
-			commit, err := nativeObject(value)
-			if err != nil {
-				return err
-			}
-			if commit["sha"] != sha {
-				return nativeReject("compiler manifest release does not resolve to intended pin")
-			}
-			before["version"] = version
+		if err := NativeVerifyOfficialRelease(ctx, read, nativeUpgradeFamily("actions", repository), version, sha); err != nil {
+			return err
 		}
+		before["sha"] = sha
+		before["version"] = version
 	}
 	return nil
 }

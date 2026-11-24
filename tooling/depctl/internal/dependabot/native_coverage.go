@@ -16,7 +16,6 @@ package dependabot
 
 import (
 	"context"
-	"net/url"
 	"path"
 	"regexp"
 	"strconv"
@@ -282,16 +281,8 @@ func nativeVerifyActionCoverage(ctx context.Context, read NativeReadFunc, item m
 			if !strings.HasSuffix(filename, ".md") || nativeSHA.MatchString(pin) || !ok || len(entry) != 3 || entry["repo"] != pkg || entry["version"] != pin || entry["sha"] != target {
 				return nativeReject("live Actions source tag lacks intended compiler lock resolution: " + filename)
 			}
-			value, err := nativeRead(ctx, read, "repos/"+nativeUpgradeFamily("actions", pkg)+"/commits/"+url.PathEscape(pin), false, false)
-			if err != nil {
+			if err := NativeVerifyOfficialRelease(ctx, read, nativeUpgradeFamily("actions", pkg), pin, target); err != nil {
 				return err
-			}
-			official, err := nativeObject(value)
-			if err != nil {
-				return err
-			}
-			if official["sha"] != target {
-				return nativeReject("Actions source release is not the official intended commit")
 			}
 			references[pin] = true
 		}
