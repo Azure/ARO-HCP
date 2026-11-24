@@ -17,7 +17,7 @@ package credentialrequest
 import (
 	"k8s.io/apimachinery/pkg/api/meta"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 func IsCredentialRequestPending(cred *coreapi.SystemAdminCredentialRequest) bool {

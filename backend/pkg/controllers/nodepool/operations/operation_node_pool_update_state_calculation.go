@@ -28,9 +28,9 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )

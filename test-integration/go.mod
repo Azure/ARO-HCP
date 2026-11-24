@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-20260311085015-c7296038bf8f
 	github.com/Azure/ARO-HCP/frontend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -196,3 +197,5 @@ replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redha
 replace github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../arohcp-cosmos-client

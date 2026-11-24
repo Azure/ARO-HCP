@@ -30,13 +30,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/quota"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )

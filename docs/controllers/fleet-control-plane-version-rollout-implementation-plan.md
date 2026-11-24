@@ -24,7 +24,7 @@ helpers remain in `select_control_plane_version.go`.
 | Query the upgrade graph | `backend/pkg/controllers/controlplaneversion/` — recency-based graph selection, reused through `cluster/version/SelectControlPlaneVersion` | — | — |
 | Convert a semver into a CS version id (`4.21` → `openshift-v4.21.20`) | `internal/ocm/client.go` `NewOpenShiftVersionXYZ`, `internal/ocm/convert.go` `clusterCSVersionID` | `Spec…DesiredVersion` | CS cluster/nodepool version id |
 
-Relevant existing API types (`internal/api/coreapi/types_serviceprovider_cluster.go`):
+Relevant existing API types (`arohcp-cosmos-client/api/coreapi/types_serviceprovider_cluster.go`):
 
 - `ServiceProviderClusterSpec.ControlPlaneVersion.DesiredVersion *semver.Version` — **exists** (design's `spec.control_plane_version.desired_version`).
 - `ServiceProviderClusterStatus.ControlPlaneVersion.ActiveVersions []ServiceProviderClusterActiveVersion` (each `{Version *semver.Version, State configv1.UpdateState, LastTransitionTime metav1.Time}`) — **exists** (design's `status.control_plane_version.active_versions`).
@@ -59,12 +59,12 @@ This change introduces:
 
 The design says it is region-wide and "the name is the y-stream channel it is
 associated with" (e.g. `stable-4.21`). That is fleet scope, so it belongs in
-`internal/api/fleetapi` (stored in the separate `"Fleet"` Cosmos container,
+`arohcp-cosmos-client/api/fleetapi` (stored in the separate `"Fleet"` Cosmos container,
 partition key = lowercased provider namespace). The resource name identifies the
 channel; every rollout shares the same partition, including informer list queries.
 
 ```go
-// internal/api/fleetapi/types_control_plane_version_rollout.go
+// arohcp-cosmos-client/api/fleetapi/types_control_plane_version_rollout.go
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ControlPlaneVersionRollout struct {
     // The top-level name is the channel; CosmosMetadata contains the resource ID.
@@ -118,7 +118,7 @@ replacements persist the normalized profile alongside their existing changes.
 ### 3.2 `ServiceProviderCluster.Spec.PinnedVersion`
 
 ```go
-// internal/api/coreapi/types_serviceprovider_cluster.go
+// arohcp-cosmos-client/api/coreapi/types_serviceprovider_cluster.go
 type ServiceProviderClusterSpec struct {
     ...
     // PinnedVersion, when set, forces this cluster to an SRE-chosen exact version

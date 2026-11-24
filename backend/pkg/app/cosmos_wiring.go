@@ -19,12 +19,12 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 )
 
 // StorageFactory supplies clients bound to a bucket for each controller and

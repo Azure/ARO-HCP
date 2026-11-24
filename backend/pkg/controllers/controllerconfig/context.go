@@ -21,6 +21,10 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
@@ -28,10 +32,6 @@ import (
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"

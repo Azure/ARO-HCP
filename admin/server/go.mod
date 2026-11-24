@@ -3,6 +3,7 @@ module github.com/Azure/ARO-HCP/admin/server
 go 1.26.0
 
 require (
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-kusto-go v0.16.1
@@ -172,3 +173,5 @@ require (
 replace github.com/Azure/ARO-HCP/internal => ../../internal
 
 replace github.com/Azure/ARO-HCP/sessiongate => ../../sessiongate
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../../arohcp-cosmos-client

@@ -23,8 +23,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 )
 
 // collectRolloutReferences counts unique parent clusters per minor version and
