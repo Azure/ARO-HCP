@@ -29,7 +29,7 @@ require (
 	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/tj/assert v0.0.3
