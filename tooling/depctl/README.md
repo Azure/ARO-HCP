@@ -35,7 +35,8 @@ packaging and read-only failure investigation.
 | Exercise without publication | `run --mode simulate` | a full lifecycle against fixture repositories and fake services |
 
 General publication and continuation require injected engine adapters. The
-explicit maintenance CLI exposes only bounded comment actions, described below.
+`maintenance` CLI exposes bounded comment actions; native dependency replacements
+use the separate guarded `dependabot native publish` command below.
 
 ## Commands
 
@@ -286,14 +287,13 @@ Candidate validation and request preparation use this shared Go selection
 policy. Family markers, publication request shape and branch identity do not
 change when multiple target versions coexist.
 
-The trusted Python publisher and reconciler also call `dependabot native
-check-tree`, `check-coverage` (or `--paths-only`) and `check-admission` with JSON
-evidence on stdin. Go owns replacement scope, immutable consumer coverage and
-native admission eligibility; the Python lifecycle retains discovery parsing,
-targeted immutable tree proofs, GitHub writes and publication orchestration.
-These read-only commands accept evidence, not executable commands. They use the
-trusted default-branch binary and official release GETs through `gh`; a missing
-binary or rejected check fails closed, with no Python policy fallback.
+The read-only `dependabot native check-tree`, `check-coverage` (or
+`--paths-only`) and `check-admission` commands accept JSON evidence on stdin,
+not executable commands. Go owns replacement scope, immutable consumer coverage
+and native admission eligibility. These commands use the trusted default-branch
+binary and official release GETs through `gh`; a missing binary or rejected check
+fails closed. Discovery, detector staging and reconciliation remain in Python
+until their callers and tests are migrated; publication does not call Python.
 
 ### dependabot native validate-candidate
 
@@ -332,8 +332,31 @@ Packages the complete tracked candidate diff and notification-safe metadata into
 offline packaging step follows candidate validation; it neither validates
 dependency consumers nor authorizes publication.
 
-Run `make verify-agentic-maintenance` from the repository root for Go validation
-and remaining Python publisher regressions, metadata parity and Darwin/arm64 coverage.
+### dependabot native publish
+
+```bash
+depctl dependabot native publish --repository OWNER/REPO --repo PATH \
+  --output-file agent_output.json
+```
+
+Publishes the replacement prepared by `validate-candidate` and `prepare-request`.
+It verifies the request artifact's digest before reading credentials, then checks
+the current base, exact source PRs, dependency changes and hold history. It applies
+the patch in a temporary Git repository and repeats the checks before pushing.
+It never runs candidate code and never force-pushes.
+
+The shared `tooling/github` library creates or updates the robot-owned PR and
+reads it back to verify the result. The ownership-marker format, branch names
+and labels are preserved; updates do not change a PR's readiness. A conflicting
+PR, stale evidence or an uncertain write blocks publication rather than a blind retry.
+
+The trusted workflow supplies `GH_TOKEN` (or `GITHUB_TOKEN`) for App reads and
+writes, plus `CI_TOKEN` for check and status reads. Missing `CI_TOKEN` falls back
+to the ordinary token. No request returns `{"status":"no-request"}` without
+credentials or Git access.
+
+Run `make verify-agentic-maintenance` from the repository root for Go publication
+and validation checks, remaining Python lifecycle regressions, and Darwin/arm64 coverage.
 
 ### maintenance inventory
 
