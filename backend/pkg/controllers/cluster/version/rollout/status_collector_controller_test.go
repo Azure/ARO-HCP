@@ -141,7 +141,13 @@ func TestComputeRolloutStatusCounts_PinDuringIncompleteUpgrade(t *testing.T) {
 			wantSuccessful: 0,
 		},
 		{
-			name:           "settled after rollback completes",
+			name:           "freshly settled rollback is achieved but not yet successful",
+			active:         []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.20.34", 10*time.Minute)},
+			wantAchieved:   1,
+			wantSuccessful: 0,
+		},
+		{
+			name:           "settled rollback past readiness duration is successful",
 			active:         []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.20.34", 5*time.Hour)},
 			wantAchieved:   1,
 			wantSuccessful: 1,
