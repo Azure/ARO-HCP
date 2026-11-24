@@ -21,9 +21,11 @@ import (
 	"net/http"
 	"time"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -37,8 +39,12 @@ import (
 // cluster-service ExternalAuth itself has been confirmed gone. This runs
 // after the delete dispatch controller has already issued the delete
 // request (ClusterServiceDeletionTimestamp is set). We poll
-// cluster-service for the ExternalAuth and, on 404, zero out the stored
-// ClusterServiceID so downstream code knows the CS resource is fully gone.
+// cluster-service for the ExternalAuth and zero out the stored
+// ClusterServiceID only when CS returns 404. Ready or uninstalling means
+// Cluster Service still owns the ExternalAuth (and the IdP may still be
+// active); we wait. Stuck deletes are failed by
+// DeleteOperationCompletionDeadline on OperationExternalAuthDelete rather
+// than by clearing the ID while CS still reports Ready.
 type externalAuthClusterServiceIDClearer struct {
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -74,19 +80,19 @@ func NewExternalAuthClusterServiceIDClearerController(
 }
 
 // NeedsWork reports whether this controller has unfinished business for the
-// given ExternalAuth: deletion has been started (DeletionTimestamp), the deleter
-// has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
-// ClusterServiceID is still recorded that needs verification before clearing.
+// given ExternalAuth: deletion has been started (DeletionTimestamp), dispatch
+// has completed (ClusterServiceDeletionTimestamp), and a ClusterServiceID is
+// still recorded that needs verification before clearing.
 func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil && len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) > 0
 }
 
-// SyncOnce reads the ExternalAuth from cluster-service. If
-// cluster-service reports 404, the deletion has finished and we zero out
-// ClusterServiceID. Any other state means cluster-service is still
-// processing the deletion. We retry on the next sync.
+// SyncOnce reads the ExternalAuth from cluster-service. ClusterServiceID is
+// cleared only when cluster-service reports 404. Ready means teardown has
+// not been observed yet (including the brief Ready window after an accepted
+// DELETE). Uninstalling and any other in-progress state also wait.
 func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -117,7 +123,7 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	_, err = c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
@@ -125,19 +131,43 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 		}
 		// 404 - cluster-service has finished deleting the ExternalAuth, clear the CS ID.
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
-		replacement := externalAuth.DeepCopy()
-		replacement.ServiceProviderProperties.ClusterServiceID = nil
-		_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
-		}
+		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
+	}
+
+	if clusterServiceExternalAuthIsReady(csExternalAuth) {
+		// Accepted DELETE is not completion. CS usually leaves Ready briefly
+		// before uninstalling then 404. A persistent Ready is a stuck delete;
+		// OperationExternalAuthDelete fails it via DeleteOperationCompletionDeadline.
+		logger.Info("cluster-service ExternalAuth still Ready after delete dispatch. Waiting for 404",
+			"clusterServiceID", csID.String(),
+			"clusterServiceDeletionTimestamp", externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
 		return nil
 	}
 
-	// ExternalAuth still exists in cluster-service. Nothing to do yet.
+	// ExternalAuth still exists in cluster-service in a non-Ready state
+	// (typically uninstalling). Nothing to do yet.
 	return nil
+}
+
+func (c *externalAuthClusterServiceIDClearer) clearClusterServiceID(ctx context.Context, externalAuthCRUD corecosmosstorage.ExternalAuthsCRUD, externalAuth *coreapi.ExternalAuth) error {
+	replacement := externalAuth.DeepCopy()
+	replacement.ServiceProviderProperties.ClusterServiceID = nil
+	_, err := externalAuthCRUD.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
+	}
+	return nil
+}
+
+// clusterServiceExternalAuthIsReady reports whether Cluster Service still
+// considers the ExternalAuth Ready. Ready is not deletion completion.
+func clusterServiceExternalAuthIsReady(csExternalAuth *arohcpv1alpha1.ExternalAuth) bool {
+	if csExternalAuth == nil {
+		return false
+	}
+	return csExternalAuth.Status().State().Value() == string(operationbase.ExternalAuthStateReady)
 }
