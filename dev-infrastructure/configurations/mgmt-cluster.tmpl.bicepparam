@@ -34,6 +34,7 @@ param hypershiftNamespace = '{{ .hypershift.namespace }}'
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
+param ocpControlPlaneEmbargoAcrResourceId = '__ocpControlPlaneEmbargoAcrResourceId__'
 
 // CX KV
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'

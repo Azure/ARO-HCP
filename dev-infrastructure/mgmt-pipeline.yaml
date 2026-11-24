@@ -515,6 +515,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: svcAcrResourceId
+    - name: ocpControlPlaneEmbargoAcrResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: ocpControlPlaneEmbargoAcrResourceId
     - name: globalMSIId
       input:
         resourceGroup: global

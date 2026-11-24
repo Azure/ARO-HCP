@@ -16,6 +16,9 @@ param ocpAcrResourceId string
 @description('The resource ID of the SVC ACR')
 param svcAcrResourceId string
 
+@description('The resource ID of the OCP control plane embargo ACR')
+param ocpControlPlaneEmbargoAcrResourceId string
+
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
 
@@ -188,7 +191,7 @@ module aksPostConfig '../modules/aks-cluster-post.bicep' = {
     aksClusterName: aksClusterName
     location: location
     deploymentMsiId: globalMSIId
-    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId, ocpControlPlaneEmbargoAcrResourceId]
     workloadIdentities: workloadIdentities
     useLeasedInfrastructureIdentities: useLeasedInfrastructureIdentities
     infrastructureIdentityResourceGroup: infrastructureIdentityResourceGroup

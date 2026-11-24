@@ -6,6 +6,9 @@ param ocpAcrName string
 @description('The name of the SVC ACR')
 param svcAcrName string
 
+@description('The name of the OCP control plane embargo ACR')
+param ocpControlPlaneEmbargoAcrName string
+
 @description('The CX parent DNS zone name')
 param cxParentZoneName string
 
@@ -41,10 +44,15 @@ resource svcAcr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' exis
   name: svcAcrName
 }
 
+resource ocpControlPlaneEmbargoAcr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  name: ocpControlPlaneEmbargoAcrName
+}
+
 output ocpAcrResourceId string = ocpAcr.id
 output ocpAcrLoginServer string = ocpAcr.properties.loginServer
 output svcAcrResourceId string = svcAcr.id
 output svcAcrLoginServer string = svcAcr.properties.loginServer
+output ocpControlPlaneEmbargoAcrResourceId string = ocpControlPlaneEmbargoAcr.id
 
 //
 //   D N S
