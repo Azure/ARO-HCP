@@ -561,7 +561,7 @@ var _ = Describe("Customer", func() {
 		Entry("for cluster version 4.22", labels.StartPriority(50), "4.22"),
 		Entry("for cluster version 4.23", labels.StartPriority(50), "4.23"),
 		Entry("for cluster version 5.0", labels.StartPriority(50), "5.0"),
-		Entry("for cluster version 5.1", labels.StartPriority(60), "5.1"),
+		Entry("for cluster version 5.1", labels.StartPriority(50), "5.1"),
 		Entry("for cluster version 5.2", "5.2"),
 		Entry("for cluster version 5.3", "5.3"),
 		Entry("for cluster version 5.4", "5.4"),
