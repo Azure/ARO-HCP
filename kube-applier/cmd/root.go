@@ -27,7 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"

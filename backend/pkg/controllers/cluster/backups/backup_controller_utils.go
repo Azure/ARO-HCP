@@ -14,7 +14,7 @@
 
 package backups
 
-import "github.com/Azure/ARO-HCP/internal/api/coreapi"
+import "github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 
 // needsWork returns true when backup desires should be reconciled for the cluster.
 // Clusters being deleted or that have never reached Succeeded state are skipped.
