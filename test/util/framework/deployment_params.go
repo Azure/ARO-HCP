@@ -40,6 +40,8 @@ type RBACScope string
 const (
 	RBACScopeResourceGroup RBACScope = "resourceGroup"
 	RBACScopeResource      RBACScope = "resource"
+	// RBACScopeResourceNodePoolDES is per-resource (same wire value as RBACScopeResource) but a distinct symbol so the nodepool DES test is exempt from the single-RBACScopeResource invariant in hack/verify-mi-containers.
+	RBACScopeResourceNodePoolDES RBACScope = "resource"
 
 	// Default OpenShift channel group and version for the E2E tests
 	DefaultOCPChannelGroup         = "candidate"

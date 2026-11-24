@@ -15,5 +15,6 @@
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
   "should deny pods with images from disallowed registries",
+  "should successfully provision a nodepool with a disk encryption set when the Reader role is added after creation",
   "validates node pool stability after full region upgrade"
 ]

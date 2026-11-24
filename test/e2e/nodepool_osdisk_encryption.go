@@ -36,6 +36,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.IntegrationOnly,
 		labels.MIContainers(1),
 		labels.StartPriority(40),
 		func(ctx context.Context) {
