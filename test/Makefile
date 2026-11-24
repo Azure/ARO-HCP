@@ -131,7 +131,7 @@ validate-pool-assets: $(ARO_HCP_TESTS)
 # containers and slot mock grants. SUBSCRIPTION is the catalog display name, as for
 # apply-pool-assets. Depends on $(ARO_HCP_TESTS) so the embedded templates are fresh.
 reconcile-external-subscription: override export SUBSCRIPTION := $(value SUBSCRIPTION)
-# DEV only: use the signed-in developer credential unless AZURE_TOKEN_CREDENTIALS selects another.
+# DEV only: use the framework credential for all phases.
 reconcile-external-subscription: export AROHCP_ENV ?= development
 reconcile-external-subscription: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager reconcile-external-subscription \

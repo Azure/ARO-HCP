@@ -15,28 +15,9 @@
 package subscriptions
 
 import (
-	"encoding/json"
 	"slices"
 	"testing"
 )
-
-func TestRegistrationConfigAwaitsEveryProvider(t *testing.T) {
-	t.Parallel()
-	encoded, err := registrationConfig(ParseProviderNamespaces(" Microsoft.Compute,,Microsoft.Network , Microsoft.Compute"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded map[string]struct{ Poll bool }
-	if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if len(decoded) != 2 || !decoded["Microsoft.Compute"].Poll || !decoded["Microsoft.Network"].Poll {
-		t.Fatalf("every provider must be awaited, got %s", encoded)
-	}
-	if _, err := registrationConfig(nil); err == nil {
-		t.Fatal("an empty provider list must be rejected")
-	}
-}
 
 func TestParseProviderNamespaces(t *testing.T) {
 	t.Parallel()

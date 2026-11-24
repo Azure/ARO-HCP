@@ -273,7 +273,9 @@ func azureExternalSubscriptionSteps() (externalSubscriptionSteps, error) {
 		resolveSubscriptionID: func(ctx context.Context, name string) (string, error) {
 			return framework.GetSubscriptionID(ctx, subscriptionClientFactory.NewClient(), name)
 		},
-		registerProviders: subscriptions.RegisterProviders,
+		registerProviders: func(ctx context.Context, ids, namespaces []string) error {
+			return subscriptions.RegisterProviders(ctx, credential, azureclient.ARMClientOptions(), ids, namespaces)
+		},
 		resolvePrincipalID: func(ctx context.Context, applicationName string) (string, error) {
 			return subscriptions.ResolveServicePrincipalID(ctx, graphClient, applicationName)
 		},

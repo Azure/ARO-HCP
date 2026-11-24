@@ -364,15 +364,10 @@ capacity and quota formulas.
 `slot-manager/subscriptions` holds the subscription-level tasks, independent of
 the catalog: they take explicit subscription IDs and plain parameters.
 
-- `RegisterProviders` registers providers on many subscriptions by running
-  `ARO-Tools/tools/registration`, the implementation behind the pipelines'
-  `ProviderFeatureRegistration` step, once per subscription and reporting all
-  failures together. Pipeline steps cannot loop, so the multi-subscription loop
-  is what a replacement for `e2e-register-providers.sh` needs. The registration
-  tool builds its own credential from `AZURE_TOKEN_CREDENTIALS`, unlike the
-  rest of this package.
+- `RegisterProviders` uses the command's Azure credential to register providers
+  and wait for them across subscriptions, reporting all failures together.
 - `Deployer.Deploy` runs incremental subscription-scope deployments.
-  `CIBotRBAC` and `MockRBAC` build them from the compiled canonical
+  `CIBotRBAC` and `MockRBAC` select the compiled canonical
   `ci-bot-rbac-subscription.bicep` and
   `e2e-subscription-rbac-assignment-subscription.bicep`, the same per-subscription
   modules that `ci-bot-rbac.bicep` and `mock-identity-rbac.bicep` use in dev-ci,

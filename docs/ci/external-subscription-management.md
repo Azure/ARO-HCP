@@ -30,12 +30,10 @@ The subscription owner runs the command once the mock identities exist. Prerequi
 From a developer workstation, with `az login`:
 
 - `az login --tenant 64dc69e4-d083-49fc-9569-ebece1dd1408`
-- `export AZURE_TOKEN_CREDENTIALS=dev`
 
 From automation, with a client secret:
 
 - `export AZURE_CLIENT_ID=<id> AZURE_CLIENT_SECRET=<secret> AZURE_TENANT_ID=64dc69e4-d083-49fc-9569-ebece1dd1408`
-- `export AZURE_TOKEN_CREDENTIALS=EnvironmentCredential`
 
 Then, from the repository root:
 

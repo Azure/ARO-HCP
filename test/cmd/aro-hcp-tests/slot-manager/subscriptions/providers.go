@@ -22,55 +22,41 @@ package subscriptions
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/Azure/ARO-Tools/tools/cmdutils"
-	"github.com/Azure/ARO-Tools/tools/registration"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 const (
-	providerPollFrequency = 10 * time.Second
-	providerPollDuration  = 10 * time.Minute
+	providerRegisteredState = "Registered"
+	providerPollFrequency   = 10 * time.Second
+	providerPollDuration    = 10 * time.Minute
 )
 
-// RegisterProviders makes every namespace Registered in every subscription, using
-// the same implementation as the pipelines' ProviderFeatureRegistration step.
-// It is idempotent. A failure on one subscription does not stop the others; all
-// failures are returned together. Unlike the rest of this package, registration
-// builds its own credential from AZURE_TOKEN_CREDENTIALS.
-func RegisterProviders(ctx context.Context, subscriptionIDs, namespaces []string) error {
-	config, err := registrationConfig(namespaces)
-	if err != nil {
-		return err
+// RegisterProviders registers and waits for each provider, reporting all failures together.
+func RegisterProviders(ctx context.Context, credential azcore.TokenCredential, options *azcorearm.ClientOptions, subscriptionIDs, namespaces []string) error {
+	if len(namespaces) == 0 {
+		return errors.New("no resource provider namespaces to register")
 	}
-	// registration.Register requires a logger in the context.
-	ctx = logr.NewContext(ctx, logr.FromContextOrDiscard(ctx))
 	var failures []error
 	for _, subscriptionID := range subscriptionIDs {
-		options := registration.RawOptions{
-			// Cloud "dev" is the public cloud; this package only serves DEV subscriptions.
-			RawOptions:     &cmdutils.RawOptions{Cloud: string(cmdutils.RolloutCloudDev)},
-			ConfigJSON:     config,
-			SubscriptionID: subscriptionID,
-			PollFrequency:  providerPollFrequency,
-			PollDuration:   providerPollDuration,
-		}
-		validated, err := options.Validate()
-		if err == nil {
-			var completed *registration.Options
-			if completed, err = validated.Complete(); err == nil {
-				err = completed.Register(ctx)
-			}
-		}
+		client, err := armresources.NewProvidersClient(subscriptionID, credential, options)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("subscription %s: %w", subscriptionID, err))
+			continue
+		}
+		for _, namespace := range namespaces {
+			if err := registerProvider(ctx, client, namespace); err != nil {
+				failures = append(failures, fmt.Errorf("subscription %s: register %s: %w", subscriptionID, namespace, err))
+			}
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -79,21 +65,25 @@ func RegisterProviders(ctx context.Context, subscriptionIDs, namespaces []string
 	return nil
 }
 
-// registrationConfig renders the registration tool's configuration: every
-// provider is awaited, so a successful run leaves them all Registered.
-func registrationConfig(namespaces []string) (string, error) {
-	if len(namespaces) == 0 {
-		return "", errors.New("no resource provider namespaces to register")
-	}
-	config := registration.Configuration{}
-	for _, namespace := range namespaces {
-		config[namespace] = registration.Provider{Poll: true}
-	}
-	encoded, err := json.Marshal(config)
+func registerProvider(ctx context.Context, client *armresources.ProvidersClient, namespace string) error {
+	current, err := client.Get(ctx, namespace, nil)
 	if err != nil {
-		return "", fmt.Errorf("encode registration configuration: %w", err)
+		return err
 	}
-	return string(encoded), nil
+	if current.RegistrationState != nil && *current.RegistrationState == providerRegisteredState {
+		return nil
+	}
+	registered, err := client.Register(ctx, namespace, nil)
+	if err != nil {
+		return err
+	}
+	if registered.RegistrationState != nil && *registered.RegistrationState == providerRegisteredState {
+		return nil
+	}
+	return wait.PollUntilContextTimeout(ctx, providerPollFrequency, providerPollDuration, false, func(ctx context.Context) (bool, error) {
+		current, err := client.Get(ctx, namespace, nil)
+		return current.RegistrationState != nil && *current.RegistrationState == providerRegisteredState, err
+	})
 }
 
 // ParseProviderNamespaces splits a comma-separated provider list, such as
