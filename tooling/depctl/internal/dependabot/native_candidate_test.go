@@ -1304,6 +1304,7 @@ func TestNativeCandidateNPMTransitiveIntentsOutsidePrimaryFamily(t *testing.T) {
 	}
 }
 
+// PrepareActions creates an Actions candidate with official tag-list evidence.
 func (f *nativeCandidateFixture) prepareActions(agentic bool) (string, string) {
 	f.t.Helper()
 	candidateFixtureGit(f.t, f.options.Root, "restore", "api/package.json", "api/package-lock.json")
@@ -1343,8 +1344,11 @@ func (f *nativeCandidateFixture) prepareActions(agentic bool) (string, string) {
 		f.t.Fatal(err)
 	}
 	f.options.Compiler = compiler
-	f.v.read = func(context.Context, string, bool, bool) (json.RawMessage, error) {
-		return json.RawMessage(fmt.Sprintf("{\"sha\":%q}", newPin)), nil
+	f.v.read = func(_ context.Context, endpoint string, pages, ci bool) (json.RawMessage, error) {
+		if endpoint != "repos/actions/checkout/tags?per_page=100&page=1" || pages || ci {
+			f.t.Fatalf("unsupported official read %q", endpoint)
+		}
+		return json.RawMessage(fmt.Sprintf("[{\"name\":\"v1\",\"commit\":{\"sha\":%q}}]", newPin)), nil
 	}
 	return workflow, newPin
 }

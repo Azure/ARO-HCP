@@ -42,13 +42,14 @@ func TestNativeSDKMetadataConstraints(t *testing.T) {
 	}
 }
 
+// TestNativeActionLockPreservesContainersAndOfficialIntent checks official tag evidence and lock boundaries.
 func TestNativeActionLockPreservesContainersAndOfficialIntent(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	before := `{"entries":{"actions/checkout@v1":{"repo":"actions/checkout","version":"v1","sha":"` + strings.Repeat("b", 40) + `"}},"containers":{"fixed":"unchanged"}}`
 	after := `{"entries":{"actions/checkout@v2":{"repo":"actions/checkout","version":"v2","sha":"` + sha + `"}},"containers":{"fixed":"unchanged"}}`
 	group := map[string]any{"family": "actions/checkout", "sources": []any{map[string]any{"intents": []any{map[string]any{"ecosystem": "actions", "package": "actions/checkout", "target": sha}}}}}
 	read := func(context.Context, string, bool, bool) (json.RawMessage, error) {
-		return json.RawMessage(`{"sha":"` + sha + `"}`), nil
+		return json.RawMessage(`[{"name":"v2","commit":{"sha":"` + sha + `"}}]`), nil
 	}
 	if err := nativeActionLockChanges(context.Background(), read, before, after, group); err != nil {
 		t.Fatal(err)
@@ -119,6 +120,7 @@ func TestNativeTreeCoverageModesAndProtectedPaths(t *testing.T) {
 	}
 }
 
+// TestNativeActionCoverageOfficialSourceAndCompiledPins checks tag-backed source and compiled coverage.
 func TestNativeActionCoverageOfficialSourceAndCompiledPins(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	documents := map[string]string{".github/workflows/check.md": "steps:\n  - uses: actions/setup-go@v6\n", ".github/workflows/check.lock.yml": "steps:\n  - uses: actions/setup-go@" + sha + "\n", ".github/aw/actions-lock.json": `{"entries":{"actions/setup-go@v6":{"repo":"actions/setup-go","version":"v6","sha":"` + sha + `"}}}`}
@@ -134,10 +136,10 @@ func TestNativeActionCoverageOfficialSourceAndCompiledPins(t *testing.T) {
 		return value, nil
 	}
 	read := func(ctx context.Context, endpoint string, paginated, ci bool) (json.RawMessage, error) {
-		if endpoint != "repos/actions/setup-go/commits/v6" || paginated || ci {
+		if endpoint != "repos/actions/setup-go/tags?per_page=100&page=1" || paginated || ci {
 			return nil, fmt.Errorf("unexpected %s", endpoint)
 		}
-		return json.RawMessage(`{"sha":"` + sha + `"}`), nil
+		return json.RawMessage(`[{"name":"v6","commit":{"sha":"` + sha + `"}}]`), nil
 	}
 	intent := map[string]any{"ecosystem": "actions", "package": "actions/setup-go", "target": sha, "manifest": ".github/workflows/check.md"}
 	if err := NativeVerifyCoverage(context.Background(), read, []map[string]any{intent}, reader, available); err != nil {

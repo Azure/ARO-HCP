@@ -16,6 +16,7 @@ package dependabot
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,5 +147,43 @@ func TestNativeChangesPreservesArbitraryUnchangedNPMMetadata(t *testing.T) {
 	}
 	if _, err := nativeChanges(context.Background(), nil, "api/package.json", before, strings.Replace(after, `"browser"`, `"server"`, 1)); err == nil {
 		t.Fatal("accepted unrelated metadata mutation")
+	}
+}
+
+// TestNativeCompilerActionsRequiresOfficialTags checks every changed inventory pin, including raw SHA versions.
+func TestNativeCompilerActionsRequiresOfficialTags(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	other := strings.Repeat("b", 40)
+	cases := []struct {
+		name     string
+		previous string
+		version  string
+		tags     string
+		reject   bool
+	}{
+		{name: "release tag", previous: "v1", version: "v2", tags: `[{"name":"v2","commit":{"sha":"` + sha + `"}}]`},
+		{name: "stale unchanged version", previous: "v2", version: "v2", tags: `[{"name":"v2","commit":{"sha":"` + other + `"}}]`, reject: true},
+		{name: "raw SHA with tag", previous: "v1", version: sha, tags: `[{"name":"v2","commit":{"sha":"` + sha + `"}}]`},
+		{name: "raw SHA without tag", previous: "v1", version: sha, tags: `[]`, reject: true},
+		{name: "different raw SHA", previous: "v1", version: other, tags: `[{"name":"v2","commit":{"sha":"` + sha + `"}}]`, reject: true},
+		{name: "unchanged raw SHA with tag", previous: sha, version: sha, tags: `[{"name":"v2","commit":{"sha":"` + sha + `"}}]`},
+		{name: "unchanged raw SHA without tag", previous: sha, version: sha, tags: `[]`, reject: true},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			left := map[string]any{"actions": []any{map[string]any{"repo": "actions/checkout", "sha": other, "version": test.previous}}}
+			right := map[string]any{"actions": []any{map[string]any{"repo": "actions/checkout", "sha": sha, "version": test.version}}}
+			pins := nativeVersionSet{"pin": {Package: "actions/checkout", Version: sha}}
+			read := func(_ context.Context, endpoint string, pages, ci bool) (json.RawMessage, error) {
+				if endpoint != "repos/actions/checkout/tags?per_page=100&page=1" || pages || ci {
+					t.Fatalf("unsupported official read %q", endpoint)
+				}
+				return json.RawMessage(test.tags), nil
+			}
+			err := nativeCompilerActions(context.Background(), read, left, right, pins)
+			if (err != nil) != test.reject {
+				t.Fatalf("error = %v, reject = %t", err, test.reject)
+			}
+		})
 	}
 }
