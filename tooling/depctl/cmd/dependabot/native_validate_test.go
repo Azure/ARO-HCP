@@ -24,14 +24,16 @@ import (
 
 func TestNativeSandboxReadChecksCredentialIsolationAndReleaseIdentity(t *testing.T) {
 	const official = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+	const mismatch = "sandbox cannot verify the official checkout release"
 	for _, test := range []struct {
 		name, pin, credential string
+		expectedError         string
 		accepted, collection  bool
 	}{
 		{name: "proxy", pin: official, accepted: true},
-		{name: "wrong immutable release", pin: strings.Repeat("f", 40)},
+		{name: "wrong immutable release", pin: strings.Repeat("f", 40), expectedError: mismatch},
 		{name: "proxy collection", pin: official, accepted: true, collection: true},
-		{name: "wrong collection release", pin: strings.Repeat("f", 40), collection: true},
+		{name: "wrong collection release", pin: strings.Repeat("f", 40), collection: true, expectedError: mismatch},
 		{name: "repository credential", pin: official, credential: "GH_TOKEN"},
 		{name: "GitHub credential", pin: official, credential: "GITHUB_TOKEN"},
 		{name: "CI credential", pin: official, credential: "CI_TOKEN"},
@@ -68,6 +70,9 @@ func TestNativeSandboxReadChecksCredentialIsolationAndReleaseIdentity(t *testing
 				}
 			} else if err == nil || output != "" || strings.Contains(err.Error(), "synthetic-secret") {
 				t.Fatalf("unsafe preflight result: output=%q error=%v", output, err)
+			}
+			if test.expectedError != "" && (err == nil || !strings.Contains(err.Error(), test.expectedError)) {
+				t.Fatalf("want release identity rejection %q, got %v", test.expectedError, err)
 			}
 			if test.credential != "" {
 				if _, err := os.Stat(marker); !os.IsNotExist(err) {
