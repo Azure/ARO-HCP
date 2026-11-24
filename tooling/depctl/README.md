@@ -344,6 +344,8 @@ It verifies the request artifact's digest before reading credentials, then check
 the current base, exact source PRs, dependency changes and hold history. It applies
 the patch in a temporary Git repository and repeats the checks before pushing.
 It never runs candidate code and never force-pushes.
+Historical PR rechecks compare ownership, source mappings and merge identities,
+not repository activity timestamps or unrelated PR text.
 
 The shared `tooling/github` library creates or updates the robot-owned PR and
 reads it back to verify the result. The ownership-marker format, branch names

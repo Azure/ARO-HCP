@@ -205,6 +205,61 @@ func nativeEncodePublicationMarker(group, sources any) (string, error) {
 	return "<!-- " + nativePublicationMarker + strings.TrimSuffix(body.String(), "\n") + " -->", nil
 }
 
+// Native publication history retains only identities that authorize predecessor reuse.
+type nativePublicationHistory struct {
+	number                           int
+	authorLogin, authorType          string
+	state                            string
+	merged, draft                    bool
+	headRepository, headRef, headSHA string
+	baseRepository, baseRef          string
+	mergeCommitSHA                   string
+	hasMarker, hasLabel              bool
+	ownership                        map[string]any
+}
+
+// NativePublicationHistoryIdentity excludes mutable repository metadata and unrelated PR prose.
+func nativePublicationHistoryIdentity(pull *gh.PullRequest) (nativePublicationHistory, error) {
+	identity := nativePublicationHistory{
+		number:      pull.GetNumber(),
+		authorLogin: pull.GetUser().GetLogin(), authorType: pull.GetUser().GetType(),
+		state: pull.GetState(), merged: pull.GetMerged(), draft: pull.GetDraft(),
+		headRepository: pull.GetHead().GetRepo().GetFullName(), headRef: pull.GetHead().GetRef(), headSHA: pull.GetHead().GetSHA(),
+		baseRepository: pull.GetBase().GetRepo().GetFullName(), baseRef: pull.GetBase().GetRef(),
+		mergeCommitSHA: pull.GetMergeCommitSHA(),
+		hasMarker:      strings.Contains(pull.GetBody(), nativePublicationMarker),
+		hasLabel:       nativePublicationHasLabel(pull, nativePublicationLabel),
+	}
+	ownership, err := nativePublicationMetadata(pull.GetBody())
+	if err != nil {
+		// Closed-unmerged entries block revival structurally, even without a valid ownership marker.
+		if !pull.GetMerged() {
+			return identity, nil
+		}
+		return identity, fmt.Errorf("read replacement #%d history ownership: %w", pull.GetNumber(), err)
+	}
+	identity.ownership = ownership
+	return identity, nil
+}
+
+// NativePublicationHistoryInventory compares complete histories by PR number, independent of API ordering.
+func nativePublicationHistoryInventory(merged, closed []*gh.PullRequest) (map[int]nativePublicationHistory, error) {
+	if len(merged)+len(closed) == 0 {
+		return nil, nil
+	}
+	history := make(map[int]nativePublicationHistory, len(merged)+len(closed))
+	for _, inventory := range [][]*gh.PullRequest{merged, closed} {
+		for _, pull := range inventory {
+			identity, err := nativePublicationHistoryIdentity(pull)
+			if err != nil {
+				return nil, fmt.Errorf("read replacement history inventory: %w", err)
+			}
+			history[pull.GetNumber()] = identity
+		}
+	}
+	return history, nil
+}
+
 // RecheckPublication repeats complete source/replacement inventory and hold authorization at each write boundary.
 func (p *NativePublisher) recheckPublication(ctx context.Context, request nativePublicationRequest, original nativePublicationAuthorization, head string, previous *gh.PullRequest) error {
 	fresh, err := p.authorize(ctx, request)
@@ -220,7 +275,15 @@ func (p *NativePublisher) recheckPublication(ctx context.Context, request native
 	if original.existing != nil && (fresh.existing.GetNumber() != original.existing.GetNumber() || fresh.existing.GetHead().GetSHA() != head || fresh.existing.GetBody() != original.existing.GetBody() || fresh.existing.GetTitle() != original.existing.GetTitle()) {
 		return fmt.Errorf("replacement authorization changed before publication")
 	}
-	if !reflect.DeepEqual(fresh.merged, original.merged) || !reflect.DeepEqual(fresh.closed, original.closed) {
+	freshHistory, err := nativePublicationHistoryInventory(fresh.merged, fresh.closed)
+	if err != nil {
+		return fmt.Errorf("recheck replacement history: %w", err)
+	}
+	originalHistory, err := nativePublicationHistoryInventory(original.merged, original.closed)
+	if err != nil {
+		return fmt.Errorf("read original replacement history: %w", err)
+	}
+	if !reflect.DeepEqual(freshHistory, originalHistory) {
 		return fmt.Errorf("replacement history changed before publication")
 	}
 	if previous != nil {
@@ -228,7 +291,15 @@ func (p *NativePublisher) recheckPublication(ctx context.Context, request native
 		if err != nil {
 			return fmt.Errorf("reread merged predecessor: %w", err)
 		}
-		if !reflect.DeepEqual(detail, previous) {
+		currentIdentity, err := nativePublicationHistoryIdentity(detail)
+		if err != nil {
+			return fmt.Errorf("reread merged predecessor identity: %w", err)
+		}
+		previousIdentity, err := nativePublicationHistoryIdentity(previous)
+		if err != nil {
+			return fmt.Errorf("read original merged predecessor identity: %w", err)
+		}
+		if !reflect.DeepEqual(currentIdentity, previousIdentity) {
 			return fmt.Errorf("merged predecessor authorization changed")
 		}
 		if _, err := p.validateReplacement(detail, true, false); err != nil {
