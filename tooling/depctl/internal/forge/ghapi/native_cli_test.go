@@ -31,6 +31,12 @@ func TestNativeCLIReadSandboxBoundary(t *testing.T) {
 		pages, ci, invoked                    bool
 	}{
 		{name: "read-only JSON", endpoint: endpoint, script: `printf '%s' '{"sha":"release"}'`, want: `{"sha":"release"}`, invoked: true},
+		{name: "proxy evidence object", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"}]'`, want: `{"sha":"release"}`, invoked: true},
+		{name: "filtered evidence", endpoint: endpoint, script: `printf '%s' '[]'`, failure: "exactly one object", invoked: true},
+		{name: "ambiguous evidence", endpoint: endpoint, script: `printf '%s' '[{"sha":"release"},{"sha":"other"}]'`, failure: "exactly one object", invoked: true},
+		{name: "nested collection", endpoint: endpoint, script: `printf '%s' '[[{"sha":"release"}]]'`, failure: "exactly one object", invoked: true},
+		{name: "null evidence", endpoint: endpoint, script: `printf '%s' 'null'`, failure: "exactly one object", invoked: true},
+		{name: "null collection item", endpoint: endpoint, script: `printf '%s' '[null]'`, failure: "exactly one object", invoked: true},
 		{name: "pagination rejected", endpoint: endpoint, pages: true, failure: "does not support"},
 		{name: "CI credentials rejected", endpoint: endpoint, ci: true, failure: "does not support"},
 		{name: "absolute URL rejected", endpoint: "https://api.github.com/" + endpoint, failure: "relative repository"},
