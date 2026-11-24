@@ -57,3 +57,38 @@ func TestEffectiveExactVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, "{}", string(data))
 }
+
+// TestEffectiveExactVersion_PinReactivatesWhenBestRegresses documents that a
+// rollout pin is not cleared when BestExactVersion passes UntilExactVersion.
+// The pin stays stored, so if BestExactVersion later moves back to or below
+// the threshold the pin becomes active again. That can happen when a version
+// that was >= UntilExactVersion is later found to carry known risk, and when
+// ARO-HCP evaluates conditional upgrade edges (e.g.
+// https://github.com/openshift/enhancements/pull/2152) BestExactVersion may
+// move back. Per-cluster pins clear on release; rollout pins do not — a
+// service admin (SRE) must clear them explicitly.
+func TestEffectiveExactVersion_PinReactivatesWhenBestRegresses(t *testing.T) {
+	version := func(s string) *semver.Version {
+		v := semver.MustParse(s)
+		return &v
+	}
+	spec := fleetapi.ControlPlaneVersionRolloutSpec{
+		PinnedVersion: fleetapi.ServiceProviderClusterPinnedVersion{
+			ExactVersion:      version("4.21.3"),
+			UntilExactVersion: version("4.21.6"),
+		},
+	}
+
+	spec.BestExactVersion = version("4.21.7")
+	require.False(t, hasActiveRolloutPin(&spec), "best above until releases the pin")
+	require.Equal(t, version("4.21.7"), effectiveExactVersion(&spec))
+	require.Equal(t, version("4.21.3"), spec.PinnedVersion.ExactVersion, "pin remains stored while inactive")
+
+	spec.BestExactVersion = version("4.21.6")
+	require.True(t, hasActiveRolloutPin(&spec), "best equal to until reactivates the stored pin")
+	require.Equal(t, version("4.21.3"), effectiveExactVersion(&spec))
+
+	spec.BestExactVersion = version("4.21.5")
+	require.True(t, hasActiveRolloutPin(&spec), "best below until keeps the pin active")
+	require.Equal(t, version("4.21.3"), effectiveExactVersion(&spec))
+}
