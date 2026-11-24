@@ -227,17 +227,27 @@ func yamlAlerts(data []byte) ([]corpusEntry, error) {
 // conventionally indented object; a closing boundary rejects a pending alert.
 func bicepAlerts(data string) ([]corpusEntry, error) {
 	literal := `'((?:\\.|[^'\\])*)'`
+	// Interpolatable values: `var` declarations and `param` declarations with
+	// literal defaults. Alert-rule expressions reference both the same way
+	// (`${name}`); a param without a default cannot appear in an expression
+	// the corpus can resolve.
 	variables := regexp.MustCompile(`(?m)^var\s+(\w+)\s*=\s*(?:` + literal + `|([0-9]+))\s*(?://[^\n]*)?$`)
+	params := regexp.MustCompile(`(?m)^param\s+(\w+)\s+(?:int|bool|string)\s*=\s*(?:` + literal + `|(true|false)|([0-9]+))\s*(?://[^\n]*)?$`)
 	values := map[string]string{}
-	for _, match := range variables.FindAllStringSubmatch(data, -1) {
-		value, err := decodeBicep(match[2])
-		if err != nil {
-			return nil, err
+	for _, matches := range [2][][]string{variables.FindAllStringSubmatch(data, -1), params.FindAllStringSubmatch(data, -1)} {
+		for _, match := range matches {
+			value, err := decodeBicep(match[2])
+			if err != nil {
+				return nil, err
+			}
+			if match[3] != "" {
+				value = match[3]
+			}
+			if len(match) > 4 && match[4] != "" {
+				value = match[4]
+			}
+			values[match[1]] = value
 		}
-		if match[3] != "" {
-			value = match[3]
-		}
-		values[match[1]] = value
 	}
 	fields := regexp.MustCompile(`(?m)^(  name|[ \t]+alert|[ \t]+expression):[ \t]*` + literal + `[ \t]*$|^([ \t]*)\}[^\n]*$`)
 	var entries []corpusEntry
@@ -354,11 +364,17 @@ func compareCorpus(t *testing.T, entries []corpusEntry) {
 func TestBicepDiscovery(t *testing.T) {
 	input := `var threshold = 5 // a comment
 var selector = 'metric{label="a\\\\b\'c"}'
+param maxFailures int = 3
+param alertingEnabled bool = false
 resource rules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'example'
       {
         alert: 'First'
         expression: '${selector} > ${threshold}'
+      }
+      {
+        alert: 'Paramed'
+        expression: 'consecutive{job="a"} >= ${maxFailures}'
       }
       {
         alert: 'Second'
@@ -369,8 +385,11 @@ resource rules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 2 || entries[0].Group != "example" || entries[0].Input != `metric{label="a\\b'c"} > 5` {
+	if len(entries) != 3 || entries[0].Group != "example" || entries[0].Input != `metric{label="a\\b'c"} > 5` {
 		t.Fatalf("unexpected decoded Bicep alerts: %+v", entries)
+	}
+	if entries[1].Input != `consecutive{job="a"} >= 3` {
+		t.Fatalf("param default not interpolated: %+v", entries[1])
 	}
 	for _, entry := range entries {
 		plan, err := Extract(entry.Input)
@@ -379,7 +398,7 @@ resource rules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
 		}
 		validatePlan(t, plan)
 	}
-	if !strings.Contains(entries[1].Input, "unless on(subscription_id)") {
+	if !strings.Contains(entries[2].Input, "unless on(subscription_id)") {
 		t.Fatalf("lost injected exclusion: %+v", entries[1])
 	}
 	for _, bad := range []string{
