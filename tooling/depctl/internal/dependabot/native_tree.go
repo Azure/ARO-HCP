@@ -16,7 +16,6 @@ package dependabot
 
 import (
 	"context"
-	"net/url"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -502,19 +501,12 @@ func nativeActionLockChanges(ctx context.Context, read NativeReadFunc, before, a
 		}
 		if raw, exists := current[key]; exists {
 			entry := raw.(map[string]any)
-			if !allowed[nativeKey([]any{entry["repo"], entry["sha"]})] {
+			sha, shaOK := entry["sha"].(string)
+			if !shaOK || !allowed[nativeKey([]any{entry["repo"], sha})] {
 				return nativeReject("lock pin is not the native intended upgrade")
 			}
-			value, err := nativeRead(ctx, read, "repos/"+nativeUpgradeFamily("actions", entry["repo"].(string))+"/commits/"+url.PathEscape(entry["version"].(string)), false, false)
-			if err != nil {
+			if err := NativeVerifyOfficialRelease(ctx, read, nativeUpgradeFamily("actions", entry["repo"].(string)), entry["version"].(string), sha); err != nil {
 				return err
-			}
-			official, err := nativeObject(value)
-			if err != nil {
-				return err
-			}
-			if official["sha"] != entry["sha"] {
-				return nativeReject("action lock release is not the official intended commit")
 			}
 		}
 	}

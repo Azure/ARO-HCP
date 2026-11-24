@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -31,10 +32,11 @@ type rawNativeSandboxOptions struct{}
 type validatedNativeSandboxOptions struct{}
 
 type nativeSandboxOptions struct {
-	endpoint string
-	pin      string
-	read     dependabot.NativeReadFunc
-	output   io.Writer
+	repository string
+	version    string
+	pin        string
+	read       dependabot.NativeReadFunc
+	output     io.Writer
 }
 
 // Validate rejects visible GitHub credentials before any sandbox read.
@@ -50,27 +52,21 @@ func (o *rawNativeSandboxOptions) Validate() (*validatedNativeSandboxOptions, er
 // Complete binds the fixed release identity, isolated reader and command output.
 func (o *validatedNativeSandboxOptions) Complete(output io.Writer) *nativeSandboxOptions {
 	return &nativeSandboxOptions{
-		endpoint: "repos/actions/checkout/commits/v7.0.1",
-		pin:      "3d3c42e5aac5ba805825da76410c181273ba90b1",
-		read:     ghapi.NativeCLIRead,
-		output:   output,
+		repository: "actions/checkout",
+		version:    "v7.0.1",
+		pin:        "3d3c42e5aac5ba805825da76410c181273ba90b1",
+		read:       ghapi.NativeCLIRead,
+		output:     output,
 	}
 }
 
 // Run verifies the official release identity before writing its JSON receipt.
 func (o *nativeSandboxOptions) Run(ctx context.Context) error {
-	payload, err := o.read(ctx, o.endpoint, false, false)
-	if err != nil {
-		return err
+	if err := dependabot.NativeVerifyOfficialRelease(ctx, o.read, o.repository, o.version, o.pin); err != nil {
+		return fmt.Errorf("verify sandbox official release: %w", err)
 	}
-	var release struct {
-		SHA string `json:"sha"`
+	if err := json.NewEncoder(o.output).Encode(map[string]string{"status": "verified"}); err != nil {
+		return fmt.Errorf("write sandbox verification receipt: %w", err)
 	}
-	if err := json.Unmarshal(payload, &release); err != nil {
-		return err
-	}
-	if release.SHA != o.pin {
-		return errors.New("sandbox cannot verify the official checkout release")
-	}
-	return json.NewEncoder(o.output).Encode(map[string]string{"status": "verified"})
+	return nil
 }
