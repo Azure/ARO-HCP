@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -143,9 +144,15 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
+			var creds []*coreapi.SystemAdminCredentialRequest
+			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, tc.credName); err == nil {
+				creds = append(creds, c)
+			}
+
 			syncer := &revokedGC{
-				clock:             fakeClock,
-				resourcesDBClient: db,
+				clock:                   fakeClock,
+				resourcesDBClient:       db,
+				credentialRequestLister: &corelistertesting.SliceSystemAdminCredentialRequestLister{CredentialRequests: creds},
 			}
 
 			key := controllerutils.SystemAdminCredentialRequestKey{

@@ -36,9 +36,9 @@ import (
 )
 
 type postIssuanceCleanup struct {
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	credentialRequestLister      corelisters.SystemAdminCredentialRequestLister
 }
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*postIssuanceCleanup)(nil)
@@ -56,11 +56,12 @@ func NewPostIssuanceCleanupController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
 
 	syncer := &postIssuanceCleanup{
-		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		credentialRequestLister:      credentialRequestLister,
 	}
 
 	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
@@ -91,17 +92,16 @@ func (c *postIssuanceCleanup) needsWork(cred *coreapi.SystemAdminCredentialReque
 func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Get the specific credential request.
-	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	// Use cached data only — teardown is keyed by credential name, and Issued/Failed
+	// are terminal conditions that do not need a live re-read.
+	cachedCred, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRequest: %w", err))
 	}
-
-	if !c.needsWork(cred) {
+	if !c.needsWork(cachedCred) {
 		return nil
 	}
 
@@ -130,18 +130,17 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 		return nil
 	}
 
-	credName := cred.ResourceID.Name
-	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(credName),
+	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(key.CredentialName),
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return err
 	}
 	if len(waitingFor) > 0 {
 		logger.Info("post-issuance cleanup waiting for desire teardown",
-			"credential", credName, "waitingFor", strings.Join(waitingFor, "; "))
+			"credential", key.CredentialName, "waitingFor", strings.Join(waitingFor, "; "))
 		return nil
 	}
 
-	logger.Info("post-issuance cleanup complete", "credential", credName)
+	logger.Info("post-issuance cleanup complete", "credential", key.CredentialName)
 	return nil
 }

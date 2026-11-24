@@ -33,15 +33,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type issuanceObserver struct {
-	clock             utilsclock.PassiveClock
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
-	readDesireLister  dblisters.ReadDesireLister
+	clock                   utilsclock.PassiveClock
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	readDesireLister        dblisters.ReadDesireLister
+	credentialRequestLister corelisters.SystemAdminCredentialRequestLister
 }
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*issuanceObserver)(nil)
@@ -58,10 +60,13 @@ func NewIssuanceObserverController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
+	_, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
+
 	syncer := &issuanceObserver{
-		clock:             clock,
-		resourcesDBClient: resourcesDBClient,
-		readDesireLister:  readDesireLister,
+		clock:                   clock,
+		resourcesDBClient:       resourcesDBClient,
+		readDesireLister:        readDesireLister,
+		credentialRequestLister: credentialRequestLister,
 	}
 
 	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
@@ -79,22 +84,22 @@ func NewIssuanceObserverController(
 }
 
 func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
-	// Get the specific credential request from Cosmos.
-	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	// Use cached data only. Replace carries IfMatchETag from the document, and
+	// PreconditionFailed is treated as a no-op so a stale cache loses the race
+	// safely and retries once the informer catches up.
+	cachedCred, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRequest: %w", err))
 	}
-
-	// Only process credentials that are pending.
-	if !credentialrequest.IsCredentialRequestPending(cred) {
+	if !credentialrequest.IsCredentialRequestPending(cachedCred) {
 		return nil
 	}
 
-	return c.observeCSR(ctx, key, cred, key.CredentialName, credCRUD)
+	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
+	return c.observeCSR(ctx, key, cachedCred, key.CredentialName, credCRUD)
 }
 
 func (c *issuanceObserver) observeCSR(

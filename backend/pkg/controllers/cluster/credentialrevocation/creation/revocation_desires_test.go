@@ -40,36 +40,41 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation
 		expectError bool
 	}{
 		{
-			name:        "revocation not found returns nil",
-			setupDB:     func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
+			name: "revocation not found returns nil",
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				return nil
+			},
 			expectError: false,
 		},
 		{
 			name: "revocation with DeletionTimestamp is no-op",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
 				now := metav1.Now()
-				createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
+				rev := createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
 					r.Status.DeletionTimestamp = &now
 				})
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			expectError: false,
 		},
 		{
 			name: "cluster not found returns nil",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestRevocation(t, db, testRevocationName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				rev := createTestRevocation(t, db, testRevocationName)
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			expectError: false,
 		},
 		{
 			name: "cluster has no ClusterServiceID returns nil",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestRevocation(t, db, testRevocationName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				rev := createTestRevocation(t, db, testRevocationName)
 				createTestCluster(t, db)
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			expectError: false,
 		},
@@ -79,15 +84,15 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tc.setupDB(db)
+			revs := tc.setupDB(db)
 
 			var clusters []*coreapi.Cluster
 			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
 				clusters = append(clusters, c)
 			}
 			syncer := &revocationDesires{
-				resourcesDBClient: db,
-				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: clusters},
+				clusterLister:    &corelistertesting.SliceClusterLister{Clusters: clusters},
+				revocationLister: &corelistertesting.SliceSystemAdminCredentialRevocationLister{CredentialRevocations: revs},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)
