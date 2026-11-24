@@ -60,6 +60,11 @@ func TestStartupValidation(t *testing.T) {
 				}
 				err := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil))).ValidateCredentials([]config.TenantConfig{tenant})
 				require.Error(t, err)
+				if problem == "missing" {
+					// The I/O cause stays actionable without naming the file.
+					require.Contains(t, err.Error(), "no such file")
+				}
+				require.NotContains(t, err.Error(), filepath.Join(root, field))
 				require.NotContains(t, err.Error(), "test-password")
 				require.NotContains(t, err.Error(), "not-a-uuid-sensitive")
 			})

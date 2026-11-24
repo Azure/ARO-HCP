@@ -16,7 +16,9 @@ package credentials
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -112,10 +114,22 @@ func (p *Provider) GetCredential(tenant config.TenantConfig) (*azidentity.Client
 	return credential, nil
 }
 
+// readFailure describes a credential read failure without repeating the file
+// path, which is derived from the Key Vault secret reference and must not be
+// logged. The underlying cause (missing, permission, I/O) is preserved so
+// startup errors stay actionable.
+func readFailure(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("cannot read credential file: %w", pathErr.Err)
+	}
+	return errors.New("cannot read credential file")
+}
+
 func readSecret(root, name string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(root, name))
 	if err != nil {
-		return "", fmt.Errorf("cannot read credential file")
+		return "", readFailure(err)
 	}
 	value := strings.TrimSpace(string(data))
 	if value == "" {
@@ -171,7 +185,7 @@ func (p *Provider) StartWatching(ctx context.Context, tenants []config.TenantCon
 			return fmt.Errorf("create credential watcher for tenant %s", watch.tenant)
 		}
 		if err := watcher.Start(watchCtx); err != nil {
-			return fmt.Errorf("start credential watcher for tenant %s: %s is not readable", watch.tenant, watch.field)
+			return fmt.Errorf("start credential watcher for tenant %s: %s: %w", watch.tenant, watch.field, readFailure(err))
 		}
 	}
 	p.watchStarted = true
