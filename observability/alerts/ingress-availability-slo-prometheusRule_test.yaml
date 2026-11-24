@@ -274,6 +274,19 @@ tests:
     values: "0+0x40"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="ggg", namespace="clusters-ggg", _id="ggg", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg"}'
     values: "1+0x40"
+  promql_expr_test:
+  # `alert_rule_test` below only asserts on firing alerts, and `for: 10m`
+  # alone would already block firing this early regardless of the floor --
+  # it would pass identically even with the 1h floor deleted. Querying the
+  # real ALERTS series for both pending and firing at t=3m (5m floor
+  # cleared at t=2m, 1h floor not cleared until t=5m) isolates the floor's
+  # own effect: this must be 0 only because the gate is blocking pending
+  # state from starting at all, not because of the `for:` timer.
+  - expr: count(ALERTS{alertname="userJourneyIngressAvailabilityErrors1h5m", alertstate=~"pending|firing", _id="ggg"}) or vector(0)
+    eval_time: 3m
+    exp_samples:
+    - labels: '{}'
+      value: 0
   alert_rule_test:
   # At t=1m, only 4 total observations exist -- below the 1h floor of 10 --
   # so the alert must stay suppressed even though the error rate is 100%.
