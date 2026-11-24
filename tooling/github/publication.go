@@ -32,6 +32,9 @@ import (
 type PublicationRequest struct {
 	// ExpectedNumber restricts publication to this exact open owned proposal; zero permits creation.
 	ExpectedNumber int
+	// ExpectedTitle and ExpectedBody bind a numbered update to the authorized PR text.
+	ExpectedTitle  string
+	ExpectedBody   string
 	HeadRepository string
 	HeadRef        string
 	ExpectedHead   string
@@ -210,6 +213,9 @@ func (c *Client) validatePublication(r PublicationRequest) error {
 	if r.ExpectedNumber < 0 {
 		return fmt.Errorf("publication expected number must be nonnegative")
 	}
+	if r.ExpectedNumber > 0 && strings.TrimSpace(r.ExpectedTitle) == "" {
+		return fmt.Errorf("publication expected title is required for a numbered update")
+	}
 	if !repositoryPattern.MatchString(r.HeadRepository) || r.HeadRef == "" || r.BaseRef == "" {
 		return fmt.Errorf("publication requires source repository and source and target refs")
 	}
@@ -287,7 +293,7 @@ func (c *Client) verifyFiles(ctx context.Context, number int, expected []string)
 
 // Publish finds, creates or updates exactly one owned proposal and verifies all remote evidence.
 // Write failures are indeterminate, never automatically retried. Concurrent publishers require external serialization.
-// GitHub cannot atomically condition PR metadata writes on a head SHA; post-write races fail indeterminate.
+// GitHub cannot atomically condition PR metadata writes on the head or current text.
 func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, error) {
 	receipt := Receipt{RequestedHead: r.ExpectedHead, Outcome: "not-applicable"}
 	if err := c.validatePublication(r); err != nil {
@@ -312,6 +318,9 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 	if len(owned) == 1 {
 		prior = &owned[0]
 		receipt.Number = prior.Number
+		if r.ExpectedNumber > 0 && (prior.Title != r.ExpectedTitle || prior.Body != r.ExpectedBody) {
+			return receipt, fmt.Errorf("proposal title or body differs from authorization: %w", ErrConflict)
+		}
 		if err = c.verifyFiles(ctx, prior.Number, r.ExpectedFiles); err != nil {
 			return receipt, err
 		}
@@ -342,6 +351,9 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 			}
 			if err := c.publicationIdentity(latest, r); err != nil {
 				return receipt, fmt.Errorf("recheck expected proposal identity before update: %w", err)
+			}
+			if latest.Title != r.ExpectedTitle || latest.Body != r.ExpectedBody {
+				return receipt, fmt.Errorf("proposal title or body changed before update: %w", ErrConflict)
 			}
 		}
 		_, _, writeErr := c.writer.PullRequests.Edit(ctx, c.owner, c.repo, prior.Number, &gh.PullRequest{Title: &r.Title, Body: &r.Body})

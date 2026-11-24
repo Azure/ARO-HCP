@@ -151,9 +151,7 @@ func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOpti
 		return nil, fmt.Errorf("recheck after branch publication; inspect remote before retry: %w: %w", automation.ErrIndeterminate, err)
 	}
 	previousMarker := ""
-	expectedNumber := 0
 	if authorization.existing != nil {
-		expectedNumber = authorization.existing.GetNumber()
 		for _, line := range strings.Split(authorization.existing.GetBody(), "\n") {
 			if strings.HasPrefix(line, "<!-- "+nativePublicationMarker) {
 				previousMarker = line
@@ -161,7 +159,8 @@ func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOpti
 		}
 	}
 	receipt, err := p.shared.Publish(ctx, automation.PublicationRequest{
-		ExpectedNumber: expectedNumber,
+		ExpectedNumber: authorization.existing.GetNumber(),
+		ExpectedTitle:  authorization.existing.GetTitle(), ExpectedBody: authorization.existing.GetBody(),
 		HeadRepository: p.repository, HeadRef: branch, ExpectedHead: head,
 		BaseRef: "main", ExpectedBase: request.ExpectedBaseSHA,
 		Actor: nativePublicationRobot, Marker: marker, PreviousMarker: previousMarker,

@@ -30,6 +30,7 @@ func TestNativePublicationPreviousMarker(t *testing.T) {
 			}
 			request := testPublicationRequest()
 			request.ExpectedNumber = 7
+			request.ExpectedTitle, request.ExpectedBody = pull.GetTitle(), pull.GetBody()
 			request.Marker, request.PreviousMarker = next, previous
 			request.Body = "new body\n" + next
 			if mode == "wrong previous marker" {
@@ -112,14 +113,15 @@ func TestNativePublicationPreviousMarkerValidation(t *testing.T) {
 	}
 }
 
-// TestPublicationExpectedNumber rejects missing, replaced, or closed proposals without metadata writes.
+// TestPublicationExpectedNumber rejects proposal identity and text conflicts without writes.
 func TestPublicationExpectedNumber(t *testing.T) {
-	for _, mode := range []string{"missing", "different number", "closed before edit", "ownership changed before edit"} {
+	for _, mode := range []string{"missing", "different number", "closed before edit", "ownership changed before edit", "body changed before inventory", "title changed before edit", "body changed before edit"} {
 		t.Run(mode, func(t *testing.T) {
 			request := testPublicationRequest()
 			request.ExpectedNumber = 7
 			request.Title = "updated title"
 			pull := testPull()
+			request.ExpectedTitle, request.ExpectedBody = pull.GetTitle(), pull.GetBody()
 			writes := 0
 			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodGet {
@@ -144,6 +146,9 @@ func TestPublicationExpectedNumber(t *testing.T) {
 					if mode == "different number" {
 						pull.Number = gh.Ptr(8)
 					}
+					if mode == "body changed before inventory" {
+						pull.Body = gh.Ptr(pull.GetBody() + "\nMaintainer note")
+					}
 					respond(t, w, []*gh.PullRequest{testListedPull(pull)})
 				case strings.HasSuffix(r.URL.Path, "/files"):
 					respond(t, w, []*gh.CommitFile{{Filename: gh.Ptr("expected")}})
@@ -153,6 +158,12 @@ func TestPublicationExpectedNumber(t *testing.T) {
 					}
 					if mode == "ownership changed before edit" {
 						pull.Body = gh.Ptr("maintainer removed ownership")
+					}
+					if mode == "title changed before edit" {
+						pull.Title = gh.Ptr("maintainer title")
+					}
+					if mode == "body changed before edit" {
+						pull.Body = gh.Ptr(pull.GetBody() + "\nMaintainer note")
 					}
 					respond(t, w, pull)
 				default:
@@ -168,15 +179,17 @@ func TestPublicationExpectedNumber(t *testing.T) {
 	}
 }
 
-// TestPublicationExpectedNumberValidation rejects negative identities before API access.
+// TestPublicationExpectedNumberValidation rejects invalid update expectations before API access.
 func TestPublicationExpectedNumberValidation(t *testing.T) {
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("invalid identity caused network access: %s", r.URL)
 		http.NotFound(w, r)
 	})
-	request := testPublicationRequest()
-	request.ExpectedNumber = -1
-	if _, err := client.Publish(context.Background(), request); err == nil {
-		t.Fatal("negative expected identity accepted")
+	for _, number := range []int{-1, 7} {
+		request := testPublicationRequest()
+		request.ExpectedNumber = number
+		if _, err := client.Publish(context.Background(), request); err == nil {
+			t.Errorf("number %d accepted without valid update expectations", number)
+		}
 	}
 }

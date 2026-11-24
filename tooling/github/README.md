@@ -49,9 +49,11 @@ and base SHAs, target branch, trusted actor, exact ownership marker, title, body
 and complete expected changed-file set. The marker must be a standalone line in
 the body. A returned receipt identifies the verified PR and observed head.
 
-Set `ExpectedNumber` when updating a previously authorized PR. A missing, closed
-or different PR fails without falling back to creation. Publication requests must
-contain fewer than `MaxPublicationFiles` (3,000) changed paths.
+For a numbered update, supply `ExpectedNumber`, `ExpectedTitle` and `ExpectedBody`
+from the authorized PR. If the PR is missing, closed, replaced or its text has
+changed, publication stops without creating or editing a PR. GitHub does not
+provide an atomic conditional edit, so the final check is a read before the write.
+Publication requests must contain fewer than `MaxPublicationFiles` (3,000) changed paths.
 
 When a caller has separately verified an existing PR's old ownership metadata,
 `PreviousMarker` permits replacing that exact marker. The write and its read-back
