@@ -114,3 +114,54 @@ func TestWatchingDetectsRotationBeforeCredentialsAreLoaded(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return calls.Load() == 1 }, 2*time.Second, 10*time.Millisecond)
 }
+
+// createGeneration writes one CSI-style key rotation generation and atomically
+// swaps the ..data symlink to it, as the secrets-store driver does.
+func createGeneration(t *testing.T, root, generation string, files map[string]string) {
+	t.Helper()
+	directory := filepath.Join(root, generation)
+	require.NoError(t, os.Mkdir(directory, 0700))
+	for name, content := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0600))
+		if _, err := os.Lstat(filepath.Join(root, name)); os.IsNotExist(err) {
+			require.NoError(t, os.Symlink(filepath.Join("..data", name), filepath.Join(root, name)))
+		}
+	}
+	next := filepath.Join(root, "..data_tmp")
+	require.NoError(t, os.Symlink(generation, next))
+	require.NoError(t, os.Rename(next, filepath.Join(root, "..data")))
+}
+
+func TestWatchingFollowsCSIGenerationRotations(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(secretsStoreEnvVar, root)
+	clientID := "11111111-1111-1111-1111-111111111111"
+	createGeneration(t, root, "..2026_11_24_17_00_00.000000000", map[string]string{
+		"client-id":     clientID + "\n",
+		"client-secret": "test-password\n",
+	})
+	tenant := config.TenantConfig{TenantID: "22222222-2222-2222-2222-222222222222", ClientIDKeyVaultSecretName: "client-id", ClientSecretKeyVaultSecretName: "client-secret"}
+
+	provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	provider.watchInterval = 10 * time.Millisecond
+	var calls atomic.Int32
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, provider.StartWatching(ctx, []config.TenantConfig{tenant}, func() { calls.Add(1) }))
+	_, err := provider.GetCredential(tenant)
+	require.NoError(t, err)
+
+	// Rotate both objects in a new generation. The client ID is no longer a
+	// UUID so a provider that resolves the new generation must reject it.
+	createGeneration(t, root, "..2026_11_24_17_30_00.000000000", map[string]string{
+		"client-id":     "rotated-client-id\n",
+		"client-secret": "rotated-password\n",
+	})
+
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 2*time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, int32(1), calls.Load(), "the shutdown callback must fire once")
+
+	_, err = NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil))).GetCredential(tenant)
+	require.ErrorContains(t, err, "client ID file must contain a UUID")
+}
