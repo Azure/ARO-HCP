@@ -184,6 +184,66 @@ func TestPipelineDiagnosticsCompletion(t *testing.T) {
 	}
 }
 
+func TestPreemptedStepNamesCause(t *testing.T) {
+	for _, testCase := range []struct {
+		name         string
+		callerFirst  bool
+		callerSecond bool
+	}{
+		{name: "step cancels the run"},
+		{name: "caller cancels before the step fails", callerFirst: true},
+		{name: "caller cancels after the step fails", callerSecond: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			deadlineCtx, stop := context.WithTimeout(logr.NewContext(t.Context(), testr.New(t)), 5*time.Second)
+			defer stop()
+			ctx, cancel := context.WithCancelCause(deadlineCtx)
+			defer cancel(nil)
+
+			pipeline := &types.Pipeline{ServiceGroup: "test", ResourceGroups: []*types.ResourceGroup{{
+				ResourceGroupMeta: &types.ResourceGroupMeta{Name: "rg", ResourceGroup: "rg", Subscription: "subscription"},
+				Steps: []types.Step{
+					&types.ShellStep{StepMeta: types.StepMeta{Name: "failing"}},
+					&types.ShellStep{StepMeta: types.StepMeta{Name: "preempted"}},
+				},
+			}}}
+			started := make(chan struct{})
+			callerCause := errors.New("synthetic caller interruption")
+			executor := func(id graph.Identifier, _ types.Step, stepCtx context.Context, _ ExecutionTarget, _ *StepRunOptions, _ *ExecutionState) (Output, DetailsProducer, error) {
+				if id.Step == "failing" {
+					select {
+					case <-started:
+					case <-stepCtx.Done():
+						return nil, nil, errors.New("preempted step never started")
+					}
+					if testCase.callerFirst {
+						cancel(callerCause)
+					}
+					return nil, nil, errors.New("synthetic failure")
+				}
+				close(started)
+				<-stepCtx.Done()
+				if testCase.callerSecond {
+					cancel(callerCause)
+				}
+				return nil, nil, errors.New("signal: killed")
+			}
+			_, err := RunPipeline(&topology.Service{ServiceGroup: "test"}, pipeline, ctx, &PipelineRunOptions{
+				Concurrency:           2,
+				SubsciptionLookupFunc: func(context.Context, string) (string, error) { return "subscription", nil },
+				TopoDirLookupFunc:     func(string) (string, error) { return ".", nil },
+			}, executor)
+			if testCase.callerFirst {
+				require.ErrorContains(t, err, "synthetic failure")
+				assert.Contains(t, err.Error(), "signal: killed")
+				assert.NotContains(t, err.Error(), "run cancelled:")
+			} else {
+				assert.EqualError(t, err, "errors occurred during execution: [synthetic failure signal: killed (run cancelled: step test/rg/failing failed)]")
+			}
+		})
+	}
+}
+
 func TestMockedPipelineRun(t *testing.T) {
 	pipeline := &types.Pipeline{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",

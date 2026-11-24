@@ -473,6 +473,14 @@ func runBuildStep(ctx context.Context, buildStep types.BuildStep, serviceGroup, 
 	return nil
 }
 
+type stepFailureCancellation struct {
+	step graph.Identifier
+}
+
+func (c *stepFailureCancellation) Error() string {
+	return fmt.Sprintf("step %s failed", c.step)
+}
+
 func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (*ExecutionState, error) {
 	if options.StepCacheDir != "" {
 		if err := os.MkdirAll(options.StepCacheDir, 0755); err != nil {
@@ -675,10 +683,13 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	// - if any consumer hits an error, the context is cancelled
 	// - if the parent context is cancelled
 	consumerWg := &sync.WaitGroup{}
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-	defer func() {
-		consumerCancel()
-	}()
+	consumerCtx, consumerCancel := context.WithCancelCause(ctx)
+	defer consumerCancel(nil)
+	cancelForStepFailure := func(step graph.Identifier, err error) {
+		// Report the original error before waking the steps this failure preempts.
+		errs <- err
+		consumerCancel(&stepFailureCancellation{step: step})
+	}
 	maxConcurrency := options.Concurrency
 	if maxConcurrency == 0 {
 		maxConcurrency = runtime.NumCPU()
@@ -713,14 +724,12 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Unlock()
 					stepDef, stepExists := executionGraph.GetStep(step)
 					if !stepExists {
-						errs <- fmt.Errorf("could not find step definition for %v", step)
-						consumerCancel()
+						cancelForStepFailure(step, fmt.Errorf("could not find step definition for %v", step))
 						return
 					}
 					stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(stepDef)
 					if stepTimeoutErr != nil {
-						errs <- fmt.Errorf("step %v: %w", step, stepTimeoutErr)
-						consumerCancel()
+						cancelForStepFailure(step, fmt.Errorf("step %v: %w", step, stepTimeoutErr))
 						return
 					}
 					stepTimeoutCause := errors.New("exceeded the single-step timeout for sanity")
@@ -729,14 +738,26 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					}
 					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, stepTimeoutDuration, stepTimeoutCause)
 					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, stepCtx, options, state)
+					// Capture the step's first cancellation cause before cleaning up its context.
+					cause, cancelledByStep := context.Cause(stepCtx).(*stepFailureCancellation)
+					preempted := consumerCtx.Err() != nil
 					stepCtxCancel()
+					// A cause inherited from the caller does not belong to this run.
+					if err != nil && cancelledByStep && context.Cause(ctx) != cause {
+						if err == cause {
+							// Cancellation during a retry delay already returns the cause.
+							err = fmt.Errorf("run cancelled: %w", err)
+						} else {
+							err = fmt.Errorf("%w (run cancelled: %v)", err, cause)
+						}
+					}
 					if details != nil {
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
 							defer utilruntime.HandleCrash()
 							defer consumerWg.Done()
 							logger.V(4).Info("Fetching execution details.")
-							// Derived from the outer ctx, not consumerCtx: a failing step calls consumerCancel(), which
+							// Derived from the outer ctx, not consumerCtx: a failing step cancels consumerCtx, which
 							// would cancel the very ARM calls that explain the failure. The outer ctx is only cancelled
 							// by the caller (e.g. SIGINT/SIGTERM), which we do want to honor.
 							detailsCtx, cancel := context.WithTimeout(logr.NewContext(ctx, logger), executionDetailsTimeout)
@@ -763,7 +784,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Logging[step] = stepLogs.Snapshot()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
 					state.Timing[step].RunCount = runCount
-					if consumerCtx.Err() != nil {
+					if preempted {
 						state.Timing[step].Preempted = true
 					}
 					s := "succeeded"
@@ -773,8 +794,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Timing[step].State = s
 					state.Unlock()
 					if err != nil {
-						errs <- err
-						consumerCancel()
+						cancelForStepFailure(step, err)
 						return
 					}
 					checkForStepsToExecute <- struct{}{}
