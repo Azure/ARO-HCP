@@ -40,7 +40,15 @@ $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
 	$(call bicep_build,$<,$@)
 
-bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+# Subscription RBAC uses the canonical dev-ci per-subscription templates. Track their
+# module dependencies as well so a rebuilt binary never embeds stale policy.
+SUBSCRIPTION_RBAC_BICEP_SOURCES := $(shell find $(TEST_DIR)../dev-infrastructure/templates $(TEST_DIR)../dev-infrastructure/modules -name '*.bicep')
+SUBSCRIPTION_RBAC_BICEP_OUTPUTS := $(addprefix $(BICEP_OUTPUT_DIR)subscription-rbac/,ci-bot-rbac-subscription.json e2e-subscription-rbac-assignment-subscription.json)
+$(BICEP_OUTPUT_DIR)subscription-rbac/%.json: $(TEST_DIR)../dev-infrastructure/templates/%.bicep $(SUBSCRIPTION_RBAC_BICEP_SOURCES)
+	@mkdir -p $(dir $@)
+	$(call bicep_build,$<,$@)
+
+bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) $(SUBSCRIPTION_RBAC_BICEP_OUTPUTS)
 .PHONY: bicep-fixtures
 
 update-go-fixtures:
@@ -52,7 +60,7 @@ update: bicep-fixtures update-go-fixtures
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
-$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) force-go-build
+$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) $(SUBSCRIPTION_RBAC_BICEP_OUTPUTS) force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
 
 PROW_JOB_EXECUTOR_SOURCES = $(shell find $(TEST_DIR) -name '*.go')
@@ -118,6 +126,18 @@ validate-pool-assets: $(ARO_HCP_TESTS)
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: validate-pool-assets
+
+# Prepare an externally owned subscription: providers, subscription RBAC, E2E identity
+# containers and slot mock grants. SUBSCRIPTION is the catalog display name, as for
+# apply-pool-assets. Depends on $(ARO_HCP_TESTS) so the embedded templates are fresh.
+reconcile-external-subscription: override export SUBSCRIPTION := $(value SUBSCRIPTION)
+# DEV only: use the framework credential for all phases.
+reconcile-external-subscription: export AROHCP_ENV ?= development
+reconcile-external-subscription: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager reconcile-external-subscription \
+		--config-file "$(MOCK_IDENTITY_CONFIG)" \
+		--subscription "$${SUBSCRIPTION:?SUBSCRIPTION must be set to the subscription display name in the slot catalog}"
+.PHONY: reconcile-external-subscription
 
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \

@@ -189,7 +189,7 @@ func TestGraphOwnerReconciliation(t *testing.T) {
 }
 
 func TestReconcileBundleOwnersCoversAllThreeIdentities(t *testing.T) {
-	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
+	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}}
 	slot := testSlot()
 	bundle, err := reconcile(t.Context(), store, slot, true)
 	if err != nil {

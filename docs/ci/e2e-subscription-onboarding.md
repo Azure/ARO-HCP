@@ -1,6 +1,6 @@
 # E2E Subscription Onboarding
 
-This page is the procedure for adding a customer subscription to the E2E fleet: where the subscription is registered, what Azure needs to know about it, and what has to exist before CI can lease slots from it. It covers [DEV](#dev-e2e-subscription-onboarding), where onboarding is purely CI infrastructure, and [INT, STG and PROD](#intstgprod-e2e-subscription-onboarding), which are ARM-integrated and additionally need AFEC feature flags. Subscriptions owned by another team follow [External Subscription Onboarding](external-subscription-onboarding.md) instead.
+This page is the procedure for adding an ARO-HCP-managed customer subscription to the E2E fleet: where the subscription is registered, what Azure needs to know about it, and what has to exist before CI can lease slots from it. It covers [DEV](#dev-e2e-subscription-onboarding), where onboarding is purely CI infrastructure, and [INT, STG and PROD](#intstgprod-e2e-subscription-onboarding), which are ARM-integrated and additionally need AFEC feature flags. Subscriptions owned by another team follow [External Subscription Management](external-subscription-management.md) instead.
 
 ## What Onboarding Touches
 

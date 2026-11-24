@@ -72,6 +72,8 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2 v2.0.0 // indirect
@@ -94,12 +96,10 @@ require (
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261119152653-bc31149d518c // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261119152653-bc31149d518c // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0 // indirect
