@@ -973,7 +973,7 @@ resourceGroups:
     releaseName: image-registry-policy
     releaseNamespace: image-registry-policy
     chartDir: ./../image-registry-policy/deploy
-    valuesFile: ./../image-registry-policy/values.yaml
+    valuesFile: ./../image-registry-policy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
