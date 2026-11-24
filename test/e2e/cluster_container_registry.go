@@ -772,9 +772,9 @@ var _ = Describe("Customer", func() {
 			By("[day 2] updating containerRegistry.managedIdentity to the day 2 MI via PATCH")
 			updateResp, err := framework.UpdateHCPCluster20261001(ctx, hcpClient,
 				*resourceGroup.Name, customerClusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Platform: &hcpsdk20261001.PlatformProfile{
+				hcpsdk20261001.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20261001.HcpOpenShiftClusterPropertiesUpdate{
+						Platform: &hcpsdk20261001.PlatformProfileUpdate{
 							ContainerRegistry: &hcpsdk20261001.ContainerRegistryProfile{
 								ManagedIdentity: to.Ptr(day2MIResourceID),
 							},
@@ -845,9 +845,9 @@ var _ = Describe("Customer", func() {
 			By("[removal] clearing containerRegistry.managedIdentity via PATCH")
 			removalResp, err := framework.UpdateHCPCluster20261001(ctx, hcpClient,
 				*resourceGroup.Name, customerClusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Platform: &hcpsdk20261001.PlatformProfile{
+				hcpsdk20261001.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20261001.HcpOpenShiftClusterPropertiesUpdate{
+						Platform: &hcpsdk20261001.PlatformProfileUpdate{
 							ContainerRegistry: azcore.NullValue[*hcpsdk20261001.ContainerRegistryProfile](),
 						},
 					},

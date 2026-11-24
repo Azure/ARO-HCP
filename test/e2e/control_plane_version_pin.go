@@ -173,9 +173,9 @@ var _ = Describe("SRE", func() {
 			// Remove the creation-time exact override before clearing the SRE pin;
 			// otherwise it would request the old version again.
 			By("removing the creation-time exact override")
-			update := hcpsdk20261001.HcpOpenShiftCluster{
-				Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-					Version: &hcpsdk20261001.VersionProfile{
+			update := hcpsdk20261001.HcpOpenShiftClusterUpdate{
+				Properties: &hcpsdk20261001.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20261001.VersionProfileUpdate{
 						ID:           to.Ptr(minorVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},

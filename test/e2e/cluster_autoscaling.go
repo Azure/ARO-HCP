@@ -161,7 +161,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 					Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfileUpdate{
 							MaxNodesTotal:               to.Ptr(updatedMaxNodesTotal),
 							MaxNodeProvisionTimeSeconds: to.Ptr(updatedMaxNodeProvisionTimeSeconds),
 							MaxPodGracePeriodSeconds:    to.Ptr(updatedMaxPodGracePeriodSeconds),

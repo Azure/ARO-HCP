@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func TestBuildControlPlaneVersion(t *testing.T) {
@@ -246,10 +246,10 @@ func TestControlPlaneExactVersionPatchTags(t *testing.T) {
 	} {
 		t.Run(tc.version, func(t *testing.T) {
 			id, tags := ControlPlaneExactVersionPatchTags(tc.version)
-			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 				Tags: tags,
-				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-					Version: &hcpsdk20240610preview.VersionProfile{ID: to.Ptr(id)},
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20260901preview.VersionProfileUpdate{ID: to.Ptr(id)},
 				},
 			}
 			data, err := json.Marshal(update)

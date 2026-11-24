@@ -340,98 +340,11 @@ namespace Microsoft.RedHatOpenShift {
     >;
     ...ManagedServiceIdentityProperty;
   }
-
-  /** Represents the node pool properties */
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" ""
-  model NodePoolPropertiesUpdate {
-    /** Provisioning state */
-    @visibility(Lifecycle.Read)
-    provisioningState?: ProvisioningState;
-
-    /** OpenShift version for the nodepool */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    version?: NodePoolVersionProfile;
-
-    /** Azure node pool platform configuration */
-    @visibility(Lifecycle.Read, Lifecycle.Create)
-    platform?: NodePoolPlatformProfile;
-
-    /**
-     * The number of worker nodes, it cannot be used together with autoscaling.
-     * Validation:
-     * - Minimum: 0
-     * - Maximum: 200 (only when availabilityZone is not specified)
-     * - No maximum when availabilityZone is specified
-     */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    @minValue(0)
-    replicas?: int32;
-
-    /** autoRepair specifies whether health checks should be enabled for machines
-     * in the NodePool. Enabling this feature will cause the controller to
-     * automatically delete unhealthy machines. The unhealthy criteria are
-     * determined by checking the Node Ready condition and a timeout that might
-     * vary depending on the platform provider. autoRepair will not take action
-     * when more than 2 Nodes are unhealthy at the same time, giving time for
-     * the cluster to stabilize or for the user to manually intervene.
-     */
-    @visibility(Lifecycle.Read, Lifecycle.Create)
-    autoRepair?: boolean = true;
-
-    /** Representation of a autoscaling in a node pool. */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    autoScaling?: NodePoolAutoScaling;
-
-    /** Kubernetes labels to propagate to the NodePool Nodes
-     * Note that when the labels are updated this is only applied to newly
-     * created nodes in the Nodepool, existing node labels remain unchanged.
-     */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    @identifiers(#["key", "value"])
-    labels?: Label[];
-
-    /** Taints for the nodes */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    @identifiers(#["key", "value", "effect"])
-    taints?: Taint[];
-
-    /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
-     * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
-     * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
-     * especially relevant to cluster upgrades.
-     *
-     * Valid values are from 0 to 10080 minutes (1 week) .
-     * 0 means that the NodePool can be drained without any time limitation.
-     *
-     * If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
-     */
-    @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-    nodeDrainTimeoutMinutes?: int32;
-  }
 }
 
 @@alternateType(
   HcpOpenShiftClusters.createOrUpdate::parameters.resource,
   HcpOpenShiftClusterResourceCreate,
-  "javascript"
-);
-
-// The JavaScript SDK thinks properties required for resource creation
-// are also required in PATCH request bodies. This is a bug in the SDK
-// generation but we have to make validation pass regardless.
-
-@Azure.Core.Foundations.omitKeyProperties
-model HcpOpenShiftClusterUpdate is UpdateableProperties<HcpOpenShiftCluster>;
-
-@@alternateType(
-  HcpOpenShiftClusters.update::parameters.properties,
-  HcpOpenShiftClusterUpdate,
-  "javascript"
-);
-
-@@alternateType(
-  NodePools.update::parameters.properties,
-  UpdateableProperties<NodePoolProperties>,
   "javascript"
 );
 

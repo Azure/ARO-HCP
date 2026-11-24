@@ -595,7 +595,7 @@ func UpdateHCPCluster20261001(
 	hcpClient *hcpsdk20261001.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	update hcpsdk20261001.HcpOpenShiftCluster,
+	update hcpsdk20261001.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
 ) (hcpOpenShiftCluster *hcpsdk20261001.HcpOpenShiftCluster, operationErr error) {
 	recorder := beginOperation()
