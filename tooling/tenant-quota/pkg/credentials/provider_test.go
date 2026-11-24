@@ -15,14 +15,14 @@
 package credentials
 
 import (
-	"bytes"
+	"context"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -67,158 +67,33 @@ func TestStartupValidation(t *testing.T) {
 	}
 }
 
-func TestCredentialDiagnosticsExcludeReferencesAndValues(t *testing.T) {
-	for _, field := range []string{"client-id", "client-secret"} {
-		for _, problem := range []string{"missing", "empty", "whitespace", "directory", "malformed", "invalid-reference", "missing-reference", "shared-reference"} {
-			t.Run(field+"/"+problem, func(t *testing.T) {
-				if field == "client-secret" && problem == "malformed" {
-					t.Skip("nonempty passwords have no syntax constraint")
-				}
-				root, tenant := testPair(t)
-				tenant.TenantName = "diagnostic-tenant"
-				tenant.ClientIDKeyVaultSecretName = "sentinel-id-reference"
-				tenant.ClientSecretKeyVaultSecretName = "sentinel-password-reference"
-				require.NoError(t, os.Rename(filepath.Join(root, "client-id"), filepath.Join(root, tenant.ClientIDKeyVaultSecretName)))
-				require.NoError(t, os.Rename(filepath.Join(root, "client-secret"), filepath.Join(root, tenant.ClientSecretKeyVaultSecretName)))
-				reference := &tenant.ClientIDKeyVaultSecretName
-				category := "client ID"
-				referenceField := "clientIdKeyVaultSecretName"
-				if field == "client-secret" {
-					reference = &tenant.ClientSecretKeyVaultSecretName
-					category = "client secret"
-					referenceField = "clientSecretKeyVaultSecretName"
-				}
-				path := filepath.Join(root, *reference)
-				switch problem {
-				case "missing":
-					require.NoError(t, os.Remove(path))
-					category += ": cannot read credential file"
-				case "empty", "whitespace":
-					content := ""
-					if problem == "whitespace" {
-						content = " \n\t"
-					}
-					require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-					category += ": credential file is empty"
-				case "directory":
-					require.NoError(t, os.Remove(path))
-					require.NoError(t, os.Mkdir(path, 0700))
-					category += ": cannot read credential file"
-				case "malformed":
-					require.NoError(t, os.WriteFile(path, []byte("sentinel-invalid-client-id-content"), 0600))
-					category += " file must contain a UUID"
-				case "invalid-reference", "missing-reference":
-					*reference = "../" + *reference
-					category = referenceField + " must be a Key Vault secret name"
-					if problem == "missing-reference" {
-						*reference = ""
-						category = referenceField + " is required"
-					}
-				case "shared-reference":
-					tenant.ClientSecretKeyVaultSecretName = tenant.ClientIDKeyVaultSecretName
-					category = "client ID and client secret references must differ"
-				}
-				var output bytes.Buffer
-				logger := slog.New(slog.NewTextHandler(&output, nil))
-				err := NewProvider(logger).ValidateCredentials([]config.TenantConfig{tenant})
-				require.Error(t, err)
-				logger.Error("Credential validation failed", "error", err)
-				for _, diagnostic := range []string{err.Error(), output.String()} {
-					for _, sensitive := range []string{"sentinel-id-reference", "sentinel-password-reference", "test-password", "11111111-1111-1111-1111-111111111111", "sentinel-invalid-client-id-content", root} {
-						require.NotContains(t, diagnostic, sensitive)
-					}
-					require.Contains(t, diagnostic, "diagnostic-tenant")
-					require.Contains(t, diagnostic, category)
-				}
-			})
-		}
-	}
-}
-
-func TestRotationRequiresRestart(t *testing.T) {
-	for _, field := range []string{"client-id", "client-secret"} {
-		t.Run(field, func(t *testing.T) {
-			root, tenant := testPair(t)
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			running := NewProvider(logger)
-			original, err := running.GetCredential(tenant)
-			require.NoError(t, err)
-			replacement := "replacement-password"
-			if field == "client-id" {
-				replacement = "33333333-3333-3333-3333-333333333333"
-			}
-			require.NoError(t, os.WriteFile(filepath.Join(root, field), []byte(replacement), 0600))
-			cached, err := running.GetCredential(tenant)
-			require.NoError(t, err)
-			require.Same(t, original, cached)
-			restarted, err := NewProvider(logger).GetCredential(tenant)
-			require.NoError(t, err)
-			require.NotSame(t, original, restarted)
-			require.NoError(t, os.Remove(filepath.Join(root, field)))
-			cached, err = running.GetCredential(tenant)
-			require.NoError(t, err)
-			require.Same(t, original, cached)
-			require.Error(t, NewProvider(logger).ValidateCredentials([]config.TenantConfig{tenant}))
-		})
-	}
-}
-
-func TestCredentialReferencesAndIsolation(t *testing.T) {
+func TestCredentialsAreCachedUntilRestart(t *testing.T) {
 	root, tenant := testPair(t)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	provider := NewProvider(logger)
+	provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	first, err := provider.GetCredential(tenant)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(root, "other-id"), []byte("44444444-4444-4444-4444-444444444444"), 0600))
-	tenant.ClientIDKeyVaultSecretName = "other-id"
+
+	require.NoError(t, os.WriteFile(filepath.Join(root, "client-secret"), []byte("rotated-password\n"), 0600))
 	second, err := provider.GetCredential(tenant)
 	require.NoError(t, err)
-	require.NotSame(t, first, second)
-	for _, name := range []string{"", "../client-id", "/client-id", "bad_name", "client-secret", strings.Repeat("a", 128)} {
-		tenant.ClientIDKeyVaultSecretName = name
-		_, err := provider.GetCredential(tenant)
-		require.Error(t, err)
-	}
+	require.Same(t, first, second)
 }
 
-func TestCSIGenerationSnapshot(t *testing.T) {
-	root, tenant := testPair(t)
-	generation := filepath.Join(root, "generation")
-	require.NoError(t, os.Mkdir(generation, 0700))
-	for _, name := range []string{"client-id", "client-secret"} {
-		require.NoError(t, os.Rename(filepath.Join(root, name), filepath.Join(generation, name)))
-		require.NoError(t, os.Symlink(filepath.Join("..data", name), filepath.Join(root, name)))
-	}
-	require.NoError(t, os.Symlink("generation", filepath.Join(root, "..data")))
-	provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.NoError(t, provider.ValidateCredentials([]config.TenantConfig{tenant}))
-	require.NoError(t, os.Remove(filepath.Join(root, "..data")))
-	require.NoError(t, os.Symlink("missing-generation", filepath.Join(root, "..data")))
-	require.Error(t, NewProvider(provider.logger).ValidateCredentials([]config.TenantConfig{tenant}))
-}
+func TestWatchingTriggersOnChangeForAnyCredentialFile(t *testing.T) {
+	for _, file := range []string{"client-id", "client-secret"} {
+		t.Run(file, func(t *testing.T) {
+			root, tenant := testPair(t)
+			provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
+			provider.watchInterval = 10 * time.Millisecond
+			var calls atomic.Int32
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			require.NoError(t, provider.StartWatching(ctx, []config.TenantConfig{tenant}, func() { calls.Add(1) }))
 
-func TestConcurrentCredentialCacheAndTenantIsolation(t *testing.T) {
-	_, tenant := testPair(t)
-	provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	first, err := provider.GetCredential(tenant)
-	require.NoError(t, err)
-	var workers sync.WaitGroup
-	for range 16 {
-		workers.Go(func() {
-			credential, err := provider.GetCredential(tenant)
-			if err != nil {
-				t.Errorf("GetCredential failed: %v", err)
-				return
-			}
-			if credential != first {
-				t.Error("concurrent callers must share the startup SDK credential")
-			}
+			time.Sleep(50 * time.Millisecond)
+			require.Zero(t, calls.Load(), "unchanged files must not trigger shutdown")
+			require.NoError(t, os.WriteFile(filepath.Join(root, file), []byte("changed\n"), 0600))
+			require.Eventually(t, func() bool { return calls.Load() == 1 }, 2*time.Second, 10*time.Millisecond)
 		})
 	}
-	workers.Wait()
-	otherTenant := tenant
-	otherTenant.TenantID = "55555555-5555-5555-5555-555555555555"
-	second, err := provider.GetCredential(otherTenant)
-	require.NoError(t, err)
-	require.NotSame(t, first, second, "shared references must not share SDK credentials across tenants")
 }

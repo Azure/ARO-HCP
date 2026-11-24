@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -97,6 +98,14 @@ func run(logger *slog.Logger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	var credentialsChanged atomic.Bool
+	if err := credProvider.StartWatching(ctx, cfg.Tenants, func() {
+		credentialsChanged.Store(true)
+		cancel()
+	}); err != nil {
+		return fmt.Errorf("start credential watchers: %w", err)
+	}
+
 	if cfg.HasSubscriptions() {
 		if err := resolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
 			return fmt.Errorf("subscription ID resolution failed: %w", err)
@@ -142,7 +151,11 @@ func run(logger *slog.Logger) error {
 		Handler:           newHTTPHandler(registry),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	return serve(ctx, cancel, logger, server, controllers...)
+	serveErr := serve(ctx, cancel, logger, server, controllers...)
+	if serveErr == nil && credentialsChanged.Load() {
+		return fmt.Errorf("mounted credential files changed; exiting so the restarted container loads them")
+	}
+	return serveErr
 }
 
 // Start normally blocks until cancellation, but returns after recovering a

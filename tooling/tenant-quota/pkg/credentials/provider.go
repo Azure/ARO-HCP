@@ -15,6 +15,7 @@
 package credentials
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,15 +23,19 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
 
 const (
 	secretsStorePath   = "/mnt/secrets-store"
 	secretsStoreEnvVar = "SECRETS_STORE_PATH"
+
+	defaultWatchInterval = time.Minute
 )
 
 var clientIDPattern = regexp.MustCompile(`^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$`)
@@ -42,10 +47,13 @@ type credentialKey struct {
 }
 
 type Provider struct {
-	logger    *slog.Logger
-	root      string
-	credCache map[credentialKey]*azidentity.ClientSecretCredential
-	credMu    sync.Mutex
+	logger *slog.Logger
+	root   string
+
+	watchInterval time.Duration
+	watchStarted  bool
+	credCache     map[credentialKey]*azidentity.ClientSecretCredential
+	credMu        sync.Mutex
 }
 
 func NewProvider(logger *slog.Logger) *Provider {
@@ -53,7 +61,7 @@ func NewProvider(logger *slog.Logger) *Provider {
 	if root == "" {
 		root = secretsStorePath
 	}
-	return &Provider{logger: logger, root: root, credCache: make(map[credentialKey]*azidentity.ClientSecretCredential)}
+	return &Provider{logger: logger, root: root, watchInterval: defaultWatchInterval, credCache: make(map[credentialKey]*azidentity.ClientSecretCredential)}
 }
 
 func (p *Provider) ValidateCredentials(tenants []config.TenantConfig) error {
@@ -114,4 +122,39 @@ func readSecret(root, name string) (string, error) {
 		return "", fmt.Errorf("credential file is empty")
 	}
 	return value, nil
+}
+
+// StartWatching watches every mounted client-ID and client-secret file and
+// calls onChange once if any of them changes. Credentials are cached for the
+// life of the process, so onChange is expected to shut the process down and let
+// Kubernetes restart the container, which loads the new files.
+func (p *Provider) StartWatching(ctx context.Context, tenants []config.TenantConfig, onChange func()) error {
+	if p.watchStarted {
+		return nil
+	}
+	paths := map[string]struct{}{}
+	for _, tenant := range tenants {
+		paths[filepath.Join(p.root, tenant.ClientIDKeyVaultSecretName)] = struct{}{}
+		paths[filepath.Join(p.root, tenant.ClientSecretKeyVaultSecretName)] = struct{}{}
+	}
+
+	var once sync.Once
+	watchCtx := utils.ContextWithLogger(ctx, utils.DefaultLogger())
+	for path := range paths {
+		watcher, err := utils.NewFSWatcher(path, p.watchInterval, func(context.Context) error {
+			once.Do(func() {
+				p.logger.Warn("Mounted credential file changed; shutting down to reload credentials", "path", path)
+				onChange()
+			})
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("create credential watcher for %s: %w", path, err)
+		}
+		if err := watcher.Start(watchCtx); err != nil {
+			return fmt.Errorf("start credential watcher for %s: %w", path, err)
+		}
+	}
+	p.watchStarted = true
+	return nil
 }

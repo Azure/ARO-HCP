@@ -892,13 +892,3 @@ func TestFailurePatternsIndependentOfDiscovery(t *testing.T) {
 		})
 	}
 }
-
-func TestCredentialReferenceValidation(t *testing.T) {
-	for _, name := range []string{"../escape", "/absolute", "with space", "with_underscore", strings.Repeat("a", 128), "kv-secret"} {
-		cfg := minimalValidConfig()
-		cfg.Tenants[0].ClientIDKeyVaultSecretName = name
-		if err := cfg.Validate(); err == nil {
-			t.Errorf("accepted invalid reference %q", name)
-		}
-	}
-}

@@ -62,15 +62,13 @@ SECRETS_DIR := _output/secrets
 
 fetch-secrets: _output/config.yaml
 	@mkdir -p $(SECRETS_DIR)
-	@chmod 700 $(SECRETS_DIR)
-	@umask 077; for secret_name in $$( $(YQ) -r '.tenants[] | .clientIdKeyVaultSecretName, .clientSecretKeyVaultSecretName' _output/config.yaml | sort -u); do \
+	@for secret_name in $$($(YQ) -r '.tenants[] | .clientIdKeyVaultSecretName, .clientSecretKeyVaultSecretName' _output/config.yaml | sort -u); do \
 		echo "Fetching secret: $$secret_name"; \
 		az keyvault secret show \
 			--vault-name $(KEYVAULT_NAME) \
 			--name "$$secret_name" \
-			--query value -o tsv > $(SECRETS_DIR)/$$secret_name.tmp || \
-			{ rm -f $(SECRETS_DIR)/$$secret_name.tmp; echo "ERROR: Failed to fetch $$secret_name"; exit 1; }; \
-		mv $(SECRETS_DIR)/$$secret_name.tmp $(SECRETS_DIR)/$$secret_name; \
+			--query value -o tsv > $(SECRETS_DIR)/$$secret_name || \
+			{ echo "ERROR: Failed to fetch $$secret_name"; exit 1; }; \
 	done
 	@echo "Secrets stored in $(SECRETS_DIR)/"
 .PHONY: fetch-secrets
@@ -82,8 +80,12 @@ run: _output/config.yaml fetch-secrets
 	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run .
 
 run-image: image _output/config.yaml fetch-secrets
-	bash scripts/run-image.sh "$(CONTAINER_ENGINE)" "${TENANT_QUOTA_TAGGED_IMAGE}" \
-		"$(abspath _output/config.yaml)" "$(abspath $(SECRETS_DIR))"
+	$(CONTAINER_ENGINE) run --rm -p 8080:8080 \
+		-e CONFIG_PATH=/config.yaml \
+		-e SECRETS_STORE_PATH=/secrets \
+		-v "$(abspath _output/config.yaml):/config.yaml:ro" \
+		-v "$(abspath $(SECRETS_DIR)):/secrets:ro" \
+		${TENANT_QUOTA_TAGGED_IMAGE}
 .PHONY: run-image
 
 clean:
