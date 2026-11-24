@@ -3,6 +3,7 @@ prometheusRules:
   - alerts/mgmt-capacity-prometheusRule.yaml
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - alerts/HCPclusterOperators-prometheusRule.yaml
+  - alerts/cluster-monitoring-prometheusRule.yaml
   - ../kube-applier/alerts/kube-applier-prometheusRule.yaml
   untestedRules: []
   testDependencies:

@@ -1,0 +1,139 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: cluster-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  # Cluster Monitoring user journey (ARO-26147 / ARO-26272).
+  # Candidate rules for SAW alert-tester validation before raising severity.
+  # CMO health uses cluster_operator_conditions (already present in hcps AMW).
+  # Alertmanager / guest prometheus-operator use guest-side series that may be
+  # absent until DP scrape coverage exists — alert-tester will show that.
+  - name: cluster-monitoring-rules
+    labels:
+      component: slo
+    rules:
+    # Monitoring ClusterOperator Available=false on an HCP that has workers.
+    - alert: UJClusterMonitoringOperatorUnavailable
+      expr: |
+        max by (cluster, namespace) (
+          cluster_operator_conditions{name="monitoring", condition="available"}
+        ) == 0
+        and on (cluster, namespace)
+        (
+          sum by (cluster, namespace) (node_collector_zone_size) > 0
+        )
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-monitoring-availability
+        service: cluster-monitoring
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster Monitoring operator unavailable on {{ $labels.namespace }}"
+        description: |
+          The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+          (management cluster {{ $labels.cluster }}) has been Available=false for 30 minutes
+          while worker nodes are present. Customer/platform monitoring (CMO, Alertmanager,
+          prometheus-operator) may be down or not reconciling.
+        correlationId: "UJClusterMonitoringOperatorUnavailable/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+
+    # Monitoring ClusterOperator Degraded=true on an HCP that has workers.
+    - alert: UJClusterMonitoringOperatorDegraded
+      expr: |
+        max by (cluster, namespace) (
+          cluster_operator_conditions{name="monitoring", condition="degraded"}
+        ) == 1
+        and on (cluster, namespace)
+        (
+          sum by (cluster, namespace) (node_collector_zone_size) > 0
+        )
+      for: 2h
+      labels:
+        severity: "4"
+        slo: cluster-monitoring-availability
+        service: cluster-monitoring
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster Monitoring operator degraded on {{ $labels.namespace }}"
+        description: |
+          The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+          (management cluster {{ $labels.cluster }}) has been Degraded=true for 2 hours
+          while worker nodes are present. Alert routing or scrape targets may be impaired.
+        correlationId: "UJClusterMonitoringOperatorDegraded/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+
+    # Guest Alertmanager (alertmanager-main) not ready. Requires guest
+    # openshift-monitoring kube-state-metrics series in the HCP workspace.
+    # Worker gate is on (cluster) only: guest series keep namespace=openshift-monitoring
+    # while node_collector_zone_size is labeled with the HCP (ocm-*) namespace.
+    - alert: UJAlertmanagerMainNotReady
+      expr: |
+        (
+          max by (cluster, namespace) (
+            kube_statefulset_status_replicas_ready{
+              statefulset="alertmanager-main",
+              namespace="openshift-monitoring"
+            }
+          )
+          /
+          clamp_min(
+            max by (cluster, namespace) (
+              kube_statefulset_replicas{
+                statefulset="alertmanager-main",
+                namespace="openshift-monitoring"
+              }
+            ),
+            1
+          )
+        ) < 1
+        and on (cluster)
+        (
+          sum by (cluster) (node_collector_zone_size) > 0
+        )
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-monitoring-availability
+        service: cluster-monitoring
+      annotations:
+        summary: "{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.namespace }}"
+        description: |
+          alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          (management cluster {{ $labels.cluster }}) has had ready replicas below desired for
+          30 minutes. Customer alert notifications may be delayed or stopped.
+        correlationId: "UJAlertmanagerMainNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+
+    # Guest prometheus-operator not ready. Distinct from underlay
+    # PrometheusOperatorNotReady (namespace=prometheus on services AMW).
+    - alert: UJGuestPrometheusOperatorNotReady
+      expr: |
+        min by (cluster, namespace) (
+          prometheus_operator_ready{
+            job="prometheus-operator",
+            namespace="openshift-monitoring"
+          }
+        ) == 0
+        and on (cluster)
+        (
+          sum by (cluster) (node_collector_zone_size) > 0
+        )
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-monitoring-availability
+        service: cluster-monitoring
+      annotations:
+        summary: "{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.namespace }}"
+        description: |
+          prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          (management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
+          Guest Prometheus / Alertmanager CRs may not reconcile.
+        correlationId: "UJGuestPrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"

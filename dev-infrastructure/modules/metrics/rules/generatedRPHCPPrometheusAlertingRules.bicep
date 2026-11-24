@@ -17,15 +17,13 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability1h5m'
         enabled: true
         labels: {
@@ -54,15 +52,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability6h30m'
         enabled: true
         labels: {
@@ -91,15 +87,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability3d6h'
         enabled: true
         labels: {
@@ -141,15 +135,13 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'hypershiftCPODown'
         enabled: true
         labels: {
@@ -190,15 +182,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailability6Hourly'
         enabled: true
         labels: {
@@ -220,15 +210,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailabilityDaily'
         enabled: true
         labels: {
@@ -250,15 +238,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailabilityWeekly'
         enabled: true
         labels: {
@@ -280,15 +266,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupNeverSucceeded6Hourly'
         enabled: true
         labels: {
@@ -310,15 +294,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupNeverSucceededDaily'
         enabled: true
         labels: {
@@ -340,15 +322,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupNeverSucceededWeekly'
         enabled: true
         labels: {
@@ -383,15 +363,13 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupErrors'
         enabled: true
         labels: {
@@ -425,15 +403,13 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupLatency'
         enabled: true
         labels: {
@@ -467,15 +443,13 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupTraffic'
         enabled: true
         labels: {
@@ -509,15 +483,13 @@ resource arohcpSwiftNetworkingAlerts 'Microsoft.AlertsManagement/prometheusRuleG
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneySwiftRouterAvailability1h5m'
         enabled: true
         labels: {
@@ -541,15 +513,13 @@ resource arohcpSwiftNetworkingAlerts 'Microsoft.AlertsManagement/prometheusRuleG
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneySwiftRouterAvailability6h30m'
         enabled: true
         labels: {
@@ -573,15 +543,13 @@ resource arohcpSwiftNetworkingAlerts 'Microsoft.AlertsManagement/prometheusRuleG
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneySwiftRouterAvailability3d6h'
         enabled: true
         labels: {
@@ -618,15 +586,13 @@ resource arohcpIngressAvailabilitySloAlerts 'Microsoft.AlertsManagement/promethe
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyIngressAvailabilityErrors1h5m'
         enabled: true
         labels: {
@@ -653,15 +619,13 @@ Resource ID: {{ $labels.resource_id }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyIngressAvailabilityErrors6h30m'
         enabled: true
         labels: {
@@ -688,15 +652,13 @@ Resource ID: {{ $labels.resource_id }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyIngressAvailabilityErrors3d6h'
         enabled: true
         labels: {
@@ -736,15 +698,13 @@ resource arohcpIngressCanaryLivenessAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyIngressCanaryAbsent'
         enabled: true
         labels: {
@@ -766,6 +726,157 @@ Resource ID: {{ $labels.resource_id }}
         }
         expression: '(count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available:live * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))'
         for: 'PT10M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource clusterMonitoringRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'cluster-monitoring-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'UJClusterMonitoringOperatorUnavailable'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'cluster-monitoring'
+          severity: '4'
+          slo: 'cluster-monitoring-availability'
+        }
+        annotations: {
+          correlationId: 'UJClusterMonitoringOperatorUnavailable/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been Available=false for 30 minutes
+while worker nodes are present. Customer/platform monitoring (CMO, Alertmanager,
+prometheus-operator) may be down or not reconciling.
+'''
+          info: '''The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been Available=false for 30 minutes
+while worker nodes are present. Customer/platform monitoring (CMO, Alertmanager,
+prometheus-operator) may be down or not reconciling.
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
+          summary: '{{ $labels.cluster }}: Cluster Monitoring operator unavailable on {{ $labels.namespace }}'
+          title: '{{ $labels.cluster }}: Cluster Monitoring operator unavailable on {{ $labels.namespace }}'
+        }
+        expression: 'max by (cluster, namespace, region) (cluster_operator_conditions{condition="available",name="monitoring"}) == 0 and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'UJClusterMonitoringOperatorDegraded'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'cluster-monitoring'
+          severity: '4'
+          slo: 'cluster-monitoring-availability'
+        }
+        annotations: {
+          correlationId: 'UJClusterMonitoringOperatorDegraded/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been Degraded=true for 2 hours
+while worker nodes are present. Alert routing or scrape targets may be impaired.
+'''
+          info: '''The monitoring ClusterOperator on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been Degraded=true for 2 hours
+while worker nodes are present. Alert routing or scrape targets may be impaired.
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
+          summary: '{{ $labels.cluster }}: Cluster Monitoring operator degraded on {{ $labels.namespace }}'
+          title: '{{ $labels.cluster }}: Cluster Monitoring operator degraded on {{ $labels.namespace }}'
+        }
+        expression: 'max by (cluster, namespace, region) (cluster_operator_conditions{condition="degraded",name="monitoring"}) == 1 and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
+        for: 'PT2H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'UJAlertmanagerMainNotReady'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'cluster-monitoring'
+          severity: '4'
+          slo: 'cluster-monitoring-availability'
+        }
+        annotations: {
+          correlationId: 'UJAlertmanagerMainNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has had ready replicas below desired for
+30 minutes. Customer alert notifications may be delayed or stopped.
+'''
+          info: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has had ready replicas below desired for
+30 minutes. Customer alert notifications may be delayed or stopped.
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
+          summary: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.namespace }}'
+          title: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.namespace }}'
+        }
+        expression: '(max by (cluster, namespace, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, namespace, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster) (sum by (cluster, region) (node_collector_zone_size) > 0)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'UJGuestPrometheusOperatorNotReady'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'cluster-monitoring'
+          severity: '4'
+          slo: 'cluster-monitoring-availability'
+        }
+        annotations: {
+          correlationId: 'UJGuestPrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
+Guest Prometheus / Alertmanager CRs may not reconcile.
+'''
+          info: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+(management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
+Guest Prometheus / Alertmanager CRs may not reconcile.
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
+          summary: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.namespace }}'
+          title: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.namespace }}'
+        }
+        expression: 'min by (cluster, namespace, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster) (sum by (cluster, region) (node_collector_zone_size) > 0)'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
