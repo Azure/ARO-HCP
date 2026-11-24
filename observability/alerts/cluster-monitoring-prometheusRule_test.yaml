@@ -5,40 +5,58 @@ tests:
 - interval: 1m
   input_series:
   # --- UJClusterMonitoringOperatorUnavailable ---
+  # Fires then recovers (available 0 for 40m, then 1).
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-mon-down", name="monitoring", condition="available"}'
-    values: "0+0x180"
+    values: "0x40 1x40"
   - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="hcp-mon-down", zone="z1"}'
     values: "3+0x180"
+  # No workers -> never fires
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-mon-noworker", name="monitoring", condition="available"}'
     values: "0+0x180"
+  # Healthy -> never fires
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-mon-ok", name="monitoring", condition="available"}'
     values: "1+0x180"
   - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="hcp-mon-ok", zone="z1"}'
     values: "3+0x180"
 
   # --- UJClusterMonitoringOperatorDegraded ---
+  # Fires then recovers (degraded 1 for 130m, then 0).
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-mon-degraded", name="monitoring", condition="degraded"}'
-    values: "1+0x180"
+    values: "1x130 0x40"
   - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="hcp-mon-degraded", zone="z1"}'
     values: "3+0x180"
 
   # --- UJAlertmanagerMainNotReady ---
-  - series: 'kube_statefulset_status_replicas_ready{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main"}'
-    values: "0+0x180"
-  - series: 'kube_statefulset_replicas{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main"}'
+  # Unhealthy HCP (0/2) + healthy peer HCP (2/2) on same MC: only unhealthy fires.
+  - series: 'kube_statefulset_status_replicas_ready{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main", hostedcontrolplane="ocm-hcp-am-bad"}'
+    values: "0x40 2x40"
+  - series: 'kube_statefulset_replicas{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main", hostedcontrolplane="ocm-hcp-am-bad"}'
     values: "2+0x180"
-  # cluster-level worker presence for on (cluster) gate
-  - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="hcp-any", zone="z1"}'
+  - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="ocm-hcp-am-bad", zone="z1"}'
+    values: "3+0x180"
+  - series: 'kube_statefulset_status_replicas_ready{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main", hostedcontrolplane="ocm-hcp-am-ok"}'
+    values: "2+0x180"
+  - series: 'kube_statefulset_replicas{cluster="mgmt-1", namespace="openshift-monitoring", statefulset="alertmanager-main", hostedcontrolplane="ocm-hcp-am-ok"}'
+    values: "2+0x180"
+  - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="ocm-hcp-am-ok", zone="z1"}'
     values: "3+0x180"
 
   # --- UJGuestPrometheusOperatorNotReady ---
-  - series: 'prometheus_operator_ready{cluster="mgmt-1", namespace="openshift-monitoring", job="prometheus-operator", controller="prometheus"}'
-    values: "0+0x180"
+  - series: 'prometheus_operator_ready{cluster="mgmt-1", namespace="openshift-monitoring", job="prometheus-operator", controller="prometheus", hostedcontrolplane="ocm-hcp-po-bad"}'
+    values: "0x40 1x40"
+  - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="ocm-hcp-po-bad", zone="z1"}'
+    values: "3+0x180"
+  - series: 'prometheus_operator_ready{cluster="mgmt-1", namespace="openshift-monitoring", job="prometheus-operator", controller="prometheus", hostedcontrolplane="ocm-hcp-po-ok"}'
+    values: "1+0x180"
+  - series: 'node_collector_zone_size{cluster="mgmt-1", namespace="ocm-hcp-po-ok", zone="z1"}'
+    values: "3+0x180"
 
   alert_rule_test:
+  # Unavailable: not yet
   - eval_time: 20m
     alertname: UJClusterMonitoringOperatorUnavailable
     exp_alerts: []
+  # Unavailable: fires
   - eval_time: 35m
     alertname: UJClusterMonitoringOperatorUnavailable
     exp_alerts:
@@ -54,10 +72,16 @@ tests:
         description: "The monitoring ClusterOperator on hosted cluster hcp-mon-down\n(management cluster mgmt-1) has been Available=false for 30 minutes\nwhile worker nodes are present. Customer/platform monitoring (CMO, Alertmanager,\nprometheus-operator) may be down or not reconciling.\n"
         correlationId: "UJClusterMonitoringOperatorUnavailable/mgmt-1/hcp-mon-down"
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+  # Unavailable: recovered
+  - eval_time: 50m
+    alertname: UJClusterMonitoringOperatorUnavailable
+    exp_alerts: []
 
+  # Degraded: not yet
   - eval_time: 60m
     alertname: UJClusterMonitoringOperatorDegraded
     exp_alerts: []
+  # Degraded: fires
   - eval_time: 125m
     alertname: UJClusterMonitoringOperatorDegraded
     exp_alerts:
@@ -73,35 +97,49 @@ tests:
         description: "The monitoring ClusterOperator on hosted cluster hcp-mon-degraded\n(management cluster mgmt-1) has been Degraded=true for 2 hours\nwhile worker nodes are present. Alert routing or scrape targets may be impaired.\n"
         correlationId: "UJClusterMonitoringOperatorDegraded/mgmt-1/hcp-mon-degraded"
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+  # Degraded: recovered
+  - eval_time: 140m
+    alertname: UJClusterMonitoringOperatorDegraded
+    exp_alerts: []
 
+  # Alertmanager: fires only for bad HCP (healthy peer does not mask)
   - eval_time: 35m
     alertname: UJAlertmanagerMainNotReady
     exp_alerts:
     - exp_labels:
         cluster: mgmt-1
         component: slo
-        namespace: openshift-monitoring
+        hostedcontrolplane: ocm-hcp-am-bad
         severity: "4"
         slo: cluster-monitoring-availability
         service: cluster-monitoring
       exp_annotations:
-        summary: "mgmt-1: alertmanager-main not ready on openshift-monitoring"
-        description: "alertmanager-main in openshift-monitoring on hosted cluster openshift-monitoring\n(management cluster mgmt-1) has had ready replicas below desired for\n30 minutes. Customer alert notifications may be delayed or stopped.\n"
-        correlationId: "UJAlertmanagerMainNotReady/mgmt-1/openshift-monitoring"
+        summary: "mgmt-1: alertmanager-main not ready on ocm-hcp-am-bad"
+        description: "alertmanager-main in openshift-monitoring on hosted cluster ocm-hcp-am-bad\n(management cluster mgmt-1) has had ready replicas below desired for\n30 minutes. Customer alert notifications may be delayed or stopped.\n"
+        correlationId: "UJAlertmanagerMainNotReady/mgmt-1/ocm-hcp-am-bad"
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+  # Alertmanager: recovered
+  - eval_time: 50m
+    alertname: UJAlertmanagerMainNotReady
+    exp_alerts: []
 
+  # Guest prometheus-operator: fires only for bad HCP
   - eval_time: 35m
     alertname: UJGuestPrometheusOperatorNotReady
     exp_alerts:
     - exp_labels:
         cluster: mgmt-1
         component: slo
-        namespace: openshift-monitoring
+        hostedcontrolplane: ocm-hcp-po-bad
         severity: "4"
         slo: cluster-monitoring-availability
         service: cluster-monitoring
       exp_annotations:
-        summary: "mgmt-1: guest prometheus-operator not ready on openshift-monitoring"
-        description: "prometheus-operator in openshift-monitoring on hosted cluster openshift-monitoring\n(management cluster mgmt-1) has been not-ready for 30 minutes.\nGuest Prometheus / Alertmanager CRs may not reconcile.\n"
-        correlationId: "UJGuestPrometheusOperatorNotReady/mgmt-1/openshift-monitoring"
+        summary: "mgmt-1: guest prometheus-operator not ready on ocm-hcp-po-bad"
+        description: "prometheus-operator in openshift-monitoring on hosted cluster ocm-hcp-po-bad\n(management cluster mgmt-1) has been not-ready for 30 minutes.\nGuest Prometheus / Alertmanager CRs may not reconcile.\n"
+        correlationId: "UJGuestPrometheusOperatorNotReady/mgmt-1/ocm-hcp-po-bad"
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
+  # Guest prometheus-operator: recovered
+  - eval_time: 50m
+    alertname: UJGuestPrometheusOperatorNotReady
+    exp_alerts: []

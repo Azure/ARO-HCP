@@ -828,20 +828,20 @@ while worker nodes are present. Alert routing or scrape targets may be impaired.
           slo: 'cluster-monitoring-availability'
         }
         annotations: {
-          correlationId: 'UJAlertmanagerMainNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          correlationId: 'UJAlertmanagerMainNotReady/{{ $labels.cluster }}/{{ $labels.hostedcontrolplane }}'
+          description: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
 (management cluster {{ $labels.cluster }}) has had ready replicas below desired for
 30 minutes. Customer alert notifications may be delayed or stopped.
 '''
-          info: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          info: '''alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
 (management cluster {{ $labels.cluster }}) has had ready replicas below desired for
 30 minutes. Customer alert notifications may be delayed or stopped.
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
-          summary: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.namespace }}'
-          title: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.namespace }}'
+          summary: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.hostedcontrolplane }}'
+          title: '{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.hostedcontrolplane }}'
         }
-        expression: '(max by (cluster, namespace, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, namespace, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster) (sum by (cluster, region) (node_collector_zone_size) > 0)'
+        expression: '(max by (cluster, hostedcontrolplane, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -862,20 +862,20 @@ while worker nodes are present. Alert routing or scrape targets may be impaired.
           slo: 'cluster-monitoring-availability'
         }
         annotations: {
-          correlationId: 'UJGuestPrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          correlationId: 'UJGuestPrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.hostedcontrolplane }}'
+          description: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
 (management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
 Guest Prometheus / Alertmanager CRs may not reconcile.
 '''
-          info: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.namespace }}
+          info: '''prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
 (management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
 Guest Prometheus / Alertmanager CRs may not reconcile.
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
-          summary: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.namespace }}'
-          title: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.namespace }}'
+          summary: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.hostedcontrolplane }}'
+          title: '{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.hostedcontrolplane }}'
         }
-        expression: 'min by (cluster, namespace, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster) (sum by (cluster, region) (node_collector_zone_size) > 0)'
+        expression: 'min by (cluster, hostedcontrolplane, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

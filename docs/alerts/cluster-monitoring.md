@@ -8,17 +8,27 @@ Implementation notes for
 IcM `runbook_url` points at
 [aka.ms/arohcp-runbook-cluster-monitoring](https://aka.ms/arohcp-runbook-cluster-monitoring).
 
+Registered only in `observability/alerts-rp-hcps.yaml` (not DEV) so the Azure
+`prometheusRuleGroup` name does not collide with the DEV HCP module's action
+groups.
+
 All four alerts ship at severity `"4"` until SAW alert-tester confirms series
-presence and firing rates against prod/int hcps datasources.
+presence and firing rates against prod/int `hcps-*` datasources.
 
 ## Coverage
 
-| Alert | Signal | Notes |
+| Alert | Signal | HCP identity |
 |---|---|---|
-| `UJClusterMonitoringOperatorUnavailable` | `cluster_operator_conditions{name="monitoring", condition="available"} == 0` | Worker-gated. Overlaps broadly with `HCPClusterOperatorUnavailable` but scopes to the monitoring CO only. |
-| `UJClusterMonitoringOperatorDegraded` | `cluster_operator_conditions{name="monitoring", condition="degraded"} == 1` | Worker-gated. |
-| `UJAlertmanagerMainNotReady` | `kube_statefulset_*{statefulset="alertmanager-main", namespace="openshift-monitoring"}` | Guest DP series — may be absent from AMW until DP scrape exists. |
-| `UJGuestPrometheusOperatorNotReady` | `prometheus_operator_ready{namespace="openshift-monitoring"}` | Distinct from underlay `PrometheusOperatorNotReady` (`namespace="prometheus"` on services). |
+| `UJClusterMonitoringOperatorUnavailable` | `cluster_operator_conditions{name="monitoring", condition="available"} == 0` | `namespace` |
+| `UJClusterMonitoringOperatorDegraded` | `cluster_operator_conditions{name="monitoring", condition="degraded"} == 1` | `namespace` |
+| `UJAlertmanagerMainNotReady` | `kube_statefulset_*{statefulset="alertmanager-main", namespace="openshift-monitoring"}` | `hostedcontrolplane` |
+| `UJGuestPrometheusOperatorNotReady` | `prometheus_operator_ready{namespace="openshift-monitoring"}` | `hostedcontrolplane` |
+
+Guest Alertmanager / prometheus-operator series keep `namespace=openshift-monitoring`
+and carry the HCP id on `hostedcontrolplane` (see HCP remote_write keep rules in
+`observability/prometheus/deploy/templates/prometheus.yaml`). Worker gates join
+via `label_replace` of `node_collector_zone_size` namespace → `hostedcontrolplane`
+so one HCP's workers cannot gate another.
 
 ## SAW alert-tester (metric presence first)
 
