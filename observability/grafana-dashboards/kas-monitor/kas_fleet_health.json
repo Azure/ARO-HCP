@@ -2020,7 +2020,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "topk(10, kas:apiserver_request_terminations:rate5m{cluster=~\"$cluster\"} > 0)",
+              "expr": "kas:apiserver_request_terminations:rate5m{cluster=~\"$cluster\"} > 0",
               "format": "table",
               "instant": true,
               "legendFormat": "__auto",
