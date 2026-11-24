@@ -49,6 +49,10 @@ and base SHAs, target branch, trusted actor, exact ownership marker, title, body
 and complete expected changed-file set. The marker must be a standalone line in
 the body. A returned receipt identifies the verified PR and observed head.
 
+Set `ExpectedNumber` when updating a previously authorized PR. A missing, closed
+or different PR fails without falling back to creation. Publication requests must
+contain fewer than `MaxPublicationFiles` (3,000) changed paths.
+
 When a caller has separately verified an existing PR's old ownership metadata,
 `PreviousMarker` permits replacing that exact marker. The write and its read-back
 must contain the new `Marker`, not the previous one.

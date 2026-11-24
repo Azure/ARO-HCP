@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/sys/unix"
+
+	automation "github.com/Azure/ARO-HCP/tooling/github"
 )
 
 // Native publication sources bind positive PR identities to immutable commits.
@@ -208,5 +210,12 @@ func nativeValidatePublicationRequest(request nativePublicationRequest) ([]strin
 	if _, err := nativeSafeText(request.Body, false); err != nil {
 		return nil, fmt.Errorf("validate publication body: %w", err)
 	}
-	return nativePatchPaths(request.Patch)
+	paths, err := nativePatchPaths(request.Patch)
+	if err != nil {
+		return nil, fmt.Errorf("validate publication patch paths: %w", err)
+	}
+	if len(paths) >= automation.MaxPublicationFiles {
+		return nil, fmt.Errorf("publication patch must contain fewer than %d files", automation.MaxPublicationFiles)
+	}
+	return paths, nil
 }

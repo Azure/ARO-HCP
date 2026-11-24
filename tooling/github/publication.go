@@ -30,6 +30,8 @@ import (
 // Marker must be an exact standalone HTML comment owned by the caller, not a substring of another marker.
 // Existing proposals retain their readiness; new proposals default to drafts.
 type PublicationRequest struct {
+	// ExpectedNumber restricts publication to this exact open owned proposal; zero permits creation.
+	ExpectedNumber int
 	HeadRepository string
 	HeadRef        string
 	ExpectedHead   string
@@ -110,6 +112,9 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 	}
 	if len(owned) > 1 {
 		return nil, fmt.Errorf("multiple owned proposals: %w", ErrConflict)
+	}
+	if r.ExpectedNumber > 0 && (len(owned) != 1 || owned[0].Number != r.ExpectedNumber) {
+		return nil, fmt.Errorf("expected open owned proposal is absent: %w", ErrConflict)
 	}
 	return owned, nil
 }
@@ -202,6 +207,9 @@ func (c *Client) publicationIdentity(p PullRequest, r PublicationRequest) error 
 
 // ValidatePublication checks caller-owned branch, content, and file expectations before API access.
 func (c *Client) validatePublication(r PublicationRequest) error {
+	if r.ExpectedNumber < 0 {
+		return fmt.Errorf("publication expected number must be nonnegative")
+	}
 	if !repositoryPattern.MatchString(r.HeadRepository) || r.HeadRef == "" || r.BaseRef == "" {
 		return fmt.Errorf("publication requires source repository and source and target refs")
 	}
@@ -229,6 +237,9 @@ func (c *Client) validatePublication(r PublicationRequest) error {
 	if len(r.ExpectedFiles) == 0 {
 		return fmt.Errorf("publication requires expected files")
 	}
+	if len(r.ExpectedFiles) >= MaxPublicationFiles {
+		return fmt.Errorf("publication expected files reach the incomplete evidence limit: %w", ErrEvidenceIncomplete)
+	}
 	paths := make(map[string]bool, len(r.ExpectedFiles))
 	for _, path := range r.ExpectedFiles {
 		if path == "" || paths[path] {
@@ -248,7 +259,7 @@ func (c *Client) verifyFiles(ctx context.Context, number int, expected []string)
 		return err
 	}
 	// GitHub caps this endpoint at 3000 files, so reaching that bound is not complete evidence.
-	if len(files) >= 3000 {
+	if len(files) >= MaxPublicationFiles {
 		return ErrEvidenceIncomplete
 	}
 	want := make(map[string]bool, len(expected))
@@ -324,6 +335,15 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 		}
 		receipt.Number = p.GetNumber()
 	} else if prior.Title != r.Title || prior.Body != r.Body {
+		if r.ExpectedNumber > 0 {
+			latest, err := c.boundPull(ctx, r.ExpectedNumber, r.ExpectedHead)
+			if err != nil {
+				return receipt, fmt.Errorf("recheck expected proposal before update: %w", err)
+			}
+			if err := c.publicationIdentity(latest, r); err != nil {
+				return receipt, fmt.Errorf("recheck expected proposal identity before update: %w", err)
+			}
+		}
 		_, _, writeErr := c.writer.PullRequests.Edit(ctx, c.owner, c.repo, prior.Number, &gh.PullRequest{Title: &r.Title, Body: &r.Body})
 		if writeErr != nil {
 			receipt.Outcome = "indeterminate"

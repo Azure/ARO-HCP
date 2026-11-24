@@ -627,3 +627,35 @@ func TestNativePublicationIntegrationSameTargetUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestNativePublicationIntegrationClosedAfterRecheck never recreates a replacement closed before shared inventory.
+func TestNativePublicationIntegrationClosedAfterRecheck(t *testing.T) {
+	f := newNativeIntegrationFixture(t)
+	request := f.request("v1.1.0", "2", 1)
+	first := f.published(request)
+	number := first["number"].(int)
+	pull := f.pulls[number]
+	title, body, draft := pull["title"], pull["body"], pull["draft"]
+	head := first["head_sha"].(string)
+	pullCount := len(f.pulls)
+	f.writes = nil
+	closed := false
+	f.boundary = func(route string) {
+		if route != "GET branches/"+f.branch {
+			return
+		}
+		f.boundary = nil
+		closed = true
+		pull["state"] = "closed"
+	}
+	_, err := f.publish(request)
+	if !closed || !errors.Is(err, automation.ErrConflict) {
+		t.Fatalf("closure did not fail with shared identity conflict: closed=%t err=%v", closed, err)
+	}
+	if len(f.writes) != 0 || len(f.pulls) != pullCount || pull["state"] != "closed" || pull["title"] != title || pull["body"] != body || pull["draft"] != draft {
+		t.Fatalf("closed replacement mutated or recreated: writes=%v pulls=%v", f.writes, f.pulls)
+	}
+	if got := f.remoteGit("rev-parse", "refs/heads/"+f.branch); got != head {
+		t.Fatalf("unchanged replacement branch moved: got=%s want=%s", got, head)
+	}
+}

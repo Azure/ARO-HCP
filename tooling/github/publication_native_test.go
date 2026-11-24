@@ -29,6 +29,7 @@ func TestNativePublicationPreviousMarker(t *testing.T) {
 				pull.Head.SHA = gh.Ptr(strings.Repeat("c", 40))
 			}
 			request := testPublicationRequest()
+			request.ExpectedNumber = 7
 			request.Marker, request.PreviousMarker = next, previous
 			request.Body = "new body\n" + next
 			if mode == "wrong previous marker" {
@@ -108,5 +109,74 @@ func TestNativePublicationPreviousMarkerValidation(t *testing.T) {
 				t.Fatal("malformed prior marker accepted")
 			}
 		})
+	}
+}
+
+// TestPublicationExpectedNumber rejects missing, replaced, or closed proposals without metadata writes.
+func TestPublicationExpectedNumber(t *testing.T) {
+	for _, mode := range []string{"missing", "different number", "closed before edit", "ownership changed before edit"} {
+		t.Run(mode, func(t *testing.T) {
+			request := testPublicationRequest()
+			request.ExpectedNumber = 7
+			request.Title = "updated title"
+			pull := testPull()
+			writes := 0
+			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					writes++
+					http.Error(w, "unexpected mutation", http.StatusMethodNotAllowed)
+					return
+				}
+				switch {
+				case r.URL.Path == "/user":
+					respond(t, w, &gh.User{Login: gh.Ptr("robot")})
+				case strings.HasPrefix(r.URL.Path, "/repos/owner/repo/branches/"):
+					sha := testHead
+					if strings.HasSuffix(r.URL.Path, "/main") {
+						sha = testBase
+					}
+					respond(t, w, &gh.Branch{Commit: &gh.RepositoryCommit{SHA: &sha}})
+				case r.URL.Path == "/repos/owner/repo/pulls":
+					if mode == "missing" {
+						respond(t, w, []*gh.PullRequest{})
+						return
+					}
+					if mode == "different number" {
+						pull.Number = gh.Ptr(8)
+					}
+					respond(t, w, []*gh.PullRequest{testListedPull(pull)})
+				case strings.HasSuffix(r.URL.Path, "/files"):
+					respond(t, w, []*gh.CommitFile{{Filename: gh.Ptr("expected")}})
+				case r.URL.Path == "/repos/owner/repo/pulls/7":
+					if mode == "closed before edit" {
+						pull.State = gh.Ptr("closed")
+					}
+					if mode == "ownership changed before edit" {
+						pull.Body = gh.Ptr("maintainer removed ownership")
+					}
+					respond(t, w, pull)
+				default:
+					t.Errorf("unexpected request %s", r.URL)
+					http.NotFound(w, r)
+				}
+			})
+			_, err := client.Publish(context.Background(), request)
+			if !errors.Is(err, ErrConflict) || writes != 0 {
+				t.Fatalf("expected identity conflict without writes: err=%v writes=%d", err, writes)
+			}
+		})
+	}
+}
+
+// TestPublicationExpectedNumberValidation rejects negative identities before API access.
+func TestPublicationExpectedNumberValidation(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("invalid identity caused network access: %s", r.URL)
+		http.NotFound(w, r)
+	})
+	request := testPublicationRequest()
+	request.ExpectedNumber = -1
+	if _, err := client.Publish(context.Background(), request); err == nil {
+		t.Fatal("negative expected identity accepted")
 	}
 }

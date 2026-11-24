@@ -151,7 +151,9 @@ func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOpti
 		return nil, fmt.Errorf("recheck after branch publication; inspect remote before retry: %w: %w", automation.ErrIndeterminate, err)
 	}
 	previousMarker := ""
+	expectedNumber := 0
 	if authorization.existing != nil {
+		expectedNumber = authorization.existing.GetNumber()
 		for _, line := range strings.Split(authorization.existing.GetBody(), "\n") {
 			if strings.HasPrefix(line, "<!-- "+nativePublicationMarker) {
 				previousMarker = line
@@ -159,6 +161,7 @@ func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOpti
 		}
 	}
 	receipt, err := p.shared.Publish(ctx, automation.PublicationRequest{
+		ExpectedNumber: expectedNumber,
 		HeadRepository: p.repository, HeadRef: branch, ExpectedHead: head,
 		BaseRef: "main", ExpectedBase: request.ExpectedBaseSHA,
 		Actor: nativePublicationRobot, Marker: marker, PreviousMarker: previousMarker,
@@ -166,9 +169,6 @@ func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOpti
 	})
 	if err != nil {
 		return nil, fmt.Errorf("publish replacement PR: %w", err)
-	}
-	if authorization.existing != nil && receipt.Number != authorization.existing.GetNumber() {
-		return nil, fmt.Errorf("published a different replacement: %w", automation.ErrIndeterminate)
 	}
 	if authorization.existing == nil || !nativePublicationHasLabel(authorization.existing, nativePublicationLabel) {
 		if _, _, err := p.writer.Issues.AddLabelsToIssue(ctx, p.owner, p.repo, receipt.Number, []string{nativePublicationLabel}); err != nil {
