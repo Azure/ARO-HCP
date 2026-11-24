@@ -194,7 +194,7 @@ ciFailurePatterns:
 	t.Setenv("SECRETS_STORE_PATH", directory)
 	t.Setenv("CONFIG_PATH", configPath)
 	err := run(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.ErrorContains(t, err, "credential validation failed")
+	require.ErrorContains(t, err, "start credential watchers: tenant test-tenant: client ID: cannot read credential file")
 }
 
 func TestMetricsEndpoint(t *testing.T) {

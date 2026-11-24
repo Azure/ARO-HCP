@@ -97,3 +97,20 @@ func TestWatchingTriggersOnChangeForAnyCredentialFile(t *testing.T) {
 		})
 	}
 }
+
+// A rotation that lands after the watcher baseline but before the credential is
+// loaded must still be detected, so the process cannot keep stale credentials.
+func TestWatchingDetectsRotationBeforeCredentialsAreLoaded(t *testing.T) {
+	root, tenant := testPair(t)
+	provider := NewProvider(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	provider.watchInterval = 10 * time.Millisecond
+	var calls atomic.Int32
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, provider.StartWatching(ctx, []config.TenantConfig{tenant}, func() { calls.Add(1) }))
+
+	require.NoError(t, os.WriteFile(filepath.Join(root, "client-secret"), []byte("rotated\n"), 0600))
+	_, err := provider.GetCredential(tenant)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 2*time.Second, 10*time.Millisecond)
+}

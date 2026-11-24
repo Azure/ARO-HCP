@@ -427,10 +427,29 @@ cd tooling/tenant-quota
 ./scripts/manage-service-principals.sh --list
 ```
 
+The collector reads both values from the Key Vault, so every tenant needs a
+client-ID object next to its client-secret object. `entra-app-credentials ensure-secret`
+publishes `<prefix>-client-id` and `<prefix>-tenant-id` alongside
+`<prefix>-client-secret` for the applications it manages (RedHat0). The
+imperative TestTestARO bootstrap only stores the client secret, so publish its
+client ID once, before the first deployment that references it (the value is the
+application (client) ID, not the object ID, and the CSI volume fails to mount
+while the object is missing):
+
+```bash
+az keyvault secret set --vault-name opstool-kv-usw3 \
+  --name custom-metrics-collector-test-test-azure-arohcp-client-id \
+  --value e46ecbd4-9ef3-439e-a28a-74a4d8270349
+```
+
+Repeat the same step whenever TestTestARO's application is recreated with a new
+client ID, and update the value to the new application ID.
+
 After adding or changing a tenant:
 
 1. Update [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml).
-2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
+2. Publish the tenant's client ID and client secret objects in the opstool Key Vault (see above).
+3. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
 
 ### Check and renew a client secret
 

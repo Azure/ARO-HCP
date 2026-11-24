@@ -88,22 +88,27 @@ func run(logger *slog.Logger) error {
 
 	credProvider := credentials.NewProvider(logger)
 
-	if err := credProvider.ValidateCredentials(cfg.Tenants); err != nil {
-		return fmt.Errorf("credential validation failed: %w", err)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	ctx = utils.ContextWithLogger(ctx, logr.FromSlogHandler(logger.Handler()))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Watch the mounted credential files before loading them so a rotation that
+	// lands during startup is either loaded or detected, never missed.
 	var credentialsChanged atomic.Bool
 	if err := credProvider.StartWatching(ctx, cfg.Tenants, func() {
 		credentialsChanged.Store(true)
 		cancel()
 	}); err != nil {
 		return fmt.Errorf("start credential watchers: %w", err)
+	}
+
+	if err := credProvider.ValidateCredentials(cfg.Tenants); err != nil {
+		return fmt.Errorf("credential validation failed: %w", err)
+	}
+	if credentialsChanged.Load() {
+		return fmt.Errorf("mounted credential files changed during startup; exiting so the restarted container loads them")
 	}
 
 	if cfg.HasSubscriptions() {

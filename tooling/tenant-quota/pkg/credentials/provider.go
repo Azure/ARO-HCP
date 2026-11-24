@@ -128,31 +128,50 @@ func readSecret(root, name string) (string, error) {
 // calls onChange once if any of them changes. Credentials are cached for the
 // life of the process, so onChange is expected to shut the process down and let
 // Kubernetes restart the container, which loads the new files.
+//
+// Callers must start the watchers before loading credentials: a rotation that
+// lands between the load and the watcher baseline would otherwise go unnoticed
+// and leave the process serving stale credentials.
 func (p *Provider) StartWatching(ctx context.Context, tenants []config.TenantConfig, onChange func()) error {
 	if p.watchStarted {
 		return nil
 	}
-	paths := map[string]struct{}{}
+
+	type target struct {
+		path   string
+		field  string
+		tenant string
+	}
+	targets := map[string]target{}
 	for _, tenant := range tenants {
-		paths[filepath.Join(p.root, tenant.ClientIDKeyVaultSecretName)] = struct{}{}
-		paths[filepath.Join(p.root, tenant.ClientSecretKeyVaultSecretName)] = struct{}{}
+		for field, name := range map[string]string{
+			"client ID":     tenant.ClientIDKeyVaultSecretName,
+			"client secret": tenant.ClientSecretKeyVaultSecretName,
+		} {
+			path := filepath.Join(p.root, name)
+			if _, err := readSecret(p.root, name); err != nil {
+				return fmt.Errorf("tenant %s: %s: %w", tenant.GetDisplayName(), field, err)
+			}
+			targets[path] = target{path: path, field: field, tenant: tenant.GetDisplayName()}
+		}
 	}
 
 	var once sync.Once
 	watchCtx := utils.ContextWithLogger(ctx, utils.DefaultLogger())
-	for path := range paths {
-		watcher, err := utils.NewFSWatcher(path, p.watchInterval, func(context.Context) error {
+	for _, watch := range targets {
+		watcher, err := utils.NewFSWatcher(watch.path, p.watchInterval, func(context.Context) error {
 			once.Do(func() {
-				p.logger.Warn("Mounted credential file changed; shutting down to reload credentials", "path", path)
+				p.logger.Warn("Mounted credential file changed; shutting down to reload credentials",
+					"tenant", watch.tenant, "credential", watch.field)
 				onChange()
 			})
 			return nil
 		})
 		if err != nil {
-			return fmt.Errorf("create credential watcher for %s: %w", path, err)
+			return fmt.Errorf("create credential watcher for tenant %s", watch.tenant)
 		}
 		if err := watcher.Start(watchCtx); err != nil {
-			return fmt.Errorf("start credential watcher for %s: %w", path, err)
+			return fmt.Errorf("start credential watcher for tenant %s: %s is not readable", watch.tenant, watch.field)
 		}
 	}
 	p.watchStarted = true
