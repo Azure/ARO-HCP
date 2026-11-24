@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -22,13 +23,18 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
+
+// labelTestTimeout is sized so the derived retry interval
+// (timeout/labelNodeRetryAttempts) keeps the exhaustion case fast while
+// still exercising every attempt.
+const labelTestTimeout = 240 * time.Millisecond
 
 func TestLabelNodeEgressAssignable(t *testing.T) {
 	cacheMessage := "autoscaling.openshift.io/ManagedNode infra config cache not synchronized"
@@ -42,7 +48,7 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 	}{
 		{name: "success", wantAttempts: 1},
 		{name: "cache synchronizes after multiple retries", responseError: cacheError, failingAttempts: 2, wantAttempts: 3},
-		{name: "cache retry budget exhausted", responseError: cacheError, failingAttempts: retry.DefaultBackoff.Steps, wantAttempts: retry.DefaultBackoff.Steps, wantError: true},
+		{name: "cache retry budget exhausted", responseError: cacheError, failingAttempts: labelNodeRetryAttempts, wantAttempts: labelNodeRetryAttempts, wantError: true},
 		{name: "unrelated forbidden fails immediately", responseError: apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New("permission denied")), failingAttempts: 1, wantAttempts: 1, wantError: true},
 		{name: "partial cache message fails immediately", responseError: apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New("infra config cache not synchronized")), failingAttempts: 1, wantAttempts: 1, wantError: true},
 		{name: "matching message without forbidden fails immediately", responseError: apierrors.NewInternalError(errors.New(cacheMessage)), failingAttempts: 1, wantAttempts: 1, wantError: true},
@@ -82,7 +88,7 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: server.URL}, "worker")
+			err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: server.URL}, "worker", labelTestTimeout)
 			if actual := int(attempts.Load()); actual != testCase.wantAttempts {
 				t.Errorf("PATCH attempts = %d, want %d", actual, testCase.wantAttempts)
 			}
@@ -100,5 +106,57 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 				t.Errorf("API error was not preserved: got %#v, want %#v", statusError.ErrStatus, testCase.responseError.ErrStatus)
 			}
 		})
+	}
+}
+
+func TestLabelNodeEgressAssignableInvalidTimeout(t *testing.T) {
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: "http://unused.invalid"}, "worker", timeout)
+		if err == nil {
+			t.Errorf("timeout %s: expected an error, got nil", timeout)
+		}
+	}
+}
+
+func TestLabelNodeEgressAssignableCancelledDuringBackoff(t *testing.T) {
+	cacheMessage := "autoscaling.openshift.io/ManagedNode infra config cache not synchronized"
+	cacheError := apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New(cacheMessage))
+
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		attempts.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		status := cacheError.ErrStatus.DeepCopy()
+		status.APIVersion = "v1"
+		status.Kind = "Status"
+		writer.WriteHeader(int(status.Code))
+		if err := json.NewEncoder(writer).Encode(status); err != nil {
+			t.Errorf("encode API error: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	// A 60s timeout spaces retry attempts 5s apart. Cancelling 250ms in
+	// lands during the first backoff sleep: the call must return promptly
+	// instead of sleeping the interval out, and must surface the last API
+	// error rather than a bare context error.
+	timeout := 60 * time.Second
+	interval := timeout / time.Duration(labelNodeRetryAttempts)
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(250*time.Millisecond, cancel)
+
+	start := time.Now()
+	err := LabelNodeEgressAssignable(ctx, &rest.Config{Host: server.URL}, "worker", timeout)
+	elapsed := time.Since(start)
+
+	if elapsed > interval/2 {
+		t.Errorf("label node returned %s after cancellation, want well under one %s retry interval", elapsed, interval)
+	}
+	if got := int(attempts.Load()); got != 1 {
+		t.Errorf("PATCH attempts = %d, want 1 (no further attempts after cancellation)", got)
+	}
+	var statusError *apierrors.StatusError
+	if !errors.As(err, &statusError) || statusError.Error() != cacheError.Error() {
+		t.Errorf("expected the last Forbidden API error to be surfaced, got %v", err)
 	}
 }

@@ -20,7 +20,7 @@ param serviceKeyVaultPrivate bool = true
 param serviceKeyVaultTagName string
 param serviceKeyVaultTagValue string
 
-@description('KV certificate officer principal ID')
+@description('KV certificate officer principal ID; empty skips the role assignments')
 param kvCertOfficerPrincipalId string
 
 @description('MSI that will be used during pipeline runs')
@@ -67,7 +67,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
-module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertOfficerPrincipalId != '') {
   name: 'svc-kv-cert-officer-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
@@ -80,7 +80,7 @@ module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bi
   ]
 }
 
-module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertOfficerPrincipalId != '') {
   name: 'svc-kv-secret-officer-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {

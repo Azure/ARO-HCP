@@ -21,6 +21,11 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/azureresourcescosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
@@ -28,10 +33,7 @@ import (
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -47,22 +49,31 @@ type ControllerContext struct {
 	// certificates from Key Vault onto a management cluster. It is never a customer's
 	// tenant, and permissions granted here are not scoped to any individual
 	// customer's HostedCluster or subscription.
-	ServiceTenantID                                     string
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackupConfig                                        *clusterbackups.BackupConfig
-	BillingDBClient                                     billingcosmosstorage.BillingDBClient
-	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
-	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
-	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
-	ClustersServiceClient                               ocm.ClusterServiceClientSpec
-	VersionProfileSource                                cincinnati.VersionProfileSource
-	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
-	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
-	HasRealFPA                                          bool
-	HardcodedIdentity                                   *azureclient.HardcodedIdentity
-	ClusterOIDCIssuerBaseURL                            string
+	ServiceTenantID                   string
+	AzureResourcesDBClient            azureresourcescosmosstorage.AzureResourcesDBClient
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackupConfig                      *clusterbackups.BackupConfig
+	BillingDBClient                   billingcosmosstorage.BillingDBClient
+	CheckAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
+	CloudEnvironment                  *azureconfig.AzureCloudEnvironment
+	ClusterScopedIdentitiesConfig     *internalazure.ClusterScopedIdentitiesConfig
+	ClustersServiceClient             ocm.ClusterServiceClientSpec
+	VersionProfileSource              cincinnati.VersionProfileSource
+	FPAClientBuilder                  azureclient.FirstPartyApplicationClientBuilder
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	FleetDBClient                     fleetcosmosstorage.FleetDBClient
+	HasRealFPA                        bool
+	HardcodedIdentity                 *azureclient.HardcodedIdentity
+	ClusterOIDCIssuerBaseURL          string
+	// InsecureARMPermissionsManagerClientBuilder builds Azure clients authenticated as the
+	// insecure ARM permissions manager ("ARM Helper") identity. It is nil when the
+	// backend runs with a real FPA (HasRealFPA is true).
+	InsecureARMPermissionsManagerClientBuilder azureclient.InsecureARMPermissionsManagerClientBuilder
+	// MockFirstPartyApplicationPrincipalID is the principal ID of the mock FPA
+	// service principal. It is empty when the backend runs with a real FPA
+	// (HasRealFPA is true).
+	MockFirstPartyApplicationPrincipalID                string
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string
@@ -76,6 +87,7 @@ type ControllerContext struct {
 
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
+	AzureResourcesInformers                          azureresourcesinformers.AzureResourcesInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers
 	UnionKubeApplierInformersController              *unionkubeapplierinformers.UnionKubeApplierInformersController
 	VirtualMachineResourceSKUsCachedReaderController *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController

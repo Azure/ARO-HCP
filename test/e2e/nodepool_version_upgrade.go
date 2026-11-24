@@ -31,8 +31,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -218,13 +218,13 @@ var _ = Describe("Customer", func() {
 			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to verify %d ready and schedulable nodes for nodepool %s after upgrade", updateReplicas, customerNodePoolName)
 
 		},
-		Entry("from 4.20.z to 4.21.zLatest", labels.StartPriority(80),
+		Entry("from 4.20.z to 4.21.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.21"),
-		Entry("from 4.21.z to 4.21.zLatest", labels.StartPriority(80),
+		Entry("from 4.21.z to 4.21.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.21", "4.21"),
-		Entry("from 4.20.z to 4.20.zLatest", labels.StartPriority(80),
+		Entry("from 4.20.z to 4.20.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.20"),
 	)
@@ -501,7 +501,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDesiredVersion, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.20.z to 4.22.zLatest", labels.StartPriority(90),
+		Entry("from 4.20.z to 4.22.zLatest", labels.StartPriority(80),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.22"),
 	)
@@ -780,7 +780,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.22.zLatest to 4.20.zLatest", labels.StartPriority(80),
+		Entry("from 4.22.zLatest to 4.20.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.22", "4.20"),
 	)

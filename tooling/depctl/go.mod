@@ -8,6 +8,7 @@ require (
 	github.com/google/go-github/v69 v69.2.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.41.0
+	golang.org/x/sys v0.48.0
 )
 
 require (

@@ -36,11 +36,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -322,7 +322,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectCreateOrUpdate: true,
 			createResponse:       resourceGroupCreatedResponse(differentOwnerID),
 			expectErr:            true,
-			expectErrContains:    "owned by another cluster",
+			expectErrContains:    "not owned by this cluster",
 			expectAzure:          nil,
 			expectPending:        mrgID,
 		},
@@ -363,15 +363,19 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectPending:     mrgID,
 		},
 		{
-			// An existing resource group with no ManagedBy is treated as ours (Cluster
-			// Service does not always stamp ManagedBy): actual is set, pending cleared.
-			name:             "not deleting and resource group present and unclaimed sets actual and clears pending",
-			deleting:         false,
-			initialReference: coreapi.AzureReference{},
-			getResponse:      resourceGroupPresentResponseUnclaimed(),
-			getErr:           nil,
-			expectAzure:      mrgID,
-			expectPending:    nil,
+			// An existing resource group with no ManagedBy is NOT adopted: both this
+			// controller and Cluster Service stamp ManagedBy, so an unclaimed group was never
+			// created for this cluster. We fail closed rather than confirm a group we do not
+			// own; the pending marker recorded before the Get remains.
+			name:              "not deleting and resource group present and unclaimed errors and does not set actual",
+			deleting:          false,
+			initialReference:  coreapi.AzureReference{},
+			getResponse:       resourceGroupPresentResponseUnclaimed(),
+			getErr:            nil,
+			expectErr:         true,
+			expectErrContains: "not owned by this cluster",
+			expectAzure:       nil,
+			expectPending:     mrgID,
 		},
 		{
 			// Owned-by-another: returns an error and does NOT set actual; the pending
@@ -382,7 +386,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			getResponse:       resourceGroupPresentResponse(differentOwnerID),
 			getErr:            nil,
 			expectErr:         true,
-			expectErrContains: "owned by another cluster",
+			expectErrContains: "not owned by this cluster",
 			expectAzure:       nil,
 			expectPending:     mrgID,
 		},
@@ -431,6 +435,19 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			deleting:         true,
 			initialReference: coreapi.AzureReference{AzureResource: mrgID},
 			getResponse:      resourceGroupPresentResponse(differentOwnerID),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    nil,
+		},
+		{
+			// The resource group exists but is unclaimed (empty ManagedBy). Since both this
+			// controller and Cluster Service stamp ManagedBy, an unclaimed group is not ours;
+			// we must not delete it, and it is not ours to wait on, so both references are
+			// cleared to unblock cluster deletion (same handling as a foreign group).
+			name:             "deleting and resource group unclaimed clears both to unblock deletion",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      resourceGroupPresentResponseUnclaimed(),
 			getErr:           nil,
 			expectAzure:      nil,
 			expectPending:    nil,
@@ -750,8 +767,8 @@ func TestValidateManagedResourceGroup(t *testing.T) {
 		errContains   string
 	}{
 		{name: "succeeded and owned by this cluster proceeds", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Succeeded"))},
-		{name: "succeeded and unclaimed proceeds", resourceGroup: rg(nil, ptr.To("Succeeded"))},
-		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "owned by another cluster"},
+		{name: "succeeded but unclaimed errors", resourceGroup: rg(nil, ptr.To("Succeeded")), expectErr: true, errContains: "not owned by this cluster"},
+		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "not owned by this cluster"},
 		{name: "accepted requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Accepted")), expectRequeue: true},
 		{name: "creating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Creating")), expectRequeue: true},
 		{name: "updating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Updating")), expectRequeue: true},
@@ -1027,4 +1044,175 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion_BeginDelete404(t *testing
 	gotReference := updated.Status.AzureResources.ManagedResourceGroup
 	assertResourceIDEqual(t, nil, gotReference.AzureResource, "AzureResource")
 	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
+}
+
+// TestManagedResourceGroupSyncerDeletionPromotesPendingOwnedMRG covers the crash-before-confirm
+// case: the managed resource group was created in Azure (owned by this cluster) but its
+// confirmation was never persisted - only PendingAzureResource is set - and deletion then
+// begins. The delete path's live Get re-validates ownership and must promote the reference to
+// the confirmed AzureResource so ownership-gated consumers (the mock FPA role assignment
+// controllers) recognize the group as ours and keep its Owner grant alive.
+func TestManagedResourceGroupSyncerDeletionPromotesPendingOwnedMRG(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+	ownerClusterID := newTestCluster(false).ID.String()
+
+	cluster := newTestCluster(true) // deletion timestamp set
+	// ClusterServiceDeletionTimestamp left nil so the orphaned-MRG deletion block is skipped
+	// and we isolate the promotion behavior.
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{PendingAzureResource: mrgID})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	mockRGClient.EXPECT().
+		Get(gomock.Any(), mrgID.Name, nil).
+		Return(resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"), nil).
+		Times(1)
+
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(testTenantID, testSubscriptionID).
+		Return(mockRGClient, nil).
+		Times(1)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, mrgID, gotReference.AzureResource, "AzureResource should be promoted from pending during deletion")
+	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource should be cleared after promotion")
+}
+
+// TestManagedResourceGroupSyncerDeletionDoesNotPromoteForeignPendingMRG is the regression
+// guard: a pending-only reference that turns out to point at a resource group owned by another
+// cluster must NOT be promoted. It is cleared instead (opening the deletion gate), so the mock
+// FPA never treats a foreign group as ours and never publishes an Owner grant that would be
+// orphaned on it.
+func TestManagedResourceGroupSyncerDeletionDoesNotPromoteForeignPendingMRG(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+	differentOwnerID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
+
+	cluster := newTestCluster(true) // deletion timestamp set
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{PendingAzureResource: mrgID})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	mockRGClient.EXPECT().
+		Get(gomock.Any(), mrgID.Name, nil).
+		Return(resourceGroupPresentResponse(differentOwnerID), nil).
+		Times(1)
+
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(testTenantID, testSubscriptionID).
+		Return(mockRGClient, nil).
+		Times(1)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, nil, gotReference.AzureResource, "AzureResource should not be set for a foreign group")
+	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource should be cleared for a foreign group")
+}
+
+// TestManagedResourceGroupSyncerDeletionDoesNotPromoteUnclaimedPendingMRG is the regression
+// guard for promoting only on positive ownership: a pending-only reference pointing at an
+// existing but unclaimed resource group (empty ManagedBy) must NOT be promoted to confirmed.
+// "Unclaimed" is not "ours" - promoting it would let the mock FPA grant Owner on a group whose
+// ownership was never established. Because we require positive ownership to delete, an unclaimed
+// group is treated like a foreign one: both references are cleared (opening the deletion gate)
+// rather than kept, since the RP must not delete a resource group it does not own.
+func TestManagedResourceGroupSyncerDeletionDoesNotPromoteUnclaimedPendingMRG(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+
+	cluster := newTestCluster(true) // deletion timestamp set
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{PendingAzureResource: mrgID})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	mockRGClient.EXPECT().
+		Get(gomock.Any(), mrgID.Name, nil).
+		Return(resourceGroupPresentResponseUnclaimed(), nil).
+		Times(1)
+
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(testTenantID, testSubscriptionID).
+		Return(mockRGClient, nil).
+		Times(1)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, nil, gotReference.AzureResource, "an unclaimed group must not be promoted to confirmed")
+	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "the pending reference to an unclaimed group should be cleared")
 }

@@ -24,10 +24,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/azureresourcescosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -41,6 +42,7 @@ import (
 type ControllerInitializationInput struct {
 	ResourcesDBClient       corecosmosstorage.ResourcesDBClient
 	BillingDBClient         billingcosmosstorage.BillingDBClient
+	AzureResourcesDBClient  azureresourcescosmosstorage.AzureResourcesDBClient
 	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 	SubscriptionLister      corelisters.SubscriptionLister
 	ManagementClusterLister fleetlisters.ManagementClusterLister
@@ -117,8 +119,9 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 
 	controllerInput := &ControllerInitializationInput{
-		ResourcesDBClient: storageIntegrationTestInfo.ResourcesDBClient(),
-		BillingDBClient:   storageIntegrationTestInfo.BillingDBClient(),
+		ResourcesDBClient:      storageIntegrationTestInfo.ResourcesDBClient(),
+		BillingDBClient:        storageIntegrationTestInfo.BillingDBClient(),
+		AzureResourcesDBClient: storageIntegrationTestInfo.AzureResourcesDBClient(),
 		// An empty plural registry — populated for *Desire-specific tests via overlay.
 		// Pre-populating here keeps tests that don't touch *Desires from accidentally
 		// exercising a nil kube-applier registry; iterating an empty registry is exactly

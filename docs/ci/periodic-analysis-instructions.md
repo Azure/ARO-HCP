@@ -1,21 +1,19 @@
 # ARO HCP CI Daily Digest — Task Instructions
 
-> This file is read by the Chai Bot scheduled task at runtime.
-> Internal configuration (Slack channels, Jira projects, notification groups) is provided
-> by the task configuration in the Chai Bot repo and should NOT be duplicated here.
+> These are runtime instructions for the Chai Bot scheduled task, which reads this file from the repository by path, so keep the path stable. They are written for an automated agent rather than as a human guide. Slack channels, Jira projects and notification groups come from the task configuration in the Chai Bot repo and must not be duplicated here.
+
+The digest reviews the scheduled E2E jobs against Stage and Prod. The jobs are defined in the [periodic ci-operator config](https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml); update the lists below when jobs there are added, renamed or removed.
 
 ## Jobs to Monitor
 
 ### STAGE jobs (review every day)
 
-- `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel`
-- `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-slow`
+- `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-all`
 - `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-ocp-nightly`
 
 ### PROD jobs (review every day)
 
-- `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel`
-- `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel-slow`
+- `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel-all`
 - `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel-ocp-nightly`
 
 ### PROD weekly jobs (review on Monday only)
@@ -60,13 +58,9 @@ Query the SHIP Status Dashboard for any active or recent outages on CI infrastru
 
 ### 4. Search for Known Issues
 
-For all failures identified in steps 2 and 3, follow the bug searching process described in [bug-searching.md](../qe/bug-searching.md).
+For all failures identified in steps 2 and 3, search Jira tickets or Github pull requests which fix or mitigate te issue.
 
-### 5. File New Bugs
-
-Now that all jobs have been analyzed, group failures by root cause and file one ticket per root cause covering all affected jobs. Follow the bug reporting process described in [bug-reporting.md](../qe/bug-reporting.md).
-
-> **Note:** When multiple jobs fail with the same root cause (e.g., an infrastructure outage or a shared regression), file a single Jira ticket covering all affected jobs. List all affected job names in the description.
+If no existing ticket or PR is found, mention so in the report but do not file a new Jira ticket.
 
 ## Report Format
 
@@ -76,21 +70,18 @@ Structure the report as follows:
 ## ARO HCP CI Daily Digest — <date>
 
 ### Summary
-<One-line overall status: e.g., "3/6 daily jobs passing, 1 new issue filed">
+<One-line overall status: e.g., "3/6 daily jobs passing, 1 new issue identified">
 
 ### STAGE Jobs
-For each job:
-- ✅ or ❌ <job short name> — <status>
-  - If failed: root cause, linked Jira/PR, or "NEW: <JIRA-KEY>"
+For each failed job:
+- <job short name>
+  - Root cause of the failure, linked Jira/PR, or "NEW: <JIRA-KEY>"
 
 ### PROD Daily Jobs
 (Same format as STAGE)
 
 ### PROD Weekly Jobs (Monday only)
 (Same format, included only on Monday)
-
-### New Issues Filed
-- <JIRA-KEY>: <summary> — <Prow job link>
 
 ### Known Issues Referenced
 - <JIRA-KEY>: <summary> — <status>
@@ -109,3 +100,4 @@ If any new bugs were filed, mention the configured notification group in the rep
 - Use short job names in the report for readability (e.g., "stage-e2e-parallel" instead of the full `periodic-ci-Azure-ARO-HCP-main-periodic-…` name). Always link to the full Prow job URL.
 - Group failures with the same root cause together.
 - Link all referenced Jira issues and GitHub PRs.
+- Stay silent for successful runs, but if all runs have been successful, just put a simple message in slack saying "All jobs passed".

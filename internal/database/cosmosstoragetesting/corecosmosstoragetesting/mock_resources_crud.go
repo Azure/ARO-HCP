@@ -29,11 +29,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -823,17 +823,25 @@ func newMockManagementClusterContentCRUD(client MockDocumentStore, parentResourc
 
 var _ cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] = &mockManagementClusterContentCRUD{}
 
-// mockUntypedCRUD implements cosmosstorageutils.UntypedResourceCRUD.
+// mockUntypedCRUD implements cosmosstorageutils.UntypedResourceCRUD against any
+// MockDocumentStore, so it can back MockResourcesDBClient as well as other
+// per-container mocks (e.g. azureresourcescosmosstoragetesting).
 type mockUntypedCRUD struct {
-	client           *MockResourcesDBClient
+	client           MockDocumentStore
 	parentResourceID azcorearm.ResourceID
 }
 
-func newMockUntypedCRUD(client *MockResourcesDBClient, parentResourceID azcorearm.ResourceID) *mockUntypedCRUD {
+func newMockUntypedCRUD(client MockDocumentStore, parentResourceID azcorearm.ResourceID) *mockUntypedCRUD {
 	return &mockUntypedCRUD{
 		client:           client,
 		parentResourceID: parentResourceID,
 	}
+}
+
+// NewMockUntypedCRUD is the exported constructor for mockUntypedCRUD, for use by
+// other cosmosstoragetesting packages that implement MockDocumentStore.
+func NewMockUntypedCRUD(client MockDocumentStore, parentResourceID azcorearm.ResourceID) cosmosstorageutils.UntypedResourceCRUD {
+	return newMockUntypedCRUD(client, parentResourceID)
 }
 
 func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*cosmosstorageutils.TypedDocument, error) {

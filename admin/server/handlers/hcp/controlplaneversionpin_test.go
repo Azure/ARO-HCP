@@ -38,11 +38,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -674,9 +674,82 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 		desiredVersion     string
 		history            *[]hsv1beta1.ControlPlaneUpdateHistory
 		missingSPC         bool
+		noPreviousPin      bool
 		expectedStatusCode int
 		expectedError      string
 	}{
+		{
+			name:               "nightly after stable upgrade",
+			target:             "4.20.0-0.nightly-2026-11-11-125558",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46"), completed("4.20.15")),
+		},
+		{
+			name:               "nightly after fresh 4.20.46 provision",
+			target:             "4.20.0-0.nightly-2026-11-11-125558",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+		},
+		{
+			name:               "nightly after fresh 4.20.1 provision",
+			target:             "4.20.0-0.nightly-2026-11-11-125558",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.1")),
+		},
+		{
+			name:               "multi nightly after stable provision",
+			target:             "4.20.0-0.nightly-multi-2026-11-11-125558",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+		},
+		{
+			name:               "cross minor nightly rejected",
+			target:             "4.21.0-0.nightly-2026-11-11-100611",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+			expectedError:      "must be in the cluster's release line 4.20",
+		},
+		{
+			name:               "release candidate after stable provision",
+			target:             "4.20.0-rc.1",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+		},
+		{
+			name:               "custom prerelease after stable provision",
+			target:             "4.20.0-custom",
+			seedClusterVersion: "4.20",
+			seedChannelGroup:   "stable",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+		},
+		{
+			name:               "release candidate after stable upgrade",
+			target:             "4.20.0-rc.1",
+			seedClusterVersion: "4.20",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46"), completed("4.20.15")),
+		},
+		{
+			name:               "cross minor release candidate rejected",
+			target:             "4.21.0-rc.1",
+			seedClusterVersion: "4.20",
+			noPreviousPin:      true,
+			history:            controlPlaneVersionHistory(completed("4.20.46")),
+			expectedError:      "must be in the cluster's release line 4.20",
+		},
 		{
 			name:    "rollback after completed upgrade",
 			target:  "4.17.2",
@@ -854,6 +927,9 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 				}
 				provider.Spec.PinnedVersion = coreapi.ServiceProviderClusterPinnedVersion{
 					ExactVersion: ptr.To(semver.MustParse("4.17.1")), UntilExactVersion: ptr.To(semver.MustParse("4.17.20")),
+				}
+				if tt.noPreviousPin {
+					provider.Spec.PinnedVersion = coreapi.ServiceProviderClusterPinnedVersion{}
 				}
 				before, err = storage.Replace(ctx, provider, nil)
 				require.NoError(t, err)

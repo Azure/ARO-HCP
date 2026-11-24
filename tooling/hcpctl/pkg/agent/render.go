@@ -52,12 +52,12 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 	var sb strings.Builder
 
 	if chain.Intent != "" {
-		sb.WriteString(fmt.Sprintf("# Analysis: %s\n\n", title))
+		fmt.Fprintf(&sb, "# Analysis: %s\n\n", title)
 		sb.WriteString("## Objective\n\n")
 		sb.WriteString(chain.Intent)
 		sb.WriteString("\n\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("# Test Failure Analysis: %s\n\n", title))
+		fmt.Fprintf(&sb, "# Test Failure Analysis: %s\n\n", title)
 	}
 
 	// Root cause.
@@ -68,12 +68,12 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 	// Classification.
 	if chain.Classification != nil {
 		sb.WriteString("## Classification\n\n")
-		sb.WriteString(fmt.Sprintf("- **Category:** %s\n", chain.Classification.L1Category))
+		fmt.Fprintf(&sb, "- **Category:** %s\n", chain.Classification.L1Category)
 		if chain.Classification.L2Subcategory != "" {
-			sb.WriteString(fmt.Sprintf("- **Component:** %s\n", chain.Classification.L2Subcategory))
+			fmt.Fprintf(&sb, "- **Component:** %s\n", chain.Classification.L2Subcategory)
 		}
 		if chain.Classification.Confidence != nil {
-			sb.WriteString(fmt.Sprintf("- **Confidence:** %.0f%%\n", *chain.Classification.Confidence*100))
+			fmt.Fprintf(&sb, "- **Confidence:** %.0f%%\n", *chain.Classification.Confidence*100)
 		}
 		sb.WriteString("\n")
 	}
@@ -91,8 +91,8 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 	if len(chain.Chain) > 0 {
 		sb.WriteString("## Causal Chain\n\n")
 		for i, link := range chain.Chain {
-			sb.WriteString(fmt.Sprintf("### %d. Q: %s\n\n", i+1, link.Question))
-			sb.WriteString(fmt.Sprintf("**A:** %s\n\n", link.Answer))
+			fmt.Fprintf(&sb, "### %d. Q: %s\n\n", i+1, link.Question)
+			fmt.Fprintf(&sb, "**A:** %s\n\n", link.Answer)
 
 			if link.Notes != "" {
 				sb.WriteString(link.Notes)
@@ -102,7 +102,7 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 			for j, proof := range link.Proof {
 				switch proof.Type {
 				case "kusto":
-					sb.WriteString(fmt.Sprintf("#### Proof %d (kusto)\n\n", j+1))
+					fmt.Fprintf(&sb, "#### Proof %d (kusto)\n\n", j+1)
 					if proof.Note != "" {
 						sb.WriteString(proof.Note)
 						sb.WriteString("\n\n")
@@ -113,34 +113,34 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 					sb.WriteString(TableToMarkdownCapped(proof.Table, cfg.maxTableRows))
 					sb.WriteString("\n\n")
 				case "code":
-					sb.WriteString(fmt.Sprintf("#### Proof %d (code)\n\n", j+1))
+					fmt.Fprintf(&sb, "#### Proof %d (code)\n\n", j+1)
 					if proof.Note != "" {
 						sb.WriteString(proof.Note)
 						sb.WriteString("\n\n")
 					}
-					sb.WriteString(fmt.Sprintf("`%s` — `%s` lines %d–%d:\n\n", proof.Repo, proof.File, proof.Lines[0], proof.Lines[1]))
+					fmt.Fprintf(&sb, "`%s` — `%s` lines %d–%d:\n\n", proof.Repo, proof.File, proof.Lines[0], proof.Lines[1])
 					sb.WriteString("```\n")
 					sb.WriteString(proof.CodeExcerpt)
 					sb.WriteString("\n```\n\n")
 				case "log":
 					if proof.Source == "node_console_log" {
-						sb.WriteString(fmt.Sprintf("#### Proof %d (log — node console: %s)\n\n", j+1, proof.File))
+						fmt.Fprintf(&sb, "#### Proof %d (log — node console: %s)\n\n", j+1, proof.File)
 						if proof.Note != "" {
 							sb.WriteString(proof.Note)
 							sb.WriteString("\n\n")
 						}
 						if proof.ArtifactURL != "" {
-							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d ([download](%s)):\n\n", proof.File, proof.Lines[0], proof.Lines[1], proof.ArtifactURL))
+							fmt.Fprintf(&sb, "Node console log `%s`, lines %d\u2013%d ([download](%s)):\n\n", proof.File, proof.Lines[0], proof.Lines[1], proof.ArtifactURL)
 						} else {
-							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d:\n\n", proof.File, proof.Lines[0], proof.Lines[1]))
+							fmt.Fprintf(&sb, "Node console log `%s`, lines %d\u2013%d:\n\n", proof.File, proof.Lines[0], proof.Lines[1])
 						}
 					} else {
-						sb.WriteString(fmt.Sprintf("#### Proof %d (log \u2014 %s)\n\n", j+1, proof.Source))
+						fmt.Fprintf(&sb, "#### Proof %d (log \u2014 %s)\n\n", j+1, proof.Source)
 						if proof.Note != "" {
 							sb.WriteString(proof.Note)
 							sb.WriteString("\n\n")
 						}
-						sb.WriteString(fmt.Sprintf("Test %s log, lines %d\u2013%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1]))
+						fmt.Fprintf(&sb, "Test %s log, lines %d\u2013%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1])
 					}
 					sb.WriteString("```\n")
 					sb.WriteString(proof.LogExcerpt)
@@ -154,7 +154,7 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 	if len(chain.Suggestions) > 0 {
 		sb.WriteString("## Suggestions\n\n")
 		for _, s := range chain.Suggestions {
-			sb.WriteString(fmt.Sprintf("- %s\n", s))
+			fmt.Fprintf(&sb, "- %s\n", s)
 		}
 		sb.WriteString("\n")
 	}
@@ -163,7 +163,7 @@ func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) st
 	if len(chain.Discovery) > 0 {
 		sb.WriteString("## Appendix: Discovered Facts\n\n")
 		for _, d := range chain.Discovery {
-			sb.WriteString(fmt.Sprintf("### %s\n\n", d.Label))
+			fmt.Fprintf(&sb, "### %s\n\n", d.Label)
 			sb.WriteString("```kql\n")
 			sb.WriteString(d.KQL)
 			sb.WriteString("\n```\n\n")

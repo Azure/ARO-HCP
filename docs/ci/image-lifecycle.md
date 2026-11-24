@@ -1,16 +1,8 @@
 # CI Image Lifecycle
 
-ARO HCP CI uses several different image lifecycles at once, and most confusion comes from mixing them together.
+ARO HCP CI works with several image lifecycles at once, and most confusion comes from mixing them up. An E2E job rarely just runs one prebuilt container. Depending on the job family, ci-operator imports a shared CI image that an earlier postsubmit built, builds job-local runner and service images for the exact source revision under test, deploys the service images into a temporary environment, promotes some of them for reuse inside OpenShift CI, and, after merge, mirrors the service images into the ARO service ACR for real deployments.
 
-The important distinction is that an E2E job does not usually just run a single prebuilt container. Depending on the job family, ci-operator may:
-
-- import a shared CI image that was built by an earlier postsubmit
-- build job-local runner and service images for the exact source revision under test
-- provision a temporary environment with those just-built service images
-- promote selected CI images for reuse inside OpenShift CI
-- mirror selected service images into the ARO service ACR for deployment outside CI
-
-This page explains that full lifecycle. For the higher-level execution model, start with [CI Execution](execution.md). For registry topology and post-CI image distribution, see [ACRs and Images](../acrs-and-images.md).
+This page explains how those pieces fit together. For the job families themselves, start with [CI Execution](execution.md). For registry topology and image distribution outside CI, see [ACRs and Images](../acrs-and-images.md).
 
 ## Lifecycle Overview
 
@@ -27,467 +19,85 @@ flowchart LR
   serviceImages --> acrPush["images-push to ACR"]
 ```
 
-Read the chart left to right:
+Read the chart left to right. The shared build-root image is built and published by its own job. Each ci-operator run imports it into a temporary namespace as `pipeline:root`, builds a job-local source image (`pipeline:src`) containing the revision under test (for a PR, usually a synthetic merge of the base branch and the PR), and fans out the images the requested test target needs. Runner images execute the CI steps; service images are either deployed into a DEV local E2E environment or mirrored to ACR after merge.
 
-- the shared CI build-root image is built and published separately
-- each ci-operator run imports that shared base into its temporary namespace
-- the run builds a job-local source image for the exact revision under test
-- downstream job-local images fan out from that source image
-- runner images execute CI steps, while service images are either deployed into DEV local E2E or mirrored to ACR after merge
-
-## CI Image Model
-
-The cleanest mental model is to think in **three layers**:
-
-1. **Persistent shared CI images**
-   Built by dedicated CI jobs and reused by later jobs.
-2. **Job-local pipeline images**
-   Built inside a specific ci-operator run in that run's temporary namespace.
-3. **Runtime distribution of selected service images**
-   After merge, selected service images are mirrored out of CI into Azure Container Registry for actual environment deployment.
-
-The layers describe **lifecycle stage**, not only image names. A few image names appear in more than one stage:
-
-- `aro-hcp-e2e-tests` is built job-locally during many runs, but selected postsubmit runs also promote it for reuse inside CI.
-- service images such as `aro-hcp-backend` and `aro-hcp-frontend` exist first as job-local CI outputs and later, after `images-push-postsubmit`, as ACR content used by deployments.
-
-There are also a few specialized job-local images that do not fit the simple runner-vs-service split perfectly, such as:
-
-- `nested-podman-src`
-- `aro-hcp-api-tools`
-- `aro-hcp-automation-image-update`
-
-Those still belong to the job-local CI graph. They are not shared CI base images and they are not runtime service images.
+Put differently, there are three layers: persistent shared CI images built by dedicated jobs, job-local `pipeline:*` images that live only in one run's namespace, and the runtime distribution of selected service images to ACR. A few names appear in more than one layer. `aro-hcp-e2e-tests` is built job-locally in many runs and promoted for reuse by selected postsubmits, and service images such as `aro-hcp-backend` exist first as job-local outputs and later as ACR content.
 
 ## Shared CI Images
 
 ### Shared CI Build Root
 
-Most ARO HCP jobs do not rebuild their toolchain or root image every time. Instead, the main ci-operator config imports an already-published build root:
+Most jobs do not rebuild their toolchain. The ci-operator configs in `openshift/release` import an already-published build root, the `aro-hcp-e2e-base-ci` tag of the `aro-hcp/aro-hcp-ci-images` ImageStream, through `build_root.image_stream_tag`. The `baseimage-generator` variant of the same config produces it: it builds [`dev-infrastructure/openshift-ci/Dockerfile`](../../dev-infrastructure/openshift-ci/Dockerfile) on the builder image selected by [`.ci-operator.yaml`](../../.ci-operator.yaml) in the repo root, and the postsubmit promotes the result into the ImageStream. The generator's jobs also run on PRs that touch the Dockerfile or the tool-version files, so a base image change is validated before merge.
 
-```yaml
-build_root:
-  image_stream_tag:
-    name: aro-hcp-ci-images
-    namespace: aro-hcp
-    tag: aro-hcp-e2e-base-ci
-```
-
-That shared base image is built by the dedicated `baseimage-generator` variant:
-
-```yaml
-build_root:
-  from_repository: true
-images:
-  items:
-  - dockerfile_path: dev-infrastructure/openshift-ci/Dockerfile
-    from: src
-    to: aro-hcp-e2e-base-ci
-promotion:
-  to:
-  - name: aro-hcp-ci-images
-    namespace: aro-hcp
-```
-
-The lifecycle is:
-
-1. `dev-infrastructure/openshift-ci/Dockerfile` defines the contents of the CI base image.
-2. `baseimage-generator` jobs validate and rebuild that image when the relevant inputs change.
-3. successful postsubmit runs promote `aro-hcp-e2e-base-ci` into the `aro-hcp/aro-hcp-ci-images` ImageStream.
-4. later jobs import that shared image into their temporary namespace as `pipeline:root`.
-
-That is why ci-operator logs include lines like:
+This is why ci-operator logs of later jobs contain a line like:
 
 ```text
 Tagging aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci into pipeline:root
 ```
 
-That line means "import the shared CI build root into this specific job namespace."
+It means the shared build root is being imported into this job's namespace. How tool versions in the base image are pinned and bumped is covered in the [openshift-ci README](../../dev-infrastructure/openshift-ci/README.md#version-management).
 
 ### Nested Podman Toolchain
 
-`dev-infrastructure/openshift-ci/Dockerfile.nested-podman` defines a
-source-free nested Podman toolchain. Its publication and adoption require
-companion configuration in `openshift/release`; adding the Dockerfile alone
-does not change the existing `nested-podman-src` lifecycle.
+Integration tests and mega-linter run in nested-Podman jobs. Their toolchain follows the same producer/consumer pattern as the build root:
 
-The intended split follows the shared build-root pattern:
+- [`Dockerfile.nested-podman`](../../dev-infrastructure/openshift-ci/Dockerfile.nested-podman) extends the OpenShift CI `ci/nested-podman` image with the ARO HCP tools (Go, Git, Make, and so on). The `baseimage-generator` variant builds it from that image rather than from `src`, because building from `src` would replace the nested Podman base, and promotes it as `aro-hcp-ci-images:aro-hcp-nested-podman-ci`.
+- The main ci-operator config consumes that tag as its `nested-podman` base image. `nested-podman-src` is a small job-local layer on top of it that copies in the source under test. It stays job-local so a PR test never runs against source left over from an earlier postsubmit.
 
-- **Shared toolchain:** `aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`,
-  built from `ci/nested-podman:latest` with the additional ARO HCP tools.
-- **Job-local source:** `pipeline:nested-podman-src`, layering the exact
-  source revision under test onto the shared toolchain. This image remains
-  job-local so PR tests never run against source from an earlier postsubmit.
+Package downloads therefore happen when the toolchain is published rather than in every job. Two consequences are worth knowing. A failed toolchain build does not replace the last promoted image, so consumers keep working. The generator only rebuilds when one of its trigger paths changes, so upstream base-image and package updates reach CI only after such a change or a deliberate rebuild. The checkout in `nested-podman-src` is owned by UID 1000, the toolchain's default user, so jobs can create repository-local build outputs such as `bin/envtest` without becoming root.
 
-Roll out the companion configuration in this order:
-
-1. Extend `Azure-ARO-HCP-main__baseimage-generator.yaml` to import
-   `ci/nested-podman:latest` and build the new Dockerfile with
-   `from: nested-podman` and `to: aro-hcp-nested-podman-ci`. Do not use
-   `from: src` for this image: that would replace the nested Podman base.
-   Include the new Dockerfile in image-job and smoke-test change triggers.
-   Validate the candidate image's tools, non-root Go installation, and nested
-   container execution before adoption.
-2. Promote the new output into the existing `aro-hcp/aro-hcp-ci-images`
-   ImageStream using the generator's postsubmit promotion. Confirm that the
-   tag is available before switching consumers.
-3. In `Azure-ARO-HCP-main.yaml`, replace the upstream nested Podman input
-   with the promoted ARO HCP toolchain. Reduce `nested-podman-src` to:
-
-   ```dockerfile
-   FROM nested-podman
-   COPY --chown=1000:0 /src /opt/app-root/src/github.com/Azure
-   WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
-   ```
-
-   The shared image defaults to UID 1000. The checkout must be owned by that
-   user so integration jobs can create `bin/envtest` via `make envtest-setup`
-   and other repository-local build outputs without switching to root.
-   Keep the existing `src` input mapping and the jobs' `nested_podman`
-   settings and capabilities. Run integration and mega-linter against this
-   configuration before adopting it.
-
-Package downloads then occur during toolchain publication rather than every
-source-image build. A failed toolchain build must not replace the last
-successfully promoted image. The producer still needs periodic or deliberate
-rebuilds to pick up upstream base-image and package updates; path-based
-triggers alone do not detect them. Reverting the consumer configuration to
-its previous input and inline installation restores the old lifecycle.
-
-Local build and smoke-test commands are documented in
-[the image directory](../../dev-infrastructure/openshift-ci/README.md#nested-podman-base-image).
+Local build and smoke-test commands are in the [openshift-ci README](../../dev-infrastructure/openshift-ci/README.md#nested-podman-base-image).
 
 ### Shared CI Test Runner Image
 
-`aro-hcp-e2e-tests` has a separate but related lifecycle.
+`aro-hcp-e2e-tests` is built from [`test/Containerfile.e2e`](../../test/Containerfile.e2e), which layers the ARO HCP test and tooling binaries (`hcpctl`, `templatize`, and the `test/` tools) on top of the shared base image. PR jobs usually build it job-locally. The main config also promotes it, together with `aro-hcp-e2e-tools`, into the `aro-hcp` namespace with a `latest` tag so that later jobs can import it instead of rebuilding. The periodic E2E variant does exactly that and takes `aro-hcp-e2e-tests:latest` as a `base_images` entry.
 
-The image itself layers on top of the shared base image:
+The promoted image can be pulled from the build farm registry as `quay-proxy.ci.openshift.org/aro-hcp/aro-hcp-e2e-tests:latest`. For the RBAC on app.ci and the login, follow [How do I gain access to QCI?](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci) in the OpenShift CI docs.
 
-```dockerfile
-FROM registry.ci.openshift.org/aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci
-WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
-COPY . .
-RUN make build-hcpctl && \
-    make -C tooling/templatize templatize && \
-    make -C test/ build
-```
+## Job-Local Images
 
-In `Azure-ARO-HCP-main.yaml`, ci-operator can build `aro-hcp-e2e-tests` from the exact source revision under test, and the promotion stanza selects it as the main reusable CI output:
+### Runner Images Vs Service Images
 
-```yaml
-promotion:
-  to:
-  - additional_images:
-      aro-hcp-e2e-tests: aro-hcp-e2e-tests
-    excluded_images:
-    - '*'
-    namespace: aro-hcp
-    tag: latest
-    tag_by_commit: true
-```
+Job-local images fall into two groups.
 
-That means:
+**Runner images** are the containers that execute step-registry scripts. The two main ones are `aro-hcp-e2e-tests`, used for config rendering, the test run, and most gather steps, and `aro-hcp-e2e-tools`, used by provisioning, deprovisioning, and the image push. A step selects its runner with `from:` in its ref. A few more specialized runners exist for individual targets, such as `nested-podman-src` for nested-Podman jobs, `aro-hcp-api-tools` for API validation, and a tooling image for the image-updater periodics.
 
-- PR jobs often build a job-local `pipeline:aro-hcp-e2e-tests`
-- merged postsubmit runs can promote that image for reuse inside OpenShift CI
-- periodic variants can then import `aro-hcp-e2e-tests:latest` as a shared CI input instead of rebuilding it
+**Service images** are the product components the job is testing, such as `aro-hcp-backend`, `aro-hcp-frontend`, and `aro-hcp-admin-api`; the main config lists the full set. They are either deployed into a temporary DEV environment or mirrored to ACR after merge. The provisioning step receives them through ci-operator `dependencies:` in its ref, which resolve to immutable pullspecs in environment variables. The provision script writes those pullspecs into the temporary environment's configuration, so the environment runs exactly the images built from the revision under test.
 
-After promotion, the image is available from the build farm registry:
+### Local E2E Versus Persistent E2E
 
-```text
-quay-proxy.ci.openshift.org/aro-hcp/aro-hcp-e2e-tests:latest
-```
+How many images a job builds follows from what it targets, because ci-operator only builds what the requested target depends on.
 
-To pull this image locally, read [Summary of available registries](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#summary-of-available-registries) and follow [How do I gain access to QCI?](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci) in the OpenShift CI docs for RBAC on **app.ci** and logging in to `quay-proxy.ci.openshift.org`.
+A local E2E job (the `aro-hcp-local-e2e` workflow, used by `e2e-parallel`) provisions a fresh DEV environment. It needs the runner images for rendering configuration, provisioning, testing, and gathering, and the service images that provisioning deploys. This is why its ci-operator graph builds many images before any test step starts. Which environment it gets, and the identities and slots it leases, is covered by [slot-manager](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md); the lease step runs at the start of the workflow's `pre` phase.
 
-For example, the periodic E2E variant does exactly that:
-
-```yaml
-base_images:
-  aro-hcp-e2e-tests:
-    name: aro-hcp-e2e-tests
-    namespace: aro-hcp
-    tag: latest
-```
-
-## What Ci-Operator Builds Inside A Job
-
-Once the shared build root is available, ci-operator creates the job-local source image:
-
-- `pipeline:src`
-
-This image contains the exact source revision under test. In PR jobs that is usually a synthetic merge of the base branch plus the PR changes.
-
-The rough sequence is:
-
-1. resolve the repository state to test
-2. import the shared build root into the job namespace as `pipeline:root`
-3. create `pipeline:src` from the checked-out source
-4. build images needed by the requested target
-
-## Runner Images Vs Service Images
-
-For ARO HCP local E2E, the job-local image graph splits into two distinct classes.
-
-### Runner Images
-
-Runner images are the containers that actually execute step-registry scripts.
-
-The two most important ones are:
-
-- `aro-hcp-e2e-tests`
-- `aro-hcp-e2e-tools`
-
-Examples:
-
-```yaml
-ref:
-  as: aro-hcp-write-config
-  from: aro-hcp-e2e-tests
-```
-
-```yaml
-ref:
-  as: aro-hcp-test-local
-  from: aro-hcp-e2e-tests
-```
-
-```yaml
-ref:
-  as: aro-hcp-provision-environment
-  from: aro-hcp-e2e-tools
-```
-
-There are also specialized runner-style images for specific targets, for example:
-
-- `nested-podman-src` for nested-podman jobs such as the mega-linter path
-- `aro-hcp-api-tools` for API validation
-- `aro-hcp-automation-image-update` for image-updater periodics
-
-### Service Images Under Test
-
-Service images are the images that get deployed into the temporary ARO HCP environment or mirrored to ACR after merge.
-
-The main set in `Azure-ARO-HCP-main.yaml` includes:
-
-- `aro-hcp-backend`
-- `aro-hcp-frontend`
-- `aro-hcp-admin-api`
-- `aro-hcp-sessiongate`
-- `aro-hcp-fleet`
-- `aro-hcp-mgmt-agent`
-- `aro-hcp-kube-applier`
-- `aro-hcp-hcp-recovery`
-- `aro-hcp-oc-mirror`
-- `aro-hcp-exporter`
-
-The provisioning step requests a subset of those images as ci-operator dependencies:
-
-```yaml
-dependencies:
-  - name: "pipeline:aro-hcp-backend"
-    env: BACKEND_IMAGE
-  - name: "pipeline:aro-hcp-frontend"
-    env: FRONTEND_IMAGE
-  - name: "pipeline:aro-hcp-admin-api"
-    env: ADMIN_API_IMAGE
-  - name: "pipeline:aro-hcp-sessiongate"
-    env: SESSIONGATE_IMAGE
-  - name: "pipeline:aro-hcp-hcp-recovery"
-    env: HCP_RECOVERY_IMAGE
-  - name: "pipeline:aro-hcp-fleet"
-    env: FLEET_IMAGE
-  - name: "pipeline:aro-hcp-mgmt-agent"
-    env: MGMT_AGENT_IMAGE
-  - name: "pipeline:aro-hcp-kube-applier"
-    env: KUBE_APPLIER_IMAGE
-```
-
-The provision script then rewrites the temporary config to use those exact immutable pullspecs for the environment it is about to create.
-
-That is the core of local E2E image management:
-
-- build fresh service images from the source revision under test
-- inject their digests into the provision step
-- create the environment with those exact images
-- test the resulting environment
-
-## Why Local E2E Builds Many Images
-
-The `aro-hcp-local-e2e` workflow explains why `e2e-parallel` has such a wide image graph:
-
-```yaml
-workflow:
-  as: aro-hcp-local-e2e
-  steps:
-    pre:
-      - ref: aro-hcp-lease-acquire
-      - ref: aro-hcp-write-config
-      - ref: aro-hcp-provision-environment
-    test:
-      - ref: aro-hcp-test-local
-    post:
-      - ref: aro-hcp-gather-provision-failure
-      - ref: aro-hcp-gather-visualization
-      - ref: aro-hcp-gather-test-visualization
-      - ref: aro-hcp-gather-custom-link-tools
-      - ref: aro-hcp-gather-observability
-      - ref: aro-hcp-gather-snapshot
-      - ref: aro-hcp-deprovision-environment
-      - ref: aro-hcp-lease-release
-```
-
-The identity-container lease for DEV local E2E is now acquired at runtime through `aro-hcp-lease-acquire`, which calls `slot-manager`. The provisioning step still carries its own separate Boskos lease for the MSI mock service-principal pool.
-
-This workflow needs:
-
-- `aro-hcp-e2e-tests` for config render, test, and many gather steps
-- `aro-hcp-e2e-tools` for provision and deprovision
-- service images because `aro-hcp-provision-environment` deploys them into the temporary DEV environment
-
-That is why the ci-operator graph for `e2e-parallel` includes multiple image builds before the test phase starts.
-
-## Why Persistent-Environment E2E Builds Fewer Images
-
-Persistent-environment E2E is lighter because it targets services that are already deployed.
-
-The dedicated `main__e2e` variant only defines the test runner image:
-
-```yaml
-build_root:
-  image_stream_tag:
-    name: aro-hcp-ci-images
-    namespace: aro-hcp
-    tag: aro-hcp-e2e-base-ci
-images:
-  items:
-  - dockerfile_path: test/Containerfile.e2e
-    from: src
-    to: aro-hcp-e2e-tests
-```
-
-That means EV2-triggered and other persistent-environment runs in this variant do **not** build the full service image set. They only build the runner image needed to execute the suite against an already-existing environment.
-
-The periodic E2E variant is lighter again: it does not rebuild `aro-hcp-e2e-tests` at all, and instead pulls the promoted `latest` runner image as a shared CI input.
-
-So the general pattern is:
-
-- **local DEV E2E** builds runner images and service images because it provisions a fresh environment
-- **persistent-environment E2E** usually only needs runner images
-- **periodic E2E** can be lighter still by consuming the promoted shared runner image
+A persistent-environment E2E job (the `aro-hcp-persistent-e2e` workflow) targets an environment that is already deployed, so it needs only the runner image. The `__e2e` variant that EV2 triggers (see [CI EV2 Integration](ev2-integration.md)) is the extreme case: it defines nothing but `aro-hcp-e2e-tests`. Periodic variants can go further and skip even that build by importing the promoted `latest` image.
 
 ## Promotion Vs Push
 
-This is the distinction that most often gets blurred.
+These two terms are easily blurred, but they refer to separate mechanisms with separate audiences.
 
-### Promotion Inside OpenShift CI
+Promotion is a ci-operator feature: it publishes selected CI-built images into a persistent ImageStream on the build farm so that later jobs can import them. For ARO HCP that covers the base CI image (promoted by `baseimage-generator`), the nested Podman toolchain, and the `aro-hcp-e2e-tests` and `aro-hcp-e2e-tools` runner images (promoted by the main config). Promoted images are reused inside OpenShift CI only.
 
-In ci-operator, promotion means publishing selected CI-built images into a persistent ImageStream on the build farm so later jobs can import them.
-
-For ARO HCP, the important promoted CI images are:
-
-- `aro-hcp-e2e-base-ci`, promoted by the `baseimage-generator` variant
-- `aro-hcp-e2e-tests`, promoted by selected runs of `Azure-ARO-HCP-main.yaml`
-
-Those images are reused **inside OpenShift CI**.
-
-### Push And Mirror To ACR
-
-Service images follow a different path.
-
-The `images-push-postsubmit` job in `Azure-ARO-HCP-main.yaml` runs:
-
-```yaml
-- as: images-push-postsubmit
-  postsubmit: true
-  steps:
-    test:
-    - ref: aro-hcp-images-push
-```
-
-That step receives CI-built service images as dependencies:
-
-```yaml
-dependencies:
-  - name: aro-hcp-backend
-    env: ARO_HCP_BACKEND
-  - name: aro-hcp-frontend
-    env: ARO_HCP_FRONTEND
-  - name: aro-hcp-admin-api
-    env: ARO_HCP_ADMIN_API
-```
-
-and mirrors them into the service ACR.
-
-So the clean boundary is:
-
-- **promotion** keeps images reusable **inside OpenShift CI**
-- **images-push** makes selected service images available **outside CI** for environment deployment and later cross-environment mirroring
+Push is how service images leave CI. The `images-push-postsubmit` job runs the `aro-hcp-images-push` step from `openshift/release`, which receives the CI-built service images as dependencies and mirrors them into the service ACR. A sibling job pushes the tooling images that are deployed rather than tested (`aro-hcp-tenant-quota`). From the ACR, environment deployments and cross-environment mirroring take over, which [ACRs and Images](../acrs-and-images.md) describes.
 
 ## How To Read Ci-Operator Logs
 
-The startup logs are easiest to understand as a dependency graph.
+The startup output of a ci-operator run reads best as a dependency graph. The lines worth recognizing:
 
-### `Resolved source ... merging: #...`
-
-ci-operator resolved the exact source revision to test. In PR jobs this is usually a synthetic merge of the base branch plus the PR.
-
-### `Using namespace .../ci-op-...`
-
-This is the temporary namespace for the run. All `pipeline:*` images live only there.
-
-### `Tagging ... aro-hcp-e2e-base-ci into pipeline:root`
-
-Import the shared build root into the temporary namespace.
-
-### `Building src`
-
-Create the source image `pipeline:src` from the resolved checkout.
-
-### `Building aro-hcp-e2e-tools`, `Building aro-hcp-frontend`, and similar lines
-
-These are downstream image builds that the current target requires. The presence of a build line does not mean the corresponding test step has started yet.
-
-### `Image .../pipeline:aro-hcp-frontend created digest=...`
-
-The image is now available at an immutable digest for downstream steps or for later mirroring.
-
-### `Running [input:root], lease-proxy-server, src, ..., e2e-parallel`
-
-This is the ci-operator dependency graph, not the beginning of the test phase.
-
-The most important nodes are:
-
-- `input:root`: imported shared build root
-- `src`: checked-out source image
-- `aro-hcp-*`: job-local output image builds
-- `lease-proxy-server`: ci-operator and Boskos infrastructure, not an ARO HCP application image
-- `e2e-parallel`: final target node, which can run only after its prerequisites are ready
-
-### `Found existing build ...`
-
-ci-operator found an existing Build object for that node and reused it. The important artifact is still the final image digest that downstream steps consume.
+- `Resolved source ... merging: #...` is the exact revision under test, for a PR the synthetic merge of the base branch and the PR.
+- `Using namespace .../ci-op-...` is the temporary namespace. All `pipeline:*` images live only there.
+- `Tagging ... aro-hcp-e2e-base-ci into pipeline:root` imports the shared build root, and `Building src` creates `pipeline:src` from the checkout.
+- `Building aro-hcp-e2e-tools`, `Building aro-hcp-frontend`, and similar lines are the downstream image builds the target requires. A build line does not mean the corresponding test step has started.
+- `Image .../pipeline:aro-hcp-frontend created digest=...` means the image now exists at an immutable digest for downstream steps or later mirroring.
+- `Running [input:root], lease-proxy-server, src, ..., e2e-parallel` is ci-operator's node graph, not the start of the tests. `input:root` is the imported build root, `src` the source image, `aro-hcp-*` the image builds, and `e2e-parallel` the target, which runs once its prerequisites are ready. `lease-proxy-server` is ci-operator infrastructure, not an ARO HCP image.
+- `Found existing build ...` means ci-operator reused an existing Build object for that node. What matters is still the final digest the downstream steps consume.
 
 ## Where To Look
 
-When you need to change or debug the CI image lifecycle, start here:
+The ci-operator configs and step registry live in `openshift/release` under `ci-operator/config/Azure/ARO-HCP/` and `ci-operator/step-registry/aro-hcp/`.
 
-- main ci-operator config: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`
-- base image generator: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml`
-- EV2 and persistent-env runner-only variant: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
-- periodic runner reuse: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`
-- image-updater tooling image: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__image-updater.yaml`
-- local workflow: `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`
-- provision step and service-image injection: `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/`
-- ACR push step: `openshift/release: ci-operator/step-registry/aro-hcp/images-push/`
-- shared CI base contents: `dev-infrastructure/openshift-ci/Dockerfile`
-- test runner image definition: `test/Containerfile.e2e`
-- registry and mirroring model: [ACRs and Images](../acrs-and-images.md)
-
-## See Also
-
-- [CI Overview](README.md)
-- [CI Execution](execution.md)
-- [CI Operations](operations.md)
-- [CI EV2 Integration](ev2-integration.md)
-- [ACRs and Images](../acrs-and-images.md)
+- `Azure-ARO-HCP-main.yaml`: service and runner image definitions, promotion, and the `images-push-postsubmit` job.
+- `Azure-ARO-HCP-main__baseimage-generator.yaml`: the shared base and nested Podman images.
+- `Azure-ARO-HCP-main__e2e.yaml` and `Azure-ARO-HCP-main__periodic.yaml`: the runner-only EV2 and periodic variants.
+- `step-registry/aro-hcp/local-e2e/`, `provision/environment/`, and `images-push/`: the local E2E workflow, how service images reach provisioning, and the ACR push.
+- In this repository: [`dev-infrastructure/openshift-ci/`](../../dev-infrastructure/openshift-ci/) for the base images and [`test/Containerfile.e2e`](../../test/Containerfile.e2e) for the test runner.

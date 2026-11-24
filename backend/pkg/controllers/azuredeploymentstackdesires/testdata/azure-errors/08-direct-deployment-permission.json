@@ -1,0 +1,87 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "08-direct-deployment-permission/validate",
+      "method": "POST",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/direct-permission/validate?api-version=2024-03-01",
+      "status": 400,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "error": {
+          "code": "InvalidTemplateDeployment",
+          "message": "The template deployment failed with error: 'Authorization failed for template resource 'probe-content' of type 'Microsoft.ManagedIdentity/userAssignedIdentities'. The client 'APPLICATION_CLIENT_ID' with object id 'SERVICE_PRINCIPAL_ID' does not have permission to perform action 'Microsoft.ManagedIdentity/userAssignedIdentities/write' at scope '/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/probe-content'.'."
+        }
+      },
+      "requestBody": {
+        "properties": {
+          "mode": "Incremental",
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "probe-content",
+                "location": "westus3"
+              }
+            ]
+          }
+        }
+      },
+      "requestSHA256": "4430b2b18cfbbc739d65b769479aec95735150153348468173d3e2260cdcb77f"
+    },
+    {
+      "case": "08-direct-deployment-permission/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/direct-permission?api-version=2024-03-01",
+      "status": 400,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "error": {
+          "code": "InvalidTemplateDeployment",
+          "message": "The template deployment failed with error: 'Authorization failed for template resource 'probe-content' of type 'Microsoft.ManagedIdentity/userAssignedIdentities'. The client 'APPLICATION_CLIENT_ID' with object id 'SERVICE_PRINCIPAL_ID' does not have permission to perform action 'Microsoft.ManagedIdentity/userAssignedIdentities/write' at scope '/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/probe-content'.'."
+        }
+      },
+      "requestBody": {
+        "properties": {
+          "mode": "Incremental",
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "probe-content",
+                "location": "westus3"
+              }
+            ]
+          }
+        }
+      },
+      "requestSHA256": "4430b2b18cfbbc739d65b769479aec95735150153348468173d3e2260cdcb77f"
+    },
+    {
+      "case": "08-direct-deployment-permission/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/direct-permission?api-version=2024-03-01",
+      "status": 404,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "error": {
+          "code": "DeploymentNotFound",
+          "message": "Deployment 'direct-permission' could not be found."
+        }
+      }
+    }
+  ]
+}

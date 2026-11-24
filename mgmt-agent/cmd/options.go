@@ -136,6 +136,7 @@ type completedControllerOptions struct {
 	repositoryCleanup           *repositorycleanup.Controller
 	snapshotPVCFinalizerCleanup *snapshotpvcfinalizercleanup.SnapshotPVCFinalizerCleanupController
 	acmUninstall                *acmuninstall.Controller
+	acmOwnershipCleanup         *acmuninstall.OwnershipCleanupController
 	veleroInformers             dynamicinformer.DynamicSharedInformerFactory
 	resourceWatcher             *controller.ResourceWatcher
 	podWatcher                  *controller.PodWatcher
@@ -346,6 +347,10 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ACM uninstall controller: %w", err)
 	}
+	acmOwnershipCleanup, err := acmuninstall.NewOwnershipCleanupController(dynamicClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ACM ownership cleanup controller: %w", err)
+	}
 
 	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
 	if err != nil {
@@ -459,6 +464,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			repositoryCleanup:           repositoryCleanup,
 			snapshotPVCFinalizerCleanup: snapshotPVCFinalizerCleanup,
 			acmUninstall:                acmUninstall,
+			acmOwnershipCleanup:         acmOwnershipCleanup,
 			veleroInformers:             veleroInformers,
 			resourceWatcher:             resourceWatcher,
 			podWatcher:                  podWatcher,
@@ -694,6 +700,13 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					defer utilruntime.HandleCrash()
 					if err := o.acmUninstall.Run(ctx); err != nil {
 						logger.Error(err, "ACM uninstall controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.acmOwnershipCleanup.Run(ctx); err != nil {
+						logger.Error(err, "ACM ownership cleanup controller failed")
 					}
 				}()
 

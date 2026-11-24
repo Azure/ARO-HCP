@@ -33,11 +33,11 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -425,13 +425,15 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				readDesireLister.Desires = []*kubeapplierapi.ReadDesire{tt.cachedNodePoolReadDesire}
 			}
 			controller := &operationNodePoolCreate{
-				clock:                  testClock,
-				resourcesDBClient:      mockResourcesDBClient,
-				activeOperationsLister: activeOperationsLister,
-				nodePoolLister:         &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				readDesireLister:       readDesireLister,
-				clusterServiceClient:   mockCSClient,
-				notificationClient:     nil,
+				clock:                         testClock,
+				resourcesDBClient:             mockResourcesDBClient,
+				activeOperationsLister:        activeOperationsLister,
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{fixture.NewServiceProviderNodePool()}},
+				readDesireLister:              readDesireLister,
+				clusterServiceClient:          mockCSClient,
+				notificationClient:            nil,
 			}
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)

@@ -7,20 +7,6 @@ param armHelperAppName string
 @description('Application name for the MSI mock identity')
 param msiMockAppName string
 
-@description('Base application name for pooled MSI mock identities')
-@minLength(1)
-param poolAppBaseName string
-
-@description('Number of pooled MSI mock identities')
-param poolSize int = 0
-
-@description('Base application name for pooled ARM helper identities')
-@minLength(1)
-param armHelperPoolAppBaseName string = 'unused'
-
-@description('Number of pooled ARM helper identities')
-param armHelperPoolSize int = 0
-
 @description('Application name for the Clusters Service ARM helper identity')
 param clustersServiceArmHelperAppName string = ''
 
@@ -69,34 +55,6 @@ module msiMockLookup './entra-app-lookup.bicep' = {
   }
 }
 
-// Each lookup is its own nested deployment doing two Graph reads at validation
-// time. Fanning ~150 of them out at once makes Graph answer some with an opaque
-// UnknownFailure, so bound the concurrency. Lookups are idempotent and read-only;
-// the pipeline step retries (up to the schema cap) if a batch still fails.
-@batchSize(10)
-module poolLookups './entra-app-lookup.bicep' = [
-  for i in range(0, poolSize): {
-    name: 'lookup-pool-${i}'
-    params: {
-      applicationName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
-      manage: true
-      lookupSp: true
-    }
-  }
-]
-
-@batchSize(10)
-module armHelperPoolLookups './entra-app-lookup.bicep' = [
-  for i in range(0, armHelperPoolSize): {
-    name: 'lookup-arm-helper-pool-${i}'
-    params: {
-      applicationName: toLower(replace('${armHelperPoolAppBaseName}-${i}', ' ', '-'))
-      manage: true
-      lookupSp: true
-    }
-  }
-]
-
 module clustersServiceArmHelperLookup './entra-app-lookup.bicep' = if (!empty(clustersServiceArmHelperAppName)) {
   name: 'lookup-clusters-service-arm-helper'
   params: {
@@ -113,18 +71,6 @@ module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bic
     firstPartyPrincipalId: firstPartyLookup.outputs.principalId
     armHelperPrincipalId: armHelperLookup.outputs.principalId
     miMockPrincipalId: msiMockLookup.outputs.principalId
-    msiMockPoolPrincipals: [
-      for i in range(0, poolSize): {
-        name: '${poolAppBaseName}-${i}'
-        principalId: poolLookups[i].outputs.principalId
-      }
-    ]
-    armHelperPoolPrincipals: [
-      for i in range(0, armHelperPoolSize): {
-        name: '${armHelperPoolAppBaseName}-${i}'
-        principalId: armHelperPoolLookups[i].outputs.principalId
-      }
-    ]
     clustersServiceArmHelperPrincipalId: empty(clustersServiceArmHelperAppName)
       ? ''
       : clustersServiceArmHelperLookup!.outputs.principalId
@@ -141,18 +87,6 @@ module e2eSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bice
       firstPartyPrincipalId: firstPartyLookup.outputs.principalId
       armHelperPrincipalId: armHelperLookup.outputs.principalId
       miMockPrincipalId: msiMockLookup.outputs.principalId
-      msiMockPoolPrincipals: [
-        for i in range(0, poolSize): {
-          name: '${poolAppBaseName}-${i}'
-          principalId: poolLookups[i].outputs.principalId
-        }
-      ]
-      armHelperPoolPrincipals: [
-        for i in range(0, armHelperPoolSize): {
-          name: '${armHelperPoolAppBaseName}-${i}'
-          principalId: armHelperPoolLookups[i].outputs.principalId
-        }
-      ]
       clustersServiceArmHelperPrincipalId: empty(clustersServiceArmHelperAppName)
         ? ''
         : clustersServiceArmHelperLookup!.outputs.principalId

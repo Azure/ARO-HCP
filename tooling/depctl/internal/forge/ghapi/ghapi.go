@@ -14,9 +14,9 @@
 
 // Package ghapi reads pull-request evidence with the GitHub REST API.
 //
-// It is a read-only adapter: no method here mutates a repository, branch, pull
-// request or comment. The token is read from GH_TOKEN or GITHUB_TOKEN and is
-// never stored in a record or included in an error.
+// Ordinary readers use GH_TOKEN or GITHUB_TOKEN. Maintenance keeps GH_TOKEN
+// identity/comment access separate from CI_TOKEN check access; no token is stored
+// in records or included in errors.
 package ghapi
 
 import (
@@ -41,10 +41,12 @@ const holdLabel = "do-not-merge/hold"
 
 // Reader reads evidence through the GitHub REST API.
 type Reader struct {
-	client    *github.Client
-	owner     string
-	repo      string
-	prefilter func(forge.PullRequest) bool
+	client            *github.Client
+	ciClient          *github.Client
+	owner             string
+	repo              string
+	prefilter         func(forge.PullRequest) bool
+	strictMaintenance bool
 }
 
 // New returns a reader for an OWNER/REPO using the environment token.
@@ -140,9 +142,13 @@ func (r *Reader) PullRequest(ctx context.Context, number int) (forge.PullRequest
 		pull.User == nil || pull.GetUser().GetLogin() == "" ||
 		pull.State == nil || (pull.GetState() != "open" && pull.GetState() != "closed") ||
 		pull.Base == nil || pull.Base.Ref == nil || pull.GetBase().GetRef() == "" ||
-		pull.Title == nil || pull.Labels == nil {
+		pull.Title == nil || pull.Labels == nil || pull.Draft == nil {
 		return forge.PullRequest{}, fmt.Errorf("%w: pull request #%d metadata is incomplete",
 			forge.ErrEvidenceIncomplete, number)
+	}
+	if r.strictMaintenance && (pull.Merged == nil || pull.Head == nil || pull.Head.SHA == nil || pull.Head.Ref == nil ||
+		pull.Head.Repo == nil || pull.Head.Repo.FullName == nil || pull.Base.Repo == nil || pull.Base.Repo.FullName == nil) {
+		return forge.PullRequest{}, fmt.Errorf("%w: missing maintenance pull identity", forge.ErrEvidenceIncomplete)
 	}
 	// A label without a name would become an empty marker and silently exclude
 	// an owned proposal, so reject it before conversion.
@@ -321,18 +327,25 @@ func (r *Reader) Snapshot(ctx context.Context, number int, expectedHead string) 
 	if err != nil {
 		return forge.Snapshot{}, fmt.Errorf("list issue events: %w", err)
 	}
+	ciClient := r.ciClient
+	if ciClient == nil {
+		ciClient = r.client
+	}
 	statuses, err := paginate(func(options *github.ListOptions) ([]*github.RepoStatus, *github.Response, error) {
-		return r.client.Repositories.ListStatuses(ctx, r.owner, r.repo, head, options)
+		return ciClient.Repositories.ListStatuses(ctx, r.owner, r.repo, head, options)
 	})
 	if err != nil {
 		return forge.Snapshot{}, fmt.Errorf("list statuses: %w", err)
 	}
 	checks, err := paginate(func(options *github.ListOptions) ([]*github.CheckRun, *github.Response, error) {
 		latest := "latest"
-		result, response, err := r.client.Checks.ListCheckRunsForRef(ctx, r.owner, r.repo, head,
+		result, response, err := ciClient.Checks.ListCheckRunsForRef(ctx, r.owner, r.repo, head,
 			&github.ListCheckRunsOptions{Filter: &latest, ListOptions: *options})
 		if err != nil {
 			return nil, nil, err
+		}
+		if result == nil {
+			return nil, nil, forge.ErrEvidenceIncomplete
 		}
 		return result.CheckRuns, response, nil
 	})
@@ -343,7 +356,7 @@ func (r *Reader) Snapshot(ctx context.Context, number int, expectedHead string) 
 	if err != nil {
 		return forge.Snapshot{}, err
 	}
-	if latest.HeadSHA != head {
+	if latest.HeadSHA != head || latest.HeadRef != pull.HeadRef || latest.HeadRepo != pull.HeadRepo {
 		return forge.Snapshot{}, fmt.Errorf("%w: pull request head changed while fetching evidence",
 			forge.ErrEvidenceIncomplete)
 	}
@@ -352,12 +365,18 @@ func (r *Reader) Snapshot(ctx context.Context, number int, expectedHead string) 
 		snapshot.Commits = append(snapshot.Commits, commit.GetSHA())
 	}
 	for _, comment := range comments {
+		if comment == nil || comment.Body == nil {
+			return forge.Snapshot{}, fmt.Errorf("%w: comment body is missing", forge.ErrEvidenceIncomplete)
+		}
 		snapshot.Comments = append(snapshot.Comments, forge.Comment{
 			ID: int(comment.GetID()), Author: comment.GetUser().GetLogin(), Body: comment.GetBody(),
 			CreatedAt: timestamp(comment.CreatedAt), UpdatedAt: timestamp(comment.UpdatedAt),
 		})
 	}
 	for _, event := range events {
+		if event == nil {
+			return forge.Snapshot{}, fmt.Errorf("%w: missing event", forge.ErrEvidenceIncomplete)
+		}
 		if event.GetLabel().GetName() != holdLabel {
 			continue
 		}
@@ -370,12 +389,18 @@ func (r *Reader) Snapshot(ctx context.Context, number int, expectedHead string) 
 		})
 	}
 	for _, status := range statuses {
+		if status == nil {
+			return forge.Snapshot{}, fmt.Errorf("%w: missing status", forge.ErrEvidenceIncomplete)
+		}
 		snapshot.Statuses = append(snapshot.Statuses, forge.Status{
 			ID: int(status.GetID()), Context: status.GetContext(), State: status.GetState(),
 			CreatedAt: timestamp(status.CreatedAt), TargetURL: status.GetTargetURL(),
 		})
 	}
 	for _, check := range checks {
+		if check == nil {
+			return forge.Snapshot{}, fmt.Errorf("%w: missing check", forge.ErrEvidenceIncomplete)
+		}
 		snapshot.Checks = append(snapshot.Checks, forge.Check{
 			ID: int(check.GetID()), Name: check.GetName(), HeadSHA: check.GetHeadSHA(),
 			Status: check.GetStatus(), Conclusion: check.GetConclusion(), DetailsURL: check.GetDetailsURL(),
@@ -409,6 +434,9 @@ func paginate[T any](fetch func(*github.ListOptions) ([]T, *github.Response, err
 		if err != nil {
 			return nil, err
 		}
+		if items == nil {
+			return nil, fmt.Errorf("%w: API page is not an array", forge.ErrEvidenceIncomplete)
+		}
 		all = append(all, items...)
 		if response == nil || response.NextPage == 0 {
 			return all, nil
@@ -422,5 +450,32 @@ func timestamp(value *github.Timestamp) string {
 	if value == nil || value.IsZero() {
 		return ""
 	}
-	return value.UTC().Format(time.RFC3339)
+	return value.UTC().Format(time.RFC3339Nano)
+}
+
+// NewWithToken returns a reader authenticated with an explicit token, for CI
+// evidence that uses a separate read credential.
+func NewWithToken(repository, token string) (*Reader, error) {
+	owner, repo, err := splitRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+	if token == "" {
+		return nil, forge.ErrAuthentication
+	}
+	client := github.NewClient(&http.Client{Timeout: 2 * time.Minute})
+	return &Reader{client: client.WithAuthToken(token), owner: owner, repo: repo}, nil
+}
+
+// REST returns the raw JSON body of one GET endpoint on the reader's repository.
+func (r *Reader) REST(ctx context.Context, endpoint string) ([]byte, error) {
+	request, err := r.client.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	var raw json.RawMessage
+	if _, err := r.client.Do(ctx, request, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }

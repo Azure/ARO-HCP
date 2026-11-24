@@ -29,10 +29,10 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -176,7 +176,7 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					operations := &corelistertesting.SliceActiveOperationLister{Operations: []*coreapi.Operation{cachedOperation}}
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
-						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs}
+						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, subscriptionLister: &corelistertesting.SliceSubscriptionLister{}, serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{}, readDesireLister: reads, clusterServiceClient: cs}
 						controller.statusCalculators, err = controller.newStatusCalculators()
 						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())

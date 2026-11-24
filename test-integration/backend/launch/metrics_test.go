@@ -39,18 +39,20 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/azureresourcescosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -126,9 +128,10 @@ func TestBackendExposesMetrics(t *testing.T) {
 			AzureLocation:           "fake-location",
 			LeaderElectionLock:      newFakeLeaderElectionLock("metrics-test"),
 			StorageFactory: &metricsTestStorageFactory{
-				resources: resourcesDBClient,
-				billing:   billingDBClient,
-				fleet:     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+				resources:      resourcesDBClient,
+				billing:        billingDBClient,
+				fleet:          fleetcosmosstoragetesting.NewMockFleetDBClient(),
+				azureResources: azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
 			},
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
 			VersionProfileSource:               emptyVersionProfileSource{},
@@ -145,7 +148,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
-			HardcodedIdentity: hardcodedIdentity,
+			HardcodedIdentity:                    hardcodedIdentity,
+			MockFirstPartyApplicationPrincipalID: "test-mock-fpa-principal-id",
 		}
 
 		backendErrCh := make(chan error, 1)
@@ -330,9 +334,10 @@ func (l *fakeLeaderElectionLock) store(record resourcelock.LeaderElectionRecord)
 
 // The metrics smoke test shares its in-memory fixtures between all controllers.
 type metricsTestStorageFactory struct {
-	resources corecosmosstorage.ResourcesDBClient
-	billing   billingcosmosstorage.BillingDBClient
-	fleet     fleetcosmosstorage.FleetDBClient
+	resources      corecosmosstorage.ResourcesDBClient
+	billing        billingcosmosstorage.BillingDBClient
+	fleet          fleetcosmosstorage.FleetDBClient
+	azureResources azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 func (f *metricsTestStorageFactory) ResourcesStorageClient(string) corecosmosstorage.ResourcesDBClient {
@@ -343,6 +348,9 @@ func (f *metricsTestStorageFactory) BillingStorageClient(string) billingcosmosst
 }
 func (f *metricsTestStorageFactory) FleetStorageClient(string) fleetcosmosstorage.FleetDBClient {
 	return f.fleet
+}
+func (f *metricsTestStorageFactory) AzureResourcesStorageClient(string) azureresourcescosmosstorage.AzureResourcesDBClient {
+	return f.azureResources
 }
 func (f *metricsTestStorageFactory) KubeApplierStorageClients(string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return nil

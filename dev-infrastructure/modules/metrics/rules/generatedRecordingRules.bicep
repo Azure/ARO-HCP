@@ -13,12 +13,36 @@ resource arohcpBackendOperationSloWindowedRecordingRules 'Microsoft.AlertsManage
     interval: 'PT1M'
     rules: [
       {
+        record: 'errors:backend_resource_operation:failed_5m'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 300) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_resource_operation:total_5m'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 300) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_resource_operation:error_rate_5m'
+        expression: 'errors:backend_resource_operation:failed_5m / clamp_min(errors:backend_resource_operation:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_resource_operation:failed_30m'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 1800) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_resource_operation:total_30m'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 1800) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_resource_operation:error_rate_30m'
+        expression: 'errors:backend_resource_operation:failed_30m / clamp_min(errors:backend_resource_operation:total_30m, 1)'
+      }
+      {
         record: 'errors:backend_resource_operation:failed_1h'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 3600)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 3600) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:total_1h'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 3600)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 3600) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:error_rate_1h'
@@ -26,11 +50,11 @@ resource arohcpBackendOperationSloWindowedRecordingRules 'Microsoft.AlertsManage
       }
       {
         record: 'errors:backend_resource_operation:failed_6h'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 21600)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 21600) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:total_6h'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 21600)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 21600) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:error_rate_6h'
@@ -38,11 +62,11 @@ resource arohcpBackendOperationSloWindowedRecordingRules 'Microsoft.AlertsManage
       }
       {
         record: 'errors:backend_resource_operation:failed_3d'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 259200)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase="failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 259200) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:total_3d'
-        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 259200)) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info))'
+        expression: 'count by (cluster, region, resource_type, operation_type) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"succeeded|failed"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds)) < 259200) unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region, resource_type, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info) unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_resource_operation:error_rate_3d'
@@ -512,6 +536,24 @@ resource arohcpClusterDeletionSloWindowedLatencyRecordingRules 'Microsoft.Alerts
   }
 }
 
+resource arohcpClusterUpdateSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'current:backend_cluster_update:last_transition_time_seconds'
+        expression: 'max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (topk by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (1, (max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) and ((max without (prometheus_replica) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) == on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) group_left () max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (max without (prometheus_replica) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})))))'
+      }
+    ]
+  }
+}
+
 resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_nodepool_slo_recording_rules'
   location: location
@@ -665,10 +707,6 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
-        record: 'sli:frontend_http:good:rate5m'
-        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
-      }
-      {
         record: 'errors:frontend_http:error_rate:rate5m'
         expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
@@ -685,8 +723,12 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
       }
       {
-        record: 'sli:frontend_http:availability:rate_avg_30d'
-        expression: '(avg_over_time(sli:frontend_http:good:rate5m[30d:5m]) / avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0'
+        record: 'errors:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time((errors:frontend_http:error_rate:rate5m * traffic:frontend_http:request_rate:rate5m)[30d:5m])'
+      }
+      {
+        record: 'traffic:frontend_http:request_rate:sum30d'
+        expression: 'sum_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])'
       }
       {
         record: 'sli:frontend:ready:ratio5m'
@@ -747,6 +789,42 @@ resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/
       {
         record: 'certificate:keyvault_certificate:collector_fresh'
         expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) <= bool 3600) * on (cluster, environment, region, key_vault) max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > bool 0'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:ip_assignment_latency:p99'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(ip_assignment_latency_seconds_bucket{cluster=~".*-mgmt(-[0-9]+)?$"}[5m]))))'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:daemonset_availability:ratio'
+        expression: 'max by (cluster, namespace, daemonset, job, region) (kube_daemonset_status_number_ready{cluster=~".*-mgmt(-[0-9]+)?$",daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}) / clamp_min(max by (cluster, namespace, daemonset, job, region) (kube_daemonset_status_desired_number_scheduled{cluster=~".*-mgmt(-[0-9]+)?$",daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}), 1)'
       }
     ]
   }

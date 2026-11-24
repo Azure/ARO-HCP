@@ -475,17 +475,11 @@
         "clustersServiceArmHelper": {
           "$ref": "#/$defs/MockIdentityApp"
         },
-        "armHelperPool": {
-          "$ref": "#/$defs/MockIdentityPool"
-        },
         "msiMock": {
           "$ref": "#/$defs/MockIdentityApp"
-        },
-        "pool": {
-          "$ref": "#/$defs/MockIdentityPool"
         }
       },
-      "required": ["vaultUrl", "firstParty", "armHelper", "msiMock", "pool"]
+      "required": ["vaultUrl", "firstParty", "armHelper", "msiMock"]
     },
     "MockIdentityApp": {
       "type": "object",
@@ -505,30 +499,6 @@
         }
       },
       "required": ["applicationName", "certName", "certDns"]
-    },
-    "MockIdentityPool": {
-      "type": "object",
-      "description": "Pool of mock identities for throttle distribution",
-      "properties": {
-        "appBaseName": {
-          "type": "string",
-          "description": "Base application name; pool members are named {appBaseName}-{index}"
-        },
-        "certBaseName": {
-          "type": "string",
-          "description": "Base Key Vault certificate name; pool members are named {certBaseName}-{index}"
-        },
-        "certBaseDns": {
-          "type": "string",
-          "description": "Base certificate DNS; pool members use {index}.{certBaseDns}"
-        },
-        "size": {
-          "type": "integer",
-          "description": "Number of pool members to create",
-          "minimum": 0
-        }
-      },
-      "required": ["appBaseName", "certBaseName", "certBaseDns", "size"]
     },
     "Image": {
       "type": "object",

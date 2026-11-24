@@ -386,7 +386,8 @@ func TestAdmissionDrainAndCancellationJoin(t *testing.T) {
 	go func() { drainDone <- c.pauseNormalReconciliationAndWait(ctx) }()
 	require.Eventually(t, func() bool { _, allowed := c.normalReconciliationVersion(); return !allowed }, time.Second, time.Millisecond)
 	select {
-	case <-drainDone:
+	case err := <-drainDone:
+		_ = err
 		t.Fatal("drain completed with reconcile in flight")
 	default:
 	}
@@ -396,7 +397,8 @@ func TestAdmissionDrainAndCancellationJoin(t *testing.T) {
 	cancel()
 	<-workDone
 	select {
-	case <-drainDone:
+	case err := <-drainDone:
+		_ = err
 	case <-time.After(time.Second):
 		t.Fatal("drain did not cancel")
 	}

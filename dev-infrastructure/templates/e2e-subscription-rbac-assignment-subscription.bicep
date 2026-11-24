@@ -9,12 +9,6 @@ param armHelperPrincipalId string
 @description('Principal ID for aro-dev-msi-mock2')
 param miMockPrincipalId string
 
-@description('Pooled MSI mock principals that also need customer-subscription access')
-param msiMockPoolPrincipals array = []
-
-@description('Pooled ARM helper principals that need E2E customer-subscription access')
-param armHelperPoolPrincipals array = []
-
 @description('Clusters Service ARM helper principal that needs E2E customer-subscription access')
 param clustersServiceArmHelperPrincipalId string = ''
 
@@ -23,6 +17,15 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 
 @description('Custom role name for the MSI mock principal')
 param msiMockRoleName string = 'dev-msi-mock'
+
+@description('Custom role name for the data-plane disk CSI operator')
+param dpDiskCsiOperatorRoleName string = 'ARO HCP Data Plane Disk CSI Operator'
+
+@description('Custom role name for the data-plane file CSI operator')
+param dpFileCsiOperatorRoleName string = 'ARO HCP Data Plane File CSI Operator'
+
+@description('Custom role name for the data-plane image registry operator')
+param dpImageRegistryOperatorRoleName string = 'ARO HCP Data Plane Image Registry Operator'
 
 var contributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -119,6 +122,76 @@ resource msiMockRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   }
 }
 
+// Data-plane operator role definitions only. Not assigned by this module.
+resource dpDiskCsiOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpDiskCsiOperatorRoleName)
+  properties: {
+    roleName: '${dpDiskCsiOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the Azure Disk CSI driver'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Compute/virtualMachines/read'
+          'Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read'
+        ]
+        notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource dpFileCsiOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpFileCsiOperatorRoleName)
+  properties: {
+    roleName: '${dpFileCsiOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the Azure File CSI driver'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Storage/storageAccounts/listKeys/action'
+        ]
+        notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource dpImageRegistryOperatorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, dpImageRegistryOperatorRoleName)
+  properties: {
+    roleName: '${dpImageRegistryOperatorRoleName}-${subscription().subscriptionId}'
+    description: 'Minimum data-plane permissions for the image registry operator'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Storage/storageAccounts/blobServices/generateUserDelegationKey/action'
+        ]
+        notActions: []
+        dataActions: [
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/move/action'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete'
+        ]
+        notDataActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
 // Role assignments
 
 resource firstPartyRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -170,54 +243,6 @@ resource miMockKmsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-0
     roleDefinitionId: kmsCryptoUserRoleDefinitionId
   }
 }
-
-resource pooledMiMockRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in msiMockPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, msiMockRole.id)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: msiMockRole.id
-    }
-  }
-]
-
-resource pooledMiMockKmsRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in msiMockPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, kmsCryptoUserRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: kmsCryptoUserRoleDefinitionId
-    }
-  }
-]
-
-resource pooledArmHelperContributorRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in armHelperPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, contributorRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: contributorRoleDefinitionId
-    }
-  }
-]
-
-resource pooledArmHelperRbacAdminRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principal in armHelperPoolPrincipals: {
-    name: guid(subscription().id, principal.principalId, rbacAdminRoleDefinitionId)
-    scope: subscription()
-    properties: {
-      principalId: principal.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: rbacAdminRoleDefinitionId
-    }
-  }
-]
 
 resource clustersServiceArmHelperContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(clustersServiceArmHelperPrincipalId)) {
   name: guid(subscription().id, clustersServiceArmHelperPrincipalId, contributorRoleDefinitionId)

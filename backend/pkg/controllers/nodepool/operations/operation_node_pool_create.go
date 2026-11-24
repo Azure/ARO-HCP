@@ -24,12 +24,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -38,14 +38,16 @@ import (
 )
 
 type operationNodePoolCreate struct {
-	statusCalculators      operationbase.OperationStatusCalculators[struct{}]
-	clock                  utilsclock.PassiveClock
-	resourcesDBClient      corecosmosstorage.ResourcesDBClient
-	activeOperationsLister corelisters.ActiveOperationLister
-	nodePoolLister         corelisters.NodePoolLister
-	readDesireLister       kubeapplierlisters.ReadDesireLister
-	clusterServiceClient   ocm.ClusterServiceClientSpec
-	notificationClient     *http.Client
+	statusCalculators             operationbase.OperationStatusCalculators[struct{}]
+	clock                         utilsclock.PassiveClock
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	activeOperationsLister        corelisters.ActiveOperationLister
+	nodePoolLister                corelisters.NodePoolLister
+	subscriptionLister            corelisters.SubscriptionLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	notificationClient            *http.Client
 }
 
 const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
@@ -74,16 +76,20 @@ func NewOperationNodePoolCreateController(
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
+	_, subscriptionLister := backendInformers.Subscriptions()
+	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
 	syncer := &operationNodePoolCreate{
-		clock:                  clock,
-		resourcesDBClient:      resourcesDBClient,
-		nodePoolLister:         nodePoolLister,
-		readDesireLister:       readDesireLister,
-		activeOperationsLister: activeOperationsLister,
-		clusterServiceClient:   clusterServiceClient,
-		notificationClient:     notificationClient,
+		clock:                         clock,
+		resourcesDBClient:             resourcesDBClient,
+		nodePoolLister:                nodePoolLister,
+		subscriptionLister:            subscriptionLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		readDesireLister:              readDesireLister,
+		activeOperationsLister:        activeOperationsLister,
+		clusterServiceClient:          clusterServiceClient,
+		notificationClient:            notificationClient,
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
@@ -108,6 +114,7 @@ func (c *operationNodePoolCreate) newStatusCalculators() (operationbase.Operatio
 	return operationbase.NewOperationStatusCalculators[struct{}](
 		&nodePoolCreateClusterServiceCheck{nodePoolLister: c.nodePoolLister, clusterServiceClient: c.clusterServiceClient},
 		&nodePoolCreateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+		&nodePoolCreateValidationCheck{clock: c.clock, nodePoolLister: c.nodePoolLister, subscriptionLister: c.subscriptionLister, serviceProviderNodePoolLister: c.serviceProviderNodePoolLister},
 	)
 }
 

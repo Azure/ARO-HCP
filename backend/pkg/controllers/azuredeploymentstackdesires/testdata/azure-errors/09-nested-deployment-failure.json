@@ -1,0 +1,314 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "09-nested-deployment-failure/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:54.1709392Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:54.1709392Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "nested-failure"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.Resources/deployments",
+                "apiVersion": "2024-03-01",
+                "name": "nested-invalid-output",
+                "properties": {
+                  "mode": "Incremental",
+                  "expressionEvaluationOptions": {
+                    "scope": "inner"
+                  },
+                  "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [],
+                    "outputs": {
+                      "invalid": {
+                        "type": "string",
+                        "value": "[parameters('notDeclared')]"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "8b0c91b2b942378afb22660d069af0930559cf04763b58f95964cc462e798c4b"
+    },
+    {
+      "case": "09-nested-deployment-failure/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:54.1709392Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:54.1709392Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "nested-failure"
+      }
+    },
+    {
+      "case": "09-nested-deployment-failure/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "deploymentId": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "deploying",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:54.1709392Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:54.1709392Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "nested-failure"
+      }
+    },
+    {
+      "case": "09-nested-deployment-failure/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "deploymentId": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+          "duration": "PT19.5643764S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "DeploymentFailed",
+                "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+                "message": "At least one resource deployment operation failed. Please list deployment operations for details. Please see https://aka.ms/arm-deployment-operations for usage details.",
+                "details": [
+                  {
+                    "code": "DeploymentOutputEvaluationFailed",
+                    "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details."
+                  }
+                ]
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:54.1709392Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:54.1709392Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/nested-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "nested-failure"
+      }
+    },
+    {
+      "case": "09-nested-deployment-failure/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "DeploymentFailed",
+              "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+              "message": "At least one resource deployment operation failed. Please list deployment operations for details. Please see https://aka.ms/arm-deployment-operations for usage details.",
+              "details": [
+                {
+                  "code": "DeploymentOutputEvaluationFailed",
+                  "message": "Unable to evaluate template outputs: 'invalid'. Please see error details and deployment operations. Please see https://aka.ms/arm-common-errors for usage details."
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "09-nested-deployment-failure/deployment-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+        "name": "nested-failure-GENERATED_SUFFIX",
+        "type": "Microsoft.Resources/deployments",
+        "properties": {
+          "templateHash": "4806046164404002412",
+          "mode": "Incremental",
+          "provisioningState": "Failed",
+          "timestamp": "2026-10-14T23:28:04.0649849Z",
+          "duration": "PT5.8195683S",
+          "correlationId": "REDACTED_UUID",
+          "providers": [
+            {
+              "namespace": "Microsoft.Resources",
+              "resourceTypes": [
+                {
+                  "resourceType": "deployments",
+                  "locations": [
+                    null
+                  ]
+                }
+              ]
+            }
+          ],
+          "dependencies": [],
+          "error": {
+            "code": "DeploymentFailed",
+            "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-failure-GENERATED_SUFFIX",
+            "message": "At least one resource deployment operation failed. Please list deployment operations for details. Please see https://aka.ms/arm-deployment-operations for usage details.",
+            "details": [
+              {
+                "code": "ResourceDeploymentFailure",
+                "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deployments/nested-invalid-output",
+                "message": "The resource write operation failed to complete successfully, because it reached terminal provisioning state 'Failed'."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

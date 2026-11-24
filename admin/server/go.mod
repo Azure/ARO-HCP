@@ -3,6 +3,7 @@ module github.com/Azure/ARO-HCP/admin/server
 go 1.26.0
 
 require (
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-kusto-go v0.16.1
@@ -31,6 +32,7 @@ require (
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.13.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2 v2.0.0 // indirect
 	github.com/Azure/retry v0.0.0-20250701224816-85c6a88f883d // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.10.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
@@ -172,3 +174,5 @@ require (
 replace github.com/Azure/ARO-HCP/internal => ../../internal
 
 replace github.com/Azure/ARO-HCP/sessiongate => ../../sessiongate
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../../arohcp-cosmos-client

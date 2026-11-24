@@ -27,11 +27,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,7 +45,8 @@ import (
 // cluster to normal rollout selection. A pin at or above the latest observed
 // control-plane version can hold or advance the cluster. Rolling back below
 // that version requires the immediately previous successfully installed version
-// from the mirrored HostedCluster's control-plane history.
+// from the mirrored HostedCluster's control-plane history, except for prerelease
+// targets, whose SemVer ordering does not indicate a rollback.
 type HCPVersionPinHandler struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
@@ -238,10 +239,18 @@ func validateClusterVersionPin(version coreapi.VersionProfile, pin *coreapi.Serv
 }
 
 // validateVersionPinTarget allows holding or advancing a version without
-// requiring prior installation. A rollback uses the full mirrored control-plane
+// requiring prior installation. Prerelease targets skip history validation.
+// A stable-release rollback uses the full mirrored control-plane
 // history: the distilled ActiveVersions stops at the first completed entry and
 // cannot identify the previous installed version after a successful upgrade.
 func validateVersionPinTarget(cluster *coreapi.ServiceProviderCluster, target semver.Version) error {
+	// Only plain x.y.z targets are subject to rollback-history validation.
+	// Prerelease ordering does not establish whether the payload is older.
+	// The caller validates SemVer syntax, disallows build metadata, and checks
+	// the release line before validating the target.
+	if len(target.Pre) > 0 {
+		return nil
+	}
 	// The backend mirrors HostedCluster status asynchronously. Without an
 	// observed version, the pin can still hold the requested target while the
 	// controller and HostedCluster catch up.

@@ -33,8 +33,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -338,6 +338,20 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: time.Minute,
+		},
+		{
+			name:             "AFEC registered with disk encryption set permissions validation tag on create is recognized",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with disk encryption set permissions validation tag on update is recognized",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions: "true"},
+			op:           operation.Operation{Type: operation.Update},
 		},
 	}
 

@@ -25,7 +25,7 @@ module keyVault '../../keyvault/keyvault.bicep' = {
   }
 }
 
-module keyVaultCertificateOfficer '../../keyvault/keyvault-secret-access.bicep' = {
+module keyVaultCertificateOfficer '../../keyvault/keyvault-secret-access.bicep' = if (keyVaultAdminPrincipalId != '') {
   name: guid(keyVaultName, keyVaultAdminPrincipalId, 'Key Vault Certificates Officer')
   params: {
     keyVaultName: keyVaultName

@@ -25,6 +25,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 )
 
 // VerifyCustomerSubscriptionName checks that slotSubscriptionName matches
@@ -105,7 +107,7 @@ func ResolvePoolSubscriptions(
 	e2eSubscriptionName string,
 	infrastructureSubscriptionName string,
 ) (ResolvedSubscriptions, error) {
-	return resolvePoolSubscriptions(ctx, clusterProfileDir, deployEnvironment, e2eSubscriptionName, infrastructureSubscriptionName, nil, nil)
+	return resolvePoolSubscriptions(ctx, clusterProfileDir, deployEnvironment, e2eSubscriptionName, infrastructureSubscriptionName, nil, azureclient.ARMClientOptions())
 }
 
 func resolvePoolSubscriptions(

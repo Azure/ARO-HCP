@@ -32,13 +32,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -232,7 +232,7 @@ func TestSweepOrphanedResources_StatelessGrace(t *testing.T) {
 }
 
 func TestDeleteOrphanedCosmosResources_DefaultClock(t *testing.T) {
-	controller := NewDeleteOrphanedCosmosResourcesController(nil, nil, nil, nil, nil).(*deleteOrphanedCosmosResources)
+	controller := NewDeleteOrphanedCosmosResourcesController(nil, nil, nil, nil, nil, nil).(*deleteOrphanedCosmosResources)
 	t.Cleanup(controller.queue.ShutDown)
 	require.IsType(t, utilsclock.RealClock{}, controller.clock)
 }
@@ -250,7 +250,7 @@ func TestSynchronizeSubscription_StatelessRestart(t *testing.T) {
 			fixture.assertDeleted(false)
 			fixture.clock.SetTime(fixture.clock.Now().Add(deletionGraceOffset))
 			restarted := NewDeleteOrphanedCosmosResourcesController(fixture.clock, fixture.controller.resourcesDBClient,
-				fixture.controller.kubeApplierDBClients, nil, fixture.controller.managementClusterLister)
+				fixture.controller.azureResourcesDBClient, fixture.controller.kubeApplierDBClients, nil, fixture.controller.managementClusterLister)
 			t.Cleanup(restarted.(*deleteOrphanedCosmosResources).queue.ShutDown)
 			require.NoError(t, restarted.SyncOnce(fixture.ctx, testSubscriptionID))
 			fixture.assertDeleted(true)
@@ -375,7 +375,7 @@ func newOrphanSweepFixture(t *testing.T, desire bool) *orphanSweepFixture {
 	require.NoError(t, err)
 	kubeClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
-	controller := NewDeleteOrphanedCosmosResourcesController(fakeClock, resourcesClient, kubeClients, nil,
+	controller := NewDeleteOrphanedCosmosResourcesController(fakeClock, resourcesClient, nil, kubeClients, nil,
 		&fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterID},
 		}}}).(*deleteOrphanedCosmosResources)

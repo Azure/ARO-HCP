@@ -65,7 +65,7 @@ func TestHypershiftMetrics(t *testing.T) {
 				SourceLabels []string
 			}
 			require.NoError(t, yaml.Unmarshal([]byte(config), &components))
-			for _, component := range []string{"kubeAPIServer", "kubeControllerManager", "openshiftAPIServer", "openshiftControllerManager", "cvo"} {
+			for _, component := range []string{"etcd", "kubeAPIServer", "kubeControllerManager", "openshiftAPIServer", "openshiftControllerManager", "cvo"} {
 				t.Run(component, func(t *testing.T) {
 					var keepRegexes []string
 					for _, rule := range components[component] {
@@ -80,11 +80,32 @@ func TestHypershiftMetrics(t *testing.T) {
 					require.NoError(t, err)
 					retained := []string{"go_gc_duration_seconds", "go_gc_duration_seconds_sum", "go_gc_duration_seconds_count", "go_goroutines", "go_memstats_alloc_bytes", "process_cpu_seconds_total", "process_resident_memory_bytes"}
 					var removed []string
-					if component == "cvo" {
+					switch component {
+					case "cvo":
 						retained = append(retained, "cluster_operator_conditions")
 						// cluster_version has no consumer; dropped in this profile.
 						removed = []string{"cluster_version"}
-					} else {
+					case "etcd":
+						// Peer-status and traffic metrics needed to detect the
+						// upstream etcd peerStatus latch race (etcd-io/etcd#22480,
+						// OCPBUGS-142934): a peer latched inactive while traffic
+						// still flows is only observable via etcd_network_* series.
+						retained = append(retained,
+							"etcd_network_active_peers",
+							"etcd_network_disconnected_peers_total",
+							"etcd_network_peer_sent_failures_total",
+							"etcd_network_peer_sent_bytes_total",
+							"etcd_network_peer_received_bytes_total",
+							"etcd_server_has_leader",
+							"etcd_server_proposals_applied_total",
+						)
+						removed = []string{
+							// Only the _total variants of the peer byte counters
+							// are allowlisted; unsuffixed names must not match.
+							"etcd_network_peer_sent_bytes",
+							"etcd_network_peer_received_bytes",
+						}
+					default:
 						retained = append(retained, "rest_client_requests_total", "apiserver_client_certificate_expiration_seconds_bucket", "apiserver_client_certificate_expiration_seconds_count", "apiserver_client_certificate_expiration_seconds_sum")
 						removed = []string{
 							// All workqueue_.* is dropped, including the counters/gauges.

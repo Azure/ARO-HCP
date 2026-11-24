@@ -22,8 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 )
 
 // reasonMissingDegraded is the synthesized reason used when an item has no
@@ -43,8 +43,9 @@ const DegradedConditionType = "Degraded"
 // kind in the aggregated Degraded reason/message. Controllers use no prefix and
 // are named by the trailing segment of their resource ID.
 const (
-	ApplyDesireSourcePrefix = "applydesire"
-	ReadDesireSourcePrefix  = "readdesire"
+	ApplyDesireSourcePrefix           = "applydesire"
+	ReadDesireSourcePrefix            = "readdesire"
+	DeploymentStackDesireSourcePrefix = "deploymentstackdesire"
 )
 
 // ConditionsOfKnown returns the Status.Conditions of any item type that this

@@ -5464,6 +5464,291 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability6Hourly
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 46800
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityDaily
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 176400
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityWeekly
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1.2132e+06
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceeded6Hourly
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededDaily
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededWeekly
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors
+  occurrence: 1
+  input: ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+  plan:
+    expression: ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
+        path: root/and:left
+        queries:
+          - expression: (sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
+            role: signal
+        thresholds:
+          - operator: <
+            value: 0.995
+        unsupported: ""
+      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency
+  occurrence: 1
+  input: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
+  occurrence: 1
+  input: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+  plan:
+    expression: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+    conditions:
+      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+        path: root/and:left
+        queries:
+          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
+            role: left
+          - expression: 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+        path: root/and:right
+        queries:
+          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
   alert: hypershiftCPODown
   occurrence: 1
@@ -5840,160 +6125,6 @@
             value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupAvailability6Hourly
-  occurrence: 1
-  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
-  plan:
-    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
-    conditions:
-      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
-        path: root
-        queries:
-          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 46800
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupAvailabilityDaily
-  occurrence: 1
-  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
-  plan:
-    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
-    conditions:
-      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
-        path: root
-        queries:
-          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 176400
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupAvailabilityWeekly
-  occurrence: 1
-  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
-  plan:
-    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
-    conditions:
-      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
-        path: root
-        queries:
-          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 1.2132e+06
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupNeverSucceeded6Hourly
-  occurrence: 1
-  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
-  plan:
-    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
-    conditions:
-      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
-        path: root
-        queries:
-          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupNeverSucceededDaily
-  occurrence: 1
-  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
-  plan:
-    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
-    conditions:
-      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
-        path: root
-        queries:
-          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_availability_alerts
-  alert: userJourneyBackupNeverSucceededWeekly
-  occurrence: 1
-  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
-  plan:
-    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
-    conditions:
-      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
-        path: root
-        queries:
-          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_error_alerts
-  alert: userJourneyBackupErrors
-  occurrence: 1
-  input: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-  plan:
-    expression: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-    conditions:
-      - expression: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
-        path: root/and:left
-        queries:
-          - expression: (sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
-            role: signal
-        thresholds:
-          - operator: <
-            value: 0.995
-        unsupported: ""
-      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-        path: root/and:right
-        queries:
-          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_latency_alerts
-  alert: userJourneyBackupLatency
-  occurrence: 1
-  input: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-  plan:
-    expression: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-    conditions:
-      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
-        path: root/and:left
-        queries:
-          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 1200
-        unsupported: ""
-      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
-        path: root/and:right
-        queries:
-          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_metrics_absent_alerts
   alert: userJourneyBackupMetricsAbsent
   occurrence: 1
@@ -6030,32 +6161,6 @@
             role: signal
         thresholds:
           - operator: ==
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_backup_slo_traffic_alerts
-  alert: userJourneyBackupTraffic
-  occurrence: 1
-  input: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
-  plan:
-    expression: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
-    conditions:
-      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-        path: root/and:left
-        queries:
-          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
-            role: left
-          - expression: 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
-        path: root/and:right
-        queries:
-          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-            role: signal
-        thresholds:
-          - operator: '>'
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
@@ -6573,6 +6678,135 @@
             value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors1h5m
+  occurrence: 1
+  input: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+  plan:
+    expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+    conditions:
+      - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors3d
+  occurrence: 1
+  input: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
+  plan:
+    expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
+    conditions:
+      - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors6h30m
+  occurrence: 1
+  input: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+  plan:
+    expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+    conditions:
+      - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_update_slo_stuck_alerts
+  alert: userJourneyClusterUpdateStuckOperation
+  occurrence: 1
+  input: ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 5400) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 5400) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 5400) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:left
+        queries:
+          - expression: (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 5400
+        unsupported: ""
+      - expression: (current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:right
+        queries:
+          - expression: (current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_frontend_slo_error_alerts
   alert: userJourneyFrontendErrors1h5m
   occurrence: 1
@@ -6779,23 +7013,6 @@
         thresholds:
           - operator: '>'
             value: 0.85
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_saturation_alerts
-  alert: userJourneyNodePoolSaturationQueueDepth
-  occurrence: 1
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
-  plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
-    conditions:
-      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
-        path: root
-        queries:
-          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 10
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_error_alerts
@@ -8036,7 +8253,7 @@
           - operator: '>'
             value: 0
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailability6Hourly
   occurrence: 1
@@ -8046,24 +8263,24 @@
       -
       min by (cluster) (
         max by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
         )
       )
     )
     > 13 * 3600
   plan:
-    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
     conditions:
-      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
         path: root
         queries:
-          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
             role: signal
         thresholds:
           - operator: '>'
             value: 46800
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailabilityDaily
   occurrence: 1
@@ -8073,24 +8290,24 @@
       -
       min by (cluster) (
         max by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
         )
       )
     )
     > 49 * 3600
   plan:
-    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
     conditions:
-      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
         path: root
         queries:
-          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))
             role: signal
         thresholds:
           - operator: '>'
             value: 176400
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailabilityWeekly
   occurrence: 1
@@ -8100,24 +8317,24 @@
       -
       min by (cluster) (
         max by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
         )
       )
     )
     > 337 * 3600
   plan:
-    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
     conditions:
-      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
         path: root
         queries:
-          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))
             role: signal
         thresholds:
           - operator: '>'
             value: 1.2132e+06
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupNeverSucceeded6Hourly
   occurrence: 1
@@ -8125,40 +8342,40 @@
     count by (cluster) (
       (
         group by (cluster, schedule) (
-          velero_backup_last_status{schedule=~".+-6-hourly"}
+          velero_hcp_backup_last_status{schedule=~".+-6-hourly"}
         )
         unless on (cluster, schedule)
         group by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
         )
       )
       and on (cluster, schedule) (
         count_over_time(
           (
             group by (cluster, schedule) (
-              velero_backup_last_status{schedule=~".+-6-hourly"}
+              velero_hcp_backup_last_status{schedule=~".+-6-hourly"}
             )
             unless on (cluster, schedule)
             group by (cluster, schedule) (
-              velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+              velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
             )
           )[12h:1m]
         ) >= 716
       )
     ) > 0
   plan:
-    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
     conditions:
-      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
         path: root
         queries:
-          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
             role: signal
         thresholds:
           - operator: '>'
             value: 0
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupNeverSucceededDaily
   occurrence: 1
@@ -8166,40 +8383,40 @@
     count by (cluster) (
       (
         group by (cluster, schedule) (
-          velero_backup_last_status{schedule=~".+-daily"}
+          velero_hcp_backup_last_status{schedule=~".+-daily"}
         )
         unless on (cluster, schedule)
         group by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
         )
       )
       and on (cluster, schedule) (
         count_over_time(
           (
             group by (cluster, schedule) (
-              velero_backup_last_status{schedule=~".+-daily"}
+              velero_hcp_backup_last_status{schedule=~".+-daily"}
             )
             unless on (cluster, schedule)
             group by (cluster, schedule) (
-              velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+              velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
             )
           )[48h:5m]
         ) >= 574
       )
     ) > 0
   plan:
-    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
     conditions:
-      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
         path: root
         queries:
-          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
             role: signal
         thresholds:
           - operator: '>'
             value: 0
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupNeverSucceededWeekly
   occurrence: 1
@@ -8207,98 +8424,98 @@
     count by (cluster) (
       (
         group by (cluster, schedule) (
-          velero_backup_last_status{schedule=~".+-weekly"}
+          velero_hcp_backup_last_status{schedule=~".+-weekly"}
         )
         unless on (cluster, schedule)
         group by (cluster, schedule) (
-          velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+          velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
         )
       )
       and on (cluster, schedule) (
         count_over_time(
           (
             group by (cluster, schedule) (
-              velero_backup_last_status{schedule=~".+-weekly"}
+              velero_hcp_backup_last_status{schedule=~".+-weekly"}
             )
             unless on (cluster, schedule)
             group by (cluster, schedule) (
-              velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+              velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
             )
           )[336h:15m]
         ) >= 1341
       )
     ) > 0
   plan:
-    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
     conditions:
-      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
         path: root
         queries:
-          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
             role: signal
         thresholds:
           - operator: '>'
             value: 0
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_error_alerts
   alert: userJourneyBackupErrors
   occurrence: 1
   input: |
     (
       (
-        sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
-        or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
       )
       /
       (
         (
-          sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
-          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
         )
         +
         (
-          sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
-          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          sum by (cluster) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
         )
         +
         (
-          sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
-          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          sum by (cluster) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
         )
         +
         (
-          sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
-          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          sum by (cluster) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
         )
       )
     ) < 0.995
     and on (cluster)
     sum by (cluster) (
-      max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+      max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
     ) >= 5
   plan:
-    expression: ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    expression: ((sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
     conditions:
-      - expression: ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
+      - expression: ((sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
         path: root/and:left
         queries:
-          - expression: (sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
+          - expression: (sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
             role: signal
         thresholds:
           - operator: <
             value: 0.995
         unsupported: ""
-      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
         path: root/and:right
         queries:
-          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
   group: arohcp_backup_slo_latency_alerts
   alert: userJourneyBackupLatency
   occurrence: 1
@@ -8307,36 +8524,92 @@
       histogram_quantile(
         0.99,
         sum by (cluster, le) (
-          rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+          rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
         )
       ) > 1200
     )
     and on (cluster)
     sum by (cluster) (
       max without (prometheus_replica) (
-        increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+        increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
       )
     ) >= 5
   plan:
-    expression: (histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    expression: (histogram_quantile(0.99, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
     conditions:
-      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
         path: root/and:left
         queries:
-          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
             role: signal
         thresholds:
           - operator: '>'
             value: 1200
         unsupported: ""
-      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
         path: root/and:right
         queries:
-          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
             role: signal
         thresholds:
           - operator: '>='
             value: 5
+        unsupported: ""
+- source: observability/alerts/backup-slo-hcp-prometheusRule.yaml
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
+  occurrence: 1
+  input: |
+    (
+      avg_over_time(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+            )
+          )
+        )[12h:1m]
+      )
+      < 0.1 * avg_over_time(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+            )
+          )
+        )[1d:1m]
+      )
+    )
+    and
+    avg_over_time(
+      (
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+          )
+        )
+      )[1d:1m]
+    ) > 0
+  plan:
+    expression: (avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+    conditions:
+      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+        path: root/and:left
+        queries:
+          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
+            role: left
+          - expression: 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+        path: root/and:right
+        queries:
+          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_metrics_absent_alerts
@@ -8383,62 +8656,6 @@
             role: signal
         thresholds:
           - operator: ==
-            value: 0
-        unsupported: ""
-- source: observability/alerts/backup-slo-prometheusRule.yaml
-  group: arohcp_backup_slo_traffic_alerts
-  alert: userJourneyBackupTraffic
-  occurrence: 1
-  input: |
-    (
-      avg_over_time(
-        (
-          sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
-            )
-          )
-        )[12h:1m]
-      )
-      < 0.1 * avg_over_time(
-        (
-          sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
-            )
-          )
-        )[1d:1m]
-      )
-    )
-    and
-    avg_over_time(
-      (
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
-          )
-        )
-      )[1d:1m]
-    ) > 0
-  plan:
-    expression: (avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
-    conditions:
-      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-        path: root/and:left
-        queries:
-          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
-            role: left
-          - expression: 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
-        path: root/and:right
-        queries:
-          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
-            role: signal
-        thresholds:
-          - operator: '>'
             value: 0
         unsupported: ""
 - source: observability/alerts/certificate-rotation-prometheusRule.yaml
@@ -9116,6 +9333,157 @@
         thresholds:
           - operator: '>'
             value: 0.15
+        unsupported: ""
+- source: observability/alerts/cluster-update-slo-prometheusRule.yaml
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 3
+    and
+    errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
+    and
+    errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
+  plan:
+    expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+    conditions:
+      - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/cluster-update-slo-prometheusRule.yaml
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 10
+    and
+    errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 2
+    and
+    errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.05
+  plan:
+    expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
+    conditions:
+      - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/cluster-update-slo-prometheusRule.yaml
+  group: arohcp_cluster_update_slo_error_alerts
+  alert: userJourneyClusterUpdateErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 5
+    and
+    errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
+    and
+    errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
+  plan:
+    expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+    conditions:
+      - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/cluster-update-slo-prometheusRule.yaml
+  group: arohcp_cluster_update_slo_stuck_alerts
+  alert: userJourneyClusterUpdateStuckOperation
+  occurrence: 1
+  input: |
+    (
+      time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+        backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}
+      ) > 5400
+    )
+    and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+    current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+  plan:
+    expression: (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 5400) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+    conditions:
+      - expression: time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 5400
+        path: root/and:left
+        queries:
+          - expression: time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 5400
+        unsupported: ""
+      - expression: current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+        path: root/and:right
+        queries:
+          - expression: current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+            role: signal
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/frontend-slo-prometheusRule.yaml
   group: arohcp_frontend_slo_error_alerts
@@ -11449,28 +11817,6 @@
             value: 0
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_saturation_alerts
-  alert: userJourneyNodePoolSaturationQueueDepth
-  occurrence: 1
-  input: |
-    max by (name, cluster) (
-      max without(prometheus_replica) (
-        workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"}
-      )
-    ) > 10
-  plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
-    conditions:
-      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
-        path: root
-        queries:
-          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 10
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_error_alerts
   alert: userJourneyNodePoolCreateStuckOperation
   occurrence: 1
@@ -12276,6 +12622,126 @@
         thresholds:
           - operator: '>'
             value: 2
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+    and
+    (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+    and
+    (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+    and
+    (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   group: rp-user-journey-cluster-upgrade-monitor-rules

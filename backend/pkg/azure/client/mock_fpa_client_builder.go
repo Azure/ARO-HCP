@@ -155,6 +155,84 @@ func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) DoAndR
 	return c
 }
 
+// DeploymentStacksClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) DeploymentStacksClient(tenantID, subscriptionID string) (DeploymentStacksClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeploymentStacksClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(DeploymentStacksClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeploymentStacksClient indicates an expected call of DeploymentStacksClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) DeploymentStacksClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploymentStacksClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).DeploymentStacksClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) Return(arg0 DeploymentStacksClient, arg1 error) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) Do(f func(string, string) (DeploymentStacksClient, error)) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(string, string) (DeploymentStacksClient, error)) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// FeaturesClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) FeaturesClient(tenantID, subscriptionID string) (FeaturesClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FeaturesClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(FeaturesClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FeaturesClient indicates an expected call of FeaturesClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) FeaturesClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderFeaturesClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FeaturesClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).FeaturesClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderFeaturesClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderFeaturesClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderFeaturesClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderFeaturesClientCall) Return(arg0 FeaturesClient, arg1 error) *MockFirstPartyApplicationClientBuilderFeaturesClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderFeaturesClientCall) Do(f func(string, string) (FeaturesClient, error)) *MockFirstPartyApplicationClientBuilderFeaturesClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderFeaturesClientCall) DoAndReturn(f func(string, string) (FeaturesClient, error)) *MockFirstPartyApplicationClientBuilderFeaturesClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GenericResourcesClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) GenericResourcesClient(tenantID, subscriptionID string) (GenericResourcesClient, error) {
 	m.ctrl.T.Helper()

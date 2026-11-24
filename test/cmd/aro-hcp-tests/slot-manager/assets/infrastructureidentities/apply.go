@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -35,11 +36,11 @@ type poolClients struct {
 }
 
 func azurePoolClients(subscriptionID string, credential azcore.TokenCredential) (*poolClients, error) {
-	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, nil)
+	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed creating resource groups client: %w", err)
 	}
-	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, nil)
+	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, azureclient.ARMClientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed creating managed identity client factory: %w", err)
 	}

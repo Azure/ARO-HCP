@@ -55,6 +55,9 @@ var DefaultDeploymentTimeoutSeconds = 30 * 6
 // the step definition does not specify a type-specific override.
 const defaultStepContextTimeout = 30 * time.Minute
 
+// executionDetailsTimeout bounds how long we spend collecting ARM operations for a single step after it finished.
+const executionDetailsTimeout = 2 * time.Minute
+
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
 	return ret
@@ -697,8 +700,8 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						return
 					}
 					originalSink := thisLogger.GetSink()
-					stepLogs := bytes.Buffer{}
-					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(&stepLogs, &slog.HandlerOptions{}))
+					stepLogs := &lockedBuffer{}
+					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(stepLogs, &slog.HandlerOptions{}))
 					sink := multiSink{sinks: []logr.LogSink{originalSink, stepHandler.GetSink()}}
 					stepLogger := thisLogger.WithSink(&sink).WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					if step.Stamp.IsSet() {
@@ -731,17 +734,23 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
 							defer utilruntime.HandleCrash()
-							defer func() {
-								consumerWg.Done()
-								stepLogger.V(4).Info("Finished fetching execution details.")
-							}()
-							stepLogger.V(4).Info("Fetching execution details.")
-							d, err := details(consumerCtx)
+							defer consumerWg.Done()
+							logger.V(4).Info("Fetching execution details.")
+							// Derived from the outer ctx, not consumerCtx: a failing step calls consumerCancel(), which
+							// would cancel the very ARM calls that explain the failure. The outer ctx is only cancelled
+							// by the caller (e.g. SIGINT/SIGTERM), which we do want to honor.
+							detailsCtx, cancel := context.WithTimeout(logr.NewContext(ctx, logger), executionDetailsTimeout)
+							defer cancel()
+							d, err := details(detailsCtx)
 							if err != nil {
 								logger.Error(err, "error fetching execution details")
 							}
+							logger.V(4).Info("Finished fetching execution details.")
 							state.Lock()
 							state.Details[step] = d
+							// The consumer snapshotted the step log before we finished; refresh it so that the
+							// diagnostics (and their errors) end up in the JUnit output.
+							state.Logging[step] = stepLogs.Snapshot()
 							state.Unlock()
 						}(step, stepLogger)
 					}
@@ -751,7 +760,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						stepLogger.V(4).Info("Finished step.")
 					}
 					state.Lock()
-					state.Logging[step] = stepLogs.Bytes()
+					state.Logging[step] = stepLogs.Snapshot()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
 					state.Timing[step].RunCount = runCount
 					if consumerCtx.Err() != nil {
@@ -984,6 +993,26 @@ func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
 	return false
 }
 
+// lockedBuffer is a bytes.Buffer that is safe to write to from the step goroutine and the execution-details
+// goroutine while the consumer loop (or the final snapshot) reads it.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// Snapshot returns a copy of everything written so far.
+func (b *lockedBuffer) Snapshot() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return bytes.Clone(b.buf.Bytes())
+}
+
 func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Running step.", "description", s.Description())
@@ -1077,7 +1106,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		output, details, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
+			return nil, details, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, details, nil
 	case *types.ARMStackStep:

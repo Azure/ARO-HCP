@@ -46,6 +46,7 @@ resourceGroups:
     - japaneast
     - swedencentral
     - eastasia
+    - westus2
   steps:
   - name: subscription-lookup
     action: ARM
@@ -87,6 +88,7 @@ resourceGroups:
     - japaneast
     - swedencentral
     - eastasia
+    - westus2
   steps:
   - name: deploy
     action: ARM
@@ -146,6 +148,30 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
+  # one-shot cleanup, remove after it ran in all envs (Phase 3 of AROSLSRE-2630)
+  - name: remove-legacy-kusto-mon-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: Geography.kusto-infra.kusto-monitoring
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  # Previous region-only stack name for public/int/westus3.
+  - name: remove-region-only-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: clasqeuq3xi5l33pm42ng3socf4nw5pg6vmou6w2vfofi-westus3
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -158,6 +184,15 @@ resourceGroups:
       - "DeploymentStackInNonTerminalState"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: remove-legacy-kusto-mon-stack
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: kusto-infra
+      step: action-groups
+    - resourceGroup: kusto-infra
+      step: remove-region-only-stack
     variables:
     - name: kustoClusterId
       input:
@@ -179,14 +214,10 @@ resourceGroups:
         resourceGroup: kusto-infra
         step: action-groups
         name: actionGroupAlertEH
-    dependsOn:
-    - resourceGroup: kusto-infra
-      step: kusto-lookup
-    - resourceGroup: kusto-infra
-      step: action-groups
   - name: entity-groups
     action: KustoEntityGroups
     entityGroups:
+    - "AllAroHcpLogs:AllAroHcpLogs"
     - "AllServiceLogs:ServiceLogs"
     - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
     - "AllMonitoringEvents:MonitoringEvents"
@@ -200,6 +231,7 @@ resourceGroups:
       errorContainsAny:
       - "InternalServerError"
       - "Internal server error"
+      - "Internal service error"
       - "connection refused"
       - "context deadline exceeded"
       - "missing a valid aroHCPEnvironment tag"

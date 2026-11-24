@@ -55,7 +55,18 @@ type MaintenanceOptions struct {
 var ErrNoForge = errors.New("remote read adapters are not configured")
 
 // MaintenanceInventory assesses every open proposal owned by the robot identity.
-func (e *Engine) MaintenanceInventory(ctx context.Context, repository string) ([]model.MaintenanceDecision, error) {
+func (e *Engine) MaintenanceInventory(ctx context.Context, repository string, scopes ...string) ([]model.MaintenanceDecision, error) {
+	scope := ""
+	if len(scopes) > 0 {
+		scope = scopes[0]
+	}
+	kinds, err := policy.MaintenanceKinds(scope)
+	if err != nil {
+		return nil, err
+	}
+	if err := policy.ValidateMaintenanceTarget(repository, 1, strings.Repeat("0", 40)); err != nil {
+		return nil, err
+	}
 	if e.deps.Forge == nil {
 		return nil, ErrNoForge
 	}
@@ -75,7 +86,7 @@ func (e *Engine) MaintenanceInventory(ctx context.Context, repository string) ([
 		}
 		// Unrelated robot proposals (image digests, other automation) are not
 		// maintenance candidates and must not make the inventory fail.
-		if kind == "" {
+		if kind == "" || !slices.Contains(kinds, kind) {
 			continue
 		}
 		snapshot, err := e.deps.Forge.Snapshot(ctx, pull.Number, pull.HeadSHA)
@@ -85,6 +96,9 @@ func (e *Engine) MaintenanceInventory(ctx context.Context, repository string) ([
 		decision, err := policy.Assess(repository, pull.Number, pull.HeadSHA, snapshot)
 		if err != nil {
 			return nil, err
+		}
+		if scope != "" && !slices.Contains(kinds, decision.Kind) {
+			return nil, errors.New("pull request kind changed outside requested scope")
 		}
 		decisions = append(decisions, decision)
 	}

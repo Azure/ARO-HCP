@@ -73,6 +73,10 @@ func NewCommand() (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
+	reconcileExternalSubscriptionCommand, err := newReconcileExternalSubscriptionCommand()
+	if err != nil {
+		return nil, err
+	}
 
 	cmd.AddCommand(acquireCommand)
 	cmd.AddCommand(releaseCommand)
@@ -82,5 +86,6 @@ func NewCommand() (*cobra.Command, error) {
 	cmd.AddCommand(validateIdentityPoolCommand)
 	cmd.AddCommand(applyPoolAssetsCommand)
 	cmd.AddCommand(validatePoolAssetsCommand)
+	cmd.AddCommand(reconcileExternalSubscriptionCommand)
 	return cmd, nil
 }

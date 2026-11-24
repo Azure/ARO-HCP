@@ -27,7 +27,7 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	command := &cobra.Command{
 		Use:     "maintenance",
-		Short:   "Assess owned proposals without mutating them",
+		Short:   "Assess owned proposals and guard fixed hold-recovery commands",
 		GroupID: group,
 		Args:    cli.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -44,6 +44,10 @@ func NewCommand(group string) (*cobra.Command, error) {
 		return nil, err
 	}
 	command.AddCommand(inventory)
+	for _, mode := range []string{"assess", "verify-upgrade", "release-hold", "recover-retry", "release-regenerated"} {
+		command.AddCommand(newActionCommand(mode))
+	}
+	command.AddCommand(newCompilerVersionsCommand(), newSnapshotEvidenceCommand())
 	return command, nil
 }
 

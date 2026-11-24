@@ -29,8 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -117,7 +117,7 @@ func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoo
 	tagsPath := field.NewPath("tags")
 	var errs field.ErrorList
 
-	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration, metadataapi.TagNodePoolMaxDeletionDuration)
+	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration, metadataapi.TagNodePoolMaxDeletionDuration, metadataapi.TagNodePoolValidateDiskEncryptionSetPermissions)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))

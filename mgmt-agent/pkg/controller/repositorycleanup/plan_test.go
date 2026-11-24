@@ -47,7 +47,7 @@ func object(gvr schema.GroupVersionResource, kind, name string) *unstructured.Un
 func owned(u *unstructured.Unstructured, manager string) {
 	u.SetFinalizers([]string{Finalizer, "another.example/finalizer"})
 	fields, _ := json.Marshal(map[string]interface{}{"f:metadata": map[string]interface{}{"f:finalizers": map[string]interface{}{`v:"` + Finalizer + `"`: map[string]interface{}{}}}})
-	u.SetManagedFields([]metav1.ManagedFieldsEntry{{Manager: manager, Operation: metav1.ManagedFieldsOperationApply, APIVersion: u.GetAPIVersion(), FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: fields}}})
+	u.SetManagedFields([]metav1.ManagedFieldsEntry{{Manager: manager, Operation: metav1.ManagedFieldsOperationApply, APIVersion: u.GetAPIVersion(), FieldsType: "FieldsV1", FieldsV1: metav1.NewFieldsV1(string(fields))}})
 }
 
 func fixture(t *testing.T) Observations {

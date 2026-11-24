@@ -17,6 +17,7 @@ package modify
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -120,6 +121,18 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get valid workspace IDs: %w", err)
 	}
+	workspaceEndpoints := make(map[string]string, validWorkspaceIDs.Len())
+	for _, resourceID := range validWorkspaceIDs.UnsortedList() {
+		name := strings.ToLower(path.Base(resourceID))
+		if _, exists := workspaceEndpoints[name]; exists {
+			return fmt.Errorf("multiple discovered workspaces have name %q; cannot match datasources unambiguously", name)
+		}
+		endpoint, err := o.getWorkspaceEndpoint(ctx, resourceID)
+		if err != nil {
+			return fmt.Errorf("failed to get endpoint for workspace %q: %w", resourceID, err)
+		}
+		workspaceEndpoints[name] = endpoint
+	}
 
 	integrationList := set.New[string]()
 	var existingIntegrations []*armdashboard.AzureMonitorWorkspaceIntegration
@@ -162,5 +175,5 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to delete stale datasources: %w", err)
 	}
 
-	return nil
+	return o.GrafanaClient.ReconcileDatasourceEndpoints(ctx, logger, workspaceEndpoints, o.DryRun)
 }

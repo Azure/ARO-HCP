@@ -54,7 +54,7 @@ param keyVaultAdminPrincipalId string
 param oidcMsiName string
 param azureFrontDoorManage bool
 
-@description('KV certificate officer principal ID')
+@description('KV certificate officer principal ID; empty skips the role assignments')
 param kvCertOfficerPrincipalId string
 
 @description('SP for EV2 certificate access, i.e. geneva log access')
@@ -126,7 +126,7 @@ module globalMSIKVCryptoUser '../modules/keyvault/keyvault-secret-access.bicep' 
   }
 }
 
-module kvCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+module kvCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertOfficerPrincipalId != '') {
   name: guid(kvCertOfficerPrincipalId, globalKV.name, 'cert-officer')
   params: {
     keyVaultName: keyVaultName
@@ -135,7 +135,7 @@ module kvCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   }
 }
 
-module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertOfficerPrincipalId != '') {
   name: guid(kvCertOfficerPrincipalId, globalKV.name, 'secrets-officer')
   params: {
     keyVaultName: keyVaultName
@@ -144,7 +144,7 @@ module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   }
 }
 
-module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertAccessRoleId != '') {
+module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertAccessPrincipalId != '' && kvCertAccessRoleId != '') {
   name: guid(kvCertOfficerPrincipalId, globalKV.name, 'certificate-access')
   params: {
     keyVaultName: keyVaultName

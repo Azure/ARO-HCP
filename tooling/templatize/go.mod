@@ -4,18 +4,18 @@ go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
-	github.com/Azure/ARO-Tools/config v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/config v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261119152653-bc31149d518c
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -53,7 +53,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261119152653-bc31149d518c // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.13.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
@@ -247,7 +247,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
-	github.com/tektoncd/pipeline v1.11.1 // indirect
+	github.com/tektoncd/pipeline v1.12.0 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect

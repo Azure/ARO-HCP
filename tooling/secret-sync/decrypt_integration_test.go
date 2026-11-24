@@ -60,7 +60,6 @@ var secretValidators = map[string]secretValidator{
 	"component-sync-pull-secret":   {validate: validatePullSecret, base64Encoded: true},
 	"ocmirror-pull-secret":         {validate: validatePullSecret, base64Encoded: true},
 	"prow-token":                   {validate: validateJWT},
-	"quay-io-bearer":               {validate: validateNonEmptyString},
 	"quay-password":                {validate: validateNonEmptyString},
 	"quay-username":                {validate: validateNonEmptyString},
 	"redhat-pending-quay-password": {validate: validateNonEmptyString},

@@ -102,7 +102,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
+	return startAndWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -166,7 +166,7 @@ func portalDeploymentURI(subscriptionID, resourceGroup, deploymentName string) s
 	return "https://ms.portal.azure.com/#view/Microsoft_Azure_Resources/DeploymentDetails.MenuView/~/overview/id/" + url.PathEscape(resourceID)
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
+func startAndWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -205,17 +205,18 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		return skip, nil, nil
 	}
 
-	// when there's no step cache, there's no digest
+	// A non-empty digest means the step cache is enabled and deployments are named by their inputs.
+	namedByInputs := digest != ""
 	deploymentName := randString()
-	if digest != "" {
+	if namedByInputs {
 		deploymentName = digest
 	}
 
 	var output ArmOutput
 	var details DetailsProducer
-	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+	exists, output, details, err := pollExistingDeploymentOrOtherAttempt(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName, namedByInputs, inputs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
+		return nil, details, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
 	if exists {
 		return output, details, commit(output)
@@ -236,7 +237,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 			var exists bool
 			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
 			if !exists {
 				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
@@ -260,7 +261,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 			var exists bool
 			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+				return nil, details, fmt.Errorf("failed to poll concurrent deployment: %w", err)
 			}
 			if !exists {
 				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
@@ -318,17 +319,23 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	remainingTime := timeoutSeconds
 	for remainingTime > 0 {
 		if err != nil {
-			return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
+			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 		}
-		if output.ProvisioningState == nil {
-			return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
+		if output == nil || output.ProvisioningState == nil {
+			return false, nil, details, fmt.Errorf("failed to look up pre-existing deployment: found a nil provisioning state")
 		}
 		switch *output.ProvisioningState {
 		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
+			var err error
 			if output.Error != nil {
-				return false, nil, nil, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+				err = fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
+			} else {
+				err = fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
 			}
-			return false, nil, nil, fmt.Errorf("pre-existing deployment: provisioning state is %s", *output.ProvisioningState)
+			if *output.ProvisioningState == armresources.ProvisioningStateFailed || *output.ProvisioningState == armresources.ProvisioningStateCanceled {
+				err = &endedDeploymentError{state: *output.ProvisioningState, err: err}
+			}
+			return false, nil, details, err
 		case armresources.ProvisioningStateSucceeded:
 			logger.V(2).Info("short-circuiting using results from previously-succeeded deployment")
 			return true, armOutputFromOutputs(output.Outputs), details, nil
@@ -340,8 +347,17 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 
 		output, err = get(ctx)
 	}
-	return false, nil, nil, errors.New("timed out waiting for pre-existing deployment to finish")
+	return false, nil, details, errors.New("timed out waiting for pre-existing deployment to finish")
 }
+
+// endedDeploymentError reports an existing deployment whose provisioning state is Failed or Canceled.
+type endedDeploymentError struct {
+	state armresources.ProvisioningState
+	err   error
+}
+
+func (e *endedDeploymentError) Error() string { return e.err.Error() }
+func (e *endedDeploymentError) Unwrap() error { return e.err }
 
 func isDeploymentActiveError(err error) bool {
 	var respErr *azcore.ResponseError

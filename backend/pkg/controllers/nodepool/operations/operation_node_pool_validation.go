@@ -1,0 +1,67 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package operations
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+)
+
+const nodePoolValidationFailureTimeout = 30 * time.Minute
+
+// nodePoolValidationOperationState waits for node pool validations to pass, allowing each
+// non-passing validation (failed or unknown) and the operation itself a grace window before
+// failing with InvalidResource. The window is longer than the cluster equivalent because
+// Azure role assignments can take ~10 minutes to propagate after creation is initiated.
+// This is kept independent of the cluster validation path on purpose.
+func nodePoolValidationOperationState(validations []metav1.Condition, operationStartTime, now time.Time) *operationbase.OperationState {
+	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
+	operationOldEnough := !operationStartTime.IsZero() && now.Sub(operationStartTime) >= nodePoolValidationFailureTimeout
+	var messages []string
+	for _, validation := range validations {
+		if validation.Status == metav1.ConditionTrue {
+			continue
+		}
+		if state.ProvisioningState == coreapi.ProvisioningStateSucceeded {
+			state = operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "")
+		}
+		message := fmt.Sprintf("%s: %s", validation.Type, validation.Reason)
+		if len(validation.Message) != 0 {
+			message += ": " + validation.Message
+		}
+		messages = append(messages, message)
+		state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
+		validationOldEnough := operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= nodePoolValidationFailureTimeout
+		if validationOldEnough {
+			state.ProvisioningState = coreapi.ProvisioningStateFailed
+		}
+	}
+	slices.Sort(messages)
+	state.Message = strings.Join(messages, "; ")
+	if state.ProvisioningState == coreapi.ProvisioningStateFailed {
+		return operationbase.NewFailedOperationState(state.CloudErrorCode, state.Message, &coreapi.CloudErrorBody{
+			Code:    state.CloudErrorCode,
+			Message: state.Message,
+		})
+	}
+	return state
+}

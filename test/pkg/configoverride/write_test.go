@@ -132,7 +132,7 @@ func TestWriteOverrideFailuresPreserveFilesAndCleanTemps(t *testing.T) {
 }
 
 func TestGenerateErrorsReturnNoPartialResult(t *testing.T) {
-	for _, failure := range []string{"image", "unknown image", "mock catalog", "second helper", "identity bundle", "overlay"} {
+	for _, failure := range []string{"image", "unknown image", "mock bundle", "empty mock bundle", "identity bundle", "overlay"} {
 		t.Run(failure, func(t *testing.T) {
 			input := Inputs{DeployEnvironment: "ci01", Images: map[string]string{"BACKEND_IMAGE": "registry/backend@sha256:123"}, OCLoginRegistries: "existing.registry"}
 			paths := Paths{}
@@ -141,12 +141,10 @@ func TestGenerateErrorsReturnNoPartialResult(t *testing.T) {
 				input.Images["EXPORTER_IMAGE"] = "not-a-digest-ref"
 			case "unknown image":
 				input.Images["UNKNOWN_IMAGE"] = ""
-			case "mock catalog":
-				input.MSIMockLease = "missing"
-				paths.MSIMockCatalog = fixture(t, "mock.yaml", mockCatalog)
-			case "second helper":
-				input.ARMHelperLeases = []string{"backend", "missing"}
-				paths.ARMHelperCatalog = fixture(t, "helper.yaml", helperCatalog)
+			case "mock bundle":
+				input.MockIdentityBundle = "{}"
+			case "empty mock bundle":
+				input.MockIdentityBundleProvided = true
 			case "identity bundle":
 				input.InfrastructureIdentityBundle = "{}"
 			case "overlay":

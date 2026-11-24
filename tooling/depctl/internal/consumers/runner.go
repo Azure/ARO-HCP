@@ -20,6 +20,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +40,8 @@ const MaxLogBytes = 2 << 20
 // Runner executes registered consumers in a candidate or baseline tree.
 type Runner struct {
 	Registry *Registry
+	// FullLogs streams complete output to disk with bounded memory diagnostics.
+	FullLogs bool
 	// MaxLogBytes overrides the default output bound when non-zero.
 	MaxLogBytes int64
 	sequence    atomic.Uint64
@@ -136,14 +140,36 @@ func (r *Runner) Run(ctx context.Context, root string, ref model.ConsumerRef, lo
 	command.Stderr = capture
 	started := time.Now().UTC()
 	result.StartedAt = started.Format(time.RFC3339)
+	logName := fmt.Sprintf("%s-%s-%d-%d.log", sanitize(ref.ID),
+		started.Format("20060102T150405.000000000Z"), os.Getpid(), r.nextSequence())
+	var fullLog *os.File
+	var fullDigest hash.Hash
+	if r.FullLogs && logDirectory != "" {
+		result.LogPath = filepath.Join(logDirectory, logName)
+		fullLog, err = os.OpenFile(result.LogPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			result.Status = model.ConsumerError
+			result.Reason = "consumer log could not be created: " + err.Error()
+			return result
+		}
+		fullDigest = sha256.New()
+		writer := io.MultiWriter(fullLog, fullDigest, capture)
+		command.Stdout, command.Stderr = writer, writer
+	}
 	err = command.Run()
+	if fullLog != nil {
+		if closeErr := fullLog.Close(); closeErr != nil {
+			result.Status = model.ConsumerError
+			result.Reason = "consumer log could not be closed: " + closeErr.Error()
+			return result
+		}
+		result.LogDigest = "sha256:" + hex.EncodeToString(fullDigest.Sum(nil))
+	}
 	result.DurationMS = time.Since(started).Milliseconds()
 
 	// Every invocation gets its own file: two runs of the same consumer in one
 	// second must not overwrite each other's captured output.
-	logName := fmt.Sprintf("%s-%s-%d-%d.log", sanitize(ref.ID),
-		started.Format("20060102T150405.000000000Z"), os.Getpid(), r.nextSequence())
-	if logDirectory != "" {
+	if logDirectory != "" && fullLog == nil {
 		logPath := filepath.Join(logDirectory, logName)
 		if writeErr := os.WriteFile(logPath, capture.Bytes(), 0o600); writeErr != nil {
 			result.Status = model.ConsumerError
@@ -153,7 +179,7 @@ func (r *Runner) Run(ctx context.Context, root string, ref model.ConsumerRef, lo
 		result.LogPath = logPath
 		result.LogDigest = digestBytes(capture.Bytes())
 	}
-	if capture.truncated > 0 {
+	if capture.truncated > 0 && fullLog == nil {
 		result.Reason = fmt.Sprintf("captured output truncated: %d bytes were dropped", capture.truncated)
 	}
 	switch {
@@ -239,7 +265,16 @@ func consumerEnvironment(overrides []string) []string {
 		}
 		inherited = append(inherited, item)
 	}
-	return mergeEnvironment(inherited, overrides)
+	filtered := make([]string, 0, len(overrides))
+	for _, item := range overrides {
+		name, _, _ := strings.Cut(item, "=")
+		switch name {
+		case "MAKE", "MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEOVERRIDES", "MAKEFILES", "MAKELEVEL":
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return mergeEnvironment(inherited, filtered)
 }
 
 // Applies explicit overrides after the inherited environment,

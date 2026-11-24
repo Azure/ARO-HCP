@@ -83,29 +83,6 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-populate-msi-mock-pool:
-	cd openshift-ci && \
-	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.size' ../../config/config-dev-ci.yaml) \
-	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.appBaseName' ../../config/config-dev-ci.yaml) \
-	BOSKOS_PREFIX=aro-hcp-msi-mock-cs-sp-dev \
-	CATALOG_KEY=miMockPool \
-	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.certBaseName' ../../config/config-dev-ci.yaml) \
-	OUTPUT_FILE=msi-mock-pool.yaml \
-	./populate-mock-identity-pool.sh
-
-.PHONY: populate-msi-mock-pool
-
-populate-arm-helper-pool:
-	cd openshift-ci && \
-	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.size' ../../config/config-dev-ci.yaml) \
-	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.appBaseName' ../../config/config-dev-ci.yaml) \
-	BOSKOS_PREFIX=aro-hcp-arm-helper-sp-dev \
-	CATALOG_KEY=armHelperPool \
-	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.certBaseName' ../../config/config-dev-ci.yaml) \
-	OUTPUT_FILE=arm-helper-pool.yaml \
-	./populate-mock-identity-pool.sh
-
-.PHONY: populate-arm-helper-pool
 
 ARO_HCP_TESTS_BINARY ?= $(abspath ../test/aro-hcp-tests)
 

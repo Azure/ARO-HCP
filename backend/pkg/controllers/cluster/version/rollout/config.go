@@ -19,7 +19,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 // atLeastBackendVersion compares the major and minor components of valid versions.

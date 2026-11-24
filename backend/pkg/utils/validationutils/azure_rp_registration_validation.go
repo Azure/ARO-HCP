@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // The RpRegistrationValidation struct validates the states of several

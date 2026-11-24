@@ -26,8 +26,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -1016,7 +1016,7 @@ func TestCustomerPlatformProfileImmutability(t *testing.T) {
 				switch v.Kind() {
 				case reflect.String:
 					v.SetString(v.String() + "-changed")
-				case reflect.Ptr:
+				case reflect.Pointer:
 					changed := reflect.New(v.Type().Elem())
 					v.Set(changed)
 				case reflect.Struct:

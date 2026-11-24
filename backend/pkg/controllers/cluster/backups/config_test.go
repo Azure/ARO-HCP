@@ -17,7 +17,7 @@ package backups
 import (
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 func TestBackupConfig_SchedulePaused(t *testing.T) {

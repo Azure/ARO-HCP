@@ -1,190 +1,93 @@
 # Running E2E Tests In CI
 
-This guide explains how to run ARO HCP E2E tests against different environments, how to run specific tests, and why manual testing against Integration, Stage, and Production is not allowed.
-
-For the CI execution model behind these jobs, see [CI Execution](execution.md). For how to inspect or modify the jobs themselves, see [CI Operations](operations.md).
+This guide covers how to run the ARO HCP E2E tests from a pull request, how to narrow a run to a single test, and why manual testing against the shared INT, STG and PROD environments is not allowed. For what each kind of job validates and how it is wired, see [CI Execution](execution.md); for inspecting and changing the jobs, see [CI Operations](operations.md).
 
 ## Why No Manual Testing Against INT, STG, Or PROD
 
-Integration, Stage, and Production environments have constrained management and service-cluster capacity. In the past, manual testing such as creating clusters via `az` or the Azure portal has blocked rollout progress, because manually created clusters consume the same limited capacity that automated E2E tests and real deployments need.
+The shared Integration, Stage and Production environments have limited management and service cluster capacity. Clusters created by hand with `az` or the portal consume the same capacity that automated E2E runs and real rollouts need, and in the past they have blocked rollouts. The subscriptions used for E2E clusters are also reserved for Prow, and direct access to them has been disabled so that nobody creates resources there by accident.
 
-Additionally, the Test Test Azure Red Hat OpenShift tenant subscriptions used for E2E testing are reserved exclusively for automated Prow jobs. Direct access to those subscriptions has been disabled to prevent accidental resource creation that could interfere with CI.
-
-The rule is simple: all E2E testing in those environments must go through Prow jobs, triggered via PRs.
+So all E2E testing in those environments goes through Prow jobs triggered from PRs. If a scenario you care about is not covered by an existing test, write a test and validate it through CI; needing a manual check is a sign of a coverage gap.
 
 > [!NOTE]
-> This forbids manually creating clusters against those environments — via `az`, the portal, or ad-hoc scripts. It does not forbid triggering the gate job itself. Re-running a failed EV2 `regionalGating` job, or running the suite from a branch, is an operational procedure documented in [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md); that path still executes the tests in Prow rather than creating resources by hand.
-
-If a scenario is not covered by an existing E2E test, the correct approach is to write a new test and validate it through the Prow CI system. If we need to manually test something that is not caught by E2E, then we have a gap in test coverage that should be addressed.
+> The rule is about creating clusters by hand. Triggering the gate job itself, for example re-running a failed EV2 `regionalGating` job or running the suite from a branch, is a documented operational procedure and still executes the tests in Prow. See [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md).
 
 ## Running Tests Via PR
 
-All E2E tests run through Prow. For manual triggers or reruns, use PR comments on the [Azure/ARO-HCP](https://github.com/Azure/ARO-HCP) repository.
+Jobs are triggered with PR comments on [Azure/ARO-HCP](https://github.com/Azure/ARO-HCP). `/retest` reruns all failed jobs, and `/test <name>` runs a single job. The job names follow a pattern, so the table lists families rather than every variant; the exact set is in the [ci-operator config](https://github.com/openshift/release/tree/main/ci-operator/config/Azure/ARO-HCP) and in the PR's list of available jobs (`/test ?`).
 
-### Available Test Commands
+| Job | Environment | Trigger | Purpose |
+|-----|-------------|---------|---------|
+| `e2e-parallel` | DEV, provisioned per run | Automatic, required | Runs the default E2E suite against a fresh DEV service footprint built from the PR, so it can validate unmerged RP and deployment-artifact changes. |
+| `e2e-parallel-inplace-upgrade` | DEV, provisioned per run | Automatic, required | Provisions a footprint from `main`, rolls it forward to the PR, and checks that existing customer clusters survive. See [In-Place Upgrade Presubmit](inplace-upgrade-presubmit.md). |
+| `e2e-parallel-slow`, `e2e-parallel-ocp-nightly` | DEV | Manual, optional | The slow test suite, and the default suite against the latest nightly OCP build. |
+| `integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel` | INT, STG, PROD | Manual, optional | The environment's fast suite against the existing shared environment. |
+| `<env>-e2e-parallel-slow`, and `-all` for INT and STG | INT, STG, PROD | Manual, optional | The slow tests, or fast and slow together. |
+| `<env>-e2e-parallel-ocp-{fast,stable,nightly}` | INT, STG, PROD | Manual, optional | The fast suite against a different OCP update channel, to catch compatibility problems with newer OCP builds early. See [update channels](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates). |
+| `<env>-canary-arm-endpoint-e2e-parallel`, and `-slow` for STG and PROD | INT, STG, PROD | Manual, optional | The same suites sent through the ARM canary endpoint (`eastus2euap`). |
 
-| Command | Environment | Runs Automatically | Notes |
-|---------|-------------|-------------------|-------|
-| `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
-| `/test e2e-parallel-ocp-nightly` | DEV | No | Must be triggered manually. Runs tests using the latest nightly OCP build |
-| `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
-| `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
-| `/test integration-e2e-parallel-ocp-stable` | INT | No | Must be triggered manually |
-| `/test integration-e2e-parallel-ocp-nightly` | INT | No | Must be triggered manually |
-| `/test stage-e2e-parallel` | STG | No | Must be triggered manually. Useful for validating test behavior against the shared STG environment. |
-| `/test stage-e2e-parallel-ocp-fast` | STG | No | Must be triggered manually |
-| `/test stage-e2e-parallel-ocp-stable` | STG | No | Must be triggered manually |
-| `/test stage-e2e-parallel-ocp-nightly` | STG | No | Must be triggered manually |
-| `/test prod-e2e-parallel` | PROD | No | Use with caution. Useful for validating test behavior against the shared PROD environment. |
-| `/test prod-e2e-parallel-ocp-fast` | PROD | No | Use with caution |
-| `/test prod-e2e-parallel-ocp-stable` | PROD | No | Use with caution |
-| `/test prod-e2e-parallel-ocp-nightly` | PROD | No | Use with caution |
-
-The `ocp-fast`, `ocp-stable`, and `ocp-nightly` variants run the same E2E suite but against different OCP update channels to catch compatibility issues with newer OCP versions early. For more information on OCP update channels, see [What are the differences between each of the update channels?](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates)
-
-DEV `e2e-parallel` selects a runtime region for each run according to the
-`LOCATION_WEIGHTS` in the live `openshift/release` ci-operator config. Other
-jobs may use an explicit `LOCATION` or
-`MULTISTAGE_PARAM_OVERRIDE_LOCATION`. Inspect the live config when the current
-weights or pinned region matter.
-
-To rerun all failed jobs:
-
-```text
-/retest
-```
+The two automatic DEV jobs are scheduled by Prow's pipeline controller once the cheap first-wave checks pass, and are skipped for PRs that only touch documentation and similar files. They are required for merge.
 
 ### What These Jobs Test
 
-Environment-specific E2E jobs such as `integration-e2e-parallel`, `stage-e2e-parallel`, and `prod-e2e-parallel` only validate E2E test code changes before merge. They cannot validate changes to RP code or infrastructure, because those changes are not deployed to the target environment until after merge.
+The jobs against INT, STG and PROD only validate E2E test code and test expectations before merge. The RP and infrastructure in those environments are not updated until after merge, so a PR's service changes cannot be exercised there. The DEV jobs are different because they deploy the PR's own footprint; [CI Execution](execution.md#execution-modes) explains the distinction and its limits.
 
-The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footprint as part of the CI run, it can validate undeployed RP and infrastructure changes end to end.
+DEV jobs pick their Azure region per run from a weighted set of regions; see [DEV CI Regional Load Management](dev-region-load-management.md) for how that is configured and changed.
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
-
-### Example: Filter by Test Name
-
-In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+To validate one test or a small group against a shared environment, temporarily filter the suite in [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go). The file contains a commented-out `MustFilter` example. Enable it with a [CEL expression](https://github.com/google/cel-spec) that matches the tests you want:
 
 ```go
-// Specs can be globally filtered...
-// TODO: remove after PR validation
 specs = specs.MustFilter([]string{`name.contains("ImageDigestMirrors")`})
 ```
 
-This uses [CEL expressions](https://github.com/google/cel-spec) to filter test specs by name. The `name.contains("...")` function matches tests whose full name contains the given substring.
+The workflow is:
 
-### Step-By-Step Process
-
-1. Create a branch for your test validation:
-
-   ```bash
-   git checkout -b test/validate-my-test
-   ```
-
-2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
-
-   ```go
-   specs = specs.MustFilter([]string{`name.contains("MyTestName")`})
-   ```
-
-3. Commit and push, then open a PR.
-4. Trigger the appropriate test job:
-
-   ```text
-   /test stage-e2e-parallel
-   ```
-
-5. After validation, either close the PR or revert the filter before merging.
+1. Create a branch, add the filter, push, and open a PR.
+2. Trigger the matching job, for example `/test stage-e2e-parallel`.
+3. When validation is done, close the PR or remove the filter before merging.
 
 > [!IMPORTANT]
-> Always revert test filters before merging. Leaving a filter in place would silently skip tests in CI.
+> Never merge a filter. It would silently skip tests in every CI run.
 
-For a real-world example of this workflow, see [PR #4597](https://github.com/Azure/ARO-HCP/pull/4597).
-
-### Other Filter Examples
-
-Filter by label:
+[PR #4597](https://github.com/Azure/ARO-HCP/pull/4597) is a worked example. Filters can also match on labels and be combined:
 
 ```go
 specs = specs.MustFilter([]string{`labels.exists(l, l=="Positivity:Positive")`})
-```
-
-Combine filters:
-
-```go
 specs = specs.MustFilter([]string{`name.contains("Cluster") && labels.exists(l, l=="Importance:Critical")`})
 ```
 
 ## Test Suites And Labels
 
-Tests are organized into suites with label-based filtering. The available labels are defined in [`test/util/labels/labels.go`](../../test/util/labels/labels.go):
+Each CI job runs one named suite, which is a label-based selection of the tests under [`test/e2e`](../../test/e2e/). The suites are registered in [`test/cmd/aro-hcp-tests/suites.go`](../../test/cmd/aro-hcp-tests/suites.go):
 
-| Label | Purpose |
-|-------|---------|
-| `Positivity:Positive` / `Positivity:Negative` | Positive vs negative test cases |
-| `Speed:Slow` | Long-running tests that run in separate `/slow` suites |
-| `Importance:{Low,Medium,High,Critical}` | Test importance level |
-| `Development-Only` | Tests that only run in DEV environments |
-| `Integration-Only` | Tests that only run in integration |
-| `PreLaunchSetup:None` | Tests that require no pre-existing infrastructure |
-| `ARO-HCP-RP-API-Compatible` | Tests compatible with both ARM and ARO HCP RP APIs |
+| Suite | Used for |
+|-------|----------|
+| `integration/parallel`, `stage/parallel`, `prod/parallel` | The fast tests for each persistent environment. Each also has a `/slow` variant and an `/all` variant covering both. |
+| `rp-api-compat-all/parallel` (and `/slow`) | The default DEV suite: tests that work against both the ARO HCP RP and the ARM endpoint. |
+| `upgrade/in-place` | The in-place upgrade test, used only by `e2e-parallel-inplace-upgrade`. |
+| `hypershift-presubmit/parallel` | The subset run from HyperShift PRs; see [HyperShift v2 Checks](hypershift-v2-presubmit.md). |
+| `expect-failure` | Tests that reproduce a known, tracked bug. They are kept out of every other suite. |
+| `dev-cd-check/parallel` | The final check in the DEV continuous-deployment workflow. |
 
-## DEV Frontend Ingress Utilities
+Labels decide suite membership, for example slow versus fast, positive versus negative, and which environments a test may run in. They are defined in [`test/util/labels/labels.go`](../../test/util/labels/labels.go), and [`test/AGENTS.md`](../../test/AGENTS.md) describes which labels every new test must carry.
 
-The test binary provides separate public IPv4 discovery and frontend ingress commands:
+## DEV Frontend Ingress
 
-```bash
-CI_RP_ALLOWED_SOURCE=$(./test/aro-hcp-tests infra discover-public-ip)
-export CI_RP_ALLOWED_SOURCE
-
-AZURE_TOKEN_CREDENTIALS=dev ./test/aro-hcp-tests infra frontend-grant-ingress \
-  --subscription-id "$INFRA_SUBSCRIPTION_ID" \
-  --resource-group "$SVC_RESOURCEGROUP" \
-  --source-ip "$CI_RP_ALLOWED_SOURCE"
-```
-
-Discovery queries HTTPS echo services over IPv4, falling back when a request fails
-or its response is invalid. Requests are bounded; redirects are not followed.
-Success prints only an IPv4 address and a newline. Failure exits nonzero without
-printing an address.
-
-The grant command requires an explicit subscription, resource group, and single
-IPv4 address. It does not discover an address. It creates or updates only
-`allow-istio-ingress` on `svc-cluster-node-nsg`: inbound TCP/443 from the supplied
-source, priority 1000. After the update completes, it prints JSON containing
-`resourceGroup`; failures produce no success JSON. Authentication requires an
-explicit `AZURE_TOKEN_CREDENTIALS` selector: use `dev` for local `az login`,
-`prod` for the CI credential chain, or a specific credential such as
-`EnvironmentCredential` for service-principal environment credentials.
-
-`make frontend-grant-ingress` composes these commands, discovers only when
-`CI_RP_ALLOWED_SOURCE` is unset or empty, and refreshes the default test binary. It uses
-`INFRA_SUBSCRIPTION_ID` when supplied, otherwise the current Azure CLI subscription.
-
-For in-place upgrades, discover once in the upgrade pod and reuse that value for
-both the bootstrap grant and the configuration override. The offline
-`infra build-config-override` command validates `CI_RP_ALLOWED_SOURCE` and includes
-it in `svc.aks.additionalIngressRules`; an unset or empty source adds no rule.
-Configuration generation never performs discovery.
+The DEV frontend only accepts traffic from addresses that have been allowed through the service cluster's network security group, so a CI job has to allow its own runner's public IP before it can call the RP. The `aro-hcp-tests infra` subcommands `discover-public-ip` and `frontend-grant-ingress` do this, and `make frontend-grant-ingress` combines them using the current Azure CLI subscription unless `INFRA_SUBSCRIPTION_ID` is set. The rule format and its place in the configuration are described in [Ingress and Egress](../ingress-egress.md#additional-service-cluster-ingress-rules).
 
 ## Periodic Tests
 
-In addition to PR-triggered tests, periodic Prow jobs run E2E tests on a schedule:
+Besides PR-triggered runs, periodic Prow jobs run the E2E suites on a schedule, defined in the [periodic ci-operator config](https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml):
 
-- **Integration**: on-demand or placeholder-scheduled depending on the current config
-- **Stage**: daily at 2:00 AM UTC; OCP nightly at 11:00 PM UTC
-- **Production**: daily at 2:00 AM UTC; OCP nightly at 11:00 PM UTC
+- Stage and Prod each run a daily full-suite job (`periodic-<env>-e2e-parallel-all`, early morning UTC) and a nightly OCP job (`periodic-<env>-e2e-parallel-ocp-nightly`, evening UTC).
+- Prod additionally runs weekly OCP candidate-channel jobs, one per candidate version.
+- The Integration and canary-endpoint jobs are present but effectively on demand, because their schedule is a placeholder.
 
-See [CI Execution](execution.md#periodic-jobs) for why these jobs exist and how they differ from EV2 gating. See [CI Operations](operations.md#inspecting-runs) for the operator view of how to inspect them.
+[CI Execution](execution.md#periodic-jobs) explains why periodic jobs exist alongside EV2 gating, and [Daily CI Digest Instructions](periodic-analysis-instructions.md) describes how the Stage and Prod results are reviewed.
 
 ## Related Documentation
 
 - [CI Overview](README.md)
-- [CI Execution](execution.md)
-- [CI Operations](operations.md)
 - [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
 - [Test Test Tenant Access](../sops/test-test-tenant-access.md)
-- [E2E Test Code](../../test/e2e/)

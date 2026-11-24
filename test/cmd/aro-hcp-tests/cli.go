@@ -32,13 +32,19 @@ import (
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	// If using ginkgo, import your tests here
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra"
 	mergegate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/merge-gate"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities"
+	prioritiesgate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-gate"
+	prioritiespublish "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-publish"
+	prioritiesrun "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-run"
+	prioritiessummary "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities-summary"
+	refreshpriorities "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/refresh-priorities"
 	slotmanager "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
@@ -282,6 +288,12 @@ func setupCli() (*cobra.Command, error) {
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
+	root.AddCommand(priorities.NewCommand())
+	root.AddCommand(prioritiesrun.NewCommand())
+	root.AddCommand(prioritiesgate.NewCommand())
+	root.AddCommand(prioritiespublish.NewCommand())
+	root.AddCommand(prioritiessummary.NewCommand())
+	root.AddCommand(refreshpriorities.NewCommand())
 	root.AddCommand(metadataapi.Must(mergegate.NewCommand()))
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))

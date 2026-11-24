@@ -31,9 +31,6 @@ param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
-param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
-param maestroServerCertSAN = '{{ .maestro.server.certSAN }}'
-param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
 param maestroPostgresServerVersion = '{{ .maestro.postgres.serverVersion }}'
@@ -129,6 +126,7 @@ param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScal
 param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 param fleetContainerMaxScale = {{ .frontend.cosmosDB.fleetContainerMaxScale }}
+param azureResourcesContainerMaxScale = {{ .frontend.cosmosDB.azureResourcesContainerMaxScale }}
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

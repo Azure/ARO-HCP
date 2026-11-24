@@ -79,6 +79,45 @@ func (c *MockServiceManagedIdentityClientBuilderBuilderTypeCall) DoAndReturn(f f
 	return c
 }
 
+// DeploymentStacksClient mocks base method.
+func (m *MockServiceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (DeploymentStacksClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeploymentStacksClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	ret0, _ := ret[0].(DeploymentStacksClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeploymentStacksClient indicates an expected call of DeploymentStacksClient.
+func (mr *MockServiceManagedIdentityClientBuilderMockRecorder) DeploymentStacksClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID any) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploymentStacksClient", reflect.TypeOf((*MockServiceManagedIdentityClientBuilder)(nil).DeploymentStacksClient), ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	return &MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall{Call: call}
+}
+
+// MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall wrap *gomock.Call
+type MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Return(arg0 DeploymentStacksClient, arg1 error) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (DeploymentStacksClient, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (DeploymentStacksClient, error)) *MockServiceManagedIdentityClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // FederatedIdentityCredentialsClient mocks base method.
 func (m *MockServiceManagedIdentityClientBuilder) FederatedIdentityCredentialsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (FederatedIdentityCredentialsClient, error) {
 	m.ctrl.T.Helper()

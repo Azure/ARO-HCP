@@ -1,0 +1,72 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package dependabot
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/cli"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/dependabot"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge/ghapi"
+)
+
+type rawNativeSandboxOptions struct{}
+
+type validatedNativeSandboxOptions struct{}
+
+type nativeSandboxOptions struct {
+	repository string
+	version    string
+	pin        string
+	read       dependabot.NativeReadFunc
+	output     io.Writer
+}
+
+// Validate rejects visible GitHub credentials before any sandbox read.
+func (o *rawNativeSandboxOptions) Validate() (*validatedNativeSandboxOptions, error) {
+	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "CI_TOKEN", "COPILOT_GITHUB_TOKEN", "GITHUB_MCP_SERVER_TOKEN"} {
+		if os.Getenv(name) != "" {
+			return nil, cli.Invalid(errors.New("GitHub credentials must not be visible in the sandbox"))
+		}
+	}
+	return &validatedNativeSandboxOptions{}, nil
+}
+
+// Complete binds the fixed release identity, isolated reader and command output.
+func (o *validatedNativeSandboxOptions) Complete(output io.Writer) *nativeSandboxOptions {
+	return &nativeSandboxOptions{
+		repository: "actions/checkout",
+		version:    "v7.0.1",
+		pin:        "3d3c42e5aac5ba805825da76410c181273ba90b1",
+		read:       ghapi.NativeCLIRead,
+		output:     output,
+	}
+}
+
+// Run verifies the official release identity before writing its JSON receipt.
+func (o *nativeSandboxOptions) Run(ctx context.Context) error {
+	if err := dependabot.NativeVerifyOfficialRelease(ctx, o.read, o.repository, o.version, o.pin); err != nil {
+		return fmt.Errorf("verify sandbox official release: %w", err)
+	}
+	if err := json.NewEncoder(o.output).Encode(map[string]string{"status": "verified"}); err != nil {
+		return fmt.Errorf("write sandbox verification receipt: %w", err)
+	}
+	return nil
+}

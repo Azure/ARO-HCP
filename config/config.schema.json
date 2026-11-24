@@ -1816,6 +1816,9 @@
             "fleetContainerMaxScale": {
               "type": "integer"
             },
+            "azureResourcesContainerMaxScale": {
+              "type": "integer"
+            },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
             }
@@ -1884,10 +1887,6 @@
       "properties": {
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
-        },
-        "useGlobalMeterIds": {
-          "type": "boolean",
-          "description": "If true, all SKUs bill to the global meter for their vCPU count."
         },
         "aub": {
           "type": "object",
@@ -1987,7 +1986,6 @@
       "additionalProperties": false,
       "required": [
         "rg",
-        "useGlobalMeterIds",
         "aub",
         "pav2",
         "kusto",
@@ -2283,6 +2281,10 @@
         "hostedControlPlaneLogsDatabase": {
           "type": "string"
         },
+        "allAroHcpLogsDatabase": {
+          "type": "string",
+          "description": "Name of the consolidated logs database. Migration step 1: hosts the rawLogs landing table + routing update policies that fan out into the tab_* typed tables, plus the legacy-named compatibility views that union the new tab_* tables with the legacy ServiceLogs/HostedControlPlaneLogs tables."
+        },
         "monitoringEventsDatabase": {
           "type": "string",
           "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
@@ -2357,6 +2359,7 @@
         "tier",
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
+        "allAroHcpLogsDatabase",
         "monitoringEventsDatabase",
         "adminGroups",
         "viewerGroups",

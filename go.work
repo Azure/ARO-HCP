@@ -3,10 +3,12 @@ go 1.26.0
 use (
 	./admin/client
 	./admin/server
+	./arohcp-cosmos-client
 	./backend
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/aks-cluster-create
 	./dev-infrastructure/scripts/grafana-group-roles
+	./dev-infrastructure/scripts/maestro-cert-cleanup
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
@@ -30,6 +32,7 @@ use (
 	./tooling/depctl
 	./tooling/e2e-cost
 	./tooling/entra-app-credentials
+	./tooling/github
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest

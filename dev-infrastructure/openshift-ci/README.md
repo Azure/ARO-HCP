@@ -115,103 +115,37 @@ is restricted to that local test, not the image build. Use
 `PLATFORM=linux/arm64` on an ARM host. These tests do not replace integration
 and mega-linter jobs on the CI build farm.
 
-Publication and consumption require companion changes in `openshift/release`.
-The intended output is
-`aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`, using the same
-`baseimage-generator` promotion pattern as the general CI base. The image
-definition alone does not switch existing jobs.
-See [Nested Podman Toolchain](../../docs/ci/image-lifecycle.md#nested-podman-toolchain)
-for the rollout order and producer/consumer configuration.
+The `baseimage-generator` variant in `openshift/release` builds and promotes
+this image as `aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`, and the
+main ci-operator config consumes it. See
+[Nested Podman Toolchain](../../docs/ci/image-lifecycle.md#nested-podman-toolchain)
+for how the producer and consumer fit together.
 
-## Scripts Overview
+## OpenShift Release Bot MSFT Test
 
-| Script | Purpose |
-|--------|---------|
-| `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
-| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-test-tenant` Vault secrets |
-| `switch-vault-tenant.sh` | Switch active secrets between Test Test tenant and legacy tenant |
+The "OpenShift Release Bot MSFT Test" app in the Test Test tenant is the CI identity for the jobs that use the `prod`
+profile and for cleaning up expired app registrations in that tenant.
 
-## Vault Secret Structure
+### CI Secret Storage (GSM)
 
-```
-selfservice/hcm-aro/
-├── aro-hcp-stg              # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-stg-test-tenant  # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-├── aro-hcp-stg-legacy       # Original legacy tenant credentials (backup, no secretsync)
-├── aro-hcp-prod             # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-prod-test-tenant # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-└── aro-hcp-prod-legacy      # Original legacy tenant credentials (backup, no secretsync)
-```
+CI credentials live in Google Secret Manager (GSM), collection `hcm-aro`. Each CI step mounts the groups it needs
+(for example `/var/run/aro-hcp-prod`) and picks one with `VAULT_SECRET_PROFILE`. The step definitions are in
+[openshift/release](https://github.com/openshift/release/tree/main/ci-operator/step-registry/aro-hcp).
 
-## Prerequisites
+| GSM group | Fields | Used by |
+|-----------|--------|---------|
+| `aro-hcp-prod` | `client-id`, `client-secret`, `tenant`, `subscription-id`, `subscription-name`, `customer-shard0-subscription-id`, `customer-shard0-subscription-name` | Jobs with `VAULT_SECRET_PROFILE=prod`: `prod-e2e-parallel`, `production` (CAPZ), `delete-expired-prod-resource-groups` |
+| `aro-hcp-msft-test-tenant` | `client-id`, `client-secret`, `tenant` | Expired app registration cleanup in the Test Test tenant |
 
-- Enable Global Administrator via PIM (for app registration API Resource permission admin consent)
-- Enable User Access Administrator / Owner role via PIM (for role assignments)
-- az CLI installed and logged in: `az login --tenant 93b21e64-4824-439a-b893-46c9b2a51082`
-- HashiCorp Vault CLI installed
-- jq installed
+GSM values cannot be read back; `sm describe` shows a secret's metadata only. See the
+[OpenShift CI documentation](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/).
 
-## Initial Setup (One-time)
+### Credential Rotation and App Recreation
 
-```bash
-# Create Azure AD app, assign roles, grant permissions, and store credentials
-./create-openshift-release-bot-msft-test.sh
-
-# Switch to Test Test tenant
-./switch-vault-tenant.sh --to test-tenant
-```
-
-## Switching Tenants
-
-```bash
-# Check current tenant status
-./switch-vault-tenant.sh --status
-
-# Switch to Test Test Azure Red Hat OpenShift tenant
-./switch-vault-tenant.sh --to test-tenant
-
-# Rollback to legacy tenant
-./switch-vault-tenant.sh --to legacy
-
-# Switch only specific environment
-./switch-vault-tenant.sh --to test-tenant --env stg
-./switch-vault-tenant.sh --to test-tenant --env prod
-```
-
-## Credential Rotation
-
-When credentials are expiring or need to be rotated:
-
-```bash
-# Rotate credentials (keeps old as backup)
-./recycle-openshift-release-bot-creds.sh
-
-# Rotate and delete old credentials
-./recycle-openshift-release-bot-creds.sh --delete-old
-
-# Rotate only specific environment
-./recycle-openshift-release-bot-creds.sh --env stg
-
-# Apply rotated credentials to active secrets
-./switch-vault-tenant.sh --to test-tenant
-```
-
-## Verification
-
-```bash
-# Check current tenant status
-./switch-vault-tenant.sh --status
-```
-
-## Troubleshooting
-
-### Rollback to Legacy Tenant
-
-If issues occur with Test Test tenant:
-
-```bash
-./switch-vault-tenant.sh --to legacy
-```
+Follow [Rotating the CI Client Secret](../../docs/sops/test-test-tenant-access.md#rotating-the-ci-client-secret)
+and, only if the app was deleted, [Recreating the App](../../docs/sops/test-test-tenant-access.md#recreating-the-app).
+The secret is created with `az` in the Test Test tenant and published with the Secret Manager CLI, which needs
+Red Hat SSO, so the steps say which access each one needs.
 
 ### Check Prow Job Logs
 
