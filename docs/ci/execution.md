@@ -75,6 +75,8 @@ If a periodic fails, that usually points to shared-environment drift, backlog in
 
 E2E jobs in CI can be summarized as follows: the job authenticates as a test identity, that shared identity creates one test resource group per test in a testing subscription, and each request is then sent to the environment's RP entrypoint. In higher environments that request flows through ARM; in DEV it is a direct RP call. The RP then creates the ARO HCP cluster resource back into that test's resource group.
 
+Which identity a job uses, which subscription it targets, and which cluster profile field backs each of those choices are defined by the [Cluster Profile Secret Contract](cluster-profile-secret-contract.md).
+
 The charts below focus on that transaction path and the tenant and subscription boundaries it crosses:
 
 - **DEV** is a same-tenant, cross-subscription flow inside the Red Hat tenant.

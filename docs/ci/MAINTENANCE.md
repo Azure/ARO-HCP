@@ -26,6 +26,7 @@ The CI docs explain how the system fits together and how to operate it. They are
 | `dev-mock-identities.md` | What each mock identity stands in for, its roles, certificates, slot mock preparation | a mock identity or its roles change, or certificate handling changes |
 | `e2e-capacity.md` | Azure limits, how to check the catalog against them, how to change capacity | the formulas, the limits or the safe-change procedure change |
 | `e2e-subscription-onboarding.md` | Onboarding ARO-HCP-managed subscriptions | the steps, the owning teams or the required grants change |
+| `cluster-profile-secret-contract.md` | The supported cluster profile fields, the allowed field scopes and the transitional keys being retired | a profile field is added, deprecated or deleted, or a consumer rule changes |
 | `external-subscription-management.md` | External subscription reconciliation, onboarding and scheduled maintenance | the reconciliation command, supported environments, safety boundaries or required grants change |
 | `dev-region-load-management.md` | Regional drain, rebalance and restore procedures | the way regions are selected or the procedure changes |
 | `e2e-testing.md`, `inplace-upgrade-presubmit.md`, `hypershift-v2-presubmit.md`, `capz-e2e.md` | How to trigger and narrow E2E runs and what the specialised presubmits do | `/test` commands, suites or the presubmit flows change |

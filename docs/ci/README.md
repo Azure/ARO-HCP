@@ -24,6 +24,7 @@ E2E environments are acquired as slots from `slot-manager`, whose [design docume
 - [DEV Mock Identities](dev-mock-identities.md) explains what each mock identity stands in for in DEV, why it holds the roles it does, and how slot mock identities and their certificates are prepared and rotated.
 - [E2E Capacity And Quotas](e2e-capacity.md) explains the Azure limits that bound the slot catalog, how to check a catalog against them, and how to change capacity safely.
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md) is the procedure for adding an ARO-HCP-managed customer subscription in DEV, INT, STG or PROD. [External Subscription Management](external-subscription-management.md) covers onboarding and recurring maintenance for subscriptions owned by another team.
+- [Cluster Profile Secret Contract](cluster-profile-secret-contract.md) defines the supported cluster profile fields, which scope a consumer may read, and why the transitional `subscription-*` keys are being retired.
 - [DEV CI Regional Load Management](dev-region-load-management.md) describes how to drain, rebalance and restore DEV presubmit traffic across regions.
 
 ## Running And Troubleshooting CI

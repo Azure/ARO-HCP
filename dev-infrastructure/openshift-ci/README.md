@@ -134,8 +134,13 @@ CI credentials live in Google Secret Manager (GSM), collection `hcm-aro`. Each C
 
 | GSM group | Fields | Used by |
 |-----------|--------|---------|
-| `aro-hcp-prod` | `client-id`, `client-secret`, `tenant`, `subscription-id`, `subscription-name`, `customer-shard0-subscription-id`, `customer-shard0-subscription-name` | Jobs with `VAULT_SECRET_PROFILE=prod`: `prod-e2e-parallel`, `production` (CAPZ), `delete-expired-prod-resource-groups` |
-| `aro-hcp-msft-test-tenant` | `client-id`, `client-secret`, `tenant` | Expired app registration cleanup in the Test Test tenant |
+| `aro-hcp-prod` | `client-id`, `client-secret`, `tenant`, `customer-shard0-subscription-id`, `customer-shard0-subscription-name`, plus the transitional `subscription-id` and `subscription-name` | Jobs with `VAULT_SECRET_PROFILE=prod`: `prod-e2e-parallel`, `production` (CAPZ), the PROD cleanup periodics |
+| `aro-hcp-msft-test-tenant` | `client-id`, `client-secret`, `tenant` | Expired app registration cleanup in the Test Test tenant. It holds the same app as `aro-hcp-prod`; once that cleanup reads `aro-hcp-prod` this group is deleted |
+
+The supported field vocabulary, the scopes a consumer may read, and the
+transitional keys being retired are defined in the
+[Cluster Profile Secret Contract](../../docs/ci/cluster-profile-secret-contract.md).
+Do not add fields outside that contract.
 
 GSM values cannot be read back; `sm describe` shows a secret's metadata only. See the
 [OpenShift CI documentation](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/).
