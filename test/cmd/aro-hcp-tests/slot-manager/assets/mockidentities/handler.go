@@ -203,7 +203,11 @@ func reconcileBundleOwners(ctx context.Context, store identityStore, slot slots.
 }
 
 func ownerRepair(slot slots.ExpandedSlot, err error) error {
-	return fmt.Errorf("mock identity bundle for %s is not ready: %w; ask an ARO-HCP operator with Entra application and certificate permissions to run: make -C test apply-pool-assets ENVIRONMENT=%s POOL=%s ASSET=mock_identities SUBSCRIPTION='%s'; roles on a subscription owned by another team are granted by that subscription's Owner with reconcile-external-subscription; CI never repairs identities or rotates credentials", slot.ResourceName, err, slot.Environment, slot.PoolName, slot.SubscriptionName)
+	var subscriptionArg string
+	if id, parseErr := uuid.Parse(slot.Subscriptions.E2E.ID); parseErr == nil && id != uuid.Nil {
+		subscriptionArg = " " + ExternalSubscriptionIDEnv + "=" + id.String()
+	}
+	return fmt.Errorf("mock identity bundle for %s is not ready: %w; ask an ARO-HCP operator with Entra application and certificate permissions to run: make -C test apply-pool-assets ENVIRONMENT=%s POOL=%s ASSET=mock_identities SUBSCRIPTION='%s'%s; roles on a subscription owned by another team are granted by that subscription's Owner with reconcile-external-subscription; CI never repairs identities or rotates credentials", slot.ResourceName, err, slot.Environment, slot.PoolName, slot.SubscriptionName, subscriptionArg)
 }
 
 func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequest) error {
