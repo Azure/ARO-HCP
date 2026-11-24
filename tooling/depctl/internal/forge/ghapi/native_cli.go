@@ -27,7 +27,7 @@ import (
 )
 
 // NativeCLIRead uses the supported gh proxy for read-only sandbox API evidence.
-// It does not require or create a credential in the sandbox process.
+// It returns one evidence object, unwrapping a single-item DIFC proxy collection.
 func NativeCLIRead(ctx context.Context, endpoint string, paginated, ci bool) (json.RawMessage, error) {
 	if paginated || ci {
 		return nil, errors.New("native evidence does not support pagination or CI credentials")
@@ -49,6 +49,20 @@ func NativeCLIRead(ctx context.Context, endpoint string, paginated, ci bool) (js
 	}
 	if !utf8.Valid(payload) || !json.Valid(payload) {
 		return nil, errors.New("native evidence response is not complete UTF-8 JSON")
+	}
+	payload = bytes.TrimSpace(payload)
+	if payload[0] == '[' {
+		var items []json.RawMessage
+		if err := json.Unmarshal(payload, &items); err != nil {
+			return nil, fmt.Errorf("decode native evidence collection: %w", err)
+		}
+		if len(items) != 1 {
+			return nil, errors.New("native evidence requires exactly one object")
+		}
+		payload = bytes.TrimSpace(items[0])
+	}
+	if len(payload) == 0 || payload[0] != '{' {
+		return nil, errors.New("native evidence requires exactly one object")
 	}
 	return payload, nil
 }
