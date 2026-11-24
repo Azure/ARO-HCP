@@ -312,14 +312,8 @@ func (o *ReconcileExternalSubscriptionOptions) Run(ctx context.Context) error {
 			return fmt.Errorf("resolve shared identity (the shared DEV applications are prepared by the dev-ci privileged rollout): %w", err)
 		}
 	}
-	botRBAC, err := subscriptions.CIBotRBAC(principals[0], subscriptions.CIBotOptions{GrantAKSRBAC: grantAKSRBAC})
-	if err != nil {
-		return err
-	}
-	mockRBAC, err := subscriptions.MockRBAC(subscriptions.MockPrincipals{FirstParty: principals[1], ARMHelper: principals[2], MSIMock: principals[3]})
-	if err != nil {
-		return err
-	}
+	botRBAC := subscriptions.CIBotRBAC(principals[0], subscriptions.CIBotOptions{GrantAKSRBAC: grantAKSRBAC})
+	mockRBAC := subscriptions.MockRBAC(subscriptions.MockPrincipals{FirstParty: principals[1], ARMHelper: principals[2], MSIMock: principals[3]})
 	if err := steps.deploy(ctx, subscriptionIDs, botRBAC, mockRBAC); err != nil {
 		return err
 	}

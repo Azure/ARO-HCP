@@ -16,31 +16,39 @@ package subscriptions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 // The Go parameter names are a contract with the Bicep modules. Fail when either side drifts.
-func TestDeploymentParametersMatchCompiledTemplates(t *testing.T) {
+func TestDeploymentParametersMatchGoldenTemplates(t *testing.T) {
 	t.Parallel()
-	bot, err := CIBotRBAC("bot", CIBotOptions{GrantAKSRBAC: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	mock, err := MockRBAC(MockPrincipals{FirstParty: "a", ARMHelper: "b", MSIMock: "c", ClustersServiceARMHelper: "d"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	bot := CIBotRBAC("bot", CIBotOptions{GrantAKSRBAC: true})
+	mock := MockRBAC(MockPrincipals{FirstParty: "a", ARMHelper: "b", MSIMock: "c", ClustersServiceARMHelper: "d"})
 	for _, deployment := range []Deployment{bot, mock} {
-		declared, _ := deployment.Template["parameters"].(map[string]any)
+		path := filepath.Join("../../../../../hack/bicep-golden-fixtures/subscription-rbac", deployment.templateName+".json")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var template struct {
+			Parameters map[string]map[string]any
+		}
+		if err := json.Unmarshal(data, &template); err != nil {
+			t.Fatal(err)
+		}
+		declared := template.Parameters
 		for name := range deployment.Parameters {
 			if _, found := declared[name]; !found {
 				t.Errorf("%s passes parameter %q that the compiled template does not declare", deployment.Name, name)
 			}
 		}
 		for name, definition := range declared {
-			_, hasDefault := definition.(map[string]any)["defaultValue"]
+			_, hasDefault := definition["defaultValue"]
 			if _, passed := deployment.Parameters[name]; !passed && !hasDefault {
 				t.Errorf("%s does not pass required template parameter %q", deployment.Name, name)
 			}
@@ -50,10 +58,7 @@ func TestDeploymentParametersMatchCompiledTemplates(t *testing.T) {
 
 func TestMockRBACOmitsUnsetClustersServiceHelper(t *testing.T) {
 	t.Parallel()
-	deployment, err := MockRBAC(MockPrincipals{FirstParty: "a", ARMHelper: "b", MSIMock: "c"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	deployment := MockRBAC(MockPrincipals{FirstParty: "a", ARMHelper: "b", MSIMock: "c"})
 	if _, found := deployment.Parameters["clustersServiceArmHelperPrincipalId"]; found {
 		t.Fatal("an unset optional principal must keep the template default")
 	}

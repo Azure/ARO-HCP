@@ -44,14 +44,13 @@ const (
 	mockRBACTemplate  = "e2e-subscription-rbac-assignment-subscription"
 )
 
-// Deployment is one subscription-scope ARM deployment. Template is compiled ARM
-// JSON of the canonical Bicep module that the dev-ci rollout also deploys, and
-// Parameters holds plain values; the ARM {"value": ...} envelope is added on
+// Deployment names the canonical Bicep template for one subscription-scope
+// ARM deployment. Parameters holds plain values; the ARM {"value": ...} envelope is added on
 // submission. Deployments are incremental: they never remove existing resources.
 type Deployment struct {
-	Name       string
-	Template   map[string]any
-	Parameters map[string]any
+	Name         string
+	templateName string
+	Parameters   map[string]any
 }
 
 // DeploymentClient submits a deployment to one subscription and waits for it.
@@ -64,6 +63,10 @@ type armDeploymentClient struct {
 }
 
 func (c armDeploymentClient) Deploy(ctx context.Context, deployment Deployment) error {
+	template, err := readTemplate(deployment.templateName)
+	if err != nil {
+		return err
+	}
 	parameters := make(map[string]map[string]any, len(deployment.Parameters))
 	for name, value := range deployment.Parameters {
 		parameters[name] = map[string]any{"value": value}
@@ -72,7 +75,7 @@ func (c armDeploymentClient) Deploy(ctx context.Context, deployment Deployment) 
 		Location: to.Ptr(DeploymentLocation),
 		Properties: &armresources.DeploymentProperties{
 			Mode:       to.Ptr(armresources.DeploymentModeIncremental),
-			Template:   deployment.Template,
+			Template:   template,
 			Parameters: parameters,
 		},
 	}, nil)
@@ -132,17 +135,13 @@ type CIBotOptions struct {
 }
 
 // CIBotRBAC grants the CI bot its subscription roles.
-func CIBotRBAC(botPrincipalID string, options CIBotOptions) (Deployment, error) {
-	template, err := readTemplate(ciBotTemplate)
-	if err != nil {
-		return Deployment{}, err
-	}
-	return Deployment{Name: "slot-manager-" + ciBotTemplate, Template: template, Parameters: map[string]any{
+func CIBotRBAC(botPrincipalID string, options CIBotOptions) Deployment {
+	return Deployment{Name: "slot-manager-" + ciBotTemplate, templateName: ciBotTemplate, Parameters: map[string]any{
 		"botPrincipalId":       botPrincipalID,
 		"isGlobalSubscription": options.IsGlobalSubscription,
 		"grantAksRbac":         options.GrantAKSRBAC,
 		"grantKeyVaultAdmin":   options.GrantKeyVaultAdmin,
-	}}, nil
+	}}
 }
 
 // MockPrincipals are the service principal object IDs of the shared mock
@@ -154,11 +153,7 @@ type MockPrincipals struct {
 // MockRBAC defines the subscription-local mock roles and assigns them to the
 // shared mock principals. The slot mock identities' grants depend on the roles
 // it defines.
-func MockRBAC(principals MockPrincipals) (Deployment, error) {
-	template, err := readTemplate(mockRBACTemplate)
-	if err != nil {
-		return Deployment{}, err
-	}
+func MockRBAC(principals MockPrincipals) Deployment {
 	parameters := map[string]any{
 		"firstPartyPrincipalId": principals.FirstParty,
 		"armHelperPrincipalId":  principals.ARMHelper,
@@ -167,7 +162,7 @@ func MockRBAC(principals MockPrincipals) (Deployment, error) {
 	if principals.ClustersServiceARMHelper != "" {
 		parameters["clustersServiceArmHelperPrincipalId"] = principals.ClustersServiceARMHelper
 	}
-	return Deployment{Name: "slot-manager-" + mockRBACTemplate, Template: template, Parameters: parameters}, nil
+	return Deployment{Name: "slot-manager-" + mockRBACTemplate, templateName: mockRBACTemplate, Parameters: parameters}
 }
 
 // readTemplate reads a template compiled by `make -C test` from

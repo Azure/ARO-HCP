@@ -36,12 +36,12 @@ all: test lint
 # `export` is needed (rather than the `VAR=value command` form) because the
 # go list | xargs go test pipeline runs go test in a subprocess of xargs;
 # without export the env var only reaches go list.
-test: envtest-setup test-infrastructure test-bicep-fixtures
+test: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit: envtest-setup test-infrastructure test-bicep-fixtures
+test-unit: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
@@ -451,12 +451,6 @@ update-helm-fixtures:
 test-infrastructure:
 	BICEP="$(BICEP)" go test -C dev-infrastructure infrastructure_identities_test.go
 .PHONY: test-infrastructure
-
-# The slot-manager tests read the compiled test Bicep templates, which are generated and
-# git-ignored, so compile them before the tests run.
-test-bicep-fixtures:
-	$(MAKE) -C test bicep-fixtures BICEP="$(BICEP)"
-.PHONY: test-bicep-fixtures
 
 test-helm-fixtures: test-infrastructure
 	$(MAKE) -C tooling/helmtest test
