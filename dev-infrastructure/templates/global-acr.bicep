@@ -8,6 +8,11 @@ param ocpAcrSku string
 param ocpAcrUntaggedImagesRetentionEnabled bool
 param ocpAcrUntaggedImagesRetentionDays int
 
+param ocpControlPlaneEmbargoAcrName string
+param ocpControlPlaneEmbargoAcrSku string
+param ocpControlPlaneEmbargoAcrUntaggedImagesRetentionEnabled bool
+param ocpControlPlaneEmbargoAcrUntaggedImagesRetentionDays int
+
 param svcAcrName string
 param svcAcrSku string
 param svcAcrUntaggedImagesRetentionEnabled bool
@@ -21,6 +26,9 @@ param location string
 
 @description('The zone redundancy mode for the OCP ACR')
 param ocpAcrZoneRedundantMode string
+
+@description('The zone redundancy mode for the OCP control plane embargo ACR')
+param ocpControlPlaneEmbargoAcrZoneRedundantMode string
 
 @description('The zone redundancy mode for the SVC ACR')
 param svcAcrZoneRedundantMode string
@@ -48,6 +56,27 @@ param ocpAcrOverviewDashboardEnabled bool = false
 @description('Name of the Azure portal dashboard resource for OCP ACR overview/throttling visibility')
 @minLength(1)
 param ocpAcrOverviewDashboardName string = 'placeholder-dashboard-name'
+
+@description('Enable diagnostic settings (repository/login events + metrics) for the OCP control plane embargo ACR')
+param ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled bool = false
+
+@description('Name of the Log Analytics workspace to create for OCP control plane embargo ACR diagnostic logs')
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceName string = ''
+
+@description('SKU for the OCP control plane embargo ACR diagnostics Log Analytics workspace')
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceSku string = 'PerGB2018'
+
+@description('Retention in days for the OCP control plane embargo ACR diagnostics Log Analytics workspace. Azure requires 30-730 days.')
+@minValue(30)
+@maxValue(730)
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceRetentionInDays int = 90
+
+@description('Enable the ACR overview dashboard (request volume, result codes, top repositories, latency, and 429 throttling) for the OCP control plane embargo ACR. Requires ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled.')
+param ocpControlPlaneEmbargoAcrOverviewDashboardEnabled bool = false
+
+@description('Name of the Azure portal dashboard resource for OCP control plane embargo ACR overview/throttling visibility')
+@minLength(1)
+param ocpControlPlaneEmbargoAcrOverviewDashboardName string = 'placeholder-dashboard-name'
 
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
@@ -162,6 +191,66 @@ module ocpRedhatPendingCaching '../modules/acr/cache.bicep' = {
 }
 
 //
+//   O C P   C O N T R O L   P L A N E   E M B A R G O   A C R
+//
+
+module ocpControlPlaneEmbargoAcr '../modules/acr/acr.bicep' = {
+  name: ocpControlPlaneEmbargoAcrName
+  params: {
+    acrName: ocpControlPlaneEmbargoAcrName
+    acrSku: ocpControlPlaneEmbargoAcrSku
+    retentionPolicy: {
+      enabled: ocpControlPlaneEmbargoAcrUntaggedImagesRetentionEnabled
+      days: ocpControlPlaneEmbargoAcrUntaggedImagesRetentionDays
+    }
+    location: location
+    zoneRedundant: determineZoneRedundancyForRegion(location, ocpControlPlaneEmbargoAcrZoneRedundantMode)
+  }
+}
+
+// Pull-through cache of the embargoed (private) openshift-release-dev
+// repositories. Uses a dedicated quay pull secret (quay-priv-username /
+// quay-priv-password) rather than the quay-username/quay-password pair used
+// by the public ocpCaching rules above.
+module ocpControlPlaneEmbargoCaching '../modules/acr/cache.bicep' = {
+  name: '${ocpControlPlaneEmbargoAcrName}-caching'
+  params: {
+    acrName: ocpControlPlaneEmbargoAcrName
+    location: location
+    quayRepositoriesToCache: [
+      {
+        ruleName: 'ocp-v4-0-art-dev-priv'
+        sourceRepo: 'quay.io/openshift-release-dev/ocp-v4.0-art-dev-priv'
+        targetRepo: 'openshift-release-dev/ocp-v4.0-art-dev-priv'
+        userIdentifier: 'quay-priv-username'
+        passwordIdentifier: 'quay-priv-password'
+        loginServer: 'quay.io'
+      }
+      {
+        ruleName: 'ocp-v5-0-art-dev-priv'
+        sourceRepo: 'quay.io/openshift-release-dev/ocp-v5.0-art-dev-priv'
+        targetRepo: 'openshift-release-dev/ocp-v5.0-art-dev-priv'
+        userIdentifier: 'quay-priv-username'
+        passwordIdentifier: 'quay-priv-password'
+        loginServer: 'quay.io'
+      }
+      {
+        ruleName: 'ocp-release-priv'
+        sourceRepo: 'quay.io/openshift-release-dev/ocp-release-priv'
+        targetRepo: 'openshift-release-dev/ocp-release-priv'
+        userIdentifier: 'quay-priv-username'
+        passwordIdentifier: 'quay-priv-password'
+        loginServer: 'quay.io'
+      }
+    ]
+    keyVaultName: globalKeyVaultName
+  }
+  dependsOn: [
+    ocpControlPlaneEmbargoAcr
+  ]
+}
+
+//
 //   S V C   A C R
 //
 
@@ -272,6 +361,19 @@ module globalMSIOcpAcrAccess '../modules/acr/acr-permissions.bicep' = {
   ]
 }
 
+module globalMSIOcpControlPlaneEmbargoAcrAccess '../modules/acr/acr-permissions.bicep' = {
+  name: '${globalMSIName}-ocp-control-plane-embargo-acr-access'
+  params: {
+    principalIds: [globalMSI.properties.principalId]
+    grantPushAccess: true
+    grantPullAccess: true
+    acrName: ocpControlPlaneEmbargoAcrName
+  }
+  dependsOn: [
+    ocpControlPlaneEmbargoAcr
+  ]
+}
+
 module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
   // The OCP ACR (ocpAcrName) is shared by every dev-cloud environment that
   // enables this flag; ocpAcrLogAnalyticsWorkspaceName is configured to
@@ -316,5 +418,49 @@ module ocpAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (oc
     location: location
     dashboardTitle: 'ACR ${ocpAcrName} Overview'
     logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
+  }
+}
+
+module ocpControlPlaneEmbargoAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled) {
+  // Same rationale as ocpAcrLogAnalyticsWorkspace above: the embargo ACR is
+  // shared by every dev-cloud environment, so the workspace name must resolve
+  // to one static value in all of them or each environment's redeploy creates
+  // a new workspace and blows past the 5-diagnosticSettings-per-resource cap.
+  name: '${ocpControlPlaneEmbargoAcrName}-diagnostics-workspace'
+  params: {
+    workspaceName: ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceName
+    location: location
+    sku: ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceSku
+    retentionInDays: ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceRetentionInDays
+  }
+}
+
+module ocpControlPlaneEmbargoAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if (ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled) {
+  // Same rationale as ocpControlPlaneEmbargoAcrLogAnalyticsWorkspace above:
+  // one shared diagnosticSettings resource on the shared ACR, not one per
+  // environment.
+  name: '${ocpControlPlaneEmbargoAcrName}-diagnostic-settings'
+  params: {
+    acrName: ocpControlPlaneEmbargoAcrName
+    logAnalyticsWorkspaceId: ocpControlPlaneEmbargoAcrLogAnalyticsWorkspace!.outputs.workspaceId
+    diagnosticSettingsName: '${ocpControlPlaneEmbargoAcrName}-diagnostic-logs'
+  }
+  dependsOn: [
+    ocpControlPlaneEmbargoAcr
+  ]
+}
+
+module ocpControlPlaneEmbargoAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (ocpControlPlaneEmbargoAcrOverviewDashboardEnabled && ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled) {
+  // Same rationale as the two modules above: one shared dashboard for the
+  // shared ACR, not one per environment. Also requires
+  // ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled: the dashboard queries
+  // the diagnostics Log Analytics workspace, which only exists when
+  // diagnostic settings are enabled.
+  name: '${ocpControlPlaneEmbargoAcrName}-overview-dashboard'
+  params: {
+    dashboardName: ocpControlPlaneEmbargoAcrOverviewDashboardName
+    location: location
+    dashboardTitle: 'ACR ${ocpControlPlaneEmbargoAcrName} Overview'
+    logAnalyticsWorkspaceId: ocpControlPlaneEmbargoAcrLogAnalyticsWorkspace!.outputs.workspaceId
   }
 }

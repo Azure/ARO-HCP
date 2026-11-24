@@ -62,6 +62,29 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+  - name: ocp-cp-embargo-acr-replication
+    action: Shell
+    command: ./acr-replication
+    workingDir: ./scripts/acr-replication
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: global.rg
+    - name: ACR_NAME
+      configRef: acr.ocpControlPlaneEmbargo.name
+    - name: REPLICATION_REGION
+      configRef: region
+    - name: REPLICATION_STATE
+      configRef: acr.ocpControlPlaneEmbargo.replicationState
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: svc-acr-replication
     action: Shell
     command: ./acr-replication

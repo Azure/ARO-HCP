@@ -3915,6 +3915,9 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
+        },
+        "ocpControlPlaneEmbargo": {
+          "$ref": "#/definitions/acr"
         }
       },
       "additionalProperties": false,
