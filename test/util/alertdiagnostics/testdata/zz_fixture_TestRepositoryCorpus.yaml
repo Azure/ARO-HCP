@@ -30911,30 +30911,6 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: cluster-monitoring-rules
-  alert: UJAlertmanagerMainNotReady
-  occurrence: 1
-  input: (max by (cluster, hostedcontrolplane, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-  plan:
-    expression: (max by (cluster, hostedcontrolplane, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-    conditions:
-      - expression: (max by (cluster, hostedcontrolplane, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1
-        path: root/and:left
-        queries:
-          - expression: max by (cluster, hostedcontrolplane, region) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane, region) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)
-            role: signal
-        thresholds:
-          - operator: <
-            value: 1
-        unsupported: ""
-      - expression: label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-        path: root/and:right
-        queries:
-          - expression: label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-            role: signal
-        thresholds: []
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
-  group: cluster-monitoring-rules
   alert: UJClusterMonitoringOperatorDegraded
   occurrence: 1
   input: max by (cluster, namespace, region) (cluster_operator_conditions{condition="degraded",name="monitoring"}) == 1 and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)
@@ -30984,30 +30960,6 @@
         thresholds:
           - operator: '>'
             value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
-  group: cluster-monitoring-rules
-  alert: UJGuestPrometheusOperatorNotReady
-  occurrence: 1
-  input: min by (cluster, hostedcontrolplane, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-  plan:
-    expression: min by (cluster, hostedcontrolplane, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-    conditions:
-      - expression: min by (cluster, hostedcontrolplane, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0
-        path: root/and:left
-        queries:
-          - expression: min by (cluster, hostedcontrolplane, region) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"})
-            role: signal
-        thresholds:
-          - operator: ==
-            value: 0
-        unsupported: ""
-      - expression: label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-        path: root/and:right
-        queries:
-          - expression: label_replace(sum by (cluster, namespace, region) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-            role: signal
-        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
@@ -46048,53 +46000,6 @@
         unsupported: ""
 - source: observability/alerts/cluster-monitoring-prometheusRule.yaml
   group: cluster-monitoring-rules
-  alert: UJAlertmanagerMainNotReady
-  occurrence: 1
-  input: |
-    (
-      max by (cluster, hostedcontrolplane) (
-        kube_statefulset_status_replicas_ready{
-          statefulset="alertmanager-main",
-          namespace="openshift-monitoring"
-        }
-      )
-      /
-      clamp_min(
-        max by (cluster, hostedcontrolplane) (
-          kube_statefulset_replicas{
-            statefulset="alertmanager-main",
-            namespace="openshift-monitoring"
-          }
-        ),
-        1
-      )
-    ) < 1
-    and on (cluster, hostedcontrolplane)
-    label_replace(
-      sum by (cluster, namespace) (node_collector_zone_size) > 0,
-      "hostedcontrolplane", "$1", "namespace", "(.*)"
-    )
-  plan:
-    expression: (max by (cluster, hostedcontrolplane) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-    conditions:
-      - expression: (max by (cluster, hostedcontrolplane) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)) < 1
-        path: root/and:left
-        queries:
-          - expression: max by (cluster, hostedcontrolplane) (kube_statefulset_status_replicas_ready{namespace="openshift-monitoring",statefulset="alertmanager-main"}) / clamp_min(max by (cluster, hostedcontrolplane) (kube_statefulset_replicas{namespace="openshift-monitoring",statefulset="alertmanager-main"}), 1)
-            role: signal
-        thresholds:
-          - operator: <
-            value: 1
-        unsupported: ""
-      - expression: label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-        path: root/and:right
-        queries:
-          - expression: label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-            role: signal
-        thresholds: []
-        unsupported: ""
-- source: observability/alerts/cluster-monitoring-prometheusRule.yaml
-  group: cluster-monitoring-rules
   alert: UJClusterMonitoringOperatorDegraded
   occurrence: 1
   input: |
@@ -46158,41 +46063,6 @@
         thresholds:
           - operator: '>'
             value: 0
-        unsupported: ""
-- source: observability/alerts/cluster-monitoring-prometheusRule.yaml
-  group: cluster-monitoring-rules
-  alert: UJGuestPrometheusOperatorNotReady
-  occurrence: 1
-  input: |
-    min by (cluster, hostedcontrolplane) (
-      prometheus_operator_ready{
-        job="prometheus-operator",
-        namespace="openshift-monitoring"
-      }
-    ) == 0
-    and on (cluster, hostedcontrolplane)
-    label_replace(
-      sum by (cluster, namespace) (node_collector_zone_size) > 0,
-      "hostedcontrolplane", "$1", "namespace", "(.*)"
-    )
-  plan:
-    expression: min by (cluster, hostedcontrolplane) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0 and on (cluster, hostedcontrolplane) label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-    conditions:
-      - expression: min by (cluster, hostedcontrolplane) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"}) == 0
-        path: root/and:left
-        queries:
-          - expression: min by (cluster, hostedcontrolplane) (prometheus_operator_ready{job="prometheus-operator",namespace="openshift-monitoring"})
-            role: signal
-        thresholds:
-          - operator: ==
-            value: 0
-        unsupported: ""
-      - expression: label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-        path: root/and:right
-        queries:
-          - expression: label_replace(sum by (cluster, namespace) (node_collector_zone_size) > 0, "hostedcontrolplane", "$1", "namespace", "(.*)")
-            role: signal
-        thresholds: []
         unsupported: ""
 - source: observability/alerts/cluster-provision-slo-prometheusRule.yaml
   group: arohcp_cluster_provision_slo_latency_alerts

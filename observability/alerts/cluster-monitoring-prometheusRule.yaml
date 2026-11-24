@@ -15,9 +15,11 @@ spec:
   # Registered only in alerts-rp-hcps.yaml so the Azure prometheusRuleGroup name
   # does not collide with the DEV HCP module's action-group routing.
   #
-  # CMO health uses cluster_operator_conditions (HCP identity = namespace).
-  # Guest Alertmanager / prometheus-operator series keep namespace=openshift-monitoring
-  # and carry HCP identity on hostedcontrolplane (see prometheus.yaml HCP remote_write).
+  # Only monitoring ClusterOperator alerts ship for now. Guest Alertmanager /
+  # prometheus-operator rules need openshift-monitoring StatefulSet and
+  # prometheus-operator series from the guest; mgmt-agent ksmhcp currently
+  # scrapes only nodes + ingress-controller (resources.go), so those alerts
+  # are deferred until collection is expanded.
   - name: cluster-monitoring-rules
     labels:
       component: slo
@@ -69,74 +71,4 @@ spec:
           (management cluster {{ $labels.cluster }}) has been Degraded=true for 2 hours
           while worker nodes are present. Alert routing or scrape targets may be impaired.
         correlationId: "UJClusterMonitoringOperatorDegraded/{{ $labels.cluster }}/{{ $labels.namespace }}"
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
-
-    # Guest Alertmanager (alertmanager-main) not ready. Per-HCP via hostedcontrolplane
-    # so one healthy HCP cannot mask another on the same management cluster.
-    - alert: UJAlertmanagerMainNotReady
-      expr: |
-        (
-          max by (cluster, hostedcontrolplane) (
-            kube_statefulset_status_replicas_ready{
-              statefulset="alertmanager-main",
-              namespace="openshift-monitoring"
-            }
-          )
-          /
-          clamp_min(
-            max by (cluster, hostedcontrolplane) (
-              kube_statefulset_replicas{
-                statefulset="alertmanager-main",
-                namespace="openshift-monitoring"
-              }
-            ),
-            1
-          )
-        ) < 1
-        and on (cluster, hostedcontrolplane)
-        label_replace(
-          sum by (cluster, namespace) (node_collector_zone_size) > 0,
-          "hostedcontrolplane", "$1", "namespace", "(.*)"
-        )
-      for: 30m
-      labels:
-        severity: "4"
-        slo: cluster-monitoring-availability
-        service: cluster-monitoring
-      annotations:
-        summary: "{{ $labels.cluster }}: alertmanager-main not ready on {{ $labels.hostedcontrolplane }}"
-        description: |
-          alertmanager-main in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
-          (management cluster {{ $labels.cluster }}) has had ready replicas below desired for
-          30 minutes. Customer alert notifications may be delayed or stopped.
-        correlationId: "UJAlertmanagerMainNotReady/{{ $labels.cluster }}/{{ $labels.hostedcontrolplane }}"
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
-
-    # Guest prometheus-operator not ready. Distinct from underlay
-    # PrometheusOperatorNotReady (namespace=prometheus on services AMW).
-    - alert: UJGuestPrometheusOperatorNotReady
-      expr: |
-        min by (cluster, hostedcontrolplane) (
-          prometheus_operator_ready{
-            job="prometheus-operator",
-            namespace="openshift-monitoring"
-          }
-        ) == 0
-        and on (cluster, hostedcontrolplane)
-        label_replace(
-          sum by (cluster, namespace) (node_collector_zone_size) > 0,
-          "hostedcontrolplane", "$1", "namespace", "(.*)"
-        )
-      for: 30m
-      labels:
-        severity: "4"
-        slo: cluster-monitoring-availability
-        service: cluster-monitoring
-      annotations:
-        summary: "{{ $labels.cluster }}: guest prometheus-operator not ready on {{ $labels.hostedcontrolplane }}"
-        description: |
-          prometheus-operator in openshift-monitoring on hosted cluster {{ $labels.hostedcontrolplane }}
-          (management cluster {{ $labels.cluster }}) has been not-ready for 30 minutes.
-          Guest Prometheus / Alertmanager CRs may not reconcile.
-        correlationId: "UJGuestPrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.hostedcontrolplane }}"
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
