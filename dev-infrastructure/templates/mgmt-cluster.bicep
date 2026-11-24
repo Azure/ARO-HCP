@@ -80,6 +80,9 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+@description('The namespace of the HyperShift operator')
+param hypershiftNamespace string
+
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
@@ -134,7 +137,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   name: 'managed-identities'
   params: {
     location: location
-    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+    manageIdentityNames: map(filter(workloadIdentities, wi => !(wi.value.?pullOnly ?? false)), wi => wi.value.uamiName)
     useLeasedIdentities: useLeasedInfrastructureIdentities
     identityResourceGroupName: infrastructureIdentityResourceGroup
   }
@@ -170,6 +173,12 @@ var workloadIdentities = items({
     uamiName: kubeApplierMIName
     namespace: kubeApplierNamespace
     serviceAccountName: kubeApplierServiceAccountName
+  }
+  hypershift_operator_wi: {
+    uamiName: 'hypershift-operator'
+    namespace: hypershiftNamespace
+    serviceAccountName: 'operator'
+    pullOnly: true
   }
 })
 

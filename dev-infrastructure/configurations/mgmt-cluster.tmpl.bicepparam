@@ -28,6 +28,9 @@ param kubeApplierServiceAccountName = '{{ .kubeApplier.k8s.serviceAccountName }}
 param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
+// HyperShift
+param hypershiftNamespace = '{{ .hypershift.namespace }}'
+
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
