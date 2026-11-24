@@ -37,6 +37,9 @@ type PublicationRequest struct {
 	ExpectedBase   string
 	Actor          string
 	Marker         string
+	// PreviousMarker authorizes the exact prior marker during an ownership-preserving update only.
+	// Post-write verification always requires Marker and the new exact body.
+	PreviousMarker string
 	Title          string
 	Body           string
 	ExpectedFiles  []string
@@ -93,7 +96,7 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 	var owned []PullRequest
 	for _, p := range open {
 		sameBranch := p.HeadRepo == r.HeadRepository && p.HeadRef == r.HeadRef
-		sameMarker := hasMarker(p.Body, r.Marker)
+		sameMarker := hasMarker(p.Body, r.Marker) || r.PreviousMarker != "" && hasMarker(p.Body, r.PreviousMarker)
 		if !sameBranch && !sameMarker {
 			continue
 		}
@@ -191,7 +194,7 @@ func (c *Client) publicationIdentity(p PullRequest, r PublicationRequest) error 
 	if p.BaseRepo != c.owner+"/"+c.repo || p.BaseRef != r.BaseRef || p.State != "open" || p.Merged {
 		return fmt.Errorf("proposal target or open state differs: %w", ErrConflict)
 	}
-	if !hasMarker(p.Body, r.Marker) {
+	if !hasMarker(p.Body, r.Marker) && (r.PreviousMarker == "" || !hasMarker(p.Body, r.PreviousMarker)) {
 		return fmt.Errorf("proposal ownership marker differs: %w", ErrConflict)
 	}
 	return nil
@@ -211,8 +214,14 @@ func (c *Client) validatePublication(r PublicationRequest) error {
 	if r.Actor == "" || strings.TrimSpace(r.Title) == "" {
 		return fmt.Errorf("publication requires actor and title")
 	}
-	if !strings.HasPrefix(r.Marker, "<!-- ") || !strings.HasSuffix(r.Marker, " -->") || strings.ContainsAny(r.Marker, "\r\n") || strings.Count(r.Marker, "<!--") != 1 || strings.Count(r.Marker, "-->") != 1 {
-		return fmt.Errorf("publication marker must be one standalone HTML comment")
+	markers := []string{r.Marker}
+	if r.PreviousMarker != "" {
+		markers = append(markers, r.PreviousMarker)
+	}
+	for _, marker := range markers {
+		if !strings.HasPrefix(marker, "<!-- ") || !strings.HasSuffix(marker, " -->") || strings.ContainsAny(marker, "\r\n") || strings.Count(marker, "<!--") != 1 || strings.Count(marker, "-->") != 1 {
+			return fmt.Errorf("publication marker must be one standalone HTML comment")
+		}
 	}
 	if !hasMarker(r.Body, r.Marker) {
 		return fmt.Errorf("publication body must contain its exact marker")
@@ -321,6 +330,8 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 			return receipt, indeterminate("update proposal", writeErr)
 		}
 	}
+	// A prior marker grants update ownership, never permission to retain stale metadata.
+	r.PreviousMarker = ""
 	receipt.URL = fmt.Sprintf("https://github.com/%s/%s/pull/%d", c.owner, c.repo, receipt.Number)
 	verified, err := c.ownedPulls(ctx, r)
 	if err != nil || len(verified) != 1 || verified[0].Number != receipt.Number {

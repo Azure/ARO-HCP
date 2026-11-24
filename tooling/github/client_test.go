@@ -88,6 +88,7 @@ func respond(t *testing.T, w http.ResponseWriter, v any) {
 	}
 }
 
+// TestSnapshotPagesLatestChecksAndHeadRace verifies complete ordered evidence and rejects a moved head.
 func TestSnapshotPagesLatestChecksAndHeadRace(t *testing.T) {
 	for _, race := range []bool{false, true} {
 		t.Run(fmt.Sprint(race), func(t *testing.T) {
@@ -102,7 +103,12 @@ func TestSnapshotPagesLatestChecksAndHeadRace(t *testing.T) {
 					}
 					respond(t, w, p)
 				case "/repos/owner/repo/pulls/7/commits":
-					respond(t, w, []*gh.RepositoryCommit{{SHA: gh.Ptr(testHead)}})
+					if r.URL.Query().Get("page") == "1" {
+						w.Header().Set("Link", fmt.Sprintf("<http://%s%s?page=2>; rel=\"next\"", r.Host, r.URL.Path))
+						respond(t, w, []*gh.RepositoryCommit{{SHA: gh.Ptr(testBase), Author: &gh.User{Login: gh.Ptr("first-author"), Type: gh.Ptr("User")}}})
+						return
+					}
+					respond(t, w, []*gh.RepositoryCommit{{SHA: gh.Ptr(testHead), Author: &gh.User{Login: gh.Ptr("head-author"), Type: gh.Ptr("Bot")}}})
 				case "/repos/owner/repo/issues/7/comments":
 					if r.URL.Query().Get("page") == "1" {
 						w.Header().Set("Link", fmt.Sprintf("<http://%s%s?page=2>; rel=\"next\"", r.Host, r.URL.Path))
@@ -135,8 +141,22 @@ func TestSnapshotPagesLatestChecksAndHeadRace(t *testing.T) {
 				if !errors.Is(err, ErrConflict) {
 					t.Fatalf("want head conflict, got %v", err)
 				}
-			} else if err != nil || len(snapshot.Comments) != 2 || len(snapshot.Checks) != 1 || snapshot.Checks[0].Conclusion != "success" {
+				return
+			}
+			if err != nil || len(snapshot.Comments) != 2 || len(snapshot.Checks) != 1 || snapshot.Checks[0].Conclusion != "success" {
 				t.Fatalf("snapshot %+v: %v", snapshot, err)
+			}
+			if len(snapshot.Commits) != 2 || len(snapshot.CommitDetails) != 2 {
+				t.Fatalf("incomplete commit evidence: %+v", snapshot)
+			}
+			for index, expected := range []struct{ sha, author, kind string }{
+				{testBase, "first-author", "User"},
+				{testHead, "head-author", "Bot"},
+			} {
+				commit := snapshot.CommitDetails[index]
+				if commit == nil || commit.GetSHA() != expected.sha || snapshot.Commits[index] != expected.sha || commit.GetAuthor().GetLogin() != expected.author || commit.GetAuthor().GetType() != expected.kind {
+					t.Fatalf("commit %d evidence: %+v, want %+v", index, commit, expected)
+				}
 			}
 		})
 	}

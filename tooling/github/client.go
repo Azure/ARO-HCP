@@ -33,6 +33,7 @@ var keyPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 type Client struct {
 	api         *gh.Client
 	writer      *gh.Client
+	ci          *gh.Client
 	owner, repo string
 	actor       string
 }
@@ -43,7 +44,7 @@ func NewClient(repository string, api *gh.Client) (*Client, error) {
 		return nil, fmt.Errorf("invalid repository or nil client")
 	}
 	parts := strings.Split(repository, "/")
-	return &Client{api: api, writer: api, owner: parts[0], repo: parts[1]}, nil
+	return &Client{api: api, writer: api, ci: api, owner: parts[0], repo: parts[1]}, nil
 }
 
 // WithWriter returns an independent client using an explicit write credential and clears any configured actor.
@@ -54,6 +55,16 @@ func (c *Client) WithWriter(writer *gh.Client) (*Client, error) {
 	clone := *c
 	clone.writer = writer
 	clone.actor = ""
+	return &clone, nil
+}
+
+// WithCIReader returns an independent client with a separate credential for CI evidence.
+func (c *Client) WithCIReader(reader *gh.Client) (*Client, error) {
+	if reader == nil {
+		return nil, fmt.Errorf("nil CI reader")
+	}
+	clone := *c
+	clone.ci = reader
 	return &clone, nil
 }
 
@@ -223,7 +234,7 @@ func (c *Client) comments(ctx context.Context, number int) ([]*gh.IssueComment, 
 	return items, nil
 }
 
-// Snapshot collects every evidence page and rechecks identity after collection.
+// Snapshot collects every evidence page, retains commit attribution and rechecks identity after collection.
 func (c *Client) Snapshot(ctx context.Context, number int, expectedHead string) (Snapshot, error) {
 	p, err := c.boundPull(ctx, number, expectedHead)
 	if err != nil {
@@ -251,6 +262,7 @@ func (c *Client) Snapshot(ctx context.Context, number int, expectedHead string) 
 	if len(commits) == 0 || commits[len(commits)-1].GetSHA() != expectedHead {
 		return Snapshot{}, ErrEvidenceIncomplete
 	}
+	s.CommitDetails = commits
 	comments, err := c.comments(ctx, number)
 	if err != nil {
 		return Snapshot{}, err
@@ -307,7 +319,7 @@ func (c *Client) CI(ctx context.Context, head string) (CommitCI, error) {
 	}
 	ci := CommitCI{}
 	statuses, err := paginate(func(o *gh.ListOptions) ([]*gh.RepoStatus, *gh.Response, error) {
-		return c.api.Repositories.ListStatuses(ctx, c.owner, c.repo, head, o)
+		return c.ci.Repositories.ListStatuses(ctx, c.owner, c.repo, head, o)
 	})
 	if err != nil {
 		return CommitCI{}, fmt.Errorf("list commit statuses: %w", err)
@@ -323,7 +335,7 @@ func (c *Client) CI(ctx context.Context, head string) (CommitCI, error) {
 	totalChecks := -1
 	checks, err := paginate(func(o *gh.ListOptions) ([]*gh.CheckRun, *gh.Response, error) {
 		filter := "latest"
-		v, r, e := c.api.Checks.ListCheckRunsForRef(ctx, c.owner, c.repo, head, &gh.ListCheckRunsOptions{Filter: &filter, ListOptions: *o})
+		v, r, e := c.ci.Checks.ListCheckRunsForRef(ctx, c.owner, c.repo, head, &gh.ListCheckRunsOptions{Filter: &filter, ListOptions: *o})
 		if e != nil {
 			return nil, r, e
 		}
