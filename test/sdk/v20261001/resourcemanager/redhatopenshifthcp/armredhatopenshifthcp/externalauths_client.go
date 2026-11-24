@@ -344,7 +344,7 @@ func (client *ExternalAuthsClient) listByParentHandleResponse(resp *http.Respons
 //   - properties - The resource properties to be updated.
 //   - options - ExternalAuthsClientBeginUpdateOptions contains the optional parameters for the ExternalAuthsClient.BeginUpdate
 //     method.
-func (client *ExternalAuthsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuth, options *ExternalAuthsClientBeginUpdateOptions) (*runtime.Poller[ExternalAuthsClientUpdateResponse], error) {
+func (client *ExternalAuthsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuthUpdate, options *ExternalAuthsClientBeginUpdateOptions) (*runtime.Poller[ExternalAuthsClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
 		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthName, properties, options)
 		if err != nil {
@@ -363,7 +363,7 @@ func (client *ExternalAuthsClient) BeginUpdate(ctx context.Context, resourceGrou
 
 // Update - Update a ExternalAuth
 // If the operation fails it returns an *azcore.ResponseError type.
-func (client *ExternalAuthsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuth, options *ExternalAuthsClientBeginUpdateOptions) (*http.Response, error) {
+func (client *ExternalAuthsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuthUpdate, options *ExternalAuthsClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
 	ctx, endSpan := runtime.StartSpan(ctx, "ExternalAuthsClient.BeginUpdate", client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
@@ -382,7 +382,7 @@ func (client *ExternalAuthsClient) update(ctx context.Context, resourceGroupName
 }
 
 // updateCreateRequest creates the Update request.
-func (client *ExternalAuthsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuth, _ *ExternalAuthsClientBeginUpdateOptions) (*policy.Request, error) {
+func (client *ExternalAuthsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthName string, properties ExternalAuthUpdate, _ *ExternalAuthsClientBeginUpdateOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuths/{externalAuthName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter subscriptionID cannot be empty")

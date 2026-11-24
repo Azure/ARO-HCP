@@ -1467,43 +1467,6 @@
         "url"
       ]
     },
-    "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
-      "type": "object",
-      "description": "Managed service identity (system assigned and/or user assigned identities)",
-      "properties": {
-        "type": {
-          "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/ManagedServiceIdentityType",
-          "description": "The type of managed identity assigned to this resource."
-        },
-        "userAssignedIdentities": {
-          "type": "object",
-          "description": "The identities assigned to this resource by the user.",
-          "additionalProperties": {
-            "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/UserAssignedIdentity",
-            "x-nullable": true
-          }
-        }
-      }
-    },
-    "Azure.ResourceManager.CommonTypes.TrackedResourceUpdate": {
-      "type": "object",
-      "title": "Tracked Resource",
-      "description": "The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags' and a 'location'",
-      "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/Resource"
-        }
-      ]
-    },
     "ClusterAutoscalingProfile": {
       "type": "object",
       "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
@@ -1518,18 +1481,50 @@
           "type": "integer",
           "format": "int32",
           "description": "maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
+          "default": 600,
           "minimum": 0
         },
         "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
           "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
+          "default": 900,
           "minimum": 0
         },
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
+          "default": -10
+        }
+      }
+    },
+    "ClusterAutoscalingProfileUpdate": {
+      "type": "object",
+      "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
+      "properties": {
+        "maxNodesTotal": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.",
+          "minimum": 0
+        },
+        "maxPodGracePeriodSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down a NodePool.",
+          "minimum": 0
+        },
+        "maxNodeProvisionTimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful.",
+          "minimum": 0
+        },
+        "podPriorityThreshold": {
+          "type": "integer",
+          "format": "int32",
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption"
         }
       }
     },
@@ -1791,7 +1786,7 @@
           "type": "array",
           "description": "The claim validation rules.",
           "items": {
-            "$ref": "#/definitions/TokenClaimValidationRule"
+            "$ref": "#/definitions/TokenClaimValidationRuleUpdate"
           },
           "x-ms-identifiers": [
             "type",
@@ -2104,12 +2099,7 @@
           "$ref": "#/definitions/ExternalAuthPropertiesUpdate",
           "description": "The resource-specific properties for this resource."
         }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
-        }
-      ]
+      }
     },
     "GroupClaimProfile": {
       "type": "object",
@@ -2285,7 +2275,7 @@
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
-          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
+          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
           "minimum": 0,
           "maximum": 10080,
           "x-ms-mutability": [
@@ -2312,7 +2302,7 @@
       "description": "HCP cluster properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/VersionProfile",
+          "$ref": "#/definitions/VersionProfileUpdate",
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
@@ -2330,7 +2320,7 @@
           ]
         },
         "autoscaling": {
-          "$ref": "#/definitions/ClusterAutoscalingProfile",
+          "$ref": "#/definitions/ClusterAutoscalingProfileUpdate",
           "description": "Configure ClusterAutoscaling .",
           "x-ms-mutability": [
             "read",
@@ -2341,7 +2331,7 @@
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
-          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
+          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
           "minimum": 0,
           "maximum": 10080,
           "x-ms-mutability": [
@@ -2361,15 +2351,17 @@
           "description": "The resource-specific properties for this resource."
         },
         "identity": {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
           "description": "The managed service identities assigned to this resource."
+        },
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
-        }
-      ]
+      }
     },
     "HcpOpenShiftVersion": {
       "type": "object",
@@ -2564,6 +2556,24 @@
       "required": [
         "key"
       ]
+    },
+    "ManagedServiceIdentityUpdate": {
+      "type": "object",
+      "description": "Managed service identity (system assigned and/or user assigned identities)",
+      "properties": {
+        "type": {
+          "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/ManagedServiceIdentityType",
+          "description": "The type of managed identity assigned to this resource."
+        },
+        "userAssignedIdentities": {
+          "type": "object",
+          "description": "The identities assigned to this resource by the user.",
+          "additionalProperties": {
+            "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/UserAssignedIdentity",
+            "x-nullable": true
+          }
+        }
+      }
     },
     "NetworkProfile": {
       "type": "object",
@@ -2789,7 +2799,7 @@
         "replicas": {
           "type": "integer",
           "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Minimum: 0\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
           "minimum": 0,
           "x-ms-mutability": [
             "read",
@@ -2868,7 +2878,7 @@
       "description": "Represents the node pool properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/NodePoolVersionProfile",
+          "$ref": "#/definitions/NodePoolVersionProfileUpdate",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
@@ -2879,7 +2889,7 @@
         "replicas": {
           "type": "integer",
           "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Minimum: 0\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
           "minimum": 0,
           "x-ms-mutability": [
             "read",
@@ -2943,22 +2953,24 @@
     },
     "NodePoolUpdate": {
       "type": "object",
-      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "description": "NodePool resource",
       "properties": {
         "properties": {
           "$ref": "#/definitions/NodePoolPropertiesUpdate",
           "description": "The resource-specific properties for this resource."
         },
         "identity": {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
           "description": "The managed service identities assigned to this resource."
+        },
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
-        }
-      ]
+      }
     },
     "NodePoolVersionProfile": {
       "type": "object",
@@ -2976,6 +2988,31 @@
         "channelGroup": {
           "type": "string",
           "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after node pool creation is rejected.",
+          "default": "stable",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "NodePoolVersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after node pool creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3424,6 +3461,20 @@
         }
       }
     },
+    "TokenClaimValidationRuleUpdate": {
+      "type": "object",
+      "description": "External Auth claim validation rule",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/TokenValidationRuleType",
+          "description": "This configures the type of the validation rule."
+        },
+        "requiredClaim": {
+          "$ref": "#/definitions/TokenRequiredClaim",
+          "description": "The required claim rule to be applied."
+        }
+      }
+    },
     "TokenIssuerProfile": {
       "type": "object",
       "description": "Token issuer profile\nThis configures how the platform interacts with the identity provider and\nhow tokens issued from the identity provider are evaluated by the Kubernetes API server.",
@@ -3435,7 +3486,7 @@
         },
         "audiences": {
           "type": "array",
-          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.\n\nAudiences must contain at least one entry and must not exceed ten entries.",
+          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -3464,7 +3515,7 @@
         },
         "audiences": {
           "type": "array",
-          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.\n\nAudiences must contain at least one entry and must not exceed ten entries.",
+          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -3497,6 +3548,24 @@
         "claim",
         "requiredValue"
       ]
+    },
+    "TokenValidationRuleType": {
+      "type": "string",
+      "description": "Representation of the different claim validation rule types that can be configured.",
+      "enum": [
+        "RequiredClaim"
+      ],
+      "x-ms-enum": {
+        "name": "TokenValidationRuleType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "RequiredClaim",
+            "value": "RequiredClaim",
+            "description": "Indicates that a Required Claim validation rule.\n\nWhen set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT\ncontains the required claim and that its value matches the required value."
+          }
+        ]
+      }
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",
@@ -3638,8 +3707,35 @@
           "description": "Prefix for the claim external profile.\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
         },
         "prefixPolicy": {
-          "$ref": "#/definitions/UsernameClaimPrefixPolicy",
-          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the\ndefault policy is 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
+          "type": "string",
+          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the\ndefault policy is 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA",
+          "default": "None",
+          "enum": [
+            "None",
+            "Prefix",
+            "NoPrefix"
+          ],
+          "x-ms-enum": {
+            "name": "UsernameClaimPrefixPolicy",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "None",
+                "value": "None",
+                "description": "No opinion; the platform is left to choose a prefix for the JWT claim"
+              },
+              {
+                "name": "Prefix",
+                "value": "Prefix",
+                "description": "Add a user-provided prefix to the JWT claim"
+              },
+              {
+                "name": "NoPrefix",
+                "value": "NoPrefix",
+                "description": "Do not add a prefix to the JWT claim"
+              }
+            ]
+          }
         }
       },
       "required": [
@@ -3662,7 +3758,7 @@
         },
         "prefixPolicy": {
           "$ref": "#/definitions/UsernameClaimPrefixPolicy",
-          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the\ndefault policy is 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
+          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
         }
       }
     },
@@ -3681,6 +3777,22 @@
         "channelGroup": {
           "type": "string",
           "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after cluster creation is rejected.",
+          "default": "stable",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "VersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after cluster creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",

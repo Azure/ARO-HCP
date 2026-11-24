@@ -18,44 +18,44 @@ type APIProfile struct {
 	AuthorizedCIDRs []*string
 }
 
-// AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
-// identities)
-type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
-	// The type of managed identity assigned to this resource.
-	Type *ManagedServiceIdentityType
-
-	// The identities assigned to this resource by the user.
-	UserAssignedIdentities map[string]*UserAssignedIdentity
-}
-
 // ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
 // with a control plane.
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
 	// unsuccessful. The default is 900 seconds, or 15 minutes.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxNodeProvisionTimeSeconds *int32
 
-	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
-	// not grow the cluster beyond this number. If omitted, the autoscaler will not
-	// have a maximum limit.
+	// maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number. If
+	// omitted, the autoscaler will not have a maximum limit.
 	MaxNodesTotal *int32
 
-	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
-	// is 600 seconds.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	// maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down
+	// a NodePool. The default is 600 seconds.
 	MaxPodGracePeriodSeconds *int32
 
 	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	PodPriorityThreshold *int32
+}
+
+// ClusterAutoscalingProfileUpdate - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
+// with a control plane.
+type ClusterAutoscalingProfileUpdate struct {
+	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
+	// unsuccessful.
+	MaxNodeProvisionTimeSeconds *int32
+
+	// maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.
+	MaxNodesTotal *int32
+
+	// maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down
+	// a NodePool.
+	MaxPodGracePeriodSeconds *int32
+
+	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
+	// run when there are spare resources available. See the following for more
+	// details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	PodPriorityThreshold *int32
 }
 
@@ -112,8 +112,8 @@ type CustomerManagedEncryptionProfileUpdate struct {
 
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
-	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
-	// that will appear in the cluster's DNS, provisioned cloud providers resources
+	// BaseDomainPrefix is the base domain prefix for the cluster ingress. It will be used to configure ingress in the cluster
+	// through the subdomain "BaseDomainPrefix.BaseDomain".
 	BaseDomainPrefix *string
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
@@ -167,20 +167,20 @@ type ExternalAuth struct {
 
 // ExternalAuthClaimProfile - External Auth claim profile
 type ExternalAuthClaimProfile struct {
-	// REQUIRED; The claim mappings
+	// REQUIRED; The claim mappings.
 	Mappings *TokenClaimMappingsProfile
 
-	// The claim validation rules
+	// The claim validation rules.
 	ValidationRules []*TokenClaimValidationRule
 }
 
 // ExternalAuthClaimProfileUpdate - External Auth claim profile
 type ExternalAuthClaimProfileUpdate struct {
-	// The claim mappings
+	// The claim mappings.
 	Mappings *TokenClaimMappingsProfileUpdate
 
-	// The claim validation rules
-	ValidationRules []*TokenClaimValidationRule
+	// The claim validation rules.
+	ValidationRules []*TokenClaimValidationRuleUpdate
 }
 
 // ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
@@ -257,18 +257,6 @@ type ExternalAuthPropertiesUpdate struct {
 type ExternalAuthUpdate struct {
 	// The resource-specific properties for this resource.
 	Properties *ExternalAuthPropertiesUpdate
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // GroupClaimProfile - External Auth claim profile This configures how the groups of a cluster identity should be constructed
@@ -279,7 +267,7 @@ type GroupClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	// Prefix for the claim external profile. If this is specified, prefixPolicy will be set to "Prefix" by default.
 	Prefix *string
 }
 
@@ -291,7 +279,7 @@ type GroupClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	// Prefix for the claim external profile. If this is specified, prefixPolicy will be set to "Prefix" by default.
 	Prefix *string
 }
 
@@ -380,10 +368,9 @@ type HcpOpenShiftClusterProperties struct {
 	// any node draining operation. After this grace period, any workloads
 	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
 	// is especially relevant to cluster upgrades.
-	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
-	// time limitation.
-	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
-	// given NodePool
+	// 0 means that the MachinePool can be drained without any time limitation.
+	// This value is used as a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a given
+	// NodePool
 	NodeDrainTimeoutMinutes *int32
 
 	// READ-ONLY; Shows the cluster web console information
@@ -399,7 +386,7 @@ type HcpOpenShiftClusterProperties struct {
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
-	Autoscaling *ClusterAutoscalingProfile
+	Autoscaling *ClusterAutoscalingProfileUpdate
 
 	// Configure ETCD.
 	Etcd *EtcdProfileUpdate
@@ -412,10 +399,9 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	// any node draining operation. After this grace period, any workloads
 	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
 	// is especially relevant to cluster upgrades.
-	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
-	// time limitation.
-	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
-	// given NodePool
+	// 0 means that the MachinePool can be drained without any time limitation.
+	// This value is used as a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a given
+	// NodePool
 	NodeDrainTimeoutMinutes *int32
 
 	// Azure platform configuration
@@ -428,25 +414,13 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 // HcpOpenShiftClusterUpdate - HCP cluster resource
 type HcpOpenShiftClusterUpdate struct {
 	// The managed service identities assigned to this resource.
-	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+	Identity *ManagedServiceIdentityUpdate
 
 	// The resource-specific properties for this resource.
 	Properties *HcpOpenShiftClusterPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // HcpOpenShiftVersion represents a location based available HCP OpenShift version
@@ -630,6 +604,15 @@ type ManagedServiceIdentity struct {
 	TenantID *string
 }
 
+// ManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned identities)
+type ManagedServiceIdentityUpdate struct {
+	// The type of managed identity assigned to this resource.
+	Type *ManagedServiceIdentityType
+
+	// The identities assigned to this resource by the user.
+	UserAssignedIdentities map[string]*UserAssignedIdentity
+}
+
 // NetworkProfile - OpenShift networking configuration
 type NetworkProfile struct {
 	// Network host prefix
@@ -716,7 +699,7 @@ type NodePoolPlatformProfile struct {
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
-	// The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters, however the same
+	// The Azure resource ID of the worker subnet. Note that a subnet cannot be reused between ARO-HCP Clusters, however the same
 	// subnet can be used for NodePools of the same cluster.
 	SubnetID *string
 }
@@ -726,14 +709,18 @@ type NodePoolProperties struct {
 	// REQUIRED; Azure node pool platform configuration
 	Platform *NodePoolPlatformProfile
 
-	// Auto-repair
+	// autoRepair specifies whether health checks should be enabled for machines in the NodePool. Enabling this feature will cause
+	// the controller to automatically delete unhealthy machines. The unhealthy
+	// criteria are determined by checking the Node Ready condition and a timeout that might vary depending on the platform provider.
+	// autoRepair will not take action when more than 2 Nodes are unhealthy at
+	// the same time, giving time for the cluster to stabilize or for the user to manually intervene.
 	AutoRepair *bool
 
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+	// Kubernetes labels to propagate to the NodePool Nodes. Note that when the labels are updated this is only applied to newly
+	// created nodes in the NodePool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -745,12 +732,11 @@ type NodePoolProperties struct {
 	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
-	// * Minimum: 0
 	// * Maximum: 200 (only when availabilityZone is not specified)
 	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
-	// Taints for the nodes
+	// Taints for the nodes.
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
@@ -768,8 +754,8 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+	// Kubernetes labels to propagate to the NodePool Nodes. Note that when the labels are updated this is only applied to newly
+	// created nodes in the NodePool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -781,40 +767,27 @@ type NodePoolPropertiesUpdate struct {
 	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
-	// * Minimum: 0
 	// * Maximum: 200 (only when availabilityZone is not specified)
 	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
-	// Taints for the nodes
+	// Taints for the nodes.
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
 	Version *NodePoolVersionProfileUpdate
 }
 
-// NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+// NodePoolUpdate - NodePool resource
 type NodePoolUpdate struct {
 	// The managed service identities assigned to this resource.
-	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+	Identity *ManagedServiceIdentityUpdate
 
 	// The resource-specific properties for this resource.
 	Properties *NodePoolPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
@@ -824,19 +797,16 @@ type NodePoolVersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	// This property is intended to be updateable, but that support is not yet complete. Until then, changing this value after
+	// node pool creation is rejected.
 	ChannelGroup *string
 }
 
 // NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
 type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
-	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	// This property is intended to be updateable, but that support is not yet complete. Until then, changing this value after
+	// node pool creation is rejected.
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
@@ -951,7 +921,7 @@ type PlatformProfile struct {
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
-	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
+	// REQUIRED; The Azure resource ID of the worker subnet. Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
 	// REQUIRED; The Azure resource ID of a subnet that enables direct, private network connectivity between the hosted control
@@ -959,7 +929,7 @@ type PlatformProfile struct {
 	// shared with the cluster subnet or any node pool subnets.
 	VnetIntegrationSubnetID *string
 
-	// Resource group name to put cluster resources
+	// The name of the resource group to put cluster resources in.
 	// If not specified then a unique name is generated from the following pattern
 	// "aro-hcp-" + clusterName + "-" + UUID
 	// where clusterName means the hcpOpenShiftClusters resource name (up to 45 characters) followed by a 16-byte universally
@@ -1054,12 +1024,20 @@ type TokenClaimValidationRule struct {
 	Type *TokenValidationRuleType
 }
 
+// TokenClaimValidationRuleUpdate - External Auth claim validation rule
+type TokenClaimValidationRuleUpdate struct {
+	// The required claim rule to be applied.
+	RequiredClaim *TokenRequiredClaim
+
+	// This configures the type of the validation rule.
+	Type *TokenValidationRuleType
+}
+
 // TokenIssuerProfile - Token issuer profile This configures how the platform interacts with the identity provider and how
 // tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfile struct {
-	// REQUIRED; This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At
-	// least one of the entries must match the 'aud' claim in the JWT token.
-	// audiences must contain at least one entry and must not exceed ten entries.
+	// REQUIRED; This configures the acceptable audiences for JWT tokens issued by the identity provider. At least one of the
+	// entries must match the 'aud' claim in the JWT token.
 	Audiences []*string
 
 	// REQUIRED; This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how
@@ -1068,7 +1046,7 @@ type TokenIssuerProfile struct {
 	// issuerURL must use the 'https' scheme.
 	URL *string
 
-	// The issuer of the token
+	// The issuer of the token.
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
 	CA *string
@@ -1077,12 +1055,11 @@ type TokenIssuerProfile struct {
 // TokenIssuerProfileUpdate - Token issuer profile This configures how the platform interacts with the identity provider and
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfileUpdate struct {
-	// This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At least one
-	// of the entries must match the 'aud' claim in the JWT token.
-	// audiences must contain at least one entry and must not exceed ten entries.
+	// This configures the acceptable audiences for JWT tokens issued by the identity provider. At least one of the entries must
+	// match the 'aud' claim in the JWT token.
 	Audiences []*string
 
-	// The issuer of the token
+	// The issuer of the token.
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
 	CA *string
@@ -1152,7 +1129,7 @@ type UsernameClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
+	// Prefix for the claim external profile. Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
@@ -1175,12 +1152,12 @@ type UsernameClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
+	// Prefix for the claim external profile. Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
 	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the default policy is 'None'.
+	// Allowed values are 'Prefix', 'NoPrefix', and 'None'.
 	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
 	// field must be set when prefixPolicy is 'Prefix'.
 	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
@@ -1199,19 +1176,16 @@ type VersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	// This property is intended to be updateable, but that support is not yet complete. Until then, changing this value after
+	// cluster creation is rejected.
 	ChannelGroup *string
 }
 
 // VersionProfileUpdate - Versions represents an OpenShift version.
 type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
-	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	// This property is intended to be updateable, but that support is not yet complete. Until then, changing this value after
+	// cluster creation is rejected.
 	ChannelGroup *string
 
 	// ID is the desired X.Y version of the cluster control plane.
