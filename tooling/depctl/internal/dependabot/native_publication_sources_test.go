@@ -228,17 +228,17 @@ func TestNativePublicationReadBoundary(t *testing.T) {
 		ci        bool
 		wantError bool
 	}{
-		{name: "official release", endpoint: "repos/actions/checkout/commits/v4"},
+		{name: "official release", endpoint: "repos/actions/checkout/tags?per_page=100&page=1"},
 		{name: "content cannot use resolver", endpoint: "repos/Azure/ARO-HCP/contents/go.mod", wantError: true},
-		{name: "tags cannot use resolver", endpoint: "repos/actions/checkout/tags", wantError: true},
-		{name: "query injection", endpoint: "repos/actions/checkout/commits/v4?ref=main", wantError: true},
-		{name: "pagination prohibited", endpoint: "repos/actions/checkout/commits/v4", pages: true, wantError: true},
-		{name: "CI credential prohibited", endpoint: "repos/actions/checkout/commits/v4", ci: true, wantError: true},
+		{name: "unbounded tags", endpoint: "repos/actions/checkout/tags", wantError: true},
+		{name: "query injection", endpoint: "repos/actions/checkout/tags?per_page=100&page=1&ref=main", wantError: true},
+		{name: "automatic pagination prohibited", endpoint: "repos/actions/checkout/tags?per_page=100&page=1", pages: true, wantError: true},
+		{name: "CI credential prohibited", endpoint: "repos/actions/checkout/tags?per_page=100&page=1", ci: true, wantError: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newNativeIntegrationFixture(t)
-			fixture.overrides["/repos/actions/checkout/commits/v4"] = map[string]any{"sha": strings.Repeat("a", 40)}
+			fixture.overrides["/repos/actions/checkout/tags"] = []any{map[string]any{"name": "v4.0.0", "commit": map[string]any{"sha": strings.Repeat("a", 40)}}}
 			raw, err := fixture.publisher.nativePublicationRead(context.Background(), test.endpoint, test.pages, test.ci)
 			if (err != nil) != test.wantError {
 				t.Fatalf("resolver error = %v, want error %v", err, test.wantError)
