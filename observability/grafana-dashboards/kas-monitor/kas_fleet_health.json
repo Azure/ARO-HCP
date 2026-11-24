@@ -1749,7 +1749,7 @@
             "type": "datasource",
             "uid": "-- Mixed --"
           },
-          "description": "Top 10 clusters by the sum of mutating and read-only in-flight requests. HyperShift's default limits are 1000 mutating and 3000 read-only, 4000 combined. Yellow is 2000 and red is 3200, half and 80% of that default. A cluster that overrides those flags will not match these colors.",
+          "description": "Top 10 clusters by in-flight requests. The value sums mutating and read-only requests across every kube-apiserver pod. Production sizing sets two per-pod caps by node count: small 50 and 150, medium 300 and 900, large 400 and 1200, xlarge 600 and 2400, xxlarge 1000 and 3000. The column is that raw sum, not a percentage of either cap.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1758,8 +1758,7 @@
               "custom": {
                 "align": "auto",
                 "cellOptions": {
-                  "type": "color-background",
-                  "applyToRow": false
+                  "type": "auto"
                 },
                 "inspect": false
               },
@@ -1769,14 +1768,6 @@
                 "steps": [
                   {
                     "color": "transparent"
-                  },
-                  {
-                    "color": "semi-dark-yellow",
-                    "value": 2000
-                  },
-                  {
-                    "color": "semi-dark-red",
-                    "value": 3200
                   }
                 ]
               }
