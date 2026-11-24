@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -193,12 +195,15 @@ func operationFor(item *armresources.DeploymentOperation) (*Operation, error) {
 		}
 	}
 
-	return &Operation{
-		OperationType:  string(*item.Properties.ProvisioningOperation),
-		StartTimestamp: item.Properties.Timestamp.Format(time.RFC3339),
-		Duration:       *item.Properties.Duration,
-		Resource:       resource,
-	}, nil
+	op := &Operation{
+		OperationType: string(ptr.Deref(item.Properties.ProvisioningOperation, "")),
+		Duration:      ptr.Deref(item.Properties.Duration, ""),
+		Resource:      resource,
+	}
+	if ts := item.Properties.Timestamp; ts != nil {
+		op.StartTimestamp = ts.Format(time.RFC3339)
+	}
+	return op, nil
 }
 
 // fetchSubscriptionScopedOperationsFor is a convenience entry point for subscription-scoped

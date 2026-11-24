@@ -149,13 +149,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		var details ExecutionDetails
 		if item.Details != nil {
 			if item.Details.ARM != nil {
-				var ops []ARMOperation
-				for _, op := range item.Details.ARM.Operations {
-					parsed, err := operationFor(op)
-					if err != nil {
-						return nil, err
-					}
-					ops = append(ops, parsed)
+				ops, err := operationsFor(item.Details.ARM.Operations)
+				if err != nil {
+					return nil, err
 				}
 				details.ARM = ARMExecutionDetails{Operations: ops}
 			}
@@ -180,42 +176,63 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	}, nil
 }
 
-func operationFor(op pipeline.Operation) (ARMOperation, error) {
-	var children []ARMOperation
-	for _, child := range op.Children {
-		c, err := operationFor(child)
+func operationsFor(ops []pipeline.Operation) ([]ARMOperation, error) {
+	var result []ARMOperation
+	for _, op := range ops {
+		children, err := operationsFor(op.Children)
 		if err != nil {
-			return c, err
+			return nil, err
 		}
-		children = append(children, c)
-	}
+		startTime, duration, err := parseOperationTiming(op.StartTimestamp, op.Duration)
+		if err != nil {
+			return nil, err
+		}
+		if op.StartTimestamp == "" || op.Duration == "" {
+			// An operation missing either timing field gets no chart row; its timed descendants take its place.
+			result = append(result, children...)
+			continue
+		}
 
-	startTime, err := time.Parse(time.RFC3339, op.StartTimestamp)
-	if err != nil {
-		return ARMOperation{}, fmt.Errorf("failed to parse start date: %w", err)
+		var resource *ARMResource
+		if op.Resource != nil {
+			resource = &ARMResource{
+				ResourceType:  op.Resource.ResourceType,
+				ResourceGroup: op.Resource.ResourceGroup,
+				Name:          op.Resource.Name,
+			}
+		}
+		result = append(result, ARMOperation{
+			OperationType: op.OperationType,
+			StartTime:     startTime,
+			Duration:      duration,
+			Resource:      resource,
+			Children:      children,
+		})
 	}
+	// Keep the original order of siblings with the same start time, including promoted descendants.
+	slices.SortStableFunc(result, func(a, b ARMOperation) int {
+		return a.StartTime.Compare(b.StartTime)
+	})
+	return result, nil
+}
 
-	duration, err := parseISO8601Duration(op.Duration)
-	if err != nil {
-		return ARMOperation{}, fmt.Errorf("failed to parse duration: %w", err)
-	}
-
-	var resource *ARMResource
-	if op.Resource != nil {
-		resource = &ARMResource{
-			ResourceType:  op.Resource.ResourceType,
-			ResourceGroup: op.Resource.ResourceGroup,
-			Name:          op.Resource.Name,
+func parseOperationTiming(timestamp, rawDuration string) (time.Time, time.Duration, error) {
+	var startTime time.Time
+	var duration time.Duration
+	var err error
+	if timestamp != "" {
+		startTime, err = time.Parse(time.RFC3339, timestamp)
+		if err != nil {
+			return time.Time{}, 0, fmt.Errorf("failed to parse start date: %w", err)
 		}
 	}
-
-	return ARMOperation{
-		OperationType: op.OperationType,
-		StartTime:     startTime,
-		Duration:      duration,
-		Resource:      resource,
-		Children:      children,
-	}, nil
+	if rawDuration != "" {
+		duration, err = parseISO8601Duration(rawDuration)
+		if err != nil {
+			return time.Time{}, 0, fmt.Errorf("failed to parse duration: %w", err)
+		}
+	}
+	return startTime, duration, nil
 }
 
 var pattern = regexp.MustCompile(`^P((?P<year>\d+)Y)?((?P<month>\d+)M)?((?P<week>\d+)W)?((?P<day>\d+)D)?(T((?P<hour>\d+)H)?((?P<minute>\d+)M)?((?P<second>\d+\.?\d*)S)?)?$`)
@@ -522,9 +539,6 @@ func (o *Options) visualizeARM(ctx context.Context, item NodeInfo) error {
 	for _, action := range operationTypes.UnsortedList() {
 		actions[action] = []opts.BarData{}
 	}
-	slices.SortFunc(item.Details.ARM.Operations, func(a, b ARMOperation) int {
-		return a.StartTime.Compare(b.StartTime)
-	})
 	for _, op := range item.Details.ARM.Operations {
 		names, placeholder, deployments, actions = collectOperations(op, startTime, names, placeholder, deployments, actions)
 	}
@@ -605,7 +619,7 @@ func (o *Options) visualizeARM(ctx context.Context, item NodeInfo) error {
 }
 
 func collectActions(op ARMOperation, into sets.Set[string]) {
-	into.Insert(op.OperationType)
+	into.Insert(op.actionLabel())
 	for _, child := range op.Children {
 		collectActions(child, into)
 	}
@@ -638,9 +652,6 @@ func collectOperations(op ARMOperation, startTime time.Time, names []string, pla
 		for action := range actions {
 			childActions[action] = []opts.BarData{}
 		}
-		slices.SortFunc(op.Children, func(a, b ARMOperation) int {
-			return a.StartTime.Compare(b.StartTime)
-		})
 		for _, child := range op.Children {
 			childNames, childPlaceholders, childDeployments, childActions = collectOperations(child, startTime, childNames, childPlaceholders, childDeployments, childActions)
 		}
@@ -657,8 +668,9 @@ func collectOperations(op ARMOperation, startTime time.Time, names []string, pla
 				Show: ptr.To(false),
 			},
 		})
+		label := op.actionLabel()
 		for action := range actions {
-			if strings.EqualFold(action, op.OperationType) {
+			if strings.EqualFold(action, label) {
 				actions[action] = append(actions[action], opts.BarData{
 					Value: op.Duration.Milliseconds(),
 				})
@@ -675,11 +687,18 @@ func collectOperations(op ARMOperation, startTime time.Time, names []string, pla
 	return names, placeholder, deployments, actions
 }
 
+func (op ARMOperation) actionLabel() string {
+	if op.OperationType == "" {
+		return "Unknown operation"
+	}
+	return op.OperationType
+}
+
 func nameFor(op ARMOperation) string {
 	if op.Resource == nil {
-		return op.OperationType
+		return op.actionLabel()
 	}
-	return fmt.Sprintf("%s %s %s/%s", op.OperationType, op.Resource.ResourceType, op.Resource.ResourceGroup, op.Resource.Name)
+	return fmt.Sprintf("%s %s %s/%s", op.actionLabel(), op.Resource.ResourceType, op.Resource.ResourceGroup, op.Resource.Name)
 }
 
 const multiValueFormatter = `(params) => {
