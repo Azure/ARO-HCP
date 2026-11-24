@@ -194,7 +194,10 @@ ciFailurePatterns:
 	t.Setenv("SECRETS_STORE_PATH", directory)
 	t.Setenv("CONFIG_PATH", configPath)
 	err := run(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.ErrorContains(t, err, "start credential watchers: tenant test-tenant: client ID: cannot read credential file")
+	// Which file is reported first depends on map iteration order; assert the
+	// tenant and read-error context that is stable either way.
+	require.ErrorContains(t, err, "start credential watchers: tenant test-tenant: ")
+	require.ErrorContains(t, err, "cannot read credential file")
 }
 
 func TestMetricsEndpoint(t *testing.T) {
