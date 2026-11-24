@@ -170,6 +170,12 @@ type ClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
+	// ClusterServiceUninstallingObserved retains the last uninstalling observation
+	// beyond ServiceProviderCluster cleanup. A later dispatch candidate revalidates
+	// CS and can clear it when neither local deletion timestamp is set.
+	// Written by: TriggerControlPlaneUpgrade
+	ClusterServiceUninstallingObserved bool `json:"clusterServiceUninstallingObserved,omitempty"`
+
 	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.

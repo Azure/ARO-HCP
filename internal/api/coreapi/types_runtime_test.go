@@ -22,11 +22,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
+
+func TestUpgradeLifecycleObservationsPersistInternally(t *testing.T) {
+	originalCluster := &coreapi.Cluster{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+			ClusterServiceUninstallingObserved: true,
+		},
+	}
+	data, err := json.Marshal(originalCluster)
+	require.NoError(t, err)
+	var restoredCluster coreapi.Cluster
+	require.NoError(t, json.Unmarshal(data, &restoredCluster))
+	require.True(t, restoredCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved)
+	require.True(t, originalCluster.DeepCopy().ServiceProviderProperties.ClusterServiceUninstallingObserved)
+
+	originalSPC := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
+		Conditions: []metav1.Condition{{
+			Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionFalse,
+			Reason: "Uninstalling", Message: "Observed uninstallation",
+		}},
+	}}
+	data, err = json.Marshal(originalSPC)
+	require.NoError(t, err)
+	var restoredSPC coreapi.ServiceProviderCluster
+	require.NoError(t, json.Unmarshal(data, &restoredSPC))
+	require.Equal(t, originalSPC.Status.Conditions, restoredSPC.Status.Conditions)
+	copied := originalSPC.DeepCopy()
+	copied.Status.Conditions[0].Message = "Changed"
+	require.Equal(t, "Observed uninstallation", originalSPC.Status.Conditions[0].Message)
+}
 
 func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 	vaultURL := "https://certificates.vault.azure.net/"
