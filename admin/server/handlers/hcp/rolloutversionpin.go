@@ -28,10 +28,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// RolloutVersionPinHandler sets or clears the channel rollout's version pin.
-// Unlike bulk cluster pinning, this changes the target used by normal rollout
-// assignment. BestExactVersion must strictly exceed UntilExactVersion before
-// selection resumes. Omitting exactVersion clears both pin fields.
+// RolloutVersionPinHandler sets or clears the channel-wide ControlPlaneVersionRollout
+// pin (POST /admin/v1/versionrollouts/{channel}/pinnedversion).
+//
+// This is the progressive fleet pin: it changes the target used by normal
+// z-stream rollout assignment, and initial install / minor-upgrade controllers
+// honor it as well. Clusters advance to the pinned version through the usual
+// progressive rollout gates rather than all at once.
+//
+// For an immediate pin of existing clusters in the channel, use the bulk
+// FleetControlPlaneVersionPinHandler instead
+// (POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin). The two
+// endpoints complement each other — progressive channel pin here, immediate
+// per-cluster pins via bulk.
+//
+// BestExactVersion must strictly exceed UntilExactVersion before selection
+// resumes. Omitting exactVersion clears both pin fields.
 type RolloutVersionPinHandler struct {
 	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
