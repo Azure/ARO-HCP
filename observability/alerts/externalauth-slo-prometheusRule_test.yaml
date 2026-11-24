@@ -44,6 +44,11 @@ tests:
     values: "0+0x40"
   - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
     values: "10+0x40"
+  # The 5-minute window must still be burning. A quiet short window must not page.
+  - series: 'errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "0.8+0x40"
+  - series: 'errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x40"
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration, for create only.
   - eval_time: 7m
@@ -61,7 +66,7 @@ tests:
         slo: externalauth-errors
       exp_annotations:
         summary: "mgmt-1: ExternalAuth create error rate critically high (>72%)"
-        description: "More than 72% of ExternalAuth create operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        description: "More than 72% of ExternalAuth create operations have failed in the last hour and in the last 5 minutes, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
@@ -79,6 +84,22 @@ tests:
         summary: "mgmt-1: ExternalAuth create failure rate exceeds 15% for 30 minutes"
         description: "The ExternalAuth create failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 2b: Fast burn long window only — 5-minute window is quiet
+# ========================================
+# The 1-hour rate is 80%, but the 5-minute rate is 0. The short window
+# must keep the alert from firing.
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "8+0x20"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "10+0x20"
+  - series: 'errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: userJourneyExternalAuthErrors1h5m
 # ========================================
 # Test 3: Degradation — 20% failure rate, only degradation alert fires
 # ========================================
@@ -157,6 +178,11 @@ tests:
     values: "0+0x40"
   - series: 'errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
     values: "10+0x40"
+  # The 30-minute window must still be burning. A quiet short window must not page.
+  - series: 'errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "0.8+0x40"
+  - series: 'errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x40"
   alert_rule_test:
   # Fast burn should NOT fire (create 60% < 72%)
   - eval_time: 35m
@@ -177,8 +203,24 @@ tests:
         slo: externalauth-errors
       exp_annotations:
         summary: "mgmt-1: ExternalAuth create error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of ExternalAuth create operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        description: "More than 30% of ExternalAuth create operations have failed in the last 6 hours and in the last 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 5d: Medium burn long window only — 30-minute window is quiet
+# ========================================
+# The 6-hour rate is 80%, but the 30-minute rate is 0. The short window
+# must keep the alert from firing.
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "4+0x40"
+  - series: 'errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x40"
+  - series: 'errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x40"
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: userJourneyExternalAuthErrors6h30m
 # ========================================
 # Test 5b: Slow burn — 10% failure rate over 3d, fires after 6h
 # ========================================

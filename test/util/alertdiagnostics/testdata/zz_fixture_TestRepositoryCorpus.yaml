@@ -6827,12 +6827,12 @@
   group: arohcp_externalauth_slo_error_alerts
   alert: userJourneyExternalAuthErrors1h5m
   occurrence: 1
-  input: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+  input: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72)
   plan:
-    expression: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+    expression: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72)
     conditions:
       - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1)
             role: signal
@@ -6841,13 +6841,22 @@
             value: 0.72
         unsupported: ""
       - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_externalauth_slo_error_alerts
@@ -6879,12 +6888,12 @@
   group: arohcp_externalauth_slo_error_alerts
   alert: userJourneyExternalAuthErrors6h30m
   occurrence: 1
-  input: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+  input: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3)
   plan:
-    expression: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+    expression: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3)
     conditions:
       - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1)
             role: signal
@@ -6893,13 +6902,22 @@
             value: 0.3
         unsupported: ""
       - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_externalauth_slo_error_alerts
@@ -9772,11 +9790,17 @@
         resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
       } >= 2
     )
+    and
+    (
+      errors:backend_resource_operation:error_rate_5m{
+        resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+      } > 0.72
+    )
   plan:
-    expression: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+    expression: (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72)
     conditions:
       - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1)
             role: signal
@@ -9785,13 +9809,22 @@
             value: 0.72
         unsupported: ""
       - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
         unsupported: ""
 - source: observability/alerts/externalauth-slo-prometheusRule.yaml
   group: arohcp_externalauth_slo_error_alerts
@@ -9862,11 +9895,17 @@
         resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
       } >= 2
     )
+    and
+    (
+      errors:backend_resource_operation:error_rate_30m{
+        resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+      } > 0.30
+    )
   plan:
-    expression: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)
+    expression: (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3)
     conditions:
       - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1)
             role: signal
@@ -9875,13 +9914,22 @@
             value: 0.3
         unsupported: ""
       - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
+        unsupported: ""
+      - expression: errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
         unsupported: ""
 - source: observability/alerts/externalauth-slo-prometheusRule.yaml
   group: arohcp_externalauth_slo_error_alerts

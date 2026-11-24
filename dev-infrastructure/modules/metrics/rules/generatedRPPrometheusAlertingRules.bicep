@@ -1835,13 +1835,13 @@ resource arohcpExternalauthSloErrorAlerts 'Microsoft.AlertsManagement/prometheus
         }
         annotations: {
           correlationId: 'userJourneyExternalAuthErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
-          description: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          info: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
+          description: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour and in the last 5 minutes, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
+          info: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour and in the last 5 minutes, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
           summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)'
           title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)'
         }
-        expression: '(errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        expression: '(errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.72)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1866,13 +1866,13 @@ resource arohcpExternalauthSloErrorAlerts 'Microsoft.AlertsManagement/prometheus
         }
         annotations: {
           correlationId: 'userJourneyExternalAuthErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
-          description: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          info: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
+          description: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours and in the last 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
+          info: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours and in the last 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
           summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes'
         }
-        expression: '(errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        expression: '(errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2) and (errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 0.3)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

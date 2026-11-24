@@ -63,6 +63,12 @@ spec:
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
           } >= 2
         )
+        and
+        (
+          errors:backend_resource_operation:error_rate_5m{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } > 0.72
+        )
       for: 5m
       labels:
         severity: "3"
@@ -71,7 +77,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)"
-        description: "More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        description: "More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour and in the last 5 minutes, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
@@ -99,6 +105,12 @@ spec:
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
           } >= 2
         )
+        and
+        (
+          errors:backend_resource_operation:error_rate_30m{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } > 0.30
+        )
       for: 30m
       labels:
         severity: "3"
@@ -107,7 +119,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        description: "More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours and in the last 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
