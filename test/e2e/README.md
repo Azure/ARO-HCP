@@ -331,6 +331,14 @@ by the service on behalf of a cluster are outside this runner's creation paths.
 Resource-group expiry and experimental-feature tags are preserved, and
 `cleanup --job-id run-123` uses the same job ID tag as before.
 
+Before framework cleanup, each test validates the configured job tags on the
+`Microsoft.RedHatOpenShift` clusters and node pools remaining in its resource
+groups. Missing or incorrect values fail the test and identify the resource and
+tag; resource deletion still runs. Only non-empty configured job values are
+required. This also runs with cleanup disabled. Resources already deleted by the
+test cannot be checked, and external auths (which do not support tags), other
+providers, and shared resource groups are excluded.
+
 When adding creation paths, use `framework.WithJobTags(existingTags)` for SDK
 resources. By convention, Bicep deployment callers explicitly pass
 `"jobTags": framework.WithJobTags(map[string]*string{})` in their parameter map.
