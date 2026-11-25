@@ -30,6 +30,11 @@ import (
 // Marker must be an exact standalone HTML comment owned by the caller, not a substring of another marker.
 // Existing proposals retain their readiness; new proposals default to drafts.
 type PublicationRequest struct {
+	// ExpectedNumber restricts publication to this exact open owned proposal; zero permits creation.
+	ExpectedNumber int
+	// ExpectedTitle and ExpectedBody bind a numbered update to the authorized PR text.
+	ExpectedTitle  string
+	ExpectedBody   string
 	HeadRepository string
 	HeadRef        string
 	ExpectedHead   string
@@ -37,6 +42,9 @@ type PublicationRequest struct {
 	ExpectedBase   string
 	Actor          string
 	Marker         string
+	// PreviousMarker authorizes the exact prior marker during an ownership-preserving update only.
+	// Post-write verification always requires Marker and the new exact body.
+	PreviousMarker string
 	Title          string
 	Body           string
 	ExpectedFiles  []string
@@ -93,7 +101,7 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 	var owned []PullRequest
 	for _, p := range open {
 		sameBranch := p.HeadRepo == r.HeadRepository && p.HeadRef == r.HeadRef
-		sameMarker := hasMarker(p.Body, r.Marker)
+		sameMarker := hasMarker(p.Body, r.Marker) || r.PreviousMarker != "" && hasMarker(p.Body, r.PreviousMarker)
 		if !sameBranch && !sameMarker {
 			continue
 		}
@@ -107,6 +115,9 @@ func (c *Client) ownedPulls(ctx context.Context, r PublicationRequest) ([]PullRe
 	}
 	if len(owned) > 1 {
 		return nil, fmt.Errorf("multiple owned proposals: %w", ErrConflict)
+	}
+	if r.ExpectedNumber > 0 && (len(owned) != 1 || owned[0].Number != r.ExpectedNumber) {
+		return nil, fmt.Errorf("expected open owned proposal is absent: %w", ErrConflict)
 	}
 	return owned, nil
 }
@@ -191,7 +202,7 @@ func (c *Client) publicationIdentity(p PullRequest, r PublicationRequest) error 
 	if p.BaseRepo != c.owner+"/"+c.repo || p.BaseRef != r.BaseRef || p.State != "open" || p.Merged {
 		return fmt.Errorf("proposal target or open state differs: %w", ErrConflict)
 	}
-	if !hasMarker(p.Body, r.Marker) {
+	if !hasMarker(p.Body, r.Marker) && (r.PreviousMarker == "" || !hasMarker(p.Body, r.PreviousMarker)) {
 		return fmt.Errorf("proposal ownership marker differs: %w", ErrConflict)
 	}
 	return nil
@@ -199,6 +210,12 @@ func (c *Client) publicationIdentity(p PullRequest, r PublicationRequest) error 
 
 // ValidatePublication checks caller-owned branch, content, and file expectations before API access.
 func (c *Client) validatePublication(r PublicationRequest) error {
+	if r.ExpectedNumber < 0 {
+		return fmt.Errorf("publication expected number must be nonnegative")
+	}
+	if r.ExpectedNumber > 0 && strings.TrimSpace(r.ExpectedTitle) == "" {
+		return fmt.Errorf("publication expected title is required for a numbered update")
+	}
 	if !repositoryPattern.MatchString(r.HeadRepository) || r.HeadRef == "" || r.BaseRef == "" {
 		return fmt.Errorf("publication requires source repository and source and target refs")
 	}
@@ -211,14 +228,23 @@ func (c *Client) validatePublication(r PublicationRequest) error {
 	if r.Actor == "" || strings.TrimSpace(r.Title) == "" {
 		return fmt.Errorf("publication requires actor and title")
 	}
-	if !strings.HasPrefix(r.Marker, "<!-- ") || !strings.HasSuffix(r.Marker, " -->") || strings.ContainsAny(r.Marker, "\r\n") || strings.Count(r.Marker, "<!--") != 1 || strings.Count(r.Marker, "-->") != 1 {
-		return fmt.Errorf("publication marker must be one standalone HTML comment")
+	markers := []string{r.Marker}
+	if r.PreviousMarker != "" {
+		markers = append(markers, r.PreviousMarker)
+	}
+	for _, marker := range markers {
+		if !strings.HasPrefix(marker, "<!-- ") || !strings.HasSuffix(marker, " -->") || strings.ContainsAny(marker, "\r\n") || strings.Count(marker, "<!--") != 1 || strings.Count(marker, "-->") != 1 {
+			return fmt.Errorf("publication marker must be one standalone HTML comment")
+		}
 	}
 	if !hasMarker(r.Body, r.Marker) {
 		return fmt.Errorf("publication body must contain its exact marker")
 	}
 	if len(r.ExpectedFiles) == 0 {
 		return fmt.Errorf("publication requires expected files")
+	}
+	if len(r.ExpectedFiles) >= MaxPublicationFiles {
+		return fmt.Errorf("publication expected files reach the incomplete evidence limit: %w", ErrEvidenceIncomplete)
 	}
 	paths := make(map[string]bool, len(r.ExpectedFiles))
 	for _, path := range r.ExpectedFiles {
@@ -239,7 +265,7 @@ func (c *Client) verifyFiles(ctx context.Context, number int, expected []string)
 		return err
 	}
 	// GitHub caps this endpoint at 3000 files, so reaching that bound is not complete evidence.
-	if len(files) >= 3000 {
+	if len(files) >= MaxPublicationFiles {
 		return ErrEvidenceIncomplete
 	}
 	want := make(map[string]bool, len(expected))
@@ -267,7 +293,7 @@ func (c *Client) verifyFiles(ctx context.Context, number int, expected []string)
 
 // Publish finds, creates or updates exactly one owned proposal and verifies all remote evidence.
 // Write failures are indeterminate, never automatically retried. Concurrent publishers require external serialization.
-// GitHub cannot atomically condition PR metadata writes on a head SHA; post-write races fail indeterminate.
+// GitHub cannot atomically condition PR metadata writes on the head or current text.
 func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, error) {
 	receipt := Receipt{RequestedHead: r.ExpectedHead, Outcome: "not-applicable"}
 	if err := c.validatePublication(r); err != nil {
@@ -292,6 +318,9 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 	if len(owned) == 1 {
 		prior = &owned[0]
 		receipt.Number = prior.Number
+		if r.ExpectedNumber > 0 && (prior.Title != r.ExpectedTitle || prior.Body != r.ExpectedBody) {
+			return receipt, fmt.Errorf("proposal title or body differs from authorization: %w", ErrConflict)
+		}
 		if err = c.verifyFiles(ctx, prior.Number, r.ExpectedFiles); err != nil {
 			return receipt, err
 		}
@@ -315,12 +344,26 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 		}
 		receipt.Number = p.GetNumber()
 	} else if prior.Title != r.Title || prior.Body != r.Body {
+		if r.ExpectedNumber > 0 {
+			latest, err := c.boundPull(ctx, r.ExpectedNumber, r.ExpectedHead)
+			if err != nil {
+				return receipt, fmt.Errorf("recheck expected proposal before update: %w", err)
+			}
+			if err := c.publicationIdentity(latest, r); err != nil {
+				return receipt, fmt.Errorf("recheck expected proposal identity before update: %w", err)
+			}
+			if latest.Title != r.ExpectedTitle || latest.Body != r.ExpectedBody {
+				return receipt, fmt.Errorf("proposal title or body changed before update: %w", ErrConflict)
+			}
+		}
 		_, _, writeErr := c.writer.PullRequests.Edit(ctx, c.owner, c.repo, prior.Number, &gh.PullRequest{Title: &r.Title, Body: &r.Body})
 		if writeErr != nil {
 			receipt.Outcome = "indeterminate"
 			return receipt, indeterminate("update proposal", writeErr)
 		}
 	}
+	// A prior marker grants update ownership, never permission to retain stale metadata.
+	r.PreviousMarker = ""
 	receipt.URL = fmt.Sprintf("https://github.com/%s/%s/pull/%d", c.owner, c.repo, receipt.Number)
 	verified, err := c.ownedPulls(ctx, r)
 	if err != nil || len(verified) != 1 || verified[0].Number != receipt.Number {

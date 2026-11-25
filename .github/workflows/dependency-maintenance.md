@@ -253,7 +253,7 @@ safe-outputs:
             GH_TOKEN: ${{ steps.write-token.outputs.token }}
             CI_TOKEN: ${{ github.token }}
             REPO: ${{ github.repository }}
-          run: python3 .github/scripts/native_dependabot_maintenance.py publish "$REPO" "$GH_AW_AGENT_OUTPUT"
+          run: '"$DEPCTL_BINARY" dependabot native publish --repository "$REPO" --repo . --output-file "$GH_AW_AGENT_OUTPUT"'
     native-action:
       description: Apply one verified native admission, bounded recovery, green release or merged-coverage cleanup
       max: 1

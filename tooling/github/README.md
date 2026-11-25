@@ -40,10 +40,24 @@ installation tokens without asking GitHub's user-token-only `/user` endpoint to
 identify an App. Use `WithWriter` before `WithActor` when read and write clients
 have separate credentials.
 
+Use `WithCIReader` when checks and commit statuses require a separate read token.
+PR metadata and hold history continue to use the ordinary read client, and
+`WithWriter` controls only mutation credentials.
+
 `PublicationRequest` contains the source repository and branch, expected source
 and base SHAs, target branch, trusted actor, exact ownership marker, title, body
 and complete expected changed-file set. The marker must be a standalone line in
 the body. A returned receipt identifies the verified PR and observed head.
+
+For a numbered update, supply `ExpectedNumber`, `ExpectedTitle` and `ExpectedBody`
+from the authorized PR. If the PR is missing, closed, replaced or its text has
+changed, publication stops without creating or editing a PR. GitHub does not
+provide an atomic conditional edit, so the final check is a read before the write.
+Publication requests must contain fewer than `MaxPublicationFiles` (3,000) changed paths.
+
+When a caller has separately verified an existing PR's old ownership metadata,
+`PreviousMarker` permits replacing that exact marker. The write and its read-back
+must contain the new `Marker`, not the previous one.
 
 ## Caller responsibilities
 
@@ -75,9 +89,9 @@ that a failure is safe to retry remain with the calling tool.
   races but cannot provide compare-and-swap or exactly-once execution.
 - Do not cancel human or unexplained holds or provide approval and merge bypasses.
 
-This PR introduces the importable API. Existing `depctl`, image-update and
-priority-update orchestration is not switched over here; each consumer can adopt
-it through its existing Go command without introducing a helper executable.
+`depctl dependabot native publish` uses this library for replacement PR
+publication. Other consumers can adopt it through their existing Go commands
+without introducing a helper executable.
 
 ## Prow maintenance
 

@@ -17,6 +17,8 @@ package github
 import (
 	"errors"
 	"fmt"
+
+	gh "github.com/google/go-github/v69/github"
 )
 
 // ErrEvidenceIncomplete reports missing or ambiguous remote evidence.
@@ -108,6 +110,8 @@ type Snapshot struct {
 	HoldEvents []HoldEvent `json:"holdEvents"`
 	Statuses   []Status    `json:"statuses"`
 	Checks     []Check     `json:"checks"`
+	// CommitDetails is the complete ordered SDK evidence underlying Commits.
+	CommitDetails []*gh.RepositoryCommit `json:"-"`
 }
 
 // Receipt describes verified observations, not authorization to act.

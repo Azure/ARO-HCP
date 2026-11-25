@@ -15,7 +15,6 @@ import re
 import stat
 import subprocess
 import sys
-import tempfile
 from urllib.parse import quote
 
 
@@ -768,28 +767,6 @@ def stage_detection(repo, output_file, detection_dir):
     return {"status": "staged", "patch": DETECTION_PATCH}
 
 
-def git(cwd, *args, input=None, author_email=None, strip=True):
-    env = os.environ.copy()
-    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
-                "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0",
-                "GIT_AUTHOR_NAME": "aro-hcp-robot[bot]", "GIT_AUTHOR_EMAIL": "aro-hcp-robot[bot]@users.noreply.github.com",
-                "GIT_COMMITTER_NAME": "aro-hcp-robot[bot]", "GIT_COMMITTER_EMAIL": "aro-hcp-robot[bot]@users.noreply.github.com"})
-    if author_email:
-        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = author_email
-    output = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-                             "-c", "credential.helper=", "-c", "credential.https://github.com.helper=!gh auth git-credential", *args],
-                            cwd=cwd, input=None if input is None else input.encode("utf-8"),
-                            capture_output=True, check=True, env=env).stdout.decode("utf-8")
-    return output.strip() if strip else output
-
-
-def remote_url(repo):
-    url = git(None, "remote", "get-url", "origin")
-    require(url in (f"https://github.com/{repo}", f"https://github.com/{repo}.git",
-                    f"git@github.com:{repo}.git"), "publication origin is not the exact repository")
-    return f"https://github.com/{repo}.git"
-
-
 def patch_paths(patch):
     require(isinstance(patch, str) and 0 < len(patch.encode()) <= MAX_PATCH and "\x00" not in patch,
             "patch must be nonempty UTF-8 and at most 16 MiB")
@@ -816,11 +793,6 @@ def native_policy(operation, evidence, *flags):
     )
     require(result.returncode == 0, result.stderr.strip() or "native policy check failed")
     return json.loads(result.stdout) if result.stdout.strip() else None
-
-
-def validate_tree(cwd, base, tree, paths, group, *, complete=True):
-    native_policy("check-tree", {"root": str(Path(cwd).resolve()), "base": base, "tree": tree,
-                                "paths": paths, "group": group, "complete": complete})
 
 
 def coverage_paths(intents):
@@ -921,19 +893,6 @@ def validate_replacement_request(request):
     return patch_paths(request["patch"])
 
 
-def sources_group(repo, sources):
-    validate_sources(sources)
-    intents = []
-    for source in sources:
-        snap = snapshot(repo, source["number"], source["head_sha"])
-        require(not snap["blocked_holds"], "human/unknown native hold blocks publication")
-        intents.append(source_intent(repo, snap))
-    require(len({(row["group"], row["target"]) for row in intents}) == 1,
-            "sources do not share one actual upgrade family/target")
-    validate_source_siblings(repo, intents, creator_inventory(repo, NATIVE))
-    return {**{key: intents[0][key] for key in ("group", "ecosystem", "family", "target")}, "sources": intents}
-
-
 def validate_source_siblings(repo, intents, current, *, evidence=None):
     """Require complete family membership or immutable proof of disjointness."""
     selected = {source["number"] for source in intents}
@@ -981,164 +940,6 @@ def post_comment(repo, number, body):
     require(isinstance(response, dict) and type(response.get("id")) is int and response.get("body") == body,
             "comment response incomplete; inspect before retry")
     return {"number": number, "comment_id": response["id"]}
-
-
-def ensure_label(repo):
-    """Create only this fixed repository label; tolerate a concurrent creator."""
-    endpoint = f"repos/{repo}/labels/{LABEL}"
-    try:
-        value = api(endpoint)
-    except subprocess.CalledProcessError as error:
-        if "(HTTP 404)" not in (error.stderr or ""):
-            raise
-        try:
-            api(f"repos/{repo}/labels", method="POST",
-                data={"name": LABEL, "color": "0366d6",
-                      "description": "Validated native Dependabot replacement maintained by gh-aw-recompile"})
-        except subprocess.CalledProcessError as conflict:
-            if "(HTTP 422)" not in (conflict.stderr or ""):
-                raise
-        value = api(endpoint)
-    require(isinstance(value, dict) and value.get("name") == LABEL
-            and type(value.get("id")) is int and value["id"] > 0,
-            "fixed dependency-upgrade label could not be verified")
-
-
-def publish(repo, request):
-    paths = validate_replacement_request(request)
-    title = safe_text(request["title"], title=True)
-    validate_repo(repo)
-    validate_target(repo, 1, request["expected_base_sha"])
-    base = request["expected_base_sha"]
-    require(main_sha(repo) == base, "main moved")
-    group = sources_group(repo, request["source_prs"])
-    candidates = []
-    merged_history = []
-    closed_unmerged = []
-    branch = "native-dependabot-" + group["group"]
-    for pull in creator_inventory(repo, ROBOT, state="all"):
-        if MARKER not in (pull.get("body") or "") and LABEL not in {label.get("name") for label in pull.get("labels", [])}:
-            continue
-        if pull.get("state") == "closed" and pull.get("merged") is False:
-            if pull.get("head", {}).get("ref") == branch:
-                closed_unmerged.append(pull)
-            continue
-        merged = pull.get("merged") is True
-        meta = replacement(pull, repo, merged=merged, publication_window=not merged)
-        if meta["group"] == group["group"]:
-            (merged_history if merged else candidates).append(pull)
-    require(len(candidates) <= 1, "multiple replacement PRs for group")
-    existing = candidates[0] if candidates else None
-    if existing:
-        snap = snapshot(repo, existing["number"], existing["head"]["sha"], author=ROBOT)
-        require(not snap["blocked_holds"], "human/unknown replacement hold blocks publication")
-    marker = "<!-- " + MARKER + json.dumps({"group": group["group"], "sources": request["source_prs"]}, sort_keys=True, separators=(",", ":")) + " -->"
-    body = safe_text(request["body"]) + "\n\n" + marker
-    def merged_predecessor(head):
-        require(not any(pull["head"]["sha"] == head for pull in closed_unmerged),
-                "closed-unmerged replacement branch must not be revived")
-        matches = [pull for pull in merged_history if pull["head"]["sha"] == head]
-        require(len(matches) <= 1, "ambiguous merged replacement branch ownership")
-        if not matches:
-            return None
-        prior = matches[0]
-        replacement(prior, repo, merged=True)
-        merge = prior.get("merge_commit_sha")
-        require(isinstance(merge, str) and SHA.fullmatch(merge), "missing predecessor merge commit")
-        comparison = api(f"repos/{repo}/compare/{merge}...{base}")
-        require(isinstance(comparison, dict) and comparison.get("status") in ("ahead", "identical")
-                and comparison.get("merge_base_commit", {}).get("sha") == merge,
-                "previous replacement merge is not an ancestor of current main")
-        return prior
-    previous = None
-    with tempfile.TemporaryDirectory(prefix="native-dependabot-") as directory:
-        git(directory, "init", "--quiet")
-        git(directory, "remote", "add", "origin", remote_url(repo))
-        git(directory, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
-        require(git(directory, "rev-parse", "refs/remotes/origin/main") == base, "main moved")
-        remote = git(directory, "ls-remote", "--heads", "origin", "refs/heads/" + branch)
-        require(not existing or bool(remote), "verified replacement branch is missing")
-        old = None
-        if remote:
-            old = remote.split()[0]
-            require(not existing or old == existing["head"]["sha"], "replacement head moved")
-            git(directory, "fetch", "--no-tags", "origin", "refs/heads/" + branch)
-        git(directory, "read-tree", base)
-        git(directory, "checkout-index", "--all", "--index")
-        git(directory, "apply", "--index", "--whitespace=error", "-", input=request["patch"])
-        tree = git(directory, "write-tree")
-        validate_tree(directory, base, tree, paths, group)
-        if old and not existing:
-            previous = merged_predecessor(old)
-        if previous:
-            try:
-                for source in group["sources"]:
-                    verify_coverage(source["intents"], lambda path: git(directory, "show", f"{base}:{path}"),
-                                    set(git(directory, "ls-tree", "-r", "--name-only", base).splitlines()))
-            except ValueError:
-                pass
-            else:
-                raise ValueError("merged replacement already covers current native intent; do not create another PR")
-        if old and not existing and not previous:
-            detail = api(f"repos/{repo}/commits/{old}")
-            require(isinstance(detail, dict) and isinstance(detail.get("author"), dict)
-                    and detail["author"].get("login") == ROBOT and detail["author"].get("type") == "Bot",
-                    "orphan publication commit is not attributed to the robot")
-            message = git(directory, "show", "-s", "--format=%B", old)
-            parents = git(directory, "show", "-s", "--format=%P", old).split()
-            if len(parents) == 2 and parents[1] == base:
-                previous = merged_predecessor(parents[0])
-            require(metadata(message) == {"group": group["group"], "sources": request["source_prs"]}
-                    and f"native-dependabot-base: {base}" in message.splitlines()
-                    and (parents == [base] or len(parents) == 2 and parents[1] == base and previous is not None)
-                    and git(directory, "rev-parse", old + "^{tree}") == tree,
-                    "orphan branch does not match exact authorized publication")
-        unchanged = old and git(directory, "rev-parse", old + "^{tree}") == tree
-        if unchanged:
-            head = old
-        else:
-            parents = ["-p", old] if old else []
-            if old != base:
-                parents += ["-p", base]
-            bot = api(f"users/{quote(ROBOT, safe='')}")
-            require(isinstance(bot, dict) and bot.get("login") == ROBOT and bot.get("type") == "Bot"
-                    and type(bot.get("id")) is int and bot["id"] > 0, "missing publishing App bot identity")
-            message = title + "\n\n" + marker + f"\nnative-dependabot-base: {base}\n"
-            head = git(directory, "commit-tree", tree, *parents, input=message,
-                       author_email=f"{bot['id']}+{ROBOT}@users.noreply.github.com")
-        ensure_label(repo)
-        # Re-read the entire authorization after patch application, before publication.
-        require(main_sha(repo) == base, "main moved before publication")
-        require(sources_group(repo, request["source_prs"]) == group, "source intent changed")
-        if existing:
-            fresh = snapshot(repo, existing["number"], old, author=ROBOT)
-            require(not fresh["blocked_holds"] and replacement(fresh["pull"], repo, publication_window=True)["group"] == group["group"],
-                    "replacement authorization changed")
-        if previous:
-            fresh_previous = pull_detail(repo, previous["number"])
-            require(fresh_previous == previous, "merged predecessor authorization changed")
-            replacement(fresh_previous, repo, merged=True)
-        require(git(directory, "ls-remote", "--heads", "origin", "refs/heads/main").split()[0] == base, "remote main moved")
-        if not unchanged:
-            # Normal push only: a concurrent update cannot be overwritten.
-            git(directory, "push", "origin", head + ":refs/heads/" + branch)
-    require(main_sha(repo) == base and sources_group(repo, request["source_prs"]) == group,
-            "source or main changed before PR publication")
-    if existing:
-        response = api(f"repos/{repo}/pulls/{existing['number']}", method="PATCH",
-                       data={"title": title, "body": body})
-    else:
-        response = api(f"repos/{repo}/pulls", method="POST",
-                       data={"head": branch, "base": "main", "title": title, "body": body, "draft": False})
-        require(isinstance(response, dict) and type(response.get("number")) is int, "missing created PR identity")
-    number = response.get("number")
-    require(type(number) is int, "missing published PR identity")
-    if not existing or LABEL not in {label["name"] for label in existing["labels"]}:
-        api(f"repos/{repo}/issues/{number}/labels", method="POST", data={"labels": [LABEL]})
-    final = pull_detail(repo, number)
-    require(final["head"]["sha"] == head and replacement(final, repo)["sources"] == request["source_prs"], "published replacement verification failed")
-    # Prow may automatically request repository reviewers; this helper never requests any.
-    return {"number": number, "head_sha": head, "group": group["group"], "reused": bool(existing), "unchanged": bool(unchanged)}
 
 
 def recovery_body(snap, sha, evidence):
@@ -1231,9 +1032,9 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(bool(argv) and argv[0] in ("inventory", "stage-detection", "publish", "reconcile")
+        require(bool(argv) and argv[0] in ("inventory", "stage-detection", "reconcile")
                 and len(argv) >= 2,
-                "usage: native_dependabot_maintenance.py inventory REPO | stage-detection REPO OUTPUT_FILE DETECTION_DIR | publish/reconcile REPO OUTPUT_FILE")
+                "usage: native_dependabot_maintenance.py inventory REPO | stage-detection REPO OUTPUT_FILE DETECTION_DIR | reconcile REPO OUTPUT_FILE")
         mode, repo = argv[:2]
         validate_repo(repo)
         if mode == "inventory":
@@ -1244,8 +1045,8 @@ def main(argv=None):
             result = stage_detection(repo, *argv[2:])
         else:
             require(len(argv) == 3, "output file required")
-            request = read_request(argv[2], "native_replacement" if mode == "publish" else "native_action")
-            result = {"status": "no-request"} if request is None else (publish if mode == "publish" else reconcile)(repo, request)
+            request = read_request(argv[2], "native_action")
+            result = {"status": "no-request"} if request is None else reconcile(repo, request)
         print(json.dumps(result, sort_keys=True))
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:

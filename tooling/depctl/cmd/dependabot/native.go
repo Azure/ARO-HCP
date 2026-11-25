@@ -32,5 +32,6 @@ func newNativeCommand() *cobra.Command {
 	}
 	command.AddCommand(newNativeSelectCommand(), newNativePrepareCommand(), newNativeValidateCommand(), newNativeSandboxReadCommand())
 	command.AddCommand(newNativeCheckTreeCommand(), newNativeCheckCoverageCommand(), newNativeCheckAdmissionCommand())
+	command.AddCommand(newNativePublishCommand())
 	return command
 }
