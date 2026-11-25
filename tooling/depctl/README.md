@@ -267,6 +267,17 @@ depctl dependabot retest --repository OWNER/REPO --pull-request N --head SHA \
 Requires a current failing check URL plus a distinct comparison URL and enforces
 the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
 
+### dependabot native inventory
+
+```bash
+depctl dependabot native inventory --repository OWNER/REPO
+```
+
+Prints native source groups, verified replacement PRs, and the next eligible
+action for each group as JSON. The command reads GitHub with `GH_TOKEN` or
+`GITHUB_TOKEN`; `CI_TOKEN` optionally supplies separate check and status reads.
+It does not mutate PRs, branches, or repository files.
+
 ### dependabot native select-group
 
 ```bash

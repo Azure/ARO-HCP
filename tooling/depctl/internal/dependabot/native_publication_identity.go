@@ -17,8 +17,8 @@ package dependabot
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/go-github/v69/github"
@@ -48,9 +48,11 @@ type nativePublicationAuthorization struct {
 
 // Native publication snapshots supplement shared evidence with source file identities.
 type nativePublicationSnapshot struct {
-	pull    *github.PullRequest
-	files   []*github.CommitFile
-	blocked bool
+	pull     *github.PullRequest
+	files    []*github.CommitFile
+	blocked  bool
+	comments []automation.Comment
+	ci       automation.CommitCI
 }
 
 // NativePublicationMetadata validates the exact ownership marker and its immutable source identities.
@@ -207,6 +209,26 @@ func nativePublicationBlockedHolds(snapshot automation.Snapshot) (bool, error) {
 	return false, nil
 }
 
+// SameNativePublicationSnapshotPull binds authorization-relevant metadata, not mutable embedded repository data.
+func sameNativePublicationSnapshotPull(before, after *github.PullRequest) bool {
+	if before.GetNumber() != after.GetNumber() || before.GetState() != after.GetState() ||
+		before.GetUser().GetLogin() != after.GetUser().GetLogin() || before.GetUser().GetType() != after.GetUser().GetType() ||
+		before.GetHead().GetSHA() != after.GetHead().GetSHA() || before.GetHead().GetRef() != after.GetHead().GetRef() ||
+		before.GetHead().GetRepo().GetFullName() != after.GetHead().GetRepo().GetFullName() ||
+		before.GetBase().GetSHA() != after.GetBase().GetSHA() || before.GetBase().GetRef() != after.GetBase().GetRef() ||
+		before.GetBase().GetRepo().GetFullName() != after.GetBase().GetRepo().GetFullName() ||
+		after.Draft == nil || before.GetDraft() != after.GetDraft() || after.Merged == nil || before.GetMerged() != after.GetMerged() ||
+		after.Commits == nil || before.GetCommits() != after.GetCommits() ||
+		after.Comments == nil || before.GetComments() != after.GetComments() ||
+		after.ChangedFiles == nil || before.GetChangedFiles() != after.GetChangedFiles() ||
+		before.GetTitle() != after.GetTitle() || before.GetBody() != after.GetBody() || after.Labels == nil {
+		return false
+	}
+	return slices.EqualFunc(before.Labels, after.Labels, func(a, b *github.Label) bool {
+		return b != nil && b.Name != nil && a.GetName() == b.GetName()
+	})
+}
+
 // NativePublicationSnapshot verifies complete immutable files, shared commit attribution and hold evidence.
 func (p *NativePublisher) nativePublicationSnapshot(ctx context.Context, number int, head, author string) (nativePublicationSnapshot, error) {
 	var result nativePublicationSnapshot
@@ -281,7 +303,7 @@ func (p *NativePublisher) nativePublicationSnapshot(ctx context.Context, number 
 	if err != nil {
 		return result, err
 	}
-	if !reflect.DeepEqual(pull, latest) {
+	if !sameNativePublicationSnapshotPull(pull, latest) {
 		return result, nativeReject("pull request changed during snapshot")
 	}
 	result.blocked, err = nativePublicationBlockedHolds(shared)
@@ -289,6 +311,8 @@ func (p *NativePublisher) nativePublicationSnapshot(ctx context.Context, number 
 		return result, fmt.Errorf("evaluate native snapshot #%d: %w", number, err)
 	}
 	result.pull = pull
+	result.comments = shared.Comments
+	result.ci = automation.CommitCI{Statuses: shared.Statuses, Checks: shared.Checks}
 	return result, nil
 }
 
@@ -315,43 +339,57 @@ func (p *NativePublisher) nativePublicationInventory(ctx context.Context, author
 		}
 		return result, nil
 	}
-	if author != nativePublicationRobot {
+	return p.nativeCreatorInventory(ctx, author)
+}
+
+// NativeCreatorInventory verifies every creator-filtered issue and resolves relevant pull details.
+func (p *NativePublisher) nativeCreatorInventory(ctx context.Context, author string) ([]*github.PullRequest, error) {
+	state := "open"
+	switch author {
+	case nativePublicationBot:
+	case nativePublicationRobot:
+		state = "all"
+	default:
 		return nil, nativeReject("unsupported publication inventory author")
 	}
+	var result []*github.PullRequest
 	seen := map[int]bool{}
-	options := &github.IssueListByRepoOptions{Creator: author, State: "all", ListOptions: github.ListOptions{Page: 1, PerPage: 100}}
+	options := &github.IssueListByRepoOptions{Creator: author, State: state, ListOptions: github.ListOptions{Page: 1, PerPage: 100}}
 	for {
 		issues, response, err := p.api.Issues.ListByRepo(ctx, p.owner, p.repo, options)
 		if err != nil {
-			return nil, fmt.Errorf("inventory robot publications: %w", err)
+			return nil, fmt.Errorf("inventory %s pull requests: %w", author, err)
 		}
 		if issues == nil || response == nil {
-			return nil, nativeReject("missing robot publication inventory page")
+			return nil, nativeReject("missing creator inventory page")
 		}
 		for _, issue := range issues {
-			if issue == nil || issue.GetNumber() <= 0 || seen[issue.GetNumber()] || issue.GetUser().GetLogin() != author || (issue.GetState() != "open" && issue.GetState() != "closed") {
-				return nil, nativeReject("foreign, duplicate or incomplete robot inventory evidence")
+			if issue == nil || issue.GetNumber() <= 0 || seen[issue.GetNumber()] || issue.GetUser().GetLogin() != author ||
+				(issue.GetState() != "open" && (state != "all" || issue.GetState() != "closed")) {
+				return nil, nativeReject("foreign, duplicate or incomplete creator inventory evidence")
 			}
 			seen[issue.GetNumber()] = true
 			if issue.PullRequestLinks == nil {
 				continue
 			}
-			if issue.Labels == nil {
-				return nil, nativeReject("incomplete robot publication metadata")
-			}
-			owned := strings.Contains(issue.GetBody(), nativePublicationMarker)
-			for _, label := range issue.Labels {
-				owned = owned || label.GetName() == nativePublicationLabel
-			}
-			if !owned {
-				continue
+			if author == nativePublicationRobot {
+				if issue.Labels == nil {
+					return nil, nativeReject("incomplete robot publication metadata")
+				}
+				owned := strings.Contains(issue.GetBody(), nativePublicationMarker)
+				for _, label := range issue.Labels {
+					owned = owned || label.GetName() == nativePublicationLabel
+				}
+				if !owned {
+					continue
+				}
 			}
 			pull, err := p.pullDetail(ctx, issue.GetNumber())
 			if err != nil {
 				return nil, err
 			}
 			if pull.GetUser().GetLogin() != author || pull.GetState() != issue.GetState() {
-				return nil, nativeReject("robot publication inventory changed")
+				return nil, nativeReject("pull request creator inventory changed")
 			}
 			result = append(result, pull)
 		}

@@ -42,6 +42,17 @@ func WithNativePublicationClients(api, ci, writer *gh.Client) NativePublisherOpt
 	}
 }
 
+// WithNativeInventoryClients supplies read-only API and CI clients without enabling publication.
+func WithNativeInventoryClients(api, ci *gh.Client) NativePublisherOption {
+	return func(p *NativePublisher) error {
+		if api == nil || ci == nil {
+			return fmt.Errorf("native inventory requires API and CI clients")
+		}
+		p.api, p.ci, p.writer = api, ci, nil
+		return nil
+	}
+}
+
 var nativePublicationRepository = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 // NewNativePublisher binds one repository to caller-supplied SDK clients without authentication side effects.
@@ -59,8 +70,8 @@ func NewNativePublisher(repository string, options ...NativePublisherOption) (*N
 			return nil, fmt.Errorf("configure native publisher: %w", err)
 		}
 	}
-	if p.api == nil || p.ci == nil || p.writer == nil {
-		return nil, fmt.Errorf("native publication requires injected clients")
+	if p.api == nil || p.ci == nil {
+		return nil, fmt.Errorf("native maintenance requires injected API and CI clients")
 	}
 	shared, err := automation.NewClient(repository, p.api)
 	if err != nil {
@@ -70,13 +81,16 @@ func NewNativePublisher(repository string, options ...NativePublisherOption) (*N
 	if err != nil {
 		return nil, fmt.Errorf("construct publication CI reader: %w", err)
 	}
-	shared, err = shared.WithWriter(p.writer)
-	if err != nil {
-		return nil, fmt.Errorf("construct publication writer: %w", err)
-	}
-	p.shared, err = shared.WithActor(nativePublicationRobot)
-	if err != nil {
-		return nil, fmt.Errorf("bind publication actor: %w", err)
+	p.shared = shared
+	if p.writer != nil {
+		shared, err = shared.WithWriter(p.writer)
+		if err != nil {
+			return nil, fmt.Errorf("construct publication writer: %w", err)
+		}
+		p.shared, err = shared.WithActor(nativePublicationRobot)
+		if err != nil {
+			return nil, fmt.Errorf("bind publication actor: %w", err)
+		}
 	}
 	return p, nil
 }
@@ -91,6 +105,9 @@ type NativePublishOptions struct {
 func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOptions) (map[string]any, error) {
 	if options.Request == nil {
 		return map[string]any{"status": "no-request"}, nil
+	}
+	if p.writer == nil {
+		return nil, fmt.Errorf("native publication requires an injected writer client")
 	}
 	request := options.Request.request
 	paths, err := nativeValidatePublicationRequest(request)

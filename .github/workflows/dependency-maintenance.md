@@ -91,7 +91,7 @@ steps:
       REPO: ${{ github.repository }}
     run: |
       set -euo pipefail
-      python3 .github/scripts/native_dependabot_maintenance.py inventory "$REPO" > native-maintenance-inventory.json
+      "$DEPCTL_BINARY" dependabot native inventory --repository "$REPO" > native-maintenance-inventory.json
       printf '%s\n' /agentic-maintenance-inventory.json /native-maintenance-inventory.json >> .git/info/exclude
 safe-outputs:
   # Failures are monitored externally; never turn routine or failed maintenance into issues.
@@ -451,16 +451,16 @@ Prove actual outcomes rather than equating a green run with completion. After pu
 
 ## Usage
 
-The trusted default-branch checkout builds `depctl` for shared maintenance policy
-and native selection, consumer validation and request preparation. The native
-Python helper retains inventory discovery, privileged publication and
-reconciliation. `make verify-agentic-maintenance` runs the Go validation and
-policy suites, Darwin/arm64 and Linux builds, and real-binary producer/publisher
-integration tests for the remaining Python lifecycle.
+The trusted default-branch checkout builds `depctl` for shared maintenance policy,
+read-only native inventory, offline selection, consumer validation, request
+preparation and privileged publication. The native Python helper retains
+detection staging and reconciliation. `make verify-agentic-maintenance` runs
+the Go validation and policy suites, Darwin/arm64 and Linux builds, and
+real-binary producer/publisher integration tests.
 
 ```bash
 "$DEPCTL_BINARY" maintenance inventory --repository "$GITHUB_REPOSITORY" --kind non-compiler
-python3 .github/scripts/native_dependabot_maintenance.py inventory "$GITHUB_REPOSITORY"
+"$DEPCTL_BINARY" dependabot native inventory --repository "$GITHUB_REPOSITORY"
 ```
 
 Scheduled and manual default-branch runs share these guards. Before publication run `make verify-agentic-maintenance`, `gh aw compile dependency-maintenance --strict`, `make verify-yamlfmt` and `make -C config detect-change`. Compile lock files only with the native pinned gh-aw compiler, never edit generated YAML. Deployment is established only by a post-merge consumer run; a skill update alone does not deploy repository automation.

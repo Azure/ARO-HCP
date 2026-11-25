@@ -544,27 +544,6 @@ def replacement(pull, repo, *, merged=False, publication_window=False):
     return meta
 
 
-def creator_inventory(repo, creator, state="open"):
-    require(state in ("open", "all"), "unsupported inventory state")
-    issues = unique(rows(f"repos/{repo}/issues?state={state}&creator={quote(creator, safe='')}&per_page=100"), "number")
-    result = []
-    for issue in issues:
-        require(issue.get("user", {}).get("login") == creator and issue.get("state") in (("open", "closed") if state == "all" else ("open",)),
-                "creator-filtered inventory returned foreign evidence")
-        if "pull_request" not in issue:
-            continue
-        if creator == ROBOT:
-            body, labels = issue.get("body"), issue.get("labels")
-            require((body is None or isinstance(body, str)) and isinstance(labels, list),
-                    "incomplete robot publication metadata")
-            if MARKER not in (body or "") and not any(
-                isinstance(label, dict) and label.get("name") == LABEL for label in labels
-            ):
-                continue
-        result.append(pull_detail(repo, issue["number"]))
-    return result
-
-
 def closure_requests(snap):
     """Read trusted current-head closure commands, not copied or stale markers."""
     pattern = r"^<!-- " + re.escape(MARKER) + "close:" + snap["pull"]["head"]["sha"] + r":([1-9][0-9]*) -->\n"
@@ -576,106 +555,6 @@ def closure_requests(snap):
         if match and re.search(r"(?m)^/close\s*\Z", comment["body"]):
             requested.add(int(match.group(1)))
     return sorted(requested)
-
-
-def next_action(group, replacements):
-    """Select work from verified identities, never from native-source CI."""
-    if group["blockers"]:
-        return {"action": "blocked", "reason": "; ".join(sorted(group["blockers"]))}
-    matching = sorted((row for row in replacements if row["group"] == group["group"]),
-                      key=lambda row: row["number"])
-    opened = [row for row in matching if not row["merged"]]
-    if len(opened) > 1:
-        return {"action": "blocked", "reason": "ambiguous open matching replacements"}
-    if opened and opened[0]["blocked_holds"]:
-        return {"action": "blocked", "reason": "replacement has human/unknown hold",
-                "replacement_pr": opened[0]["number"]}
-    sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
-    pending = set()
-    for row in matching:
-        if row["merged"]:
-            mapped = {(source["number"], source["head_sha"]) for source in row["sources"]}
-            pending.update((source["number"], source["head_sha"]) for source in group["sources"]
-                           if row["number"] in source.get("closure_requests", [])
-                           and (source["number"], source["head_sha"]) in mapped)
-    for row in reversed(matching):
-        if not row["merged"]:
-            continue
-        mapped = (sources - pending) & {(source["number"], source["head_sha"]) for source in row["sources"]}
-        if mapped:
-            return {"action": "close_superseded",
-                    "reason": "merged replacement maps exact source heads; closure guard must verify coverage",
-                    "replacement_pr": row["number"],
-                    "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(mapped)]}
-    if pending == sources and pending:
-        return {"action": "wait_for_closure",
-                "reason": "trusted current-head closure commands already requested; wait for observed Prow closure",
-                "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(pending)]}
-    if opened:
-        return {"action": "maintain_replacement",
-                "reason": "reuse existing replacement; its current-head CI governs further progress",
-                "replacement_pr": opened[0]["number"]}
-    return {"action": "prepare_replacement",
-            "reason": "no open matching replacement or merged exact-source mapping; native CI is evidence only"}
-
-
-def inventory(repo):
-    validate_repo(repo)
-    base = main_sha(repo)
-    groups = {}
-    current = creator_inventory(repo, NATIVE)
-    source_evidence = {}
-    for pull in current:
-        row = {"number": pull["number"], "head_sha": pull.get("head", {}).get("sha")}
-        evidence = source_evidence[row["number"]] = {}
-        try:
-            snap = snapshot(repo, row["number"], row["head_sha"])
-            evidence["snapshot"] = snap
-            intent = source_intent(repo, snap)
-            evidence["intent"] = intent
-            row.update(intent)
-            row["ci"] = snap["ci"]
-            row["held"] = snap["held"]
-            row["blocked_holds"] = snap["blocked_holds"]
-            row["closure_requests"] = closure_requests(snap)
-            key = intent["group"] + ":" + intent["target"]
-            group = groups.setdefault(key, {key: intent[key] for key in ("group", "ecosystem", "family", "target")})
-            group.setdefault("sources", []).append(row)
-            group.setdefault("blockers", [])
-            if snap["blocked_holds"]:
-                group["blockers"].append(f"PR #{row['number']}: human/unknown hold")
-        except ValueError as error:
-            evidence["error"] = error
-            groups[f"blocked:{pull['number']}"] = {"group": None, "sources": [row], "blockers": [str(error)]}
-    replacements = []
-    for pull in creator_inventory(repo, ROBOT, state="all"):
-        body = pull.get("body") or ""
-        labels = {label.get("name") for label in pull.get("labels", [])}
-        if MARKER not in body and LABEL not in labels:
-            continue
-        if pull.get("state") == "closed" and pull.get("merged") is False:
-            continue
-        merged = pull.get("merged") is True
-        meta = replacement(pull, repo, merged=merged, publication_window=not merged)
-        row = {"number": pull["number"], "head_sha": pull["head"]["sha"], "merged": merged,
-               "group": meta["group"], "sources": meta["sources"], "url": pull.get("html_url")}
-        row["publication_pending"] = LABEL not in {label["name"] for label in pull["labels"]}
-        if not merged:
-            snap = snapshot(repo, pull["number"], pull["head"]["sha"], author=ROBOT)
-            row.update({key: snap[key] for key in ("ci", "held", "blocked_holds")})
-        replacements.append(row)
-    for group in groups.values():
-        group["sources"].sort(key=lambda row: row["number"])
-        decision = next_action(group, replacements)
-        if decision["action"] == "prepare_replacement":
-            try:
-                validate_source_siblings(repo, group["sources"], current, evidence=source_evidence)
-            except ValueError as error:
-                group["blockers"].append(str(error))
-                decision = next_action(group, replacements)
-        group["next_action"] = decision
-    require(main_sha(repo) == base, "main changed during inventory")
-    return {"repository": repo, "base_sha": base, "groups": list(groups.values()), "replacements": replacements}
 
 
 def read_request(path, kind):
@@ -850,48 +729,6 @@ def validate_replacement_request(request):
     return patch_paths(request["patch"])
 
 
-def validate_source_siblings(repo, intents, current, *, evidence=None):
-    """Require complete family membership or immutable proof of disjointness."""
-    selected = {source["number"] for source in intents}
-    require(selected <= {pull["number"] for pull in current},
-            "native source inventory changed during authorization")
-    for pull in current:
-        if pull["number"] in selected:
-            continue
-        cached = evidence.get(pull["number"], {}) if evidence is not None else {}
-        try:
-            if "snapshot" not in cached and "error" in cached:
-                raise cached["error"]
-            snap = cached.get("snapshot")
-            if snap is None:
-                snap = snapshot(repo, pull["number"], pull["head"]["sha"])
-            # Only complete, unambiguous changed-file evidence can prove a sibling
-            # belongs to another ecosystem. Titles and branch names are untrusted.
-            ecosystems = set()
-            for file in snap["files"]:
-                path = safe_path(file.get("filename"))
-                name = PurePosixPath(path).name
-                ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
-                             "package.json": "npm", "package-lock.json": "npm",
-                             "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
-                if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
-                    ecosystem = "actions"
-                if file.get("status") != "modified" or file.get("previous_filename"):
-                    ecosystem = None
-                ecosystems.add(ecosystem)
-            if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
-                continue
-            if "error" in cached:
-                raise cached["error"]
-            candidate = cached.get("intent")
-            if candidate is None:
-                candidate = source_intent(repo, snap)
-            require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
-                    f"replacement omits current same-family/target native source #{pull['number']}")
-        except ValueError as error:
-            raise ValueError(f"PR #{pull['number']}: {error}") from error
-
-
 def post_comment(repo, number, body):
     response = api(f"repos/{repo}/issues/{number}/comments", method="POST", data={"body": body})
     require(isinstance(response, dict) and type(response.get("id")) is int and response.get("body") == body,
@@ -989,18 +826,12 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(bool(argv) and argv[0] in ("inventory", "reconcile")
-                and len(argv) >= 2,
-                "usage: native_dependabot_maintenance.py inventory REPO | reconcile REPO OUTPUT_FILE")
-        mode, repo = argv[:2]
+        require(len(argv) == 3 and argv[0] == "reconcile",
+                "usage: native_dependabot_maintenance.py reconcile REPO OUTPUT_FILE")
+        _, repo, output = argv
         validate_repo(repo)
-        if mode == "inventory":
-            require(len(argv) == 2, "inventory takes only REPO")
-            result = inventory(repo)
-        else:
-            require(len(argv) == 3, "output file required")
-            request = read_request(argv[2], "native_action")
-            result = {"status": "no-request"} if request is None else reconcile(repo, request)
+        request = read_request(output, "native_action")
+        result = {"status": "no-request"} if request is None else reconcile(repo, request)
         print(json.dumps(result, sort_keys=True))
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
