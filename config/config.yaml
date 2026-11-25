@@ -1418,6 +1418,8 @@ clouds:
       # Hypershift Operator
       hypershift:
         limitClusterSizes: true
+        # CAPI v1beta2 storage migration rollout, wave 1: dev cloud only (CNTRLPLANE-5064)
+        additionalInstallArg: '--enable-cpo-overrides'
       # Admin API
       adminApi:
         cert:
