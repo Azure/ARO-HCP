@@ -23,10 +23,6 @@ spec:
   # Latency, Traffic) read velero_hcp_* series that are routed to the HCP
   # workspace and live in backup-slo-hcp-prometheusRule.yaml
   # (observability/alerts-rp-hcps.yaml).
-  #
-  # runbook_url points at the published runbook via the
-  # aka.ms/arohcp-runbook-backup short link (eng.ms Backup and Restore
-  # runbook), coordinated in #forum-aro-team / #external-wg-aro-hcp.
   - name: arohcp_backup_slo_storage_availability_alerts
     labels:
       component: slo
