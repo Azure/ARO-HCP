@@ -382,6 +382,11 @@ func artifactDir() string {
 }
 
 func pooledIdentities() bool {
+	// DO NOT MERGE: a canary outlives its lease; the next slot admission would
+	// remove the role assignments of pooled identities and break the cluster.
+	if StageCanaryEnabled() {
+		return false
+	}
 	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
 	return b
 }
