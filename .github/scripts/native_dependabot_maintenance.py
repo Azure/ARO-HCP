@@ -32,7 +32,6 @@ MAX_PATCH = 16 * 1024 * 1024
 # bounded publication text, 100 source identities, and JSON structure.
 MAX_REQUEST = 6 * MAX_PATCH + 256 * 1024
 REQUEST_FILE = "native-replacement-request.json"
-DETECTION_PATCH = "aw-native-replacement.patch"
 
 
 
@@ -725,52 +724,6 @@ def read_request(path, kind):
     return request
 
 
-def stage_detection(repo, output_file, detection_dir):
-    """Expand only the prepared detector copy with digest-verified publication data.
-
-    Run after prepare_threat_detection_files.sh, before the detector. Its pinned
-    consumer reads agent_output.json and top-level aw-*.patch files, not arbitrary
-    artifact JSON. The publisher still reads the untouched original digest record.
-    """
-    validate_repo(repo)
-    output_path = Path(output_file)
-    original = output_path.read_bytes()
-    request = read_request(output_file, "native_replacement")
-    require(output_path.read_bytes() == original, "agent output changed during detection staging")
-    if request is None:
-        return {"status": "no-request"}
-    output = json.loads(original)
-    item = next(item for item in output["items"] if item["type"] == "native_replacement")
-    item.update({"title": safe_text(request["title"], title=True),
-                 "body": safe_text(request["body"]),
-                 "source_prs": request["source_prs"],
-                 "expected_base_sha": request["expected_base_sha"]})
-    expanded = json.dumps(output, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    directory = os.open(detection_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        descriptor = os.open("agent_output.json", os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             dir_fd=directory)
-        with os.fdopen(descriptor, "r+b") as detector_output:
-            info = os.fstat(detector_output.fileno())
-            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
-                    "detector output must be a singly linked regular file")
-            original_info = output_path.stat()
-            require((info.st_dev, info.st_ino) != (original_info.st_dev, original_info.st_ino),
-                    "detector output must be a separate copy of original agent output")
-            require(json.loads(detector_output.read()) == json.loads(original),
-                    "prepared detector output does not match original agent output")
-            descriptor = os.open(DETECTION_PATCH, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                                 0o600, dir_fd=directory)
-            with os.fdopen(descriptor, "wb") as detector_patch:
-                detector_patch.write(request["patch"].encode("utf-8"))
-            detector_output.seek(0)
-            detector_output.truncate(0)
-            detector_output.write(expanded)
-    finally:
-        os.close(directory)
-    return {"status": "staged", "patch": DETECTION_PATCH}
-
-
 def patch_paths(patch):
     require(isinstance(patch, str) and 0 < len(patch.encode()) <= MAX_PATCH and "\x00" not in patch,
             "patch must be nonempty UTF-8 and at most 16 MiB")
@@ -1036,17 +989,14 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(bool(argv) and argv[0] in ("inventory", "stage-detection", "reconcile")
+        require(bool(argv) and argv[0] in ("inventory", "reconcile")
                 and len(argv) >= 2,
-                "usage: native_dependabot_maintenance.py inventory REPO | stage-detection REPO OUTPUT_FILE DETECTION_DIR | reconcile REPO OUTPUT_FILE")
+                "usage: native_dependabot_maintenance.py inventory REPO | reconcile REPO OUTPUT_FILE")
         mode, repo = argv[:2]
         validate_repo(repo)
         if mode == "inventory":
             require(len(argv) == 2, "inventory takes only REPO")
             result = inventory(repo)
-        elif mode == "stage-detection":
-            require(len(argv) == 4, "stage-detection requires REPO OUTPUT_FILE DETECTION_DIR")
-            result = stage_detection(repo, *argv[2:])
         else:
             require(len(argv) == 3, "output file required")
             request = read_request(argv[2], "native_action")
