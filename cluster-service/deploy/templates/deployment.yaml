@@ -43,6 +43,7 @@ spec:
             app: clusters-service
       serviceAccount: '{{ .Values.serviceAccountName }}'
       serviceAccountName: '{{ .Values.serviceAccountName }}'
+      priorityClassName: service-lifecycle-critical
       volumes:
       - name: service
         secret:

@@ -7916,6 +7916,7 @@ spec:
             app: clusters-service
       serviceAccount: 'clusters-service'
       serviceAccountName: 'clusters-service'
+      priorityClassName: service-lifecycle-critical
       volumes:
       - name: service
         secret:
