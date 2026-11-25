@@ -1,0 +1,306 @@
+# ExternalAuth latency SLO recording rules.
+#
+# Fraction of succeeded ExternalAuth operations that exceeded the per-verb
+# latency SLO, for operations whose terminal transition landed inside the
+# window. Alerts consume latency_total and latency_error_rate. Thresholds
+# match the ExternalAuth E2E timeouts:
+#   create 900s, update 600s, delete 900s.
+#
+# operation_type stays on the series so create, update, and delete burn
+# independently. The zero fallback pins a verb to 0 when succeeded samples
+# exist and none were slow, instead of dropping the series.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: externalauth-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: arohcp_externalauth_slo_latency_recording_rules
+    interval: 1m
+    rules:
+    # --- 1h window: succeeded within 3600s (fast-burn long window) ---
+    - record: errors:backend_externalauth_operation:latency_slow_1h
+      expr: |
+        (
+          count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})) < 3600
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+            ) > 600
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})) < 3600
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})) < 3600
+          )
+        )
+        or
+        0 * count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+        )
+    - record: errors:backend_externalauth_operation:latency_total_1h
+      expr: |
+        count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+          and
+          (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"})) < 3600
+        )
+    - record: errors:backend_externalauth_operation:latency_error_rate_1h
+      expr: |
+        errors:backend_externalauth_operation:latency_slow_1h
+        /
+        clamp_min(errors:backend_externalauth_operation:latency_total_1h, 1)
+    # --- 5m window: succeeded within 300s (fast-burn short window) ---
+    - record: errors:backend_externalauth_operation:latency_slow_5m
+      expr: |
+        (
+          count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})) < 300
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+            ) > 600
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})) < 300
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})) < 300
+          )
+        )
+        or
+        0 * count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+        )
+    - record: errors:backend_externalauth_operation:latency_total_5m
+      expr: |
+        count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+          and
+          (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"})) < 300
+        )
+    - record: errors:backend_externalauth_operation:latency_error_rate_5m
+      expr: |
+        errors:backend_externalauth_operation:latency_slow_5m
+        /
+        clamp_min(errors:backend_externalauth_operation:latency_total_5m, 1)
+    # --- 6h window: succeeded within 21600s (medium-burn long window) ---
+    - record: errors:backend_externalauth_operation:latency_slow_6h
+      expr: |
+        (
+          count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})) < 21600
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+            ) > 600
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})) < 21600
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})) < 21600
+          )
+        )
+        or
+        0 * count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+        )
+    - record: errors:backend_externalauth_operation:latency_total_6h
+      expr: |
+        count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+          and
+          (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"})) < 21600
+        )
+    - record: errors:backend_externalauth_operation:latency_error_rate_6h
+      expr: |
+        errors:backend_externalauth_operation:latency_slow_6h
+        /
+        clamp_min(errors:backend_externalauth_operation:latency_total_6h, 1)
+    # --- 30m window: succeeded within 1800s (medium-burn short window) ---
+    - record: errors:backend_externalauth_operation:latency_slow_30m
+      expr: |
+        (
+          count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})) < 1800
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+            ) > 600
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})) < 1800
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})) < 1800
+          )
+        )
+        or
+        0 * count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+        )
+    - record: errors:backend_externalauth_operation:latency_total_30m
+      expr: |
+        count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+          and
+          (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"})) < 1800
+        )
+    - record: errors:backend_externalauth_operation:latency_error_rate_30m
+      expr: |
+        errors:backend_externalauth_operation:latency_slow_30m
+        /
+        clamp_min(errors:backend_externalauth_operation:latency_total_30m, 1)
+    # --- 3d window: succeeded within 259200s (slow-burn window) ---
+    - record: errors:backend_externalauth_operation:latency_slow_3d
+      expr: |
+        (
+          count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded"})) < 259200
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})
+            ) > 600
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded"})) < 259200
+          )
+            or
+            count by (cluster, region, resource_type, operation_type) (
+            (
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+              -
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})
+            ) > 900
+            and
+            max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"}) == 1
+            and
+            (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="succeeded"})) < 259200
+          )
+        )
+        or
+        0 * count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+        )
+    - record: errors:backend_externalauth_operation:latency_total_3d
+      expr: |
+        count by (cluster, region, resource_type, operation_type) (
+          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"}) == 1
+          and
+          (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", phase="succeeded"})) < 259200
+        )
+    - record: errors:backend_externalauth_operation:latency_error_rate_3d
+      expr: |
+        errors:backend_externalauth_operation:latency_slow_3d
+        /
+        clamp_min(errors:backend_externalauth_operation:latency_total_3d, 1)
