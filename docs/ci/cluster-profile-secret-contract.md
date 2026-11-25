@@ -1,8 +1,16 @@
 # Cluster Profile Secret Contract
 
 CI steps mount their Azure credentials from the `hcm-aro` collection in the CI
-secret store. Each mounted group becomes a cluster profile directory,
-`/var/run/aro-hcp-<group>`, and a step selects one with `VAULT_SECRET_PROFILE`.
+secret store. A step that needs credentials declares the groups it mounts, one
+directory per group, and reads whichever mounted directory `VAULT_SECRET_PROFILE`
+selects. The mount is `/var/run/<group>` and the group name already carries the
+`aro-hcp-` prefix, so `aro-hcp-prod` is mounted at `/var/run/aro-hcp-prod` while
+the selector value is `prod`. The current step scripts derive the directory as
+`/var/run/aro-hcp-${VAULT_SECRET_PROFILE}`, which only works because every group
+is named after its selector with that one prefix; the mount itself is declared
+per step in `openshift/release`, so a step has to mount the group whose directory
+it reads.
+
 This page defines the supported shape of those profiles: which fields exist,
 which field a consumer is allowed to read, and how the fields relate to the
 runtime contract a job gets when it leases a slot.
@@ -12,6 +20,29 @@ ownership rules, is specified in the
 [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#runtime-contract).
 This page is the consumer-facing side of that contract: which profile fields
 back it, and which field reads are no longer allowed.
+
+## Groups And Profiles
+
+The collection holds one group per CI identity. The environment profiles
+(`aro-hcp-dev`, `aro-hcp-int-rh`, `aro-hcp-stg-rh`, `aro-hcp-prod-rh`) carry the
+Red Hat tenant bots that run the E2E and cleanup jobs for their environment, and
+[E2E Subscription Onboarding](e2e-subscription-onboarding.md) covers the
+subscription fields added to each one. The two groups below are the exception
+worth naming, because they hold the same application in the Microsoft Test Test
+tenant:
+
+| Group | Fields | Used by |
+| :---- | :----- | :------ |
+| `aro-hcp-prod` | `client-id`, `client-secret`, `tenant`, `customer-shard0-subscription-id`, `customer-shard0-subscription-name`, plus the transitional `subscription-id` and `subscription-name` | Jobs with `VAULT_SECRET_PROFILE=prod`: the PROD E2E and CAPZ jobs and the PROD cleanup periodics |
+| `aro-hcp-msft-test-tenant` | `client-id`, `client-secret`, `tenant` | The expired app-registration cleanup in the Test Test tenant. It holds the same application as `aro-hcp-prod`; once that cleanup reads `aro-hcp-prod` the group is deleted |
+
+The secret store cannot be read back: `sm describe` shows a secret's metadata
+only, never its value. See
+[adding a secret to CI GSM](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/).
+
+To confirm which profile a running job used, look for the acquisition line in
+its build log, for example `Acquired 1 lease(s) for aro-hcp-test-tenant-quota-slice`
+for a Test Test tenant job.
 
 ## Identity Fields
 
@@ -38,7 +69,7 @@ and a consumer reads the scope it needs rather than an unqualified key.
 | :------------ | :---- | :------ |
 | `infra-global-subscription-id`, `infra-global-subscription-name` | Shared global infrastructure (registry, Kusto, Key Vault, DNS) | Global pipeline, observability and snapshot steps that act outside a leased customer subscription |
 | `infra-<deploy-env>-subscription-id`, `infra-<deploy-env>-subscription-name` | One deployment environment's infrastructure footprint | Steps that operate on an environment's own infrastructure scope; slot acquisition also checks the environment binding against this field |
-| `customer-<shard>-subscription-id`, `customer-<shard>-subscription-name` | One customer shard, where E2E tests create their resource groups and clusters | Slot acquisition, the cleanup sweepers and the expired-resource-group periodics |
+| `customer-<shard>-subscription-id`, `customer-<shard>-subscription-name` | One customer shard, where E2E tests create their resource groups and clusters | Slot acquisition reads the `-name` half to choose the profile; the cleanup sweepers and expired-resource-group periodics read the `-id` half |
 
 `<deploy-env>` and `<shard>` are stable inventory identifiers. Never renumber a
 shard or repoint an environment to a different subscription while jobs depend on
@@ -47,9 +78,20 @@ deploy environment binds which infrastructure subscription belongs to the slot
 catalog, not to this page.
 
 Within a shard, the `-id` and `-name` entries must identify the same Azure
-subscription. Slot acquisition matches the catalog's subscription name against
-the shard names and then takes the ID from the matching shard, so a mismatched
-pair either fails acquisition or, worse, cleans the wrong subscription.
+subscription, because different consumers read different halves of the pair.
+Slot acquisition matches the catalog's subscription name against the
+`customer-<shard>-subscription-name` files to choose the profile directory, then
+resolves the ID through ARM by display name; it does not read the sibling
+`-id` file, so a mismatch is not caught at acquisition. The `-id` entry is what
+the cleanup sweepers and the expired-resource-group periodics target. A
+mismatched pair therefore passes acquisition and then cleans a different
+subscription than the job tested against, which is why the pair is added,
+changed and audited together.
+
+Slot-manager does read one binding from the profile: when a pool declares an
+infrastructure subscription, the resolved ID must match
+`infra-<deploy-env>-subscription-id` for the environment the slot runs in, and
+acquisition fails otherwise.
 
 ## Consumer Rules
 
@@ -79,11 +121,26 @@ purpose-qualified fields, the transitional fields are deleted from the profiles.
 
 ## Rotation
 
-Credential rotation patches only `client-id`, `client-secret` and `tenant`. It
-must preserve every subscription field, the shard pairs and the environment
-bindings in the same profile, because jobs select them by name and a rotation
-that rewrites them silently repoints CI. The rotation procedure itself lives in
-the [Test Tenant access SOP](../sops/test-test-tenant-access.md).
+Rotation replaces the **value** of `client-secret` and nothing else. It must not
+write `client-id` or `tenant`: those identify the application and its directory,
+they do not change when the secret does, and rewriting them repoints CI at a
+different identity. For the same reason every subscription field, shard pair and
+environment binding in the profile stays as it is.
+
+The procedure depends on the tenant that owns the identity, and the two are not
+interchangeable:
+
+| Profiles | Tenant | Procedure |
+| :------- | :----- | :-------- |
+| `dev`, `int-rh`, `stg-rh`, `prod-rh` | Red Hat tenant | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md). The applications and principals are managed by the DEV CI privileged entrypoint and their secrets by `tooling/entra-app-credentials`. |
+| `red-hat-tenant` | Red Hat tenant | The same procedure, but this profile holds a different application: it is not one of the four bots, so confirm its application and where its value is stored first, as that page describes. |
+| `prod`, `msft-test-tenant` | Microsoft Test Test tenant | [Rotating the CI Client Secret](../sops/test-test-tenant-access.md#rotating-the-ci-client-secret). The application is created and rotated by hand with `az`, and belongs to a tenant this repository has no pipeline for. |
+
+In both cases the new value reaches CI through the secret store, not through the
+step definitions: a rotated secret is published into the group's `client-secret`
+entry, and jobs pick it up on their next start. A job that is already running
+keeps using the secret it loaded, which is why the old credential is deleted only
+after a run started post-publication has passed and the older runs have drained.
 
 ## Adding A Subscription
 

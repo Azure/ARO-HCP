@@ -155,6 +155,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Setting up first-party, MSI mock, and ARM helper credentials for MSIT INT
 - [Test Tenant Access](sops/test-test-tenant-access.md)
   - Requesting access to the Test Test ARO tenant used for E2E in Stage and Prod
+- [Rotating CI Bot Credentials](sops/rotate-ci-bot-credentials.md)
+  - Rotating the Red Hat tenant CI bot client secrets that CI jobs authenticate with
 - [Grafana VPN Access](sops/grafana-vpn-access.md)
   - Troubleshooting access to Grafana instances when public network access is restricted
 
