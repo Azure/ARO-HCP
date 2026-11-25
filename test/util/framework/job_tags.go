@@ -17,7 +17,6 @@ package framework
 import (
 	"maps"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -66,43 +65,4 @@ func WithJobTags(tags map[string]*string) map[string]*string {
 		}
 	}
 	return tags
-}
-
-// addDeploymentJobTags supplies the opt-in template parameter and tags nested
-// deployments themselves (Bicep module declarations cannot specify tags).
-// The template and parameter maps are private to CreateBicepTemplateAndWait.
-func addDeploymentJobTags(template, parameters map[string]interface{}) {
-	tags := WithJobTags(map[string]*string{})
-	if definitions, ok := template["parameters"].(map[string]interface{}); ok {
-		if _, acceptsJobTags := definitions["jobTags"]; acceptsJobTags {
-			parameters["jobTags"] = map[string]interface{}{"value": tags}
-		}
-	}
-	var visit func(map[string]interface{})
-	visit = func(template map[string]interface{}) {
-		resources := deploymentTemplateResources(template)
-		for _, entry := range resources {
-			resource, ok := entry.(map[string]interface{})
-			if !ok || resource["type"] != "Microsoft.Resources/deployments" || resource["existing"] == true {
-				continue
-			}
-			resource["tags"] = tags
-			properties, _ := resource["properties"].(map[string]interface{})
-			nested, _ := properties["template"].(map[string]interface{})
-			visit(nested)
-		}
-	}
-	visit(template)
-}
-
-func deploymentTemplateResources(template map[string]interface{}) []interface{} {
-	switch resources := template["resources"].(type) {
-	case []interface{}:
-		return resources
-	case map[string]interface{}:
-		// ARM languageVersion 2.0 uses symbolic resource names as map keys.
-		return slices.Collect(maps.Values(resources))
-	default:
-		return nil
-	}
 }

@@ -214,7 +214,6 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	if err := json.Unmarshal(cfg.template, &bicepTemplateMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
 	}
-	addDeploymentJobTags(bicepTemplateMap, bicepParameters)
 
 	deploymentProperties := armresources.Deployment{
 		Tags:     WithJobTags(nil),

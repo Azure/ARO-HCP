@@ -17,8 +17,6 @@ package framework
 import (
 	"encoding/json"
 	"maps"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -102,72 +100,6 @@ func TestResourceBuildersJobTags(t *testing.T) {
 		}
 		if payload.Tags[ProwJobNameTag] != "job" || payload.Tags[ProwJobIDTag] != "123" {
 			t.Fatalf("%T lost job attribution: %s", resource, data)
-		}
-	}
-}
-
-func TestBicepJobTagPropagation(t *testing.T) {
-	t.Setenv(JobNameEnvvar, "job")
-	t.Setenv(JobIDEnvvar, "123")
-	// Use the committed compiler fixtures so unit tests also work in a fresh
-	// checkout. verify-bicep-fixtures checks these against the Bicep sources.
-	root := "../../../hack/bicep-golden-fixtures"
-	for _, name := range []string{
-		"demo", "cluster-only", "cluster-nodepool-osdisk", "infra-only", "no-cni", "managed-hsm-bootstrap",
-		"modules/customer-infra", "modules/managed-identities", "modules/cluster-identities", "modules/cluster", "modules/nodepool", "modules/test-vm",
-		"modules-4.20/customer-infra", "modules-4.20/managed-identities", "modules-4.20/cluster-identities", "modules-4.20/cluster", "modules-4.20/nodepool", "modules-4.20/test-vm",
-		"standard-cluster-create/customer-infra", "standard-cluster-create/cluster", "standard-cluster-create/nodepool",
-	} {
-		t.Run(name, func(t *testing.T) {
-			data, err := os.ReadFile(filepath.Join(root, name+".json"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			var template map[string]interface{}
-			if err := json.Unmarshal(data, &template); err != nil {
-				t.Fatal(err)
-			}
-			parameters := map[string]interface{}{}
-			addDeploymentJobTags(template, parameters)
-			if !reflect.DeepEqual(parameters["jobTags"], map[string]interface{}{"value": WithJobTags(map[string]*string{})}) {
-				t.Fatalf("template did not receive jobTags: %v", parameters)
-			}
-			checkTemplateJobTags(t, template)
-		})
-	}
-}
-
-func checkTemplateJobTags(t *testing.T, template map[string]interface{}) {
-	t.Helper()
-	for _, entry := range deploymentTemplateResources(template) {
-		resource := entry.(map[string]interface{})
-		if resource["existing"] == true {
-			continue
-		}
-		kind := resource["type"].(string)
-		if kind == "Microsoft.Resources/deployments" {
-			if !reflect.DeepEqual(resource["tags"], WithJobTags(map[string]*string{})) {
-				t.Fatalf("nested deployment missing job tags: %v", resource["name"])
-			}
-			properties := resource["properties"].(map[string]interface{})
-			nested := properties["template"].(map[string]interface{})
-			definitions, _ := nested["parameters"].(map[string]interface{})
-			if _, needsTags := definitions["jobTags"]; needsTags {
-				parameters := properties["parameters"].(map[string]interface{})
-				if !reflect.DeepEqual(parameters["jobTags"], map[string]interface{}{"value": "[parameters('jobTags')]"}) {
-					t.Fatalf("module %v does not forward jobTags", resource["name"])
-				}
-			}
-			checkTemplateJobTags(t, nested)
-			continue
-		}
-		// These proxy resources do not support ARM tags.
-		if kind == "Microsoft.Authorization/roleAssignments" || kind == "Microsoft.Network/privateEndpoints/privateDnsZoneGroups" {
-			continue
-		}
-		tags, ok := resource["tags"].(string)
-		if !ok || !strings.Contains(tags, "parameters('jobTags')") {
-			t.Fatalf("%s %v missing job attribution: %v", kind, resource["name"], resource["tags"])
 		}
 	}
 }

@@ -73,6 +73,7 @@ func (tc *perItOrDescribeTestContext) DeployTestVM(
 			WithScope(BicepDeploymentScopeResourceGroup),
 			WithClusterResourceGroup(resourceGroupName),
 			WithParameters(map[string]any{
+				"jobTags":      WithJobTags(map[string]*string{}),
 				"vmName":       vmName,
 				"vnetName":     vnetName,
 				"subnetName":   subnetName,

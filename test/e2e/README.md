@@ -332,9 +332,10 @@ Resource-group expiry and experimental-feature tags are preserved, and
 `cleanup --job-id run-123` uses the same job ID tag as before.
 
 When adding creation paths, use `framework.WithJobTags(existingTags)` for SDK
-resources. Bicep templates accept an optional `jobTags` object, which
-`CreateBicepTemplateAndWait` supplies automatically; forward it through modules
-that create taggable resources and merge it with any resource-specific tags.
+resources. By convention, Bicep deployment callers explicitly pass
+`"jobTags": framework.WithJobTags(map[string]*string{})` in their parameter map.
+Templates accept this optional object and forward it through modules that create
+taggable resources, merging it with any resource-specific tags.
 
 Experimental-feature tags use a separate namespace, for example
 `aro-hcp.experimental.cluster.size-override=Minimal` and

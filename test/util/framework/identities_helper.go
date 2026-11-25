@@ -251,6 +251,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 
 	parameters := map[string]interface{}{
 		"nsgName":                  cfg.parameters["nsgName"],
+		"jobTags":                  WithJobTags(map[string]*string{}),
 		"vnetName":                 cfg.parameters["vnetName"],
 		"subnetName":               cfg.parameters["subnetName"],
 		"keyVaultName":             cfg.parameters["keyVaultName"],

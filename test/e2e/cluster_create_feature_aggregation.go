@@ -149,6 +149,7 @@ var _ = Describe("Customer", func() {
 					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]any{
+						"jobTags":      framework.WithJobTags(map[string]*string{}),
 						"vmName":       vmName,
 						"vnetName":     clusterParams.VnetName,
 						"subnetName":   clusterParams.SubnetName,
