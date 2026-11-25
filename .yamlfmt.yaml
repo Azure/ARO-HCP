@@ -5,7 +5,8 @@ exclude:
 - '**/zz_fixture_*.yaml'
 - '.github/workflows/*.lock.yml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
-- 'image-registry-policy/values.yaml'
+- 'image-registry-policy/values-svc.yaml'
+- 'image-registry-policy/values-mgmt.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 formatter:
   type: basic

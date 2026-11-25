@@ -10,12 +10,18 @@ param ocpAcrSku = 'Premium'
 param ocpAcrUntaggedImagesRetentionEnabled = {{ .acr.ocp.untaggedImagesRetention.enabled }}
 param ocpAcrUntaggedImagesRetentionDays = {{ .acr.ocp.untaggedImagesRetention.days }}
 
+param ocpControlPlaneEmbargoAcrName = '{{ .acr.ocpControlPlaneEmbargo.name }}'
+param ocpControlPlaneEmbargoAcrSku = 'Premium'
+param ocpControlPlaneEmbargoAcrUntaggedImagesRetentionEnabled = {{ .acr.ocpControlPlaneEmbargo.untaggedImagesRetention.enabled }}
+param ocpControlPlaneEmbargoAcrUntaggedImagesRetentionDays = {{ .acr.ocpControlPlaneEmbargo.untaggedImagesRetention.days }}
+
 param globalMSIName = '{{ .global.globalMSIName }}'
 
 param location = '{{ .global.region }}'
 
 param svcAcrZoneRedundantMode = '{{ .acr.svc.zoneRedundantMode }}'
 param ocpAcrZoneRedundantMode = '{{ .acr.ocp.zoneRedundantMode }}'
+param ocpControlPlaneEmbargoAcrZoneRedundantMode = '{{ .acr.ocpControlPlaneEmbargo.zoneRedundantMode }}'
 
 param globalKeyVaultName = '{{ .global.keyVault.name}}'
 
@@ -28,3 +34,11 @@ param ocpAcrLogAnalyticsWorkspaceRetentionInDays = {{ .acr.ocp.diagnosticSetting
 
 param ocpAcrOverviewDashboardEnabled = {{ .acr.ocp.overviewDashboard.enabled }}
 param ocpAcrOverviewDashboardName = '{{ .acr.ocp.overviewDashboard.name }}'
+
+param ocpControlPlaneEmbargoAcrDiagnosticSettingsEnabled = {{ .acr.ocpControlPlaneEmbargo.diagnosticSettings.enabled }}
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceName = '{{ .acr.ocpControlPlaneEmbargo.diagnosticSettings.logAnalyticsWorkspace.name }}'
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceSku = '{{ .acr.ocpControlPlaneEmbargo.diagnosticSettings.logAnalyticsWorkspace.sku }}'
+param ocpControlPlaneEmbargoAcrLogAnalyticsWorkspaceRetentionInDays = {{ .acr.ocpControlPlaneEmbargo.diagnosticSettings.logAnalyticsWorkspace.retentionInDays }}
+
+param ocpControlPlaneEmbargoAcrOverviewDashboardEnabled = {{ .acr.ocpControlPlaneEmbargo.overviewDashboard.enabled }}
+param ocpControlPlaneEmbargoAcrOverviewDashboardName = '{{ .acr.ocpControlPlaneEmbargo.overviewDashboard.name }}'

@@ -1,0 +1,16 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: ocp-control-plane-embargo-pull-binding
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  acr:
+    environment: PublicCloud
+    server: '{{ .Values.ocpControlPlaneEmbargoPullBinding.registry }}'
+    scope: '{{ .Values.ocpControlPlaneEmbargoPullBinding.scope }}'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: operator
+      clientID: '{{ .Values.ocpControlPlaneEmbargoPullBinding.workloadIdentityClientId }}'
+      tenantID: '{{ .Values.ocpControlPlaneEmbargoPullBinding.workloadIdentityTenantId }}'
+  serviceAccountName: operator

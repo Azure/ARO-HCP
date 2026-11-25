@@ -25,6 +25,9 @@ param maestroConsumerCertSAN string
 @description('The issuer of the Maestro certificate.')
 param maestroCertIssuer string
 
+@description('The resource ID of the OCP control plane embargo ACR')
+param ocpControlPlaneEmbargoAcrResourceId string
+
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
 
@@ -89,6 +92,9 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+@description('The namespace of the HyperShift operator')
+param hypershiftNamespace string
+
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
@@ -143,7 +149,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   name: 'managed-identities'
   params: {
     location: location
-    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+    manageIdentityNames: map(filter(workloadIdentities, wi => !(wi.value.?pullOnly ?? false)), wi => wi.value.uamiName)
     useLeasedIdentities: useLeasedInfrastructureIdentities
     identityResourceGroupName: infrastructureIdentityResourceGroup
   }
@@ -180,6 +186,12 @@ var workloadIdentities = items({
     namespace: kubeApplierNamespace
     serviceAccountName: kubeApplierServiceAccountName
   }
+  hypershift_operator_wi: {
+    uamiName: 'hypershift-operator'
+    namespace: hypershiftNamespace
+    serviceAccountName: 'operator'
+    pullOnly: true
+  }
 })
 
 module aksPostConfig '../modules/aks-cluster-post.bicep' = {
@@ -188,7 +200,7 @@ module aksPostConfig '../modules/aks-cluster-post.bicep' = {
     aksClusterName: aksClusterName
     location: location
     deploymentMsiId: globalMSIId
-    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId, ocpControlPlaneEmbargoAcrResourceId]
     workloadIdentities: workloadIdentities
     useLeasedInfrastructureIdentities: useLeasedInfrastructureIdentities
     infrastructureIdentityResourceGroup: infrastructureIdentityResourceGroup

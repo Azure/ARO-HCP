@@ -62,6 +62,8 @@ var secretValidators = map[string]secretValidator{
 	"prow-token":                   {validate: validateJWT},
 	"quay-io-bearer":               {validate: validateNonEmptyString},
 	"quay-password":                {validate: validateNonEmptyString},
+	"quay-priv-password":           {validate: validateNonEmptyString},
+	"quay-priv-username":           {validate: validateNonEmptyString},
 	"quay-username":                {validate: validateNonEmptyString},
 	"redhat-pending-quay-password": {validate: validateNonEmptyString},
 	"redhat-pending-quay-username": {validate: validateNonEmptyString},

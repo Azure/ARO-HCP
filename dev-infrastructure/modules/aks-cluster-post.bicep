@@ -66,22 +66,28 @@ module acrPullRole 'acr/acr-permissions.bicep' = [
 //   W O R K L O A D   I D E N T I T I E S
 //
 
+// pullOnly workload identities have no managed identity of their own, they only
+// get a federated credential on the image-puller identity
+var managedWorkloadIdentities = filter(workloadIdentities, wi => !(wi.value.?pullOnly ?? false))
+
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = [
-  for wi in workloadIdentities: {
+  for wi in managedWorkloadIdentities: {
     name: wi.value.uamiName
   }
 ]
 
+// Federates each workload's own managed identity with its service account, so the
+// workload can authenticate to Azure. Runs over managedWorkloadIdentities only.
 resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
+  for i in range(0, length(managedWorkloadIdentities)): if (!useLeasedInfrastructureIdentities) {
     parent: uami[i]
-    name: '${workloadIdentities[i].value.uamiName}-${location}-fedcred'
+    name: '${managedWorkloadIdentities[i].value.uamiName}-${location}-fedcred'
     properties: {
       audiences: [
         'api://AzureADTokenExchange'
       ]
       issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
-      subject: 'system:serviceaccount:${workloadIdentities[i].value.namespace}:${workloadIdentities[i].value.serviceAccountName}'
+      subject: 'system:serviceaccount:${managedWorkloadIdentities[i].value.namespace}:${managedWorkloadIdentities[i].value.serviceAccountName}'
     }
   }
 ]
@@ -118,6 +124,8 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
   }
 ]
 
+// Federates the shared image-puller identity with each service account, so the ACR pull
+// controller can mint pull secrets for it. Runs over all workloadIdentities, pullOnly included.
 @batchSize(1)
 resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
   for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
