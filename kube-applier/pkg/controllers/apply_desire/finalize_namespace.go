@@ -43,6 +43,9 @@ var (
 	hostedClustersGVR = schema.GroupVersionResource{
 		Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters",
 	}
+	hostedControlPlanesGVR = schema.GroupVersionResource{
+		Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedcontrolplanes",
+	}
 )
 
 // finalizeRecheckPeriod is how long to wait before re-evaluating a
@@ -74,16 +77,6 @@ func finalizeBlocked(format string, args ...any) deleteEvaluation {
 	}
 }
 
-func finalizeLegacyOwnerResult(reason, message string, err error) deleteEvaluation {
-	return deleteEvaluation{
-		mutate: func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetNamespaceFinalizationBlocked(&d.Status.Conditions, reason, message)
-			conditions.SetDegraded(&d.Status.Conditions, err)
-		},
-		requeueAfter: finalizeRecheckPeriod,
-	}
-}
-
 // evaluateFinalizeNamespace runs the state machine for one ApplyDesire with
 // Type=FinalizeNamespace.
 //
@@ -100,7 +93,8 @@ func finalizeLegacyOwnerResult(reason, message string, err error) deleteEvaluati
 //  1. the pinned UID still matches — the namespace was not replaced;
 //  2. deletionTimestamp is set and older than MinimumDwell;
 //  3. spec.finalizers holds nothing but "kubernetes";
-//  4. the related HostedCluster is absent.
+//  4. the related parent object is absent: HostedControlPlane for the
+//     control-plane namespace, or HostedCluster for the HostedCluster namespace.
 //
 // Check 4 protects HostedCluster teardown, and it is why this cannot be a
 // flag on Delete: it has no meaning for an ordinary deletion.
@@ -124,9 +118,19 @@ func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d
 			errors.New("spec.targetItem requires name")))
 	}
 	relationship, err := fleetapihelpers.RelateHostedClusterNamespace(cfg.HostedClusterNamespace, cfg.HostedClusterName, "")
-	if err != nil || target.Name != cfg.HostedClusterNamespace {
+	if err != nil {
 		return finalizeSettled(conditions.NewPreCheckError(fmt.Errorf(
 			"invalid HostedCluster namespace relationship: %v", err)))
+	}
+	var namespaceRole string
+	switch target.Name {
+	case relationship.HostedClusterNamespace:
+		namespaceRole = "HostedClusterNamespace"
+	case relationship.ControlPlaneNamespace:
+		namespaceRole = "ControlPlaneNamespace"
+	default:
+		return finalizeSettled(conditions.NewPreCheckError(fmt.Errorf(
+			"target namespace %q is not the related HostedCluster or control-plane namespace", target.Name)))
 	}
 	// Refuse anything that is not a cluster-scoped core/v1 Namespace. This
 	// controller removes a finalizer from exactly one kind of object, and
@@ -187,19 +191,19 @@ func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d
 			target.Name, specFinalizers, kubernetesNamespaceFinalizer)
 	}
 
-	// 4. The HostedCluster must be gone. Even a deleting HostedCluster may still
-	// be running its finalizer and releasing Azure resources.
-	if blocked := c.hostedClusterBlocksFinalize(ctx, cfg); blocked != nil {
+	if blocked := c.parentObjectBlocksFinalize(ctx, cfg, namespaceRole); blocked != nil {
 		return *blocked
 	}
-	if blocker, err := c.legacyOwnerBlock(ctx, relationship.HostedClusterNamespace, relationship.ControlPlaneNamespace); err != nil {
-		return finalizeLegacyOwnerResult(kubeapplierapi.ConditionReasonLegacyOwnerLookupFailed,
-			fmt.Sprintf("legacy owner check failed: %v", err), err)
-	} else if blocker != "" {
-		return finalizeLegacyOwnerResult(kubeapplierapi.ConditionReasonLegacyOwnerPresent,
-			fmt.Sprintf("%s; resolve it before finalizing the namespace", blocker), nil)
+	if namespaceRole == "HostedClusterNamespace" {
+		_, err := namespaces.Get(ctx, relationship.ControlPlaneNamespace, metav1.GetOptions{})
+		if err == nil {
+			return finalizeBlocked("control-plane namespace %q still exists", relationship.ControlPlaneNamespace)
+		}
+		if !apierrors.IsNotFound(err) {
+			return finalizeBlocked("could not confirm control-plane namespace absence: %v", err)
+		}
 	}
-	if blocker := namespaceInventoryBlock(got); blocker != "" {
+	if blocker := namespaceInventoryBlock(got); len(blocker) != 0 {
 		return finalizeBlocked("namespace %q inventory is not clear: %s", target.Name, blocker)
 	}
 
@@ -234,16 +238,25 @@ func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d
 	return finalizeBlocked("namespace %q still present immediately after finalize; re-checking", target.Name)
 }
 
-// hostedClusterBlocksFinalize returns a blocking evaluation while the
-// associated HostedCluster still exists. A nil return means it is absent.
-//
-// A read failure blocks rather than passes. A failed lookup is never evidence
-// of absence, and this is the last gate before an irreversible mutation.
-func (c *ApplyDesireController) hostedClusterBlocksFinalize(ctx context.Context, cfg *kubeapplierapi.FinalizeNamespaceConfig) *deleteEvaluation {
+func (c *ApplyDesireController) parentObjectBlocksFinalize(ctx context.Context, cfg *kubeapplierapi.FinalizeNamespaceConfig, namespaceRole string) *deleteEvaluation {
 	if len(cfg.HostedClusterNamespace) == 0 || len(cfg.HostedClusterName) == 0 {
 		blocked := finalizeSettled(conditions.NewPreCheckError(
 			errors.New("spec.finalizeNamespace.hostedClusterNamespace and hostedClusterName are required")))
 		return &blocked
+	}
+
+	if namespaceRole == "ControlPlaneNamespace" {
+		hostedControlPlanes, err := listAll(ctx, c.dyn.Resource(hostedControlPlanesGVR).Namespace(cfg.HostedClusterNamespace+"-"+cfg.HostedClusterName))
+		if err != nil {
+			blocked := finalizeBlocked(
+				"could not list HostedControlPlanes in control-plane namespace to confirm absence: %v", err)
+			return &blocked
+		}
+		if len(hostedControlPlanes) > 0 {
+			blocked := finalizeBlocked("HostedControlPlane %q in control-plane namespace still exists; waiting for its removal before namespace finalization", hostedControlPlanes[0].GetName())
+			return &blocked
+		}
+		return nil
 	}
 
 	hostedClusters, err := listAll(ctx, c.dyn.Resource(hostedClustersGVR).Namespace(cfg.HostedClusterNamespace))

@@ -23,13 +23,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
+	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -91,7 +91,7 @@ func (s *namespaceDeletionSyncer) observeNamespaceTarget(
 
 	obj := &unstructured.Unstructured{}
 	if err := obj.UnmarshalJSON(raw); err != nil {
-		return namespaceObservation{}, fmt.Errorf("decode observed namespace: %w", err)
+		return namespaceObservation{}, utils.TrackError(fmt.Errorf("decode observed namespace: %w", err))
 	}
 
 	observation := namespaceObservation{
@@ -147,7 +147,7 @@ func (s *namespaceDeletionSyncer) observeHostedCluster(
 
 	obj := &unstructured.Unstructured{}
 	if err := obj.UnmarshalJSON(raw); err != nil {
-		return hostedClusterObservation{}, fmt.Errorf("decode observed HostedCluster: %w", err)
+		return hostedClusterObservation{}, utils.TrackError(fmt.Errorf("decode observed HostedCluster: %w", err))
 	}
 
 	observation := hostedClusterObservation{
@@ -195,8 +195,8 @@ func (s *namespaceDeletionSyncer) ensureReadDesire(
 		return nil, observationPending, utils.TrackError(err)
 	}
 	if kubeApplierClient == nil {
-		return nil, observationPending, fmt.Errorf(
-			"kube-applier Cosmos client not available for management cluster %q", key.StampIdentifier)
+		return nil, observationPending, utils.TrackError(fmt.Errorf(
+			"kube-applier Cosmos client not available for management cluster %q", key.StampIdentifier))
 	}
 
 	crud, err := kubeApplierClient.ReadDesiresForManagementCluster(key.StampIdentifier)

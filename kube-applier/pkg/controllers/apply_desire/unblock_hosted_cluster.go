@@ -41,10 +41,19 @@ var capiFinalizerTargets = []struct {
 	{schema.GroupVersionResource{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "machines"}, "machine.cluster.x-k8s.io"},
 	{schema.GroupVersionResource{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "machinesets"}, "cluster.x-k8s.io/machineset"},
 	{schema.GroupVersionResource{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "machinedeployments"}, "cluster.x-k8s.io/machinedeployment"},
-	{schema.GroupVersionResource{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "clusters"}, "cluster.cluster.x-k8s.io"},
 }
 
-var nodePoolsGVR = schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "nodepools"}
+var (
+	deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	clustersGVR    = schema.GroupVersionResource{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "clusters"}
+	nodePoolsGVR   = schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "nodepools"}
+)
+
+const (
+	hypershiftComponentFinalizer = "hypershift.openshift.io/component-finalizer"
+	hypershiftFinalizer          = "hypershift.openshift.io/finalizer"
+	clusterFinalizer             = "cluster.cluster.x-k8s.io"
+)
 
 func unblockResult(status metav1.ConditionStatus, reason, message string, err error, requeue bool) deleteEvaluation {
 	result := deleteEvaluation{mutate: func(d *kubeapplierapi.ApplyDesire) {
@@ -74,14 +83,13 @@ func unblockError(err error) deleteEvaluation {
 }
 
 // evaluateUnblockHostedCluster handles only objects that already have a
-// deletionTimestamp. It removes one known finalizer at a time, from worker
-// CAPI resources, NodePools, then HostedCluster. HostedControlPlane and the
-// control-plane namespace are never patched by this operation.
+// deletionTimestamp. It removes one known finalizer layer at a time, retiring
+// the control plane before the HostedCluster namespace teardown can continue.
 func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context, d *kubeapplierapi.ApplyDesire) deleteEvaluation {
 	cfg := d.Spec.UnblockHostedCluster
 	target := d.Spec.TargetItem
-	if cfg == nil || cfg.NamespaceUID == "" || cfg.HostedClusterUID == "" || cfg.HostedClusterName == "" ||
-		target.Group != "" || target.Version != "v1" || target.Resource != "namespaces" || target.Namespace != "" {
+	if cfg == nil || len(cfg.NamespaceUID) == 0 || len(cfg.HostedClusterUID) == 0 || len(cfg.HostedClusterName) == 0 ||
+		len(target.Group) != 0 || target.Version != "v1" || target.Resource != "namespaces" || len(target.Namespace) != 0 {
 		return unblockBlocked("invalid UnblockHostedCluster identity or namespace target")
 	}
 	relationship, err := fleetapihelpers.RelateHostedClusterNamespace(target.Name, cfg.HostedClusterName, "")
@@ -100,18 +108,12 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 		return unblockError(fmt.Errorf("get HostedCluster namespace: %w", err))
 	}
 	if string(ns.GetUID()) != cfg.NamespaceUID {
-		return unblockBlocked("HostedCluster namespace UID changed from %q to %q", cfg.NamespaceUID, ns.GetUID())
+		return unblockRecreated("HostedCluster namespace UID changed from %q to %q", cfg.NamespaceUID, ns.GetUID())
 	}
 	deletedAt := ns.GetDeletionTimestamp()
 	if deletedAt == nil || time.Since(deletedAt.Time) < cfg.MinimumDwell.Duration {
 		return unblockBlocked("HostedCluster namespace is not Terminating beyond the required dwell")
 	}
-	if blocker, err := c.legacyOwnerBlock(ctx, relationship.HostedClusterNamespace, relationship.ControlPlaneNamespace); err != nil {
-		return unblockError(err)
-	} else if blocker != "" {
-		return unblockBlocked("%s; cleanup must stop", blocker)
-	}
-
 	hostedClusters, err := listAll(ctx, c.dyn.Resource(hostedClustersGVR).Namespace(target.Name))
 	if err != nil {
 		return unblockError(fmt.Errorf("list HostedClusters: %w", err))
@@ -121,7 +123,7 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 	}
 	if len(hostedClusters) != 1 || hostedClusters[0].GetName() != cfg.HostedClusterName ||
 		string(hostedClusters[0].GetUID()) != cfg.HostedClusterUID {
-		return unblockBlocked("HostedCluster identity in namespace %q differs from the pinned name and UID", target.Name)
+		return unblockRecreated("HostedCluster identity in namespace %q differs from the pinned name and UID", target.Name)
 	}
 	hc := &hostedClusters[0]
 	if hc.GetDeletionTimestamp() == nil {
@@ -133,9 +135,14 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 		return unblockError(fmt.Errorf("get control-plane namespace: %w", err))
 	}
 	if err == nil {
-		if cfg.ControlPlaneNamespaceUID == "" || string(cpNamespace.GetUID()) != cfg.ControlPlaneNamespaceUID ||
-			cpNamespace.GetDeletionTimestamp() == nil {
+		if len(cfg.ControlPlaneNamespaceUID) == 0 {
 			return unblockBlocked("control-plane namespace %q is not the pinned Terminating namespace", relationship.ControlPlaneNamespace)
+		}
+		if string(cpNamespace.GetUID()) != cfg.ControlPlaneNamespaceUID {
+			return unblockRecreated("control-plane namespace %q UID changed from %q to %q", relationship.ControlPlaneNamespace, cfg.ControlPlaneNamespaceUID, cpNamespace.GetUID())
+		}
+		if cpNamespace.GetDeletionTimestamp() == nil {
+			return unblockBlocked("control-plane namespace %q is not Terminating", relationship.ControlPlaneNamespace)
 		}
 		clusterID := clusterIDFromNamespace(target.Name)
 		for _, entry := range capiFinalizerTargets {
@@ -144,8 +151,8 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 				return unblockError(fmt.Errorf("list %s: %w", entry.gvr.Resource, err))
 			}
 			for _, object := range objects {
-				if !belongsToCluster(&object, entry.gvr.Resource, clusterID, cfg.HostedClusterName) {
-					return unblockBlocked("unexpected %s %q in control-plane namespace", entry.gvr.Resource, object.GetName())
+				if !belongsToCluster(&object, clusterID, cfg.HostedClusterName) {
+					return unblockRecreated("unexpected %s %q in control-plane namespace", entry.gvr.Resource, object.GetName())
 				}
 				if result := clearExpectedFinalizer(ctx, c.dyn.Resource(entry.gvr).Namespace(relationship.ControlPlaneNamespace), &object, entry.finalizer); result != nil {
 					return *result
@@ -154,6 +161,78 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 			if len(objects) > 0 {
 				return unblockWaiting("waiting for %s in control-plane namespace to disappear before clearing parent finalizers", entry.gvr.Resource)
 			}
+		}
+
+		// These Deployments lack CAPI ownership metadata, so match by name in the pinned namespace.
+		deployments, err := listAll(ctx, c.dyn.Resource(deploymentsGVR).Namespace(relationship.ControlPlaneNamespace))
+		if err != nil {
+			return unblockError(fmt.Errorf("list Deployments: %w", err))
+		}
+		knownComponentDeploymentPresent := false
+		for _, deployment := range deployments {
+			finalizers := deployment.GetFinalizers()
+			knownName := deployment.GetName() == "capi-provider" || deployment.GetName() == "cluster-api"
+			if containsString(finalizers, hypershiftComponentFinalizer) && (!knownName || len(finalizers) != 1) {
+				return unblockRecreated("Deployment %q in control-plane namespace is not owned by this cleanup request", deployment.GetName())
+			}
+			if !knownName {
+				continue
+			}
+			knownComponentDeploymentPresent = true
+			if containsString(finalizers, hypershiftComponentFinalizer) {
+				if result := clearExpectedFinalizer(ctx, c.dyn.Resource(deploymentsGVR).Namespace(relationship.ControlPlaneNamespace), &deployment, hypershiftComponentFinalizer); result != nil {
+					return *result
+				}
+			}
+		}
+		if knownComponentDeploymentPresent {
+			return unblockWaiting("waiting for capi-provider and cluster-api Deployments in control-plane namespace to disappear")
+		}
+
+		clusters, err := listAll(ctx, c.dyn.Resource(clustersGVR).Namespace(relationship.ControlPlaneNamespace))
+		if err != nil {
+			return unblockError(fmt.Errorf("list CAPI Clusters: %w", err))
+		}
+		for _, cluster := range clusters {
+			if cluster.GetName() != clusterID {
+				return unblockRecreated("unexpected CAPI Cluster %q in control-plane namespace", cluster.GetName())
+			}
+			if result := clearExpectedFinalizer(ctx, c.dyn.Resource(clustersGVR).Namespace(relationship.ControlPlaneNamespace), &cluster, clusterFinalizer); result != nil {
+				return *result
+			}
+		}
+		if len(clusters) > 0 {
+			return unblockWaiting("waiting for the CAPI Cluster to disappear before clearing HostedControlPlane finalizers")
+		}
+
+		hcps, err := listAll(ctx, c.dyn.Resource(hostedControlPlanesGVR).Namespace(relationship.ControlPlaneNamespace))
+		if err != nil {
+			return unblockError(fmt.Errorf("list HostedControlPlanes: %w", err))
+		}
+		for _, hcp := range hcps {
+			if hcp.GetName() != cfg.HostedClusterName || !createdBeforeDeletion(&hcp, deletedAt) || !hostedControlPlaneOwnedByCluster(&hcp, clusterID) {
+				return unblockRecreated("HostedControlPlane %q does not match the pinned cleanup identity", hcp.GetName())
+			}
+			if result := clearExpectedFinalizer(ctx, c.dyn.Resource(hostedControlPlanesGVR).Namespace(relationship.ControlPlaneNamespace), &hcp, hypershiftFinalizer); result != nil {
+				return *result
+			}
+		}
+		if len(hcps) > 0 {
+			return unblockWaiting("waiting for HostedControlPlane to disappear before clearing NodePool finalizers")
+		}
+
+		// NodePools and the HostedCluster cannot be touched while this
+		// namespace remains, even if all known control-plane layers are gone.
+		cpNamespace, err = c.dyn.Resource(namespacesGVR).Get(ctx, relationship.ControlPlaneNamespace, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			cpNamespace = nil
+		} else if err != nil {
+			return unblockError(fmt.Errorf("recheck control-plane namespace: %w", err))
+		} else if len(cfg.ControlPlaneNamespaceUID) == 0 || string(cpNamespace.GetUID()) != cfg.ControlPlaneNamespaceUID {
+			return unblockRecreated("control-plane namespace %q was recreated during cleanup", relationship.ControlPlaneNamespace)
+		}
+		if cpNamespace != nil {
+			return unblockControlPlaneWaiting("known control-plane layers are gone; waiting for control-plane namespace %q to disappear", relationship.ControlPlaneNamespace)
 		}
 	}
 
@@ -164,26 +243,58 @@ func (c *ApplyDesireController) evaluateUnblockHostedCluster(ctx context.Context
 	for _, nodePool := range nodePools {
 		clusterName, _, _ := unstructured.NestedString(nodePool.Object, "spec", "clusterName")
 		if clusterName != cfg.HostedClusterName {
-			return unblockBlocked("NodePool %q belongs to unexpected HostedCluster %q", nodePool.GetName(), clusterName)
+			return unblockRecreated("NodePool %q belongs to unexpected HostedCluster %q", nodePool.GetName(), clusterName)
 		}
-		if result := clearExpectedFinalizer(ctx, c.dyn.Resource(nodePoolsGVR).Namespace(target.Name), &nodePool, "hypershift.openshift.io/finalizer"); result != nil {
+		if result := clearExpectedFinalizer(ctx, c.dyn.Resource(nodePoolsGVR).Namespace(target.Name), &nodePool, hypershiftFinalizer); result != nil {
 			return *result
 		}
 	}
 	if len(nodePools) > 0 {
 		return unblockWaiting("waiting for NodePools to disappear before clearing HostedCluster finalizer")
 	}
-	if result := clearExpectedFinalizer(ctx, c.dyn.Resource(hostedClustersGVR).Namespace(target.Name), hc, "hypershift.openshift.io/finalizer"); result != nil {
+	if result := clearExpectedFinalizer(ctx, c.dyn.Resource(hostedClustersGVR).Namespace(target.Name), hc, hypershiftFinalizer); result != nil {
 		return *result
 	}
 	return unblockWaiting("HostedCluster finalizer is clear; waiting for object removal")
 }
 
-func belongsToCluster(object *unstructured.Unstructured, kind, clusterID, hostedClusterName string) bool {
-	if kind == "clusters" {
-		return object.GetName() == clusterID
+func containsString(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
 	}
-	if label := object.GetLabels()["cluster.x-k8s.io/cluster-name"]; label != "" {
+	return false
+}
+
+func createdBeforeDeletion(object *unstructured.Unstructured, deletionTimestamp *metav1.Time) bool {
+	created := object.GetCreationTimestamp()
+	return deletionTimestamp != nil && !created.IsZero() && created.Before(deletionTimestamp)
+}
+
+func hostedControlPlaneOwnedByCluster(hcp *unstructured.Unstructured, clusterID string) bool {
+	owners := hcp.GetOwnerReferences()
+	if len(owners) == 0 {
+		return true
+	}
+	for _, owner := range owners {
+		if owner.Kind == "Cluster" && owner.Name == clusterID {
+			return true
+		}
+	}
+	return false
+}
+
+func unblockRecreated(format string, args ...any) deleteEvaluation {
+	return unblockResult(metav1.ConditionFalse, kubeapplierapi.ConditionReasonRecreatedDuringCleanup, fmt.Sprintf(format, args...), nil, true)
+}
+
+func unblockControlPlaneWaiting(format string, args ...any) deleteEvaluation {
+	return unblockResult(metav1.ConditionFalse, kubeapplierapi.ConditionReasonWaitingForControlPlaneNamespace, fmt.Sprintf(format, args...), nil, true)
+}
+
+func belongsToCluster(object *unstructured.Unstructured, clusterID, hostedClusterName string) bool {
+	if label := object.GetLabels()["cluster.x-k8s.io/cluster-name"]; len(label) != 0 {
 		return label == clusterID
 	}
 	return strings.HasPrefix(object.GetName(), hostedClusterName+"-")

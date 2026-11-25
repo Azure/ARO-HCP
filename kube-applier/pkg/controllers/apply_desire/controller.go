@@ -25,9 +25,9 @@
 //     reports WaitingForDeletion until the target disappears (finalizers
 //     complete).
 //   - Type=FinalizeNamespace: clears the built-in finalizer only after live
-//     namespace inventory and ownership preconditions pass.
+//     namespace inventory and role-specific parent-object checks pass.
 //   - Type=UnblockHostedCluster: clears known finalizers on an already deleting
-//     HostedCluster teardown chain after live identity and legacy-owner checks.
+//     HostedCluster teardown chain after live identity checks.
 //
 // The outcome is recorded on .status.conditions: ["SuccessfullyApplied"] for
 // ServerSideApply or ["SuccessfullyDeleted"] for Delete, the legacy

@@ -30,10 +30,10 @@ import (
 func ValidateNamespaceDeletionCreate(_ context.Context, request *fleetapi.NamespaceDeletion) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, validateNamespaceDeletionSpec(request)...)
-	if request.Spec.RetryGeneration != 0 || request.Spec.RetryReason != "" {
+	if request.Spec.RetryGeneration != 0 || len(request.Spec.RetryReason) != 0 {
 		errs = append(errs, field.Forbidden(field.NewPath("spec", "retryGeneration"), "retry is available only for an existing stopped request"))
 	}
-	if request.Status.AttemptGeneration != 0 || request.Status.AttemptReason != "" || len(request.Status.PreviousAttempts) != 0 {
+	if request.Status.AttemptGeneration != 0 || len(request.Status.AttemptReason) != 0 || len(request.Status.PreviousAttempts) != 0 {
 		errs = append(errs, field.Forbidden(field.NewPath("status", "attemptGeneration"), "attempt state is controller-owned"))
 	}
 
@@ -50,7 +50,7 @@ func ValidateNamespaceDeletionCreate(_ context.Context, request *fleetapi.Namesp
 		{"controlPlaneNamespaceUID", request.Status.ControlPlaneNamespaceUID},
 		{"cleanupIntent", request.Status.CleanupIntent},
 	} {
-		if value.data != "" {
+		if len(value.data) != 0 {
 			errs = append(errs, field.Forbidden(field.NewPath("status", value.name), "set by the controller"))
 		}
 	}
@@ -88,7 +88,7 @@ func ValidateNamespaceDeletionUpdate(_ context.Context, newRequest, oldRequest *
 			oldRequest.Spec.RetryGeneration != oldRequest.Status.AttemptGeneration ||
 			!apimeta.IsStatusConditionTrue(oldRequest.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped) ||
 			apimeta.IsStatusConditionTrue(oldRequest.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionComplete) ||
-			oldRequest.Status.CompletedAt == nil || newRequest.Spec.RetryReason == "" ||
+			oldRequest.Status.CompletedAt == nil || len(newRequest.Spec.RetryReason) == 0 ||
 			newRequest.Status.AttemptGeneration != oldRequest.Status.AttemptGeneration {
 			errs = append(errs, field.Invalid(specPath.Child("retryGeneration"), newRequest.Spec.RetryGeneration, "retry must advance one stopped, settled attempt with a reason"))
 		}
@@ -100,7 +100,7 @@ func ValidateNamespaceDeletionUpdate(_ context.Context, newRequest, oldRequest *
 			newRequest.Status.AttemptGeneration != newRequest.Spec.RetryGeneration ||
 			!apimeta.IsStatusConditionTrue(oldRequest.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped) ||
 			oldRequest.Status.CompletedAt == nil || newRequest.Status.CompletedAt != nil || len(newRequest.Status.Conditions) != 0 ||
-			newRequest.Status.CleanupIntent != "" ||
+			len(newRequest.Status.CleanupIntent) != 0 ||
 			newRequest.Status.AttemptReason != newRequest.Spec.RetryReason ||
 			!validNamespaceDeletionAttemptArchive(newRequest, oldRequest) {
 			errs = append(errs, field.Invalid(field.NewPath("status", "attemptGeneration"), newRequest.Status.AttemptGeneration, "new attempt must archive and reset the settled attempt"))
@@ -121,14 +121,19 @@ func ValidateNamespaceDeletionUpdate(_ context.Context, newRequest, oldRequest *
 		{"hostedClusterUID", oldRequest.Status.HostedClusterUID, newRequest.Status.HostedClusterUID},
 		{"controlPlaneNamespaceUID", oldRequest.Status.ControlPlaneNamespaceUID, newRequest.Status.ControlPlaneNamespaceUID},
 	} {
-		if value.old != "" && value.new != value.old {
+		if len(value.old) != 0 && value.new != value.old {
 			errs = append(errs, field.Invalid(field.NewPath("status", value.name), value.new, "UID is immutable once pinned"))
 		}
 	}
 	if newRequest.Status.CleanupIntent != oldRequest.Status.CleanupIntent && newRequest.Status.AttemptGeneration == oldRequest.Status.AttemptGeneration {
-		if oldRequest.Status.CleanupIntent != "" &&
-			(oldRequest.Status.CleanupIntent != "UnblockHostedCluster" || newRequest.Status.CleanupIntent != "FinalizeNamespace") {
-			errs = append(errs, field.Invalid(field.NewPath("status", "cleanupIntent"), newRequest.Status.CleanupIntent, "cleanup intent may only advance to FinalizeNamespace"))
+		validNextIntent := map[string]string{
+			"":                              "UnblockHostedCluster",
+			"UnblockHostedCluster":          "FinalizeControlPlaneNamespace",
+			"FinalizeNamespace":             "FinalizeControlPlaneNamespace",
+			"FinalizeControlPlaneNamespace": "FinalizeHostedClusterNamespace",
+		}
+		if next, ok := validNextIntent[oldRequest.Status.CleanupIntent]; !ok || next != newRequest.Status.CleanupIntent {
+			errs = append(errs, field.Invalid(field.NewPath("status", "cleanupIntent"), newRequest.Status.CleanupIntent, "cleanup intent may only advance through UnblockHostedCluster, FinalizeControlPlaneNamespace, and FinalizeHostedClusterNamespace"))
 		}
 	}
 

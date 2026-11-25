@@ -34,6 +34,9 @@ import (
 func unblockListKinds() map[schema.GroupVersionResource]string {
 	kinds := finalizeListKinds()
 	kinds[nodePoolsGVR] = "NodePoolList"
+	kinds[deploymentsGVR] = "DeploymentList"
+	kinds[clustersGVR] = "ClusterList"
+	kinds[hostedControlPlanesGVR] = "HostedControlPlaneList"
 	for _, target := range capiFinalizerTargets {
 		switch target.gvr.Resource {
 		case "machines":
@@ -42,8 +45,6 @@ func unblockListKinds() map[schema.GroupVersionResource]string {
 			kinds[target.gvr] = "MachineSetList"
 		case "machinedeployments":
 			kinds[target.gvr] = "MachineDeploymentList"
-		case "clusters":
-			kinds[target.gvr] = "ClusterList"
 		}
 	}
 	return kinds
@@ -74,32 +75,45 @@ func unblockDesire() *kubeapplierapi.ApplyDesire {
 	}}
 }
 
-func TestUnblockHostedClusterClearsOnlyExpectedDeletingObjects(t *testing.T) {
+func TestUnblockHostedClusterDrainsOneLayerAtATimeAcrossNamespaces(t *testing.T) {
 	ctx := context.Background()
 	cpNamespaceName := finalizeTestHCNS + "-" + finalizeTestHCName
 	cpNamespace := deletingObject("v1", "Namespace", cpNamespaceName, "", "33333333-3333-3333-3333-333333333333", "kubernetes")
+	clusterID := clusterIDFromNamespace(finalizeTestHCNS)
 	machine := deletingObject("cluster.x-k8s.io/v1beta1", "Machine", finalizeTestHCName+"-np1-machine", cpNamespaceName,
 		"44444444-4444-4444-4444-444444444444", "machine.cluster.x-k8s.io")
-	np := deletingObject("hypershift.openshift.io/v1beta1", "NodePool", finalizeTestHCName+"-np1", finalizeTestHCNS,
-		"55555555-5555-5555-5555-555555555555", "hypershift.openshift.io/finalizer")
-	_ = unstructured.SetNestedField(np.Object, finalizeTestHCName, "spec", "clusterName")
+	deployment := deletingObject("apps/v1", "Deployment", "capi-provider", cpNamespaceName,
+		"66666666-6666-6666-6666-666666666666", hypershiftComponentFinalizer)
+	cluster := deletingObject("cluster.x-k8s.io/v1beta1", "Cluster", clusterID, cpNamespaceName,
+		"77777777-7777-7777-7777-777777777777", clusterFinalizer)
+	hcp := deletingObject("hypershift.openshift.io/v1beta1", "HostedControlPlane", finalizeTestHCName, cpNamespaceName,
+		"88888888-8888-8888-8888-888888888888", hypershiftFinalizer)
+	_ = unstructured.SetNestedField(hcp.Object, time.Now().Add(-3*time.Hour).UTC().Format(time.RFC3339), "metadata", "creationTimestamp")
+	_ = unstructured.SetNestedSlice(hcp.Object, []any{map[string]any{
+		"apiVersion": "cluster.x-k8s.io/v1beta1", "kind": "Cluster", "name": clusterID, "uid": "77777777-7777-7777-7777-777777777777",
+	}}, "metadata", "ownerReferences")
+	nodePool := deletingObject("hypershift.openshift.io/v1beta1", "NodePool", finalizeTestHCName+"-np1", finalizeTestHCNS,
+		"55555555-5555-5555-5555-555555555555", hypershiftFinalizer)
+	_ = unstructured.SetNestedField(nodePool.Object, finalizeTestHCName, "spec", "clusterName")
 	hc := hostedCluster(true)
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(),
-		terminatingNamespace(nil), cpNamespace, machine, np, hc)
+		terminatingNamespace(nil), cpNamespace, machine, deployment, cluster, hcp, nodePool, hc)
 	controller := &ApplyDesireController{dyn: dyn}
 	desire := unblockDesire()
+	var condition *metav1.Condition
 
 	for _, step := range []struct {
 		resource schema.GroupVersionResource
 		ns, name string
 	}{
 		{capiFinalizerTargets[0].gvr, cpNamespaceName, machine.GetName()},
-		{nodePoolsGVR, finalizeTestHCNS, np.GetName()},
-		{hostedClustersGVR, finalizeTestHCNS, hc.GetName()},
+		{deploymentsGVR, cpNamespaceName, deployment.GetName()},
+		{clustersGVR, cpNamespaceName, cluster.GetName()},
+		{hostedControlPlanesGVR, cpNamespaceName, hcp.GetName()},
 	} {
 		evaluation := controller.evaluateUnblockHostedCluster(ctx, desire)
 		evaluation.mutate(desire)
-		condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+		condition = apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
 		require.Equal(t, metav1.ConditionFalse, condition.Status)
 		updated, err := dyn.Resource(step.resource).Namespace(step.ns).Get(ctx, step.name, metav1.GetOptions{})
 		require.NoError(t, err)
@@ -112,51 +126,122 @@ func TestUnblockHostedClusterClearsOnlyExpectedDeletingObjects(t *testing.T) {
 	}
 	evaluation := controller.evaluateUnblockHostedCluster(ctx, desire)
 	evaluation.mutate(desire)
-	condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+	condition = apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+	require.Equal(t, kubeapplierapi.ConditionReasonWaitingForControlPlaneNamespace, condition.Reason)
+	require.Contains(t, condition.Message, cpNamespaceName)
+	nodePoolBeforeCPRemoval, err := dyn.Resource(nodePoolsGVR).Namespace(finalizeTestHCNS).Get(ctx, nodePool.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{hypershiftFinalizer}, nodePoolBeforeCPRemoval.GetFinalizers(), "NodePools must not be touched while the control-plane namespace exists")
+	hcBeforeCPRemoval, err := dyn.Resource(hostedClustersGVR).Namespace(finalizeTestHCNS).Get(ctx, hc.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{hypershiftFinalizer}, hcBeforeCPRemoval.GetFinalizers(), "the HostedCluster must not be touched while the control-plane namespace exists")
+	_, err = dyn.Resource(namespacesGVR).Get(ctx, cpNamespaceName, metav1.GetOptions{})
+	require.NoError(t, err, "the controller must wait for the control-plane namespace to disappear")
+	require.NoError(t, dyn.Resource(namespacesGVR).Delete(ctx, cpNamespaceName, metav1.DeleteOptions{}))
+
+	for _, step := range []struct {
+		resource schema.GroupVersionResource
+		ns, name string
+	}{
+		{nodePoolsGVR, finalizeTestHCNS, nodePool.GetName()},
+		{hostedClustersGVR, finalizeTestHCNS, hc.GetName()},
+	} {
+		evaluation = controller.evaluateUnblockHostedCluster(ctx, desire)
+		evaluation.mutate(desire)
+		condition = apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+		require.Equal(t, metav1.ConditionFalse, condition.Status)
+		updated, err := dyn.Resource(step.resource).Namespace(step.ns).Get(ctx, step.name, metav1.GetOptions{})
+		require.NoError(t, err)
+		require.Empty(t, updated.GetFinalizers())
+		evaluation = controller.evaluateUnblockHostedCluster(ctx, desire)
+		evaluation.mutate(desire)
+		require.NoError(t, dyn.Resource(step.resource).Namespace(step.ns).Delete(ctx, step.name, metav1.DeleteOptions{}))
+	}
+	evaluation = controller.evaluateUnblockHostedCluster(ctx, desire)
+	evaluation.mutate(desire)
+	condition = apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
 	require.Equal(t, metav1.ConditionTrue, condition.Status)
 	legacy := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	require.NotNil(t, legacy)
 	require.Equal(t, condition.Status, legacy.Status)
 	require.Equal(t, condition.Reason, legacy.Reason)
-	_, err := dyn.Resource(namespacesGVR).Get(ctx, cpNamespaceName, metav1.GetOptions{})
-	require.NoError(t, err, "the control-plane namespace must not be modified")
 }
 
-func TestUnblockHostedClusterStopsOnUnexpectedHostedCluster(t *testing.T) {
-	hc := hostedCluster(true)
-	hc.SetUID("replacement")
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(), terminatingNamespace(nil), hc)
-	desire := unblockDesire()
-	evaluation := (&ApplyDesireController{dyn: dyn}).evaluateUnblockHostedCluster(context.Background(), desire)
-	evaluation.mutate(desire)
-	condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
-	require.Equal(t, "PreconditionFailed", condition.Reason)
-	legacy := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
-	require.NotNil(t, legacy)
-	require.Equal(t, condition.Status, legacy.Status)
-	require.Equal(t, condition.Reason, legacy.Reason)
-	require.Contains(t, condition.Message, "identity")
-	require.Equal(t, []string{"hypershift.openshift.io/finalizer"}, hc.GetFinalizers())
-}
+func TestUnblockHostedClusterAcceptsFixedComponentDeploymentsAndRejectsUnrelated(t *testing.T) {
+	ctx := context.Background()
+	cpNamespaceName := finalizeTestHCNS + "-" + finalizeTestHCName
+	cpNamespace := deletingObject("v1", "Namespace", cpNamespaceName, "", "33333333-3333-3333-3333-333333333333", "kubernetes")
+	for _, name := range []string{"capi-provider", "cluster-api"} {
+		t.Run(name, func(t *testing.T) {
+			deployment := deletingObject("apps/v1", "Deployment", name, cpNamespaceName, "dep-uid", hypershiftComponentFinalizer)
+			dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(),
+				terminatingNamespace(nil), cpNamespace.DeepCopy(), deployment, hostedCluster(true))
+			evaluation := (&ApplyDesireController{dyn: dyn}).evaluateUnblockHostedCluster(ctx, unblockDesire())
+			require.NotNil(t, evaluation.mutate)
+			updated, err := dyn.Resource(deploymentsGVR).Namespace(cpNamespaceName).Get(ctx, name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Empty(t, updated.GetFinalizers())
+		})
+	}
 
-func TestUnblockHostedClusterStopsOnManifestWork(t *testing.T) {
-	hc := hostedCluster(true)
-	work := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "work.open-cluster-management.io/v1", "kind": "ManifestWork",
-		"metadata": map[string]any{
-			"name":      clusterIDFromNamespace(finalizeTestHCNS) + "-00-hcp-namespaces",
-			"namespace": "local-cluster",
-		},
-	}}
+	unrelated := deletingObject("apps/v1", "Deployment", "unrelated", cpNamespaceName, "dep-uid", hypershiftComponentFinalizer)
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(),
-		terminatingNamespace(nil), hc, work)
+		terminatingNamespace(nil), cpNamespace.DeepCopy(), unrelated, hostedCluster(true))
+	desire := unblockDesire()
+	evaluation := (&ApplyDesireController{dyn: dyn}).evaluateUnblockHostedCluster(ctx, desire)
+	evaluation.mutate(desire)
+	condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+	require.Equal(t, kubeapplierapi.ConditionReasonRecreatedDuringCleanup, condition.Reason)
+	require.Contains(t, condition.Message, "not owned")
+	updated, err := dyn.Resource(deploymentsGVR).Namespace(cpNamespaceName).Get(ctx, unrelated.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{hypershiftComponentFinalizer}, updated.GetFinalizers())
+}
+
+func TestUnblockHostedClusterStopsWhenControlPlaneNamespaceUIDChanges(t *testing.T) {
+	cpNamespaceName := finalizeTestHCNS + "-" + finalizeTestHCName
+	cpNamespace := deletingObject("v1", "Namespace", cpNamespaceName, "", "replacement-uid", "kubernetes")
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(),
+		terminatingNamespace(nil), cpNamespace, hostedCluster(true))
 	desire := unblockDesire()
 	evaluation := (&ApplyDesireController{dyn: dyn}).evaluateUnblockHostedCluster(context.Background(), desire)
 	evaluation.mutate(desire)
 	condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
-	require.Equal(t, "PreconditionFailed", condition.Reason)
-	require.Contains(t, condition.Message, "ManifestWork")
-	updated, err := dyn.Resource(hostedClustersGVR).Namespace(finalizeTestHCNS).Get(context.Background(), hc.GetName(), metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Equal(t, hc.GetFinalizers(), updated.GetFinalizers(), "a surviving ManifestWork must prevent finalizer removal")
+	require.Equal(t, kubeapplierapi.ConditionReasonRecreatedDuringCleanup, condition.Reason)
+	require.Contains(t, condition.Message, "UID changed")
+}
+
+func TestUnblockHostedClusterRejectsHostedControlPlaneOwnerMismatchAndRecreation(t *testing.T) {
+	ctx := context.Background()
+	cpNamespaceName := finalizeTestHCNS + "-" + finalizeTestHCName
+	cpNamespace := deletingObject("v1", "Namespace", cpNamespaceName, "", "33333333-3333-3333-3333-333333333333", "kubernetes")
+	clusterID := clusterIDFromNamespace(finalizeTestHCNS)
+	for _, tc := range []struct {
+		name   string
+		mutate func(*unstructured.Unstructured)
+	}{
+		{name: "wrong owner", mutate: func(hcp *unstructured.Unstructured) {
+			_ = unstructured.SetNestedSlice(hcp.Object, []any{map[string]any{"kind": "Cluster", "name": "other-cluster"}}, "metadata", "ownerReferences")
+		}},
+		{name: "recreated after request", mutate: func(hcp *unstructured.Unstructured) {
+			_ = unstructured.SetNestedField(hcp.Object, time.Now().UTC().Format(time.RFC3339), "metadata", "creationTimestamp")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hcp := deletingObject("hypershift.openshift.io/v1beta1", "HostedControlPlane", finalizeTestHCName, cpNamespaceName, "hcp-uid", hypershiftFinalizer)
+			_ = unstructured.SetNestedField(hcp.Object, time.Now().Add(-3*time.Hour).UTC().Format(time.RFC3339), "metadata", "creationTimestamp")
+			_ = unstructured.SetNestedSlice(hcp.Object, []any{map[string]any{"kind": "Cluster", "name": clusterID}}, "metadata", "ownerReferences")
+			tc.mutate(hcp)
+			dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), unblockListKinds(),
+				terminatingNamespace(nil), cpNamespace.DeepCopy(), hcp, hostedCluster(true))
+			desire := unblockDesire()
+			evaluation := (&ApplyDesireController{dyn: dyn}).evaluateUnblockHostedCluster(ctx, desire)
+			evaluation.mutate(desire)
+			condition := apiMeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+			require.Equal(t, kubeapplierapi.ConditionReasonRecreatedDuringCleanup, condition.Reason)
+			hcpUpdated, err := dyn.Resource(hostedControlPlanesGVR).Namespace(cpNamespaceName).Get(ctx, hcp.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, []string{hypershiftFinalizer}, hcpUpdated.GetFinalizers())
+		})
+	}
 }

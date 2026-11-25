@@ -89,7 +89,7 @@ func TestValidateNamespaceDeletionCreate(t *testing.T) {
 
 			errs := ValidateNamespaceDeletionCreate(context.Background(), request)
 
-			if tc.wantErr == "" {
+			if len(tc.wantErr) == 0 {
 				require.Empty(t, errs, "expected no validation errors, got %v", errs)
 				return
 			}
@@ -170,6 +170,32 @@ func TestValidateNamespaceDeletionUpdateRejectsRetargetedHostedCluster(t *testin
 
 	errs := ValidateNamespaceDeletionUpdate(context.Background(), updated, old)
 	require.Contains(t, errs.ToAggregate().Error(), "UID is immutable once pinned")
+}
+
+func TestValidateNamespaceDeletionCleanupIntentAdvancesInOrder(t *testing.T) {
+	for _, transition := range []struct{ current, next string }{
+		{"", "UnblockHostedCluster"},
+		{"UnblockHostedCluster", "FinalizeControlPlaneNamespace"},
+		{"FinalizeNamespace", "FinalizeControlPlaneNamespace"},
+		{"FinalizeControlPlaneNamespace", "FinalizeHostedClusterNamespace"},
+	} {
+		old := validRequest()
+		old.Status.CleanupIntent = transition.current
+		updated := old.DeepCopy()
+		updated.Status.CleanupIntent = transition.next
+		require.Empty(t, ValidateNamespaceDeletionUpdate(context.Background(), updated, old),
+			"intent transition %q to %q must be allowed", transition.current, transition.next)
+	}
+
+	old := validRequest()
+	updated := old.DeepCopy()
+	updated.Status.CleanupIntent = "FinalizeHostedClusterNamespace"
+	require.Contains(t, ValidateNamespaceDeletionUpdate(context.Background(), updated, old).ToAggregate().Error(), "cleanup intent may only advance")
+
+	old.Status.CleanupIntent = "FinalizeControlPlaneNamespace"
+	updated = old.DeepCopy()
+	updated.Status.CleanupIntent = "UnblockHostedCluster"
+	require.Contains(t, ValidateNamespaceDeletionUpdate(context.Background(), updated, old).ToAggregate().Error(), "cleanup intent may only advance")
 }
 
 func TestValidateNamespaceDeletionRetryTransition(t *testing.T) {

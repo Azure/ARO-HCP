@@ -50,16 +50,17 @@ const (
 	// +k8s:unionMember
 	ApplyDesireTypeFinalizeNamespace ApplyDesireType = "FinalizeNamespace"
 
-	// ApplyDesireTypeUnblockHostedCluster removes only known finalizers from an
-	// already deleting orphaned HostedCluster and its NodePool/CAPI teardown
-	// chain. It never touches HostedControlPlane.
+	// ApplyDesireTypeUnblockHostedCluster drains known CAPI, HyperShift
+	// control-plane, NodePool, and HostedCluster finalizer layers from an
+	// already deleting cluster. It retires the control-plane namespace before
+	// continuing into the HostedCluster namespace.
 	// +k8s:unionMember
 	ApplyDesireTypeUnblockHostedCluster ApplyDesireType = "UnblockHostedCluster"
 )
 
 // ApplyDesire holds a single management-cluster intent. The .spec.type field
 // discriminates between apply, delete, namespace finalization, and the
-// narrowly scoped stuck HostedCluster finalizer cleanup.
+// narrowly scoped stuck HostedCluster and control-plane finalizer cleanup.
 //
 // Deleting an ApplyDesire from Cosmos has no effect on the kube object that
 // was applied or deleted. To stop reconciliation, remove the desire document.
@@ -96,8 +97,9 @@ type ApplyDesire struct {
 //     ServerSideApply must be nil. The controller clears the "kubernetes"
 //     finalizer from an already-Terminating namespace.
 //   - Type=UnblockHostedCluster: the UnblockHostedCluster field must be
-//     non-nil. It identifies one already-Terminating HostedCluster namespace
-//     and the exact HostedCluster UID whose teardown may be unblocked.
+//     non-nil. It identifies the already-Terminating HostedCluster and
+//     control-plane namespaces and the exact HostedCluster UID whose teardown
+//     may be unblocked.
 //
 // +k8s:discriminator=Type
 type ApplyDesireSpec struct {
@@ -179,14 +181,15 @@ type FinalizeNamespaceConfig struct {
 	// resources, manufacturing the orphan this capability exists to clean up.
 	MinimumDwell metav1.Duration `json:"minimumDwell"`
 
-	// HostedClusterNamespace and HostedClusterName identify the HostedCluster
-	// associated with the target namespace, so that the controller can re-check
-	// its absence against the live API immediately before finalizing.
+	// HostedClusterNamespace and HostedClusterName identify both namespaces in
+	// the cleanup relationship. The target role is derived from targetItem.name:
+	// the control-plane namespace requires HostedControlPlane absence. The
+	// HostedCluster namespace requires both HostedCluster and control-plane namespace absence.
 	//
 	// A HostedCluster may still be releasing Azure resources after its
 	// deletionTimestamp is set. A ReadDesire observation is not guaranteed
-	// fresh at mutation time, so any HostedCluster still present blocks the
-	// namespace finalization here.
+	// fresh at mutation time, so the live parent object for the derived target
+	// namespace must be absent before finalization.
 	//
 	HostedClusterNamespace string `json:"hostedClusterNamespace"`
 

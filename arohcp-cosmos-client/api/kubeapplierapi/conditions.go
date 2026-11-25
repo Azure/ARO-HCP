@@ -88,13 +88,14 @@ const (
 	// namespace to force progress.
 	ConditionReasonFinalizePreconditionFailed = "FinalizePreconditionFailed"
 
-	// ConditionReasonLegacyOwnerPresent means a ManifestWork or
-	// ManagedClusterAddon still owns the target namespace.
-	ConditionReasonLegacyOwnerPresent = "LegacyOwnerPresent"
+	// ConditionReasonWaitingForControlPlaneNamespace means all known
+	// control-plane finalizer layers are clear and kube-applier is waiting for
+	// the namespace controller to remove the control-plane namespace.
+	ConditionReasonWaitingForControlPlaneNamespace = "WaitingForControlPlaneNamespace"
 
-	// ConditionReasonLegacyOwnerLookupFailed means the live owner inventory
-	// failed, so absence has not been established and the check must retry.
-	ConditionReasonLegacyOwnerLookupFailed = "LegacyOwnerLookupFailed"
+	// ConditionReasonRecreatedDuringCleanup means a live object no longer has
+	// the identity derived from the pinned request and must not be modified.
+	ConditionReasonRecreatedDuringCleanup = "RecreatedDuringCleanup"
 
 	// ConditionReasonNoErrors is the success reason matching the existing controller
 	// convention (see backend's controllerutils.ReportSyncError).

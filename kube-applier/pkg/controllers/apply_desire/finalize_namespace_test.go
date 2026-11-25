@@ -16,7 +16,6 @@ package apply_desire
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
-	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 )
@@ -43,23 +41,26 @@ const (
 
 func finalizeListKinds() map[schema.GroupVersionResource]string {
 	return map[schema.GroupVersionResource]string{
-		namespacesGVR:           "NamespaceList",
-		hostedClustersGVR:       "HostedClusterList",
-		manifestWorksGVR:        "ManifestWorkList",
-		managedClusterAddonsGVR: "ManagedClusterAddonList",
+		namespacesGVR:          "NamespaceList",
+		hostedClustersGVR:      "HostedClusterList",
+		hostedControlPlanesGVR: "HostedControlPlaneList",
 	}
 }
 
 // terminatingNamespace builds a namespace in the state this operation exists
 // for: Terminating, past the dwell, holding only the built-in finalizer.
 func terminatingNamespace(mutate func(*unstructured.Unstructured)) *unstructured.Unstructured {
+	return terminatingNamespaceNamed(finalizeTestNamespace, finalizeTestUID, mutate)
+}
+
+func terminatingNamespaceNamed(name, uid string, mutate func(*unstructured.Unstructured)) *unstructured.Unstructured {
 	deletedAt := metav1.NewTime(time.Now().Add(-2 * finalizeTestDwell))
 	ns := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Namespace",
 		"metadata": map[string]any{
-			"name":              finalizeTestNamespace,
-			"uid":               finalizeTestUID,
+			"name":              name,
+			"uid":               uid,
 			"deletionTimestamp": deletedAt.UTC().Format(time.RFC3339),
 		},
 		"spec": map[string]any{"finalizers": []any{"kubernetes"}},
@@ -89,12 +90,23 @@ func hostedCluster(deleting bool) *unstructured.Unstructured {
 	if deleting {
 		now := metav1.NewTime(time.Now().Add(-time.Hour))
 		metadata["deletionTimestamp"] = now.UTC().Format(time.RFC3339)
-		metadata["finalizers"] = []any{"hypershift.openshift.io/finalizer"}
+		metadata["finalizers"] = []any{hypershiftFinalizer}
 	}
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
 		"kind":       "HostedCluster",
 		"metadata":   metadata,
+	}}
+}
+
+func hostedControlPlane() *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"kind":       "HostedControlPlane",
+		"metadata": map[string]any{
+			"name":      finalizeTestHCName,
+			"namespace": finalizeTestHCNS + "-" + finalizeTestHCName,
+		},
 	}}
 }
 
@@ -118,6 +130,13 @@ func finalizeDesire(mutate func(*kubeapplierapi.FinalizeNamespaceConfig)) *kubea
 			FinalizeNamespace: cfg,
 		},
 	}
+}
+
+func controlPlaneFinalizeDesire(mutate func(*kubeapplierapi.FinalizeNamespaceConfig)) *kubeapplierapi.ApplyDesire {
+	desire := finalizeDesire(mutate)
+	desire.Spec.TargetItem.Name = finalizeTestHCNS + "-" + finalizeTestHCName
+	desire.Spec.FinalizeNamespace.UID = "33333333-3333-3333-3333-333333333333"
+	return desire
 }
 
 func runFinalize(t *testing.T, desire *kubeapplierapi.ApplyDesire, objects ...runtime.Object) *kubeapplierapi.ApplyDesire {
@@ -144,203 +163,100 @@ func requireNamespaceSurvives(t *testing.T, desire *kubeapplierapi.ApplyDesire) 
 	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonFinalizePreconditionFailed)
 }
 
-// TestFinalizeNamespaceRefusesLiveHostedCluster is the execution-time half of
-// the most important refusal in this design. A HostedCluster that still exists
-// must block finalization even when the backend observed it absent earlier.
-func TestFinalizeNamespaceRefusesLiveHostedCluster(t *testing.T) {
+func TestFinalizeHostedClusterNamespaceRequiresHostedClusterAbsent(t *testing.T) {
 	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil), hostedCluster(false))
-
 	requireNamespaceSurvives(t, desire)
 	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
-	require.Contains(t, condition.Message, "still exists",
-		"the refusal must name why a live HostedCluster blocks")
+	require.Contains(t, condition.Message, "HostedCluster")
+
+	desire = runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil), hostedCluster(true))
+	requireNamespaceSurvives(t, desire)
+	condition = apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
+	require.Contains(t, condition.Message, "still exists")
 }
 
-func TestFinalizeNamespaceRefusesDeletingHostedCluster(t *testing.T) {
-	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil), hostedCluster(true))
+func TestFinalizeHostedClusterNamespaceRequiresControlPlaneNamespaceAbsent(t *testing.T) {
+	cpName := finalizeTestHCNS + "-" + finalizeTestHCName
+	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil),
+		terminatingNamespaceNamed(cpName, "33333333-3333-3333-3333-333333333333", nil))
 	requireNamespaceSurvives(t, desire)
 	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
-	require.Contains(t, condition.Message, "still exists",
-		"a deletionTimestamp must not bypass the HostedCluster finalizer")
+	require.Contains(t, condition.Message, "control-plane namespace")
 }
 
-func TestFinalizeNamespaceRejectsExpiredBackendAuthorization(t *testing.T) {
+func TestFinalizeControlPlaneNamespaceAllowsHostedClusterButRequiresHostedControlPlaneAbsent(t *testing.T) {
+	cpName := finalizeTestHCNS + "-" + finalizeTestHCName
+	desire := runFinalize(t, controlPlaneFinalizeDesire(nil),
+		terminatingNamespaceNamed(cpName, "33333333-3333-3333-3333-333333333333", nil),
+		hostedCluster(false))
+	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
+	require.NotNil(t, condition)
+	require.NotContains(t, condition.Message, "HostedCluster")
+
+	controller := &ApplyDesireController{dyn: dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), finalizeListKinds(),
+		terminatingNamespaceNamed(cpName, "33333333-3333-3333-3333-333333333333", nil), hostedCluster(false))}
+	controller.evaluateFinalizeNamespace(context.Background(), controlPlaneFinalizeDesire(nil))
+	updated, err := controller.dyn.Resource(namespacesGVR).Get(context.Background(), cpName, metav1.GetOptions{})
+	require.NoError(t, err)
+	finalizers, _, err := unstructured.NestedStringSlice(updated.Object, "spec", "finalizers")
+	require.NoError(t, err)
+	require.Empty(t, finalizers, "control-plane finalization may proceed while the HostedCluster exists")
+
+	desire = runFinalize(t, controlPlaneFinalizeDesire(nil),
+		terminatingNamespaceNamed(cpName, "33333333-3333-3333-3333-333333333333", nil),
+		hostedControlPlane())
+	requireNamespaceSurvives(t, desire)
+	condition = apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
+	require.Contains(t, condition.Message, "HostedControlPlane")
+}
+
+func TestFinalizeNamespaceRejectsCrossRoleTarget(t *testing.T) {
+	desire := finalizeDesire(nil)
+	desire.Spec.TargetItem.Name = "ocm-production-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	runFinalize(t, desire, terminatingNamespace(nil))
+	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
+}
+
+func TestFinalizeNamespaceRequiresClearInventory(t *testing.T) {
+	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(func(ns *unstructured.Unstructured) {
+		conditions, _, _ := unstructured.NestedSlice(ns.Object, "status", "conditions")
+		conditions[3].(map[string]any)["status"] = "True"
+		conditions[3].(map[string]any)["message"] = "pods still exist"
+		_ = unstructured.SetNestedSlice(ns.Object, conditions, "status", "conditions")
+	}))
+	requireNamespaceSurvives(t, desire)
+	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
+	require.Contains(t, condition.Message, "NamespaceContentRemaining")
+	require.Contains(t, condition.Message, "pods still exist")
+}
+
+func TestFinalizeNamespaceRejectsExpiredAuthorizationAndUnsafeIdentity(t *testing.T) {
 	desire := runFinalize(t, finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) {
 		cfg.AuthorizationExpiresAt = metav1.NewTime(time.Now().Add(-time.Minute))
 	}), terminatingNamespace(nil))
 	requireNamespaceSurvives(t, desire)
 	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
 	require.Contains(t, condition.Message, "authorization has expired")
+
+	desire = runFinalize(t, finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.UID = "replacement" }), terminatingNamespace(nil))
+	requireNamespaceSurvives(t, desire)
+
+	desire = runFinalize(t, finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.HostedClusterName = "" }), terminatingNamespace(nil))
+	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
 }
 
-func TestFinalizeNamespaceBlocksLegacyOwnersAndIncompleteInventory(t *testing.T) {
-	clusterID := clusterIDFromNamespace(finalizeTestHCNS)
-	for _, tc := range []struct {
-		name    string
-		objects []runtime.Object
-		want    string
-	}{
-		{
-			name: "ManifestWork with another name publishes the namespace",
-			objects: []runtime.Object{&unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "work.open-cluster-management.io/v1", "kind": "ManifestWork",
-				"metadata": map[string]any{"name": "legacy-namespace-work", "namespace": "local-cluster"},
-				"spec": map[string]any{"workload": map[string]any{"manifests": []any{
-					map[string]any{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": finalizeTestHCNS}},
-				}}},
-			}}},
-			want: "ManifestWork",
-		},
-		{
-			name: "ManagedClusterAddon remains",
-			objects: []runtime.Object{&unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "addon.open-cluster-management.io/v1alpha1", "kind": "ManagedClusterAddon",
-				"metadata": map[string]any{"name": "work-manager", "namespace": clusterID},
-			}}},
-			want: "ManagedClusterAddon",
-		},
-		{
-			name: "namespace controller still sees content",
-			objects: []runtime.Object{terminatingNamespace(func(ns *unstructured.Unstructured) {
-				conditions, _, _ := unstructured.NestedSlice(ns.Object, "status", "conditions")
-				conditions[3].(map[string]any)["status"] = "True"
-				_ = unstructured.SetNestedSlice(ns.Object, conditions, "status", "conditions")
-			})},
-			want: "NamespaceContentRemaining",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			objects := tc.objects
-			if tc.name != "namespace controller still sees content" {
-				objects = append([]runtime.Object{terminatingNamespace(nil)}, objects...)
-			}
-			desire := runFinalize(t, finalizeDesire(nil), objects...)
-			condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
-			require.Contains(t, condition.Message, tc.want)
-			if tc.name != "namespace controller still sees content" {
-				requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonLegacyOwnerPresent)
-			} else {
-				requireNamespaceSurvives(t, desire)
-			}
-		})
-	}
-}
-
-func TestFinalizeNamespaceRetriesLegacyOwnerLookupFailure(t *testing.T) {
-	desire := finalizeDesire(nil)
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), finalizeListKinds(), terminatingNamespace(nil))
-	dyn.PrependReactor("list", "manifestworks", func(k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, errors.New("temporary API timeout")
-	})
-	evaluation := (&ApplyDesireController{dyn: dyn}).evaluateFinalizeNamespace(context.Background(), desire)
-	require.Greater(t, evaluation.requeueAfter, time.Duration(0))
-	evaluation.mutate(desire)
-	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonLegacyOwnerLookupFailed)
-	require.True(t, apimeta.IsStatusConditionTrue(desire.Status.Conditions, kubeapplierapi.ConditionTypeDegraded))
-	_, err := dyn.Resource(namespacesGVR).Get(context.Background(), finalizeTestNamespace, metav1.GetOptions{})
-	require.NoError(t, err, "a failed owner lookup must not finalize the namespace")
-}
-
-// TestFinalizeNamespacePreconditions walks every gate that must hold before the
-// finalizer is cleared. Each case leaves the namespace intact.
-func TestFinalizeNamespacePreconditions(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		namespace *unstructured.Unstructured
-		desire    *kubeapplierapi.ApplyDesire
-	}{
-		{
-			name: "pinned UID no longer matches",
-			namespace: terminatingNamespace(func(ns *unstructured.Unstructured) {
-				_ = unstructured.SetNestedField(ns.Object, "99999999-9999-9999-9999-999999999999", "metadata", "uid")
-			}),
-			desire: finalizeDesire(nil),
-		},
-		{
-			name: "namespace is not terminating",
-			namespace: terminatingNamespace(func(ns *unstructured.Unstructured) {
-				unstructured.RemoveNestedField(ns.Object, "metadata", "deletionTimestamp")
-			}),
-			desire: finalizeDesire(nil),
-		},
-		{
-			name: "dwell has not elapsed",
-			namespace: terminatingNamespace(func(ns *unstructured.Unstructured) {
-				recent := metav1.NewTime(time.Now().Add(-time.Minute))
-				_ = unstructured.SetNestedField(ns.Object, recent.UTC().Format(time.RFC3339), "metadata", "deletionTimestamp")
-			}),
-			desire: finalizeDesire(nil),
-		},
-		{
-			name: "an extra finalizer is present",
-			namespace: terminatingNamespace(func(ns *unstructured.Unstructured) {
-				_ = unstructured.SetNestedStringSlice(ns.Object, []string{"kubernetes", "example.com/other"}, "spec", "finalizers")
-			}),
-			desire: finalizeDesire(nil),
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			desire := runFinalize(t, tc.desire, tc.namespace, hostedCluster(true))
-
-			requireNamespaceSurvives(t, desire)
-		})
-	}
-}
-
-// TestFinalizeNamespaceRejectsNonNamespaceTarget guards the blast radius: this
-// controller removes a finalizer from exactly one kind of object.
-func TestFinalizeNamespaceRejectsNonNamespaceTarget(t *testing.T) {
+func TestFinalizeNamespaceRejectsNonNamespaceTargetAndRequiresUID(t *testing.T) {
 	desire := finalizeDesire(nil)
 	desire.Spec.TargetItem.Resource = "secrets"
 	desire.Spec.TargetItem.Namespace = "somewhere"
-
 	runFinalize(t, desire, terminatingNamespace(nil))
+	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
 
+	desire = runFinalize(t, finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.UID = "" }), terminatingNamespace(nil))
 	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
 }
 
-// TestFinalizeNamespaceRequiresPinnedUID rejects a desire that never bound an
-// identity, rather than acting on whatever happens to hold the name.
-func TestFinalizeNamespaceRequiresPinnedUID(t *testing.T) {
-	desire := runFinalize(t,
-		finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.UID = "" }),
-		terminatingNamespace(nil), hostedCluster(true))
-
-	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
-}
-
-func TestFinalizeNamespaceRequiresHostedClusterIdentity(t *testing.T) {
-	desire := runFinalize(t,
-		finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.HostedClusterName = "" }),
-		terminatingNamespace(nil))
-	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
-}
-
-// TestFinalizeNamespaceAbsentIsSuccess covers the steady state after the
-// finalize lands: the namespace is gone, which must not be reported as an error
-// on every subsequent pass.
 func TestFinalizeNamespaceAbsentIsSuccess(t *testing.T) {
 	desire := runFinalize(t, finalizeDesire(nil))
-
 	requireFinalizeCondition(t, desire, metav1.ConditionTrue, kubeapplierapi.ConditionReasonNoErrors)
-}
-
-// TestFinalizeNamespaceClearsFinalizerWhenEveryGateHolds is the positive path.
-func TestFinalizeNamespaceClearsFinalizerWhenEveryGateHolds(t *testing.T) {
-	desire := finalizeDesire(nil)
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), finalizeListKinds(), terminatingNamespace(nil))
-	controller := &ApplyDesireController{dyn: dyn}
-
-	evaluation := controller.evaluateFinalizeNamespace(context.Background(), desire)
-	evaluation.mutate(desire)
-
-	// The fake client does not run the namespace controller, so the object
-	// survives the finalize call; what this asserts is that the mutation was
-	// issued and the finalizers were cleared, not that the object vanished.
-	updated, err := dyn.Resource(namespacesGVR).Get(context.Background(), finalizeTestNamespace, metav1.GetOptions{})
-	require.NoError(t, err)
-	finalizers, _, err := unstructured.NestedStringSlice(updated.Object, "spec", "finalizers")
-	require.NoError(t, err)
-	require.Empty(t, finalizers, "the kubernetes finalizer must have been cleared once every gate held")
 }

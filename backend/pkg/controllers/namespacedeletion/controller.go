@@ -21,8 +21,9 @@
 //
 // The controller finishes deletions; it does not start them. It issues no
 // namespace or HostedCluster DELETE. An already deleting HostedCluster may
-// have known stuck finalizers cleared after Cosmos and Azure safety checks;
-// an empty HostedCluster namespace may then be finalized.
+// have known control-plane and HostedCluster finalizers cleared after Cosmos
+// and Azure safety checks; both namespaces are finalized only after their
+// cleanup gates pass.
 //
 // See docs/ops/stuck-cluster-cleanup-controller-proposal.md.
 package namespacedeletion
@@ -38,17 +39,17 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/namespacedeletiongate"
@@ -190,13 +191,16 @@ func UnblockHostedClusterDesireNameForAttempt(requestName string, generation int
 	return attemptDesireName(requestName, generation) + "-unblock"
 }
 
-// FinalizeDesireNameFor returns the FinalizeNamespace ApplyDesire name.
-func FinalizeDesireNameFor(requestName string) string {
-	return FinalizeDesireNameForAttempt(requestName, 0)
+func legacyFinalizeDesireName(requestName string, generation int64) string {
+	return attemptDesireName(requestName, generation) + "-finalize"
 }
 
-func FinalizeDesireNameForAttempt(requestName string, generation int64) string {
-	return attemptDesireName(requestName, generation) + "-finalize"
+func FinalizeControlPlaneDesireNameForAttempt(requestName string, generation int64) string {
+	return attemptDesireName(requestName, generation) + "-finalize-controlplane"
+}
+
+func FinalizeHostedClusterDesireNameForAttempt(requestName string, generation int64) string {
+	return attemptDesireName(requestName, generation) + "-finalize-hostedcluster"
 }
 
 func namespaceTargetFor(hostedClusterNamespaceName string) kubeapplierapi.ResourceReference {
@@ -234,7 +238,7 @@ func (s *namespaceDeletionSyncer) SyncOnce(ctx context.Context, key backendcontr
 		// anything else and nothing else will collect them.
 		for generation := int64(0); generation <= fleetapi.MaxNamespaceDeletionRetries; generation++ {
 			if err := s.retireOwnedDesires(ctx, key, generation); err != nil {
-				return err
+				return utils.TrackError(err)
 			}
 		}
 		return nil
@@ -251,7 +255,7 @@ func (s *namespaceDeletionSyncer) SyncOnce(ctx context.Context, key backendcontr
 	outcome := s.reconcile(ctx, key, updated)
 	if apimeta.IsStatusConditionTrue(updated.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped) {
 		if err := s.retireOwnedDesires(ctx, key, existing.Status.AttemptGeneration); err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 	}
 	return s.persist(ctx, requestCRUD, updated, existing, outcome)
@@ -285,18 +289,18 @@ func (s *namespaceDeletionSyncer) reconcile(
 	// mistaken for absence.
 	namespaceObs, err := s.observeNamespace(ctx, key, request)
 	if err != nil {
-		setDegraded(request, reasonObservationFailed, err.Error())
-		return err
+		setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+		return utils.TrackError(err)
 	}
 	hostedClusterObs, err := s.observeHostedCluster(ctx, key, request, relationship)
 	if err != nil {
-		setDegraded(request, reasonObservationFailed, err.Error())
-		return err
+		setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+		return utils.TrackError(err)
 	}
 	controlPlaneObs, err := s.observeNamespaceTarget(ctx, key, ControlPlaneNamespaceReadDesireNameForAttempt(key.Name, request.Status.AttemptGeneration), relationship.ControlPlaneNamespace)
 	if err != nil {
-		setDegraded(request, reasonObservationFailed, err.Error())
-		return err
+		setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+		return utils.TrackError(err)
 	}
 	clearDegraded(request)
 
@@ -307,16 +311,16 @@ func (s *namespaceDeletionSyncer) reconcile(
 		return nil
 	}
 
-	// Step 2: already gone.
-	if namespaceObs.absent {
+	if namespaceObs.absent && controlPlaneObs.absent {
 		setComplete(request, reasonNamespaceAbsent, fmt.Sprintf(
-			"Namespace %q is absent; no action was needed.", request.Spec.HostedClusterNamespaceName))
+			"HostedCluster namespace %q and its control-plane namespace %q are absent.",
+			relationship.HostedClusterNamespace, relationship.ControlPlaneNamespace))
 		return nil
 	}
 
 	// Step 3: this API finishes deletions, it does not start them. No request
 	// field overrides this.
-	if namespaceObs.deletionTimestamp == nil {
+	if !namespaceObs.absent && namespaceObs.deletionTimestamp == nil {
 		setStopped(request, reasonNamespaceNotTerminating, fmt.Sprintf(
 			"Namespace %q is Active. This API only unblocks deletions already in progress; it does not start them. No change was made.",
 			request.Spec.HostedClusterNamespaceName))
@@ -333,25 +337,31 @@ func (s *namespaceDeletionSyncer) reconcile(
 	}
 
 	// Step 5: persist object identities before publishing any mutation desire.
-	if namespaceObs.uid == "" || (hostedClusterObs.present && hostedClusterObs.uid == "") ||
-		(!controlPlaneObs.absent && controlPlaneObs.uid == "") {
+	if (!namespaceObs.absent && len(namespaceObs.uid) == 0) || (hostedClusterObs.present && len(hostedClusterObs.uid) == 0) ||
+		(!controlPlaneObs.absent && len(controlPlaneObs.uid) == 0) {
 		setStopped(request, reasonNamespaceIdentityMismatch, "A live Kubernetes object has no UID; no cleanup action was scheduled.")
 		return nil
 	}
-	switch {
-	case len(request.Status.NamespaceUID) == 0:
-		request.Status.NamespaceUID = namespaceObs.uid
-		setIncomplete(request, reasonObservationPending, "Pinned namespace identity; persisting it before cleanup.")
-		return nil
-	case request.Status.NamespaceUID != namespaceObs.uid:
-		setStopped(request, reasonNamespaceUIDChanged, fmt.Sprintf(
-			"Namespace %q now has UID %q but this request pinned %q; it was replaced and this attempt is void.",
-			request.Spec.HostedClusterNamespaceName, namespaceObs.uid, request.Status.NamespaceUID))
-		return nil
+	if !namespaceObs.absent {
+		switch {
+		case len(request.Status.NamespaceUID) == 0:
+			request.Status.NamespaceUID = namespaceObs.uid
+			setIncomplete(request, reasonObservationPending, "Pinned namespace identity; persisting it before cleanup.")
+			return nil
+		case request.Status.NamespaceUID != namespaceObs.uid:
+			setStopped(request, reasonNamespaceUIDChanged, fmt.Sprintf(
+				"Namespace %q now has UID %q but this request pinned %q; it was replaced and this attempt is void.",
+				request.Spec.HostedClusterNamespaceName, namespaceObs.uid, request.Status.NamespaceUID))
+			return nil
+		}
 	}
 	if hostedClusterObs.present {
 		switch {
-		case request.Status.HostedClusterUID == "":
+		case len(request.Status.HostedClusterUID) == 0:
+			if len(request.Status.CleanupIntent) != 0 {
+				setStopped(request, reasonRecreatedDuringCleanup, "HostedCluster appeared after cleanup intent was persisted; no cleanup action was scheduled.")
+				return nil
+			}
 			request.Status.HostedClusterUID = hostedClusterObs.uid
 			setIncomplete(request, reasonObservationPending, "Pinned HostedCluster identity; persisting it before cleanup.")
 			return nil
@@ -362,7 +372,11 @@ func (s *namespaceDeletionSyncer) reconcile(
 	}
 	if !controlPlaneObs.absent {
 		switch {
-		case request.Status.ControlPlaneNamespaceUID == "":
+		case len(request.Status.ControlPlaneNamespaceUID) == 0:
+			if len(request.Status.CleanupIntent) != 0 {
+				setStopped(request, reasonRecreatedDuringCleanup, "Control-plane namespace appeared after cleanup intent was persisted; no cleanup action was scheduled.")
+				return nil
+			}
 			request.Status.ControlPlaneNamespaceUID = controlPlaneObs.uid
 			setIncomplete(request, reasonObservationPending, "Pinned control-plane namespace identity; persisting it before cleanup.")
 			return nil
@@ -372,111 +386,150 @@ func (s *namespaceDeletionSyncer) reconcile(
 		}
 	}
 
-	if stop := s.checkOwnership(ctx, key, request, relationship); stop != nil {
+	if stop := s.checkHostedClusterOrphaned(ctx, key, request, relationship); stop != nil {
 		return stop.apply(request)
+	}
+
+	if namespaceObs.absent && len(request.Status.NamespaceUID) == 0 {
+		setStopped(request, reasonNamespaceIdentityMismatch, "The HostedCluster namespace is absent before its UID could be pinned; no control-plane cleanup action was scheduled.")
+		return nil
 	}
 
 	// Step 6: the dwell gates every mutation, including finalizer removal.
 	// Nothing destructive happens on a namespace that has only
 	// just entered Terminating.
-	elapsed := time.Since(namespaceObs.deletionTimestamp.Time)
-	if elapsed < s.config.MinimumDwell {
-		setIncomplete(request, reasonDwellNotElapsed, fmt.Sprintf(
-			"Namespace %q has been terminating for %s, which is less than the required dwell of %s. deletionTimestamp=%s.",
-			request.Spec.HostedClusterNamespaceName, elapsed.Round(time.Second), s.config.MinimumDwell,
-			namespaceObs.deletionTimestamp.UTC().Format(time.RFC3339)))
+	if !namespaceObs.absent {
+		elapsed := time.Since(namespaceObs.deletionTimestamp.Time)
+		if elapsed < s.config.MinimumDwell {
+			setIncomplete(request, reasonDwellNotElapsed, fmt.Sprintf(
+				"Namespace %q has been terminating for %s, which is less than the required dwell of %s. deletionTimestamp=%s.",
+				request.Spec.HostedClusterNamespaceName, elapsed.Round(time.Second), s.config.MinimumDwell,
+				namespaceObs.deletionTimestamp.UTC().Format(time.RFC3339)))
+			return nil
+		}
+	}
+
+	if !controlPlaneObs.absent && controlPlaneObs.deletionTimestamp == nil {
+		setStopped(request, reasonNamespaceNotTerminating, "Control-plane namespace is not Terminating.")
 		return nil
 	}
 
-	// Step 7: unblock only an already deleting HostedCluster. Azure resource
-	// group absence must be proven with a live point read before bypassing its
-	// finalizer; Cosmos absence alone is insufficient.
+	if request.Status.CleanupIntent == "FinalizeNamespace" {
+		if err := s.retireLegacyFinalizeDesire(ctx, key, request.Status.AttemptGeneration); err != nil {
+			setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+			return utils.TrackError(err)
+		}
+		request.Status.CleanupIntent = "FinalizeControlPlaneNamespace"
+		setIncomplete(request, reasonObservationPending, "Persisting control-plane namespace finalization intent.")
+		return nil
+	}
+
 	if hostedClusterObs.present {
 		if hostedClusterObs.deletionTimestamp == nil {
 			setStopped(request, reasonHostedClusterLive, fmt.Sprintf("HostedCluster %q is not already deleting; this cleanup request will not start its deletion.", hostedClusterObs.name))
 			return nil
 		}
-		if !controlPlaneObs.absent && controlPlaneObs.deletionTimestamp == nil {
-			setStopped(request, reasonNamespaceNotTerminating, "Control-plane namespace is not Terminating; its CAPI resources will not be touched.")
-			return nil
-		}
-		absent, err := s.managedResourceGroupAbsent(ctx, hostedClusterObs)
+		state, err := s.readManagedResourceGroupState(ctx, hostedClusterObs)
 		if err != nil {
-			setDegraded(request, reasonOwnershipCheckFailed, err.Error())
-			return err
+			setDegraded(request, reasonOwnershipCheckFailed, utils.ErrorMessageWithoutLineTracking(err))
+			return utils.TrackError(err)
 		}
-		if !absent {
-			setStopped(request, reasonClusterRecordAppeared, fmt.Sprintf("Azure managed resource group %q still exists; finalizers were not cleared.", hostedClusterObs.azureResourceGroup))
+		switch state {
+		case managedResourceGroupDeleting:
+			setIncomplete(request, reasonWaitingForManagedResourceGroupDeletion, fmt.Sprintf(
+				"Azure managed resource group %q is deleting; waiting for a live 404 before clearing HostedCluster or HostedControlPlane finalizers.", hostedClusterObs.azureResourceGroup))
+			return nil
+		case managedResourceGroupInProgress:
+			setIncomplete(request, reasonWaitingForManagedResourceGroupDeletion, fmt.Sprintf(
+				"Azure managed resource group %q is still provisioning; waiting for a live 404 before clearing HostedCluster or HostedControlPlane finalizers.", hostedClusterObs.azureResourceGroup))
+			return nil
+		case managedResourceGroupDeletionFailed:
+			setStopped(request, reasonManagedResourceGroupDeletionFailed, fmt.Sprintf("Azure managed resource group %q exists and its deletion previously failed or was canceled; finalizers were not cleared. Investigate and delete the resource group, then retry this request.", hostedClusterObs.azureResourceGroup))
+			return nil
+		case managedResourceGroupStable:
+			setStopped(request, reasonManagedResourceGroupPresent, fmt.Sprintf("Azure managed resource group %q still exists and is not deleting; finalizers were not cleared.", hostedClusterObs.azureResourceGroup))
 			return nil
 		}
-		if request.Status.CleanupIntent == "" {
-			request.Status.CleanupIntent = "UnblockHostedCluster"
-			setIncomplete(request, reasonObservationPending, "Persisting HostedCluster cleanup intent before publishing its desire.")
-			return nil
-		}
-		if request.Status.CleanupIntent != "UnblockHostedCluster" {
-			setStopped(request, reasonHostedClusterIdentityMismatch, "Cleanup target changed after intent was persisted; no new action was scheduled.")
-			return nil
-		}
+	}
+
+	if len(request.Status.CleanupIntent) == 0 {
+		request.Status.CleanupIntent = "UnblockHostedCluster"
+		setIncomplete(request, reasonObservationPending, "Persisting cleanup intent before publishing desires.")
+		return nil
+	}
+	switch request.Status.CleanupIntent {
+	case "UnblockHostedCluster", "FinalizeControlPlaneNamespace", "FinalizeHostedClusterNamespace":
+	default:
+		setStopped(request, reasonNamespaceIdentityMismatch, fmt.Sprintf("Unknown cleanup intent %q; no further action was scheduled.", request.Status.CleanupIntent))
+		return nil
+	}
+
+	if !controlPlaneObs.absent && request.Status.CleanupIntent == "FinalizeHostedClusterNamespace" {
+		setStopped(request, reasonRecreatedDuringCleanup, "The control-plane namespace is present again after its cleanup phase.")
+		return nil
+	}
+
+	if hostedClusterObs.present {
 		if err := s.ensureUnblockHostedClusterDesire(ctx, key, request, hostedClusterObs); err != nil {
-			setDegraded(request, reasonObservationFailed, err.Error())
-			return err
+			setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+			return utils.TrackError(err)
 		}
 		if stop := s.stoppedUnblockDesire(ctx, key, request.Status.AttemptGeneration); stop != nil {
 			return stop.apply(request)
 		}
-		setIncomplete(request, reasonWaitingForHostedClusterRemoval, fmt.Sprintf(
-			"Unblocking already deleting HostedCluster %q; waiting for it and its NodePools to disappear.", hostedClusterObs.name))
-		return nil
+		if !controlPlaneObs.absent && !s.unblockWaitingForControlPlane(ctx, key, request.Status.AttemptGeneration) {
+			setIncomplete(request, reasonWaitingForControlPlaneNamespace, fmt.Sprintf(
+				"Waiting for control-plane resources in namespace %q to disappear.", relationship.ControlPlaneNamespace))
+			return nil
+		}
 	}
 
-	// Step 8: finalize only after the HostedCluster is observed absent.
-	if request.Status.CleanupIntent == "" || request.Status.CleanupIntent == "UnblockHostedCluster" {
-		request.Status.CleanupIntent = "FinalizeNamespace"
-		setIncomplete(request, reasonObservationPending, "Persisting namespace finalization intent before publishing its desire.")
+	if request.Status.CleanupIntent == "UnblockHostedCluster" {
+		request.Status.CleanupIntent = "FinalizeControlPlaneNamespace"
+		setIncomplete(request, reasonObservationPending, "Persisting control-plane namespace finalization intent.")
 		return nil
 	}
-	logCleanupDecision(ctx, key, request, namespaceObs, hostedClusterObs, "finalize namespace")
-	if err := s.ensureFinalizeDesire(ctx, key, request, relationship, namespaceObs); err != nil {
-		setDegraded(request, reasonObservationFailed, err.Error())
-		return err
+	if !controlPlaneObs.absent {
+		logCleanupDecision(ctx, key, request, controlPlaneObs, hostedClusterObs, "finalize control-plane namespace")
+		condition, err := s.ensureFinalizeDesire(ctx, key, request, relationship, relationship.ControlPlaneNamespace,
+			request.Status.ControlPlaneNamespaceUID, FinalizeControlPlaneDesireNameForAttempt(key.Name, request.Status.AttemptGeneration))
+		if err != nil {
+			setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+			return utils.TrackError(err)
+		}
+		message := controlPlaneNamespaceStuckMessage(relationship.ControlPlaneNamespace, controlPlaneObs)
+		if condition != nil && condition.Status == metav1.ConditionFalse && len(condition.Message) != 0 {
+			message += " " + condition.Message
+		}
+		setIncomplete(request, reasonControlPlaneNamespaceStuck, message)
+		return nil
 	}
-	if s.applyDesireLister != nil {
-		desire, err := s.applyDesireLister.GetForManagementCluster(ctx, key.StampIdentifier, FinalizeDesireNameForAttempt(key.Name, request.Status.AttemptGeneration))
-		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			setDegraded(request, reasonObservationFailed, err.Error())
-			return err
-		}
-		if desire != nil {
-			condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
-			if handled, err := handleFinalizeCondition(request, condition); handled {
-				return err
-			}
-		}
+	if request.Status.CleanupIntent == "FinalizeControlPlaneNamespace" {
+		request.Status.CleanupIntent = "FinalizeHostedClusterNamespace"
+		setIncomplete(request, reasonObservationPending, "Persisting HostedCluster namespace finalization intent.")
+		return nil
+	}
+	if hostedClusterObs.present {
+		setIncomplete(request, reasonWaitingForHostedClusterRemoval, fmt.Sprintf(
+			"Waiting for HostedCluster %q and its NodePools to disappear.", hostedClusterObs.name))
+		return nil
+	}
+	logCleanupDecision(ctx, key, request, namespaceObs, hostedClusterObs, "finalize HostedCluster namespace")
+	condition, err := s.ensureFinalizeDesire(ctx, key, request, relationship, relationship.HostedClusterNamespace,
+		request.Status.NamespaceUID,
+		FinalizeHostedClusterDesireNameForAttempt(key.Name, request.Status.AttemptGeneration))
+	if err != nil {
+		setDegraded(request, reasonObservationFailed, utils.ErrorMessageWithoutLineTracking(err))
+		return utils.TrackError(err)
+	}
+	if condition != nil && condition.Status == metav1.ConditionFalse && len(condition.Message) != 0 {
+		setIncomplete(request, reasonFinalizingNamespace, condition.Message)
+		return nil
 	}
 	setIncomplete(request, reasonFinalizingNamespace, fmt.Sprintf(
-		"Clearing the %q finalizer on namespace %q (uid %s).",
-		"kubernetes", request.Spec.HostedClusterNamespaceName, request.Status.NamespaceUID))
+		"Waiting for finalization of HostedCluster namespace %q (UID %s).",
+		relationship.HostedClusterNamespace, request.Status.NamespaceUID))
 	return nil
-}
-
-func handleFinalizeCondition(request *fleetapi.NamespaceDeletion, condition *metav1.Condition) (bool, error) {
-	if condition == nil || condition.Status != metav1.ConditionFalse {
-		return false, nil
-	}
-	switch condition.Reason {
-	case kubeapplierapi.ConditionReasonLegacyOwnerPresent:
-		setStopped(request, reasonActiveDesirePresent, condition.Message)
-		return true, nil
-	case kubeapplierapi.ConditionReasonLegacyOwnerLookupFailed:
-		setDegraded(request, reasonOwnershipCheckFailed, condition.Message)
-		return true, fmt.Errorf("legacy owner lookup failed: %s", condition.Message)
-	}
-	if condition.Message != "" {
-		setIncomplete(request, reasonFinalizingNamespace, condition.Message)
-		return true, nil
-	}
-	return false, nil
 }
 
 // ownershipStop carries a gate verdict that blocks the request.
@@ -491,19 +544,15 @@ func (o *ownershipStop) apply(request *fleetapi.NamespaceDeletion) error {
 		setDegraded(request, o.reason, o.message)
 		// Persist Degraded and return an error so the workqueue retries a failed
 		// ownership lookup instead of waiting for the periodic resync.
-		return fmt.Errorf("ownership check unavailable: %s", o.message)
+		return utils.TrackError(fmt.Errorf("ownership check unavailable: %s", o.message))
 	}
 	setStopped(request, o.reason, o.message)
 	return nil
 }
 
-// checkOwnership runs the live Cosmos ownership gate. A nil result means the
-// target is unowned and the request may proceed.
-//
-// This runs immediately before the finalize and, when needed, before the
-// HostedCluster delete as well: a delete is at least as irreversible as a
-// finalize.
-func (s *namespaceDeletionSyncer) checkOwnership(
+// checkHostedClusterOrphaned checks whether a Cosmos cluster record or another
+// ApplyDesire still owns the HostedCluster or either of its namespaces.
+func (s *namespaceDeletionSyncer) checkHostedClusterOrphaned(
 	ctx context.Context,
 	key backendcontrollerutils.NamespaceDeletionKey,
 	request *fleetapi.NamespaceDeletion,
@@ -546,7 +595,7 @@ func (s *namespaceDeletionSyncer) checkOwnership(
 				"ApplyDesire %q still maintains namespace %q; resolve that owner before retrying. No change was made.",
 				result.ConflictingDesire, request.Spec.HostedClusterNamespaceName)}
 		}
-		return &ownershipStop{reason: reasonClusterRecordAppeared, message: fmt.Sprintf(
+		return &ownershipStop{reason: reasonClusterRecordPresent, message: fmt.Sprintf(
 			"Cluster %q now claims namespace %q (%s); use the normal cluster deletion flow. No change was made.",
 			result.OwnerResourceID, request.Spec.HostedClusterNamespaceName, result.Detail)}
 	default:
@@ -577,7 +626,7 @@ func (s *namespaceDeletionSyncer) reconcileTerminal(
 	logger := utils.LoggerFromContext(ctx)
 
 	if err := s.retireOwnedDesires(ctx, key, request.Status.AttemptGeneration); err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	if request.Status.CompletedAt == nil {
@@ -648,7 +697,7 @@ func (s *namespaceDeletionSyncer) retireOwnedDesires(ctx context.Context, key ba
 		return utils.TrackError(err)
 	}
 	if kubeApplierClient == nil {
-		return fmt.Errorf("kube-applier Cosmos client not available for management cluster %q; cannot confirm desires were retired", key.StampIdentifier)
+		return utils.TrackError(fmt.Errorf("kube-applier Cosmos client not available for management cluster %q; cannot confirm desires were retired", key.StampIdentifier))
 	}
 
 	readCRUD, err := kubeApplierClient.ReadDesiresForManagementCluster(key.StampIdentifier)
@@ -669,7 +718,12 @@ func (s *namespaceDeletionSyncer) retireOwnedDesires(ctx context.Context, key ba
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	for _, name := range []string{FinalizeDesireNameForAttempt(key.Name, generation), UnblockHostedClusterDesireNameForAttempt(key.Name, generation)} {
+	for _, name := range []string{
+		legacyFinalizeDesireName(key.Name, generation),
+		FinalizeControlPlaneDesireNameForAttempt(key.Name, generation),
+		FinalizeHostedClusterDesireNameForAttempt(key.Name, generation),
+		UnblockHostedClusterDesireNameForAttempt(key.Name, generation),
+	} {
 		if err := applyCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(err)
 		}
@@ -712,26 +766,40 @@ func (s *namespaceDeletionSyncer) ensureFinalizeDesire(
 	key backendcontrollerutils.NamespaceDeletionKey,
 	request *fleetapi.NamespaceDeletion,
 	relationship *fleetapihelpers.NamespaceRelationship,
-	namespaceObs namespaceObservation,
-) error {
+	namespaceName string,
+	namespaceUID string,
+	desireName string,
+) (*metav1.Condition, error) {
 	managementCluster, err := s.managementCluster(key)
 	if err != nil {
-		return utils.TrackError(err)
+		return nil, utils.TrackError(err)
 	}
 	spec := kubeapplierapi.ApplyDesireSpec{
 		ManagementCluster: managementCluster,
 		Type:              kubeapplierapi.ApplyDesireTypeFinalizeNamespace,
-		TargetItem:        namespaceTargetFor(request.Spec.HostedClusterNamespaceName),
+		TargetItem:        namespaceTargetFor(namespaceName),
 		FinalizeNamespace: &kubeapplierapi.FinalizeNamespaceConfig{
 			AuthorizationExpiresAt: metav1.NewTime(time.Now().Add(cleanupAuthorizationLifetime)),
-			UID:                    request.Status.NamespaceUID,
+			UID:                    namespaceUID,
 			MinimumDwell:           metav1.Duration{Duration: s.config.MinimumDwell},
 			HostedClusterNamespace: relationship.HostedClusterNamespace,
 			HostedClusterName:      request.Spec.HostedClusterName,
 		},
 	}
-	_ = namespaceObs
-	return s.ensureApplyDesire(ctx, key, FinalizeDesireNameForAttempt(key.Name, request.Status.AttemptGeneration), spec)
+	if err := s.ensureApplyDesire(ctx, key, desireName, spec); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if s.applyDesireLister == nil {
+		return nil, nil
+	}
+	desire, err := s.applyDesireLister.GetForManagementCluster(ctx, key.StampIdentifier, desireName)
+	if err != nil {
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return nil, nil
+		}
+		return nil, utils.TrackError(err)
+	}
+	return apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized), nil
 }
 
 func (s *namespaceDeletionSyncer) ensureUnblockHostedClusterDesire(
@@ -772,11 +840,41 @@ func (s *namespaceDeletionSyncer) stoppedUnblockDesire(ctx context.Context, key 
 		return &ownershipStop{degraded: true, reason: reasonObservationFailed, message: err.Error()}
 	}
 	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+	if condition != nil && condition.Status == metav1.ConditionFalse && condition.Reason == kubeapplierapi.ConditionReasonRecreatedDuringCleanup {
+		return &ownershipStop{reason: reasonRecreatedDuringCleanup, message: condition.Message}
+	}
 	if condition != nil && condition.Status == metav1.ConditionFalse && condition.Reason == "PreconditionFailed" &&
 		!strings.Contains(condition.Message, "authorization has expired") {
 		return &ownershipStop{reason: reasonHostedClusterIdentityMismatch, message: condition.Message}
 	}
 	return nil
+}
+
+func (s *namespaceDeletionSyncer) unblockWaitingForControlPlane(ctx context.Context, key backendcontrollerutils.NamespaceDeletionKey, generation int64) bool {
+	if s.applyDesireLister == nil {
+		return false
+	}
+	desire, err := s.applyDesireLister.GetForManagementCluster(ctx, key.StampIdentifier, UnblockHostedClusterDesireNameForAttempt(key.Name, generation))
+	if err != nil {
+		return false
+	}
+	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeHostedClusterUnblocked)
+	return condition != nil && condition.Status == metav1.ConditionFalse && condition.Reason == kubeapplierapi.ConditionReasonWaitingForControlPlaneNamespace
+}
+
+func controlPlaneNamespaceStuckMessage(name string, observation namespaceObservation) string {
+	const relevant = "NamespaceContentRemaining, NamespaceFinalizersRemaining, NamespaceDeletionDiscoveryFailure"
+	var details []string
+	for _, condition := range observation.conditions {
+		switch condition.Type {
+		case "NamespaceContentRemaining", "NamespaceFinalizersRemaining", "NamespaceDeletionDiscoveryFailure":
+			details = append(details, fmt.Sprintf("%s=%s: %s", condition.Type, condition.Status, condition.Message))
+		}
+	}
+	if len(details) == 0 {
+		return fmt.Sprintf("Waiting to finalize control-plane namespace %q; live namespace conditions (%s) are unavailable.", name, relevant)
+	}
+	return fmt.Sprintf("Waiting to finalize control-plane namespace %q; live namespace conditions: %s.", name, strings.Join(details, "; "))
 }
 
 func (s *namespaceDeletionSyncer) ensureApplyDesire(
@@ -794,7 +892,7 @@ func (s *namespaceDeletionSyncer) ensureApplyDesire(
 		return utils.TrackError(err)
 	}
 	if kubeApplierClient == nil {
-		return fmt.Errorf("kube-applier Cosmos client not available for management cluster %q", key.StampIdentifier)
+		return utils.TrackError(fmt.Errorf("kube-applier Cosmos client not available for management cluster %q", key.StampIdentifier))
 	}
 	crud, err := kubeApplierClient.ApplyDesiresForManagementCluster(key.StampIdentifier)
 	if err != nil {
@@ -838,9 +936,28 @@ func (s *namespaceDeletionSyncer) ensureApplyDesire(
 	return nil
 }
 
-// logCleanupDecision leaves the observed preconditions in structured logs so
-// operators can inspect the decision in Kusto without duplicating snapshots in
-// the Fleet document.
+func (s *namespaceDeletionSyncer) retireLegacyFinalizeDesire(ctx context.Context, key backendcontrollerutils.NamespaceDeletionKey, generation int64) error {
+	managementCluster, err := s.managementCluster(key)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	client, err := s.kubeApplierDBClients.For(ctx, managementCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if client == nil {
+		return utils.TrackError(fmt.Errorf("kube-applier Cosmos client not available for management cluster %q", key.StampIdentifier))
+	}
+	crud, err := client.ApplyDesiresForManagementCluster(key.StampIdentifier)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if err := crud.Delete(ctx, legacyFinalizeDesireName(key.Name, generation)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(err)
+	}
+	return nil
+}
+
 func logCleanupDecision(
 	ctx context.Context,
 	key backendcontrollerutils.NamespaceDeletionKey,

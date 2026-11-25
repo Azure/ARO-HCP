@@ -25,8 +25,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
@@ -45,16 +45,47 @@ func TestManagedResourceGroupMustBeAbsent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	builder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 	rgClient := azureclient.NewMockResourceGroupsClient(ctrl)
-	builder.EXPECT().ResourceGroupsClient(tenantID, subscriptionID).Return(rgClient, nil).Times(2)
-	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{}, nil)
+	builder.EXPECT().ResourceGroupsClient(tenantID, subscriptionID).Return(rgClient, nil).Times(6)
+	stable := "Succeeded"
+	updating := "Updating"
+	deleting := "Deleting"
+	failed := "Failed"
+	canceled := "Canceled"
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &stable}},
+	}, nil)
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &updating}},
+	}, nil)
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &deleting}},
+	}, nil)
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &failed}},
+	}, nil)
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &canceled}},
+	}, nil)
 	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{}, &azcore.ResponseError{StatusCode: 404})
 	syncer := &namespaceDeletionSyncer{resourcesDBClient: db, azureFPAClientBuilder: builder}
 	hc := hostedClusterObservation{azureSubscriptionID: subscriptionID, azureResourceGroup: "managed-rg"}
 
-	absent, err := syncer.managedResourceGroupAbsent(ctx, hc)
+	state, err := syncer.readManagedResourceGroupState(ctx, hc)
 	require.NoError(t, err)
-	require.False(t, absent, "an existing managed resource group must block finalizer removal")
-	absent, err = syncer.managedResourceGroupAbsent(ctx, hc)
+	require.Equal(t, managedResourceGroupStable, state, "a stable resource group must block finalizer removal")
+	state, err = syncer.readManagedResourceGroupState(ctx, hc)
 	require.NoError(t, err)
-	require.True(t, absent, "only an Azure 404 authorizes finalizer removal")
+	require.Equal(t, managedResourceGroupInProgress, state, "an updating resource group must not latch a stop")
+	state, err = syncer.readManagedResourceGroupState(ctx, hc)
+	require.NoError(t, err)
+	require.Equal(t, managedResourceGroupDeleting, state, "a deleting resource group should cause a retryable wait")
+	state, err = syncer.readManagedResourceGroupState(ctx, hc)
+	require.NoError(t, err)
+	require.Equal(t, managedResourceGroupDeletionFailed, state, "a failed deletion must not be reported as a stable resource group")
+	state, err = syncer.readManagedResourceGroupState(ctx, hc)
+	require.NoError(t, err)
+	require.Equal(t, managedResourceGroupDeletionFailed, state, "a canceled deletion must not be reported as a stable resource group")
+	state, err = syncer.readManagedResourceGroupState(ctx, hc)
+	require.NoError(t, err)
+	require.Equal(t, managedResourceGroupAbsent, state, "only an Azure 404 authorizes finalizer removal")
 }

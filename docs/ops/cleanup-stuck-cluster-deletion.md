@@ -12,24 +12,6 @@ This document provides a systematic procedure for manually cleaning up ARO HCP c
 - `jq` installed locally (and `curl` if you use the provided API examples)
 - Cluster ID or cluster name of the stuck cluster
 
-## NamespaceDeletion API preflight for retired Maestro
-
-Before using the `NamespaceDeletion` admin API for a recordless cluster, confirm that the Maestro agent and server retirement has reached the target stamp. Check the rollout records for the agent removal in [#7665](https://github.com/Azure/ARO-HCP/pull/7665) and server retirement in [#8007](https://github.com/Azure/ARO-HCP/pull/8007). Then use recent Kubernetes resource snapshots for the target management and service clusters to check for remaining Maestro agent and server workloads. For example, replace the Kusto cluster and management or service cluster names below with those of the target stamp:
-
-```kusto
-cluster('hcp-prod-uk.uksouth').database('ServiceLogs').kubernetesResourceSnapshots
-| where timestamp > ago(7d)
-| where ['cluster'] in ('prod-uksouth-mgmt-1', 'prod-uksouth-svc-1')
-| where objectKind in ('Deployment', 'StatefulSet', 'DaemonSet', 'Pod')
-| where namespace == 'maestro' or name has 'maestro'
-| summarize arg_max(timestamp, event, ['object']) by ['cluster'], objectKind, namespace, name
-| project timestamp, ['cluster'], objectKind, namespace, name, event, ['object']
-```
-
-Correlate the snapshots with the rollout records and check that telemetry is current for both clusters. An empty query result by itself does not prove that Maestro is retired. If rollout or telemetry is inconclusive, resolve that uncertainty before submitting the request: a surviving producer could recreate ManifestWork after a point-in-time check. The API also checks for matching ManifestWorks and ManagedClusterAddons immediately before finalizer changes and stops if it finds one or cannot complete the lookup.
-
-The remainder of this document describes the older manual Maestro deletion flow. Use it only when that flow is still deployed on the target stamp.
-
 ## Understanding the Resource Hierarchy
 
 ARO HCP clusters create resources across multiple layers. Understanding this hierarchy is critical for systematic troubleshooting.
@@ -395,6 +377,8 @@ kubectl get manifestwork -n local-cluster | grep -F "${CLUSTER_ID}"
 #### Strategy 4: Manual Finalizer Removal on Management Cluster (Last Resort)
 
 Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster.
+
+For recordless clusters, the `NamespaceDeletion` admin API clears supported CAPI and HyperShift finalizers and requires the control-plane namespace to be gone before continuing to NodePools and the HostedCluster. It targets the HostedCluster namespace and completes once both namespaces are absent. AzureMachine and ManifestWork finalizers require separate investigation.
 
 > **Azure resource safety**: Before clearing an `AzureMachine` finalizer, verify that its Azure VM, NIC, disks, and other managed-resource-group dependencies are gone. Clearing the finalizer only removes Kubernetes bookkeeping; it does not delete Azure resources and can leave a costly resource leak. If access is blocked by a deny assignment, coordinate the Azure deletion with the subscription owner first.
 

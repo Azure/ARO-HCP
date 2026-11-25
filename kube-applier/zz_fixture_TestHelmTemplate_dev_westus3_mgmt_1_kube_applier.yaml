@@ -81,6 +81,22 @@ rules:
   - namespaces/finalize
   verbs:
   - update
+# UnblockHostedCluster lists Deployments to check for component finalizers.
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  resourceNames:
+  - capi-provider
+  - cluster-api
+  verbs:
+  - update
 - apiGroups:
   - ''
   resources:

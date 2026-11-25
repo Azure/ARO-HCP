@@ -284,7 +284,7 @@ func (h *NamespaceDeletionCreateHandler) handleExisting(
 		return coreapi.NewCloudError(http.StatusConflict, CloudErrorCodeNamespaceDeletionRetryConflict, "",
 			"maximum retry count reached; investigate this namespace before further cleanup")
 	}
-	if strings.TrimSpace(body.RequestReason) == "" {
+	if len(strings.TrimSpace(body.RequestReason)) == 0 {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "requestReason",
 			"requestReason is required for a retry")
 	}

@@ -24,9 +24,9 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
+	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 )
@@ -57,10 +57,21 @@ func TestCleanupApplyDesiresHaveManagementClusterPartitionKey(t *testing.T) {
 	}
 	relationship := &fleetapihelpers.NamespaceRelationship{HostedClusterNamespace: key.Name, ControlPlaneNamespace: key.Name + "-hcp1"}
 	require.NoError(t, syncer.ensureUnblockHostedClusterDesire(ctx, key, request, hostedClusterObservation{uid: request.Status.HostedClusterUID}))
-	require.NoError(t, syncer.ensureFinalizeDesire(ctx, key, request, relationship, namespaceObservation{}))
+	_, err = syncer.ensureFinalizeDesire(ctx, key, request, relationship,
+		relationship.ControlPlaneNamespace, request.Status.ControlPlaneNamespaceUID,
+		FinalizeControlPlaneDesireNameForAttempt(key.Name, 0))
+	require.NoError(t, err)
+	_, err = syncer.ensureFinalizeDesire(ctx, key, request, relationship,
+		relationship.HostedClusterNamespace, request.Status.NamespaceUID,
+		FinalizeHostedClusterDesireNameForAttempt(key.Name, 0))
+	require.NoError(t, err)
 	crud, err := client.ApplyDesiresForManagementCluster(key.StampIdentifier)
 	require.NoError(t, err)
-	for _, name := range []string{UnblockHostedClusterDesireNameFor(key.Name), FinalizeDesireNameFor(key.Name)} {
+	for _, name := range []string{
+		UnblockHostedClusterDesireNameFor(key.Name),
+		FinalizeControlPlaneDesireNameForAttempt(key.Name, 0),
+		FinalizeHostedClusterDesireNameForAttempt(key.Name, 0),
+	} {
 		desire, err := crud.Get(ctx, name)
 		require.NoError(t, err)
 		require.Equal(t, strings.ToLower(managementCluster.String()), desire.PartitionKey)

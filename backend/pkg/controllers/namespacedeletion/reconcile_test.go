@@ -36,17 +36,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	backendcontrollerutils "github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -153,34 +153,94 @@ func TestNamespaceDeletionUnavailableOwnershipIsRetryable(t *testing.T) {
 	require.False(t, meta.IsStatusConditionTrue(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped))
 }
 
-func TestNamespaceDeletionFinalizeLegacyOwnerOutcomes(t *testing.T) {
-	for _, tc := range []struct {
-		name, reason, message string
-		wantStopped           bool
-	}{
-		{name: "owner present", reason: kubeapplierapi.ConditionReasonLegacyOwnerPresent,
-			message: "ManifestWork still references the namespace", wantStopped: true},
-		{name: "lookup failed", reason: kubeapplierapi.ConditionReasonLegacyOwnerLookupFailed,
-			message: "list ManifestWorks: temporary timeout"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			request := &fleetapi.NamespaceDeletion{}
-			condition := &metav1.Condition{
-				Type: kubeapplierapi.ConditionTypeNamespaceFinalized, Status: metav1.ConditionFalse,
-				Reason: tc.reason, Message: tc.message,
-			}
-			handled, err := handleFinalizeCondition(request, condition)
-			require.True(t, handled)
-			if tc.wantStopped {
-				require.NoError(t, err)
-				require.True(t, meta.IsStatusConditionTrue(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped))
-				return
-			}
-			require.Error(t, err, "a transient owner lookup failure must requeue the request")
-			require.True(t, meta.IsStatusConditionTrue(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionDegraded))
-			require.False(t, meta.IsStatusConditionTrue(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped))
-		})
+func TestNamespaceDeletionWaitsWhileManagedResourceGroupIsDeleting(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	const (
+		stamp             = "stamp"
+		namespaceName     = "ocm-arohcpprod-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		hostedClusterName = "hcp1"
+		subscriptionID    = "11111111-1111-1111-1111-111111111111"
+		tenantID          = "test-tenant"
+	)
+	key := backendcontrollerutils.NamespaceDeletionKey{StampIdentifier: stamp, Name: namespaceName}
+	managementCluster, err := fleetapihelpers.ToManagementClusterResourceID(stamp)
+	require.NoError(t, err)
+	client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	clients.Register(managementCluster, client)
+	readIndexer := cache.NewIndexer(func(obj interface{}) (string, error) {
+		return strings.ToLower(obj.(*kubeapplierapi.ReadDesire).ResourceID.String()), nil
+	}, cache.Indexers{})
+	applyIndexer := cache.NewIndexer(func(obj interface{}) (string, error) {
+		return strings.ToLower(obj.(*kubeapplierapi.ApplyDesire).ResourceID.String()), nil
+	}, cache.Indexers{})
+	now := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	hostedNamespace := map[string]any{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{
+		"name": namespaceName, "uid": "namespace-uid", "deletionTimestamp": now,
+	}}
+	controlPlaneNamespace := map[string]any{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{
+		"name": namespaceName + "-" + hostedClusterName, "uid": "control-plane-uid", "deletionTimestamp": now,
+	}}
+	hostedCluster := map[string]any{
+		"apiVersion": "hypershift.openshift.io/v1beta1", "kind": "HostedCluster",
+		"metadata": map[string]any{"name": hostedClusterName, "namespace": namespaceName, "uid": "hosted-cluster-uid", "deletionTimestamp": now},
+		"spec": map[string]any{"platform": map[string]any{"azure": map[string]any{
+			"subscriptionID": subscriptionID, "resourceGroup": "managed-rg",
+		}}},
 	}
+	for _, item := range []struct {
+		name   string
+		target kubeapplierapi.ResourceReference
+		object any
+	}{
+		{ReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName), hostedNamespace},
+		{HostedClusterReadDesireNameFor(namespaceName), hostedClusterTargetFor(namespaceName, hostedClusterName), hostedCluster},
+		{ControlPlaneNamespaceReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName + "-" + hostedClusterName), controlPlaneNamespace},
+	} {
+		require.NoError(t, readIndexer.Add(observedReadDesire(t, stamp, item.name, item.target, item.object)))
+	}
+	resourcesDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	subscriptionResourceID, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
+	require.NoError(t, err)
+	tenantIDValue := tenantID
+	_, err = resourcesDB.Subscriptions().Create(ctx, &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subscriptionResourceID, PartitionKey: subscriptionID},
+		Properties:     &coreapi.SubscriptionProperties{TenantId: &tenantIDValue},
+	}, nil)
+	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	builder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	rgClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	builder.EXPECT().ResourceGroupsClient(tenantID, subscriptionID).Return(rgClient, nil)
+	deleting := "Deleting"
+	rgClient.EXPECT().Get(ctx, "managed-rg", nil).Return(armresources.ResourceGroupsClientGetResponse{
+		ResourceGroup: armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: &deleting}},
+	}, nil)
+	syncer := &namespaceDeletionSyncer{
+		resourcesDBClient: resourcesDB, kubeApplierDBClients: clients,
+		readDesireLister:      kubeapplierlisters.NewReadDesireLister(readIndexer),
+		applyDesireLister:     kubeapplierlisters.NewApplyDesireLister(applyIndexer),
+		azureFPAClientBuilder: builder,
+		config:                Config{EnvIdentifier: "arohcpprod", MinimumDwell: time.Hour},
+	}
+	request := &fleetapi.NamespaceDeletion{
+		Spec: fleetapi.NamespaceDeletionSpec{
+			ManagementClusterName:      fleetapi.ManagementClusterResourceName,
+			HostedClusterNamespaceName: namespaceName, HostedClusterName: hostedClusterName,
+		},
+		Status: fleetapi.NamespaceDeletionStatus{
+			NamespaceUID: "namespace-uid", HostedClusterUID: "hosted-cluster-uid",
+			ControlPlaneNamespaceUID: "control-plane-uid", CleanupIntent: "UnblockHostedCluster",
+		},
+	}
+	require.NoError(t, syncer.reconcile(ctx, key, request))
+	require.False(t, meta.IsStatusConditionTrue(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionStopped))
+	complete := meta.FindStatusCondition(request.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionComplete)
+	require.Equal(t, reasonWaitingForManagedResourceGroupDeletion, complete.Reason)
+	applyCRUD, err := client.ApplyDesiresForManagementCluster(stamp)
+	require.NoError(t, err)
+	_, err = applyCRUD.Get(ctx, UnblockHostedClusterDesireNameFor(namespaceName))
+	require.Error(t, err, "a deleting resource group must not authorize an unblock desire")
 }
 
 func TestNamespaceDeletionPersistsIdentityAndIntentBeforeMutation(t *testing.T) {
@@ -313,6 +373,24 @@ func TestNamespaceDeletionPersistsIdentityAndIntentBeforeMutation(t *testing.T) 
 	require.Equal(t, persisted.Status.NamespaceUID, desire.Spec.UnblockHostedCluster.NamespaceUID)
 	require.Equal(t, persisted.Status.HostedClusterUID, desire.Spec.UnblockHostedCluster.HostedClusterUID)
 
+	cpFinalizeName := FinalizeControlPlaneDesireNameForAttempt(namespaceName, 0)
+	_, err = applyCRUD.Get(ctx, cpFinalizeName)
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "control-plane finalization must wait for kube-applier to drain its resources")
+
+	meta.SetStatusCondition(&desire.Status.Conditions, metav1.Condition{
+		Type: kubeapplierapi.ConditionTypeHostedClusterUnblocked, Status: metav1.ConditionFalse,
+		Reason: kubeapplierapi.ConditionReasonWaitingForControlPlaneNamespace, Message: "Control-plane layers are drained.",
+	})
+	require.NoError(t, applyIndexer.Add(desire))
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	cpFinalize, err := applyCRUD.Get(ctx, cpFinalizeName)
+	require.NoError(t, err)
+	require.Equal(t, cpNamespaceName, cpFinalize.Spec.TargetItem.Name)
+	require.Equal(t, "control-plane-uid", cpFinalize.Spec.FinalizeNamespace.UID)
+	_, err = applyCRUD.Get(ctx, FinalizeHostedClusterDesireNameForAttempt(namespaceName, 0))
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "HostedCluster namespace finalization must wait for the control plane")
+
 	// A newly appearing Cosmos owner must stop this request and retire the
 	// already published cleanup desire before the stopped status is persisted.
 	spcResourceID, err := azcorearm.ParseResourceID(coreapihelpers.ToServiceProviderClusterResourceIDString(subscriptionID, "rg", "cluster"))
@@ -377,7 +455,12 @@ func TestNamespaceDeletionCompletesOnlyAfterObservedNamespaceAbsence(t *testing.
 	}{
 		{ReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName), deletingNamespace},
 		{HostedClusterReadDesireNameFor(namespaceName), hostedClusterTargetFor(namespaceName, hostedClusterName), nil},
-		{ControlPlaneNamespaceReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName + "-" + hostedClusterName), nil},
+		{ControlPlaneNamespaceReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName + "-" + hostedClusterName), map[string]any{
+			"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{
+				"name": namespaceName + "-" + hostedClusterName, "uid": "control-plane-uid",
+				"deletionTimestamp": time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339),
+			},
+		}},
 	}
 	for _, item := range readTargets {
 		desire := observedReadDesire(t, stamp, item.name, item.target, item.object)
@@ -395,27 +478,56 @@ func TestNamespaceDeletionCompletesOnlyAfterObservedNamespaceAbsence(t *testing.
 	}
 	applyCRUD, err := client.ApplyDesiresForManagementCluster(stamp)
 	require.NoError(t, err)
-	for range 3 {
+	legacy := request.DeepCopy()
+	legacy.Status.NamespaceUID = "namespace-uid"
+	legacy.Status.ControlPlaneNamespaceUID = "control-plane-uid"
+	legacy.Status.CleanupIntent = "FinalizeNamespace"
+	legacyName := legacyFinalizeDesireName(namespaceName, 0)
+	relationship := &fleetapihelpers.NamespaceRelationship{
+		HostedClusterNamespace: namespaceName,
+		ControlPlaneNamespace:  namespaceName + "-" + hostedClusterName,
+	}
+	_, err = syncer.ensureFinalizeDesire(ctx, key, legacy, relationship, namespaceName, legacy.Status.NamespaceUID, legacyName)
+	require.NoError(t, err)
+	require.NoError(t, syncer.reconcile(ctx, key, legacy))
+	require.Equal(t, "FinalizeControlPlaneNamespace", legacy.Status.CleanupIntent)
+	_, err = applyCRUD.Get(ctx, legacyName)
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "migration must retire the old HostedCluster finalize desire")
+
+	for range 5 {
 		require.NoError(t, syncer.SyncOnce(ctx, key))
 	}
-	_, err = applyCRUD.Get(ctx, FinalizeDesireNameFor(namespaceName))
-	require.NoError(t, err, "finalization must be scheduled after the namespace UID and intent are persisted")
+	_, err = applyCRUD.Get(ctx, FinalizeControlPlaneDesireNameForAttempt(namespaceName, 0))
+	require.NoError(t, err, "schedule control-plane finalization while the namespace still exists")
+	_, err = applyCRUD.Get(ctx, FinalizeHostedClusterDesireNameForAttempt(namespaceName, 0))
+	require.True(t, cosmosstorageutils.IsNotFoundError(err))
+
+	absentControlPlaneNamespace := observedReadDesire(t, stamp, ControlPlaneNamespaceReadDesireNameFor(namespaceName),
+		namespaceTargetFor(namespaceName+"-"+hostedClusterName), nil)
+	require.NoError(t, readIndexer.Update(absentControlPlaneNamespace))
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = applyCRUD.Get(ctx, FinalizeHostedClusterDesireNameForAttempt(namespaceName, 0))
+	require.NoError(t, err)
 	persisted, err := fleetDB.Stamps().ManagementClusters(stamp).NamespaceDeletions().Get(ctx, namespaceName)
 	require.NoError(t, err)
 	require.False(t, meta.IsStatusConditionTrue(persisted.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionComplete),
-		"publishing the finalization desire is not completion")
+		"the HostedCluster namespace still exists")
 
-	// Kube-applier has now observed the namespace absent. Only this later
-	// observation may turn the Fleet request Complete.
-	absentRead := observedReadDesire(t, stamp, ReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName), nil)
-	require.NoError(t, readIndexer.Update(absentRead))
+	absentHostedClusterNamespace := observedReadDesire(t, stamp, ReadDesireNameFor(namespaceName), namespaceTargetFor(namespaceName), nil)
+	require.NoError(t, readIndexer.Update(absentHostedClusterNamespace))
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 	persisted, err = fleetDB.Stamps().ManagementClusters(stamp).NamespaceDeletions().Get(ctx, namespaceName)
 	require.NoError(t, err)
 	require.True(t, meta.IsStatusConditionTrue(persisted.Status.Conditions, fleetapi.ConditionTypeNamespaceDeletionComplete))
 	require.NoError(t, syncer.SyncOnce(ctx, key))
-	_, err = applyCRUD.Get(ctx, FinalizeDesireNameFor(namespaceName))
-	require.Error(t, err, "settled request must retire its finalization desire")
+	for _, name := range []string{
+		FinalizeControlPlaneDesireNameForAttempt(namespaceName, 0),
+		FinalizeHostedClusterDesireNameForAttempt(namespaceName, 0),
+	} {
+		_, err = applyCRUD.Get(ctx, name)
+		require.Error(t, err, "settled request must retire its finalize desires")
+	}
 }
 
 func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testing.T) {
@@ -445,7 +557,7 @@ func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testin
 	stopped.Status.CleanupIntent = "UnblockHostedCluster"
 	meta.SetStatusCondition(&stopped.Status.Conditions, metav1.Condition{
 		Type: fleetapi.ConditionTypeNamespaceDeletionStopped, Status: metav1.ConditionTrue,
-		Reason: "ManifestWorkPresent", Message: "work still owns the namespace",
+		Reason: "ManagedResourceGroupPresent", Message: "the managed resource group is still present",
 	})
 	recent := metav1.Now()
 	stopped.Status.CompletedAt = &recent
@@ -453,7 +565,7 @@ func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testin
 	require.NoError(t, err)
 	retry := stored.DeepCopy()
 	retry.Spec.RetryGeneration = 1
-	retry.Spec.RetryReason = "removed stale ManifestWork"
+	retry.Spec.RetryReason = "confirmed the managed resource group was removed"
 	_, err = crud.Replace(ctx, retry, stored, nil)
 	require.NoError(t, err)
 
@@ -478,7 +590,7 @@ func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testin
 	stored, err = crud.Get(ctx, namespaceName)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, stored.Status.AttemptGeneration)
-	require.Equal(t, "removed stale ManifestWork", stored.Status.AttemptReason)
+	require.Equal(t, "confirmed the managed resource group was removed", stored.Status.AttemptReason)
 	require.Equal(t, "namespace-uid", stored.Status.NamespaceUID)
 	require.Equal(t, "hosted-cluster-uid", stored.Status.HostedClusterUID)
 	require.Empty(t, stored.Status.CleanupIntent)
@@ -486,7 +598,7 @@ func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testin
 	require.Nil(t, stored.Status.CompletedAt)
 	require.Len(t, stored.Status.PreviousAttempts, 1)
 	require.Equal(t, "initial cleanup", stored.Status.PreviousAttempts[0].Reason)
-	require.Equal(t, "ManifestWorkPresent", stored.Status.PreviousAttempts[0].StopReason)
+	require.Equal(t, "ManagedResourceGroupPresent", stored.Status.PreviousAttempts[0].StopReason)
 	require.NotEqual(t, ReadDesireNameForAttempt(namespaceName, 0), ReadDesireNameForAttempt(namespaceName, 1))
 	readIndexer := cache.NewIndexer(func(obj interface{}) (string, error) {
 		return strings.ToLower(obj.(*kubeapplierapi.ReadDesire).ResourceID.String()), nil
@@ -523,6 +635,6 @@ func TestNamespaceDeletionRetryArchivesStopAndWaitsForOldAuthorization(t *testin
 		"a replacement namespace cannot inherit the retry")
 	applyCRUD, err := client.ApplyDesiresForManagementCluster(stamp)
 	require.NoError(t, err)
-	_, err = applyCRUD.Get(ctx, FinalizeDesireNameForAttempt(namespaceName, 1))
+	_, err = applyCRUD.Get(ctx, FinalizeHostedClusterDesireNameForAttempt(namespaceName, 1))
 	require.Error(t, err, "replacement namespace must not be finalized")
 }
