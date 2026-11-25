@@ -115,6 +115,13 @@ func TestOperationFor(t *testing.T) {
 			wantNil: true,
 		},
 		{
+			name: "missing optional fields",
+			item: &armresources.DeploymentOperation{Properties: &armresources.DeploymentOperationProperties{}},
+			validate: func(t *testing.T, op *Operation) {
+				assert.Equal(t, &Operation{}, op)
+			},
+		},
+		{
 			name: "operation without target resource",
 			item: &armresources.DeploymentOperation{
 				Properties: &armresources.DeploymentOperationProperties{
@@ -309,21 +316,23 @@ func TestFetchOperationsForCrossSubscription(t *testing.T) {
 	assert.Equal(t, childSub, requestedSubs[1], "second call should be for child subscription")
 }
 
-func TestFetchOperationsForSameSubscription(t *testing.T) {
+func TestFetchOperationsForUntimedDeploymentInSameSubscription(t *testing.T) {
 	sub := "same-sub-333"
 
 	callCount := 0
 	transport := &fakeTransport{}
-	// Return a nested deployment on the first call, then a leaf resource on the second
+	// Return an untimed nested deployment on the first call, then a leaf resource on the second
 	// to avoid infinite recursion while still testing same-subscription routing.
 	transport.interceptor = func(req *http.Request) (*http.Response, error) {
 		callCount++
 		var body string
 		if callCount == 1 {
 			body = fakeOperationsResponse(t,
-				fakeDeploymentOp("Create", "PT1M", to.Ptr(fmt.Sprintf(
-					"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.Resources/deployments/child-deploy", sub,
-				))),
+				armresources.DeploymentOperation{Properties: &armresources.DeploymentOperationProperties{
+					TargetResource: &armresources.TargetResource{ID: to.Ptr(fmt.Sprintf(
+						"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.Resources/deployments/child-deploy", sub,
+					))},
+				}},
 			)
 		} else {
 			body = fakeOperationsResponse(t,
@@ -345,10 +354,12 @@ func TestFetchOperationsForSameSubscription(t *testing.T) {
 		return armresources.NewDeploymentOperationsClient(subID, &fakeCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: transport}})
 	}
 
-	_, err := fetchOperationsFor(context.Background(), getter, sub, "rg", "parent-deploy")
+	ops, err := fetchOperationsFor(context.Background(), getter, sub, "rg", "parent-deploy")
 	require.NoError(t, err)
+	require.Len(t, ops, 1)
+	assert.Empty(t, ops[0].StartTimestamp)
+	assert.Empty(t, ops[0].Duration)
+	require.Len(t, ops[0].Children, 1)
 
-	for _, s := range requestedSubs {
-		assert.Equal(t, sub, s, "all getClient calls should use the same subscription when child matches parent")
-	}
+	assert.Equal(t, []string{sub, sub}, requestedSubs, "both operations requests should use the same subscription")
 }
