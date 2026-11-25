@@ -19,6 +19,13 @@
       },
       "type": "object"
     },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to resources created by this deployment"
+      },
+      "type": "object"
+    },
     "openshiftControlPlaneVersionId": {
       "defaultValue": "4.20",
       "metadata": {
@@ -3250,6 +3257,9 @@
           "identityValue": {
             "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('mi-{0}', resourceGroup().name)), '2025-04-01').outputs.identityValue.value]"
           },
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
+          },
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'customerInfra'), '2025-04-01').outputs.keyVaultName.value]"
           },
@@ -3310,6 +3320,13 @@
             "identityValue": {
               "metadata": {
                 "description": "Cluster Managed Identities"
+              },
+              "type": "object"
+            },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to resources created by this deployment"
               },
               "type": "object"
             },
@@ -3434,7 +3451,7 @@
                   "id": "[parameters('openshiftVersionId')]"
                 }
               },
-              "tags": "[parameters('tags')]",
+              "tags": "[union(parameters('tags'), parameters('jobTags'))]",
               "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
             },
             "keyVault": {
@@ -3481,6 +3498,9 @@
           "clusterName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cluster'), '2025-04-01').outputs.name.value]"
           },
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
+          },
           "nodePoolName": {
             "value": "nodepool-1"
           },
@@ -3502,6 +3522,13 @@
                 "description": "The name of the Hypershift cluster to which the node pool will be attached."
               },
               "type": "string"
+            },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to resources created by this deployment"
+              },
+              "type": "object"
             },
             "nodePoolName": {
               "metadata": {
@@ -3557,6 +3584,7 @@
                   "id": "[parameters('openshiftVersionId')]"
                 }
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
             }
           ]

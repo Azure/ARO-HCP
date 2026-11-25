@@ -13,6 +13,13 @@
       },
       "type": "string"
     },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to resources created by this deployment"
+      },
+      "type": "object"
+    },
     "nodePoolName": {
       "metadata": {
         "description": "The name of the node pool"
@@ -67,6 +74,7 @@
           "id": "[parameters('openshiftVersionId')]"
         }
       },
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
     }
   ]

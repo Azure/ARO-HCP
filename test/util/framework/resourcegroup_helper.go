@@ -38,8 +38,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
-const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
-
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
 	pager := subscriptionClient.NewListPager(nil)
 	for pager.More() {

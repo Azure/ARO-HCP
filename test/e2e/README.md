@@ -303,6 +303,55 @@ Run specific test case: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:H
 
 Run in debug mode: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' --vv ./`
 
+## Job attribution tags
+
+`run-suite` and `run-test` accept `--job-name` (defaults to `$JOB_NAME`) and
+`--job-id` (defaults to `$BUILD_ID`). These values tag resources created by tests:
+
+| Flag | ARM tag |
+| --- | --- |
+| `--job-name` | `jobName.aro-hcp-ci.redhat.com` |
+| `--job-id` | `jobID.aro-hcp-ci.redhat.com` |
+
+```bash
+./test/aro-hcp-tests run-suite integration/parallel --job-name local-debug --job-id run-123
+```
+
+Explicit flags override the defaults. Empty or whitespace-only values omit the
+corresponding tag, and values longer than ARM's 256-character limit are rejected
+before running tests. The runner passes resolved values to worker processes through
+`ARO_HCP_TEST_JOB_NAME` and `ARO_HCP_TEST_JOB_ID`, without changing `JOB_NAME` or
+`BUILD_ID`. These internal variables take precedence when present, even when empty.
+
+The flags apply only to `Microsoft.RedHatOpenShift` clusters and node pools
+created through SDK helpers and Bicep templates. External auth resources do not
+support tags. Supporting Azure resources and deployment records do not receive
+these tags. Experimental-feature tags are preserved.
+
+Resource groups retain their existing `$BUILD_ID`-based job-ID and expiry tags
+for cleanup. `cleanup --job-id` continues to select resource groups using that
+original build ID, independently of the HCP resource flag overrides.
+
+Before framework cleanup, each test validates the configured job tags on the
+`Microsoft.RedHatOpenShift` clusters and node pools remaining in its resource
+groups. Missing or incorrect values fail the test and identify the resource and
+tag; resource deletion still runs. Only non-empty configured job values are
+required. This also runs with cleanup disabled. Resources already deleted by the
+test cannot be checked, and external auths (which do not support tags), other
+providers, and shared resource groups are excluded.
+
+When adding HCP creation paths, use `framework.WithJobTags(existingTags)` for SDK
+clusters and node pools. By convention, Bicep deployment callers explicitly pass
+`"jobTags": framework.WithJobTags(map[string]*string{})` in their parameter map.
+Templates accept this optional object and forward it through modules that create
+HCP clusters and node pools, merging it with any resource-specific tags.
+
+Experimental-feature tags use a separate namespace, for example
+`aro-hcp.experimental.cluster.size-override=Minimal` and
+`aro-hcp.experimental.cluster.single-replica=SingleReplica`. They are honored only
+when the subscription registers `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures`.
+See `arohcp-cosmos-client/api/metadataapi/featureflags.go` for supported keys.
+
 ## E2E Test Suite Configuration
 To run the test suite, you must configure the following environment variables.
 

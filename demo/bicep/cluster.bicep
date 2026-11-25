@@ -28,6 +28,9 @@ param clusterVersion string
 @description('Tags that should be added to the ARO HCP cluster')
 param tags object = {}
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -538,7 +541,7 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' = {
   name: clusterName
   location: resourceGroup().location
-  tags: tags
+  tags: union(tags, jobTags)
   properties: {
     dns: {}
     network: {

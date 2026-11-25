@@ -41,6 +41,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	// 2. Pass as parameters to bicep
 	parameters := map[string]interface{}{
 		"clusterName": clusterName,
+		"jobTags":     framework.WithJobTags(map[string]*string{}),
 	}
 
 	// 3. Create a resource group

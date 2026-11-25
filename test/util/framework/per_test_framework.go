@@ -300,6 +300,10 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 		tc.runTimingPhase(ctx, "arm-metadata-harvest", "ARM metadata harvest", tc.harvestDeploymentOperations)
 	}, AnnotatedLocation("harvest deployment timing info"), ginkgo.NodeTimeout(45*time.Minute))
 
+	// A separate cleanup node fails the spec without preventing the remaining
+	// debug collection, resource deletion, and identity-release nodes from running.
+	ginkgo.DeferCleanup(tc.validateCreatedHCPJobTags, AnnotatedLocation("validate HCP resource job tags"), ginkgo.NodeTimeout(5*time.Minute))
+
 	// Registered last so it runs first in the FILO cleanup order, marking the
 	// boundary between the test body and cleanup.
 	ginkgo.DeferCleanup(tc.logTestEndAndCleanupStart, AnnotatedLocation("log test end and cleanup start"))

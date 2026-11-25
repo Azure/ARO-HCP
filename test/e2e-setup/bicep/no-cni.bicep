@@ -1,5 +1,8 @@
 targetScope = 'resourceGroup'
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 @description('If set to true, the cluster will not be deleted automatically after few days.')
 param persistTagValue bool = false
 
@@ -36,6 +39,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
   params: {
+    jobTags: jobTags
     openshiftVersionId: openshiftControlPlaneVersionId
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
