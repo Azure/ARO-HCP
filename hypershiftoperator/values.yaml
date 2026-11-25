@@ -6,6 +6,11 @@ image: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/{{ .hypershift.image.repository 
 imageDigest: "{{ .hypershift.image.digest }}"
 registryOverrides: "quay.io/openshift-release-dev/ocp-v4.0-art-dev={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/redhat,quay.io/redhat-user-workloads/crt-redhat-acm-tenant={{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/quay-cache/redhat-user-workloads/crt-redhat-acm-tenant"
 azureKeyVaultClientId: "__csiSecretStoreClientId__"
+ocpControlPlaneEmbargoPullBinding:
+  registry: "{{ .acr.ocpControlPlaneEmbargo.name }}.{{ .acrDNSSuffix }}"
+  scope: "repository:openshift-release-dev/ocp-release-priv:pull repository:openshift-release-dev/ocp-v4.0-art-dev-priv:pull repository:openshift-release-dev/ocp-v5.0-art-dev-priv:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
 additionalArgs: "{{ .hypershift.additionalInstallArg }}"
 operatorEnvVars:
   sharedIngressIPTag: "{{ .hypershift.sharedIngressIPTag }}"

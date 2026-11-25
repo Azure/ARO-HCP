@@ -138,6 +138,33 @@ defaults:
       overviewDashboard:
         enabled: false
         name: 'arohcpocp{{ .ctx.environment }}-overview'
+    # Embargoed OCP control plane images: pull-through cached from the private
+    # openshift-release-dev repositories (see the ocpControlPlaneEmbargoCaching
+    # module in dev-infrastructure/templates/global-acr.bicep) using a dedicated
+    # quay pull secret (quay-priv-username/quay-priv-password in the global KV).
+    ocpControlPlaneEmbargo:
+      name: 'arohcpocpcontrolplaneembargo{{ .ctx.environment }}' # [globally-unique]
+      zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: true
+        days: 90
+      replicationState: true
+      # ACR diagnostic settings (repository/login events + metrics) sent to a
+      # dedicated Log Analytics workspace. Disabled by default; enabled per-cloud
+      # below (see clouds.dev.defaults.acr.ocp). Added to help diagnose ACR
+      # throttling (429s) affecting E2E image pulls (AROSLSRE-1883).
+      diagnosticSettings:
+        enabled: false
+        logAnalyticsWorkspace:
+          name: 'arohcpocpcontrolplaneembargo{{ .ctx.environment }}-diag'
+          sku: PerGB2018
+          retentionInDays: 90
+      # Azure portal dashboard visualizing the diagnosticSettings workspace
+      # above (request volume, result codes, 429 throttling). Disabled by
+      # default; enabled per-cloud below (see clouds.dev.defaults.acr.ocp).
+      overviewDashboard:
+        enabled: false
+        name: 'arohcpocpcontrolplaneembargo{{ .ctx.environment }}-overview'
   # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
   # the stg-only V2 copies) is preprocessed by helmtest against the dev render
   # and by EV2 manifest generation for all public envs, and the renderer uses
@@ -1546,6 +1573,24 @@ clouds:
           overviewDashboard:
             enabled: true
             name: 'arohcpocpdev-overview'
+        # Same rationale as acr.ocp above: all dev-cloud environments (ci00,
+        # ci01, dev, perf, pers) share this single registry.
+        ocpControlPlaneEmbargo:
+          name: 'arohcpocpcontrolplaneembargodev' # [globally-unique]
+          zoneRedundantMode: Disabled
+          # Same rationale as acr.ocp.diagnosticSettings above: one shared,
+          # statically named workspace/diagnostic-settings name across every
+          # all dev-cloud environments (ci00, ci01, dev, perf, pers) so each
+          # environment's redeploy is an idempotent update of the same resource, not a new one.
+          diagnosticSettings:
+            enabled: true
+            logAnalyticsWorkspace:
+              name: 'arohcpocpcontrolplaneembargodev-diag'
+          # Same rationale as acr.ocp.overviewDashboard above: one shared,
+          # statically named dashboard for the shared registry.
+          overviewDashboard:
+            enabled: true
+            name: 'arohcpocpcontrolplaneembargodev-overview'
       # Metrics
       monitoring:
         alertsEnabled: true

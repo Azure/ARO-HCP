@@ -707,6 +707,24 @@ subjects:
 - kind: ServiceAccount
   name: hypershift-installer
   namespace: 'hypershift'
+---
+# Source: aro-hcp-hypershift-operator/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: ocp-control-plane-embargo-pull-binding
+  namespace: 'hypershift'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpocpcontrolplaneembargodev.azurecr.io'
+    scope: 'repository:openshift-release-dev/ocp-release-priv:pull repository:openshift-release-dev/ocp-v4.0-art-dev-priv:pull repository:openshift-release-dev/ocp-v5.0-art-dev-priv:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: operator
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: operator
 
 ---
 # Source: aro-hcp-hypershift-operator/templates/installer.job.yaml

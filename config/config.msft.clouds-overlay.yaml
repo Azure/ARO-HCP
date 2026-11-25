@@ -176,6 +176,8 @@ clouds:
             acr:
               ocp:
                 replicationState: false
+              ocpControlPlaneEmbargo:
+                replicationState: false
               svc:
                 replicationState: false
           switzerlandnorth:

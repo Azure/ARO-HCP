@@ -97,6 +97,12 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/hypershift-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: image-puller-lookup
+    action: ARM
+    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -116,6 +122,14 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: csiSecretStoreClientId
+      imagePullerMsiClientId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiTenantId
     dependsOn:
     - resourceGroup: global
       step: mirror-image

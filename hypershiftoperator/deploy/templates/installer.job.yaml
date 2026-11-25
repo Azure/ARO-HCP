@@ -65,6 +65,11 @@ spec:
             {{- if .Values.operatorEnvVars.sharedIngressImage }}
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
             {{- end }}
+            {{- /*
+            Name of the Secret in the operator namespace holding the control plane release
+            pull secret. Enable once hypershift install accepts the name as a parameter.
+            --control-plane-release-pull-secret-name acr-pull-ocp-control-plane-embargo-pull-binding \
+            */}}
             {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer
