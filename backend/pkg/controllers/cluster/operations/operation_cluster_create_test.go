@@ -530,6 +530,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					}
 				}(),
 			}
+			skipNodePoolEgressForUnrelatedChecks(controller)
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 
@@ -724,6 +725,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 				resourcesDBClient:            db,
 			}
+			skipNodePoolEgressForUnrelatedChecks(controller)
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 			placementState, err := (&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: spcLister}).CalculateOperationStatus(ctx, operation, struct{}{})
@@ -1305,6 +1307,7 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 					},
 				},
 			}
+			skipNodePoolEgressForUnrelatedChecks(controller)
 			calculators, err := controller.newStatusCalculators()
 			require.NoError(t, err)
 			controller.statusCalculators = calculators

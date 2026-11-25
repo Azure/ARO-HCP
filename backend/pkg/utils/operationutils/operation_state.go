@@ -40,7 +40,8 @@ type OperationState struct {
 	CloudErrorCode string `json:"cloudErrorCode"`
 
 	// Error is the customer-safe error for a failed operation
-	Error *coreapi.CloudErrorBody `json:"error,omitempty"`
+	Error         *coreapi.CloudErrorBody `json:"error,omitempty"`
+	DeadlineError *coreapi.CloudErrorBody `json:"deadlineError,omitempty"`
 }
 
 // WithSource sets the source of the operation state.
@@ -193,7 +194,14 @@ func ApplyOperationDeadline(state *OperationState, observationErr error, deadlin
 		// expose their raw text in the ARM error.
 		detail = DeadlineExceededMessage("Some operation states could not be determined", detail)
 	}
-	return NewFailedOperationState(code, DeadlineExceededMessage(message, detail), nil), nil
+	message = DeadlineExceededMessage(message, detail)
+	var deadlineError *coreapi.CloudErrorBody
+	if state != nil && state.DeadlineError != nil {
+		deadlineError = state.DeadlineError.DeepCopy()
+		deadlineError.Code = code
+		deadlineError.Message = message
+	}
+	return NewFailedOperationState(code, message, deadlineError), nil
 }
 
 // PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
@@ -217,12 +225,16 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 	}
 	var messageParts []string
 	var operationErrors []coreapi.CloudErrorBody
+	var deadlineErrors []coreapi.CloudErrorBody
 	for _, s := range states {
 		if s.ProvisioningState != worstProvisioningState {
 			break
 		}
 		if s.Error != nil {
 			operationErrors = append(operationErrors, *s.Error)
+		}
+		if s.DeadlineError != nil {
+			deadlineErrors = append(deadlineErrors, *s.DeadlineError.DeepCopy())
 		}
 		if s.Message == "" {
 			continue
@@ -242,5 +254,9 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		}
 		return NewFailedOperationState(code, message, operationError), nil
 	}
-	return NewOperationState(worstProvisioningState, message).WithCloudErrorCode(code), nil
+	state := NewOperationState(worstProvisioningState, message).WithCloudErrorCode(code)
+	if !worstProvisioningState.IsTerminal() {
+		state.DeadlineError = coreapi.NewCloudErrorBodyFromSlice(deadlineErrors, "Multiple operation checks remain incomplete")
+	}
+	return state, nil
 }
