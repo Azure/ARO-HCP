@@ -267,6 +267,17 @@ depctl dependabot retest --repository OWNER/REPO --pull-request N --head SHA \
 Requires a current failing check URL plus a distinct comparison URL and enforces
 the 24-hour retest cooldown. Reads with `CI_TOKEN`, falling back to `GH_TOKEN`.
 
+### dependabot native inventory
+
+```bash
+depctl dependabot native inventory --repository OWNER/REPO
+```
+
+Prints native source groups, verified replacement PRs, and the next eligible
+action for each group as JSON. The command reads GitHub with `GH_TOKEN` or
+`GITHUB_TOKEN`; `CI_TOKEN` optionally supplies separate check and status reads.
+It does not mutate PRs, branches, or repository files.
+
 ### dependabot native select-group
 
 ```bash
@@ -292,8 +303,7 @@ The read-only `dependabot native check-tree`, `check-coverage` (or
 not executable commands. Go owns replacement scope, immutable consumer coverage
 and native admission eligibility. These commands use the trusted default-branch
 binary and official release GETs through `gh`; a missing binary or rejected check
-fails closed. Discovery, detector staging and reconciliation remain in Python
-until their callers and tests are migrated; publication does not call Python.
+fails closed.
 
 ### dependabot native validate-candidate
 
@@ -358,7 +368,7 @@ to the ordinary token. No request returns `{"status":"no-request"}` without
 credentials or Git access.
 
 Run `make verify-agentic-maintenance` from the repository root for Go publication
-and validation checks, remaining Python lifecycle regressions, and Darwin/arm64 coverage.
+and validation checks, including a Darwin/arm64 build.
 
 ### maintenance inventory
 

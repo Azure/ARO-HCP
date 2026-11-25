@@ -146,7 +146,7 @@ func TestNativePublicationHolds(t *testing.T) {
 			if test.held {
 				snapshot.Pull.Labels = []string{"do-not-merge/hold"}
 			}
-			blocked, err := nativePublicationBlockedHolds(snapshot)
+			_, _, blocked, err := nativePublicationBlockedHolds(snapshot)
 			if (err != nil) != test.wantError || blocked != test.wantBlocked {
 				t.Fatalf("holds = blocked %v, error %v; want blocked %v, error %v", blocked, err, test.wantBlocked, test.wantError)
 			}

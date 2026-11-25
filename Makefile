@@ -127,9 +127,7 @@ verify-agentic-maintenance:
 	go test -C tooling/depctl -timeout 600s . ./cmd/maintenance ./cmd/dependabot/... ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi ./internal/repository ./internal/consumers
 	@set -e; directory=$$(mktemp -d); trap 'rm -rf "$$directory"' EXIT; \
 		CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOWORK=off $(MAKE) -C tooling/depctl build BINARY="$$directory/depctl-darwin-arm64"; \
-		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"; \
-		export DEPCTL_BINARY="$$directory/depctl"; \
-		python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'
+		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format

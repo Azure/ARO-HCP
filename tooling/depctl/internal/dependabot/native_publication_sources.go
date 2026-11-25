@@ -84,7 +84,7 @@ func (p *NativePublisher) nativePublicationContent(ctx context.Context, sha, fil
 	}
 	decoded, err := base64.StdEncoding.DecodeString(*encoded)
 	if err != nil {
-		return "", fmt.Errorf("decode immutable content %s: %w", filename, err)
+		return "", fmt.Errorf("%w in %s: %w", nativeReject("invalid immutable file encoding"), filename, err)
 	}
 	if len(decoded) != size || !utf8.Valid(decoded) {
 		return "", nativeReject("truncated or non-UTF-8 immutable content")
@@ -470,6 +470,17 @@ func nativePublicationSiblingEcosystem(file *github.CommitFile) string {
 	return nativeEcosystem(file.GetFilename())
 }
 
+// NativePublicationSiblingDisjoint requires complete changed-file evidence from other ecosystems.
+func nativePublicationSiblingDisjoint(files []*github.CommitFile, ecosystem string) bool {
+	for _, file := range files {
+		sibling := nativePublicationSiblingEcosystem(file)
+		if sibling == "" || sibling == ecosystem {
+			return false
+		}
+	}
+	return len(files) != 0
+}
+
 // NativePublicationSiblings fails closed unless every omitted source has complete proof of different intent.
 func (p *NativePublisher) nativePublicationSiblings(ctx context.Context, intents []any, current []*github.PullRequest) error {
 	selected := map[int]string{}
@@ -491,13 +502,7 @@ func (p *NativePublisher) nativePublicationSiblings(ctx context.Context, intents
 		if err != nil {
 			return fmt.Errorf("PR #%d sibling snapshot: %w", pull.GetNumber(), err)
 		}
-		unknown, overlapping := false, false
-		for _, file := range snapshot.files {
-			ecosystem := nativePublicationSiblingEcosystem(file)
-			unknown = unknown || ecosystem == ""
-			overlapping = overlapping || ecosystem == first["ecosystem"]
-		}
-		if len(snapshot.files) != 0 && !unknown && !overlapping {
+		if nativePublicationSiblingDisjoint(snapshot.files, first["ecosystem"].(string)) {
 			continue
 		}
 		candidate, err := p.nativePublicationSourceIntent(ctx, snapshot)

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"regexp"
 )
@@ -48,7 +49,7 @@ func nativeDecode(raw []byte) (any, error) {
 	check := json.NewDecoder(bytes.NewReader(raw))
 	check.UseNumber()
 	if err := validateNativeJSONValue(check, 0, false); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", nativeReject("invalid native JSON"), err)
 	}
 	if _, err := check.Token(); err != io.EOF {
 		return nil, nativeReject("trailing JSON")
@@ -57,7 +58,7 @@ func nativeDecode(raw []byte) (any, error) {
 	decoder.UseNumber()
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", nativeReject("invalid native JSON"), err)
 	}
 	return value, nil
 }
