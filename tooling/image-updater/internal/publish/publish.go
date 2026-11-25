@@ -136,8 +136,11 @@ func (o *Options) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read the %s tip: %w", o.input.Base, err)
 	}
-	if remoteBase != baseCommit {
-		return fmt.Errorf("%s advanced to %q while the update was prepared from %q: %w", o.input.Base, remoteBase, baseCommit, githublib.ErrConflict)
+	// The base moves while the update is prepared. Publish against the current
+	// tip: the pull request diff is computed from the merge base, so the prepared
+	// files stay the complete change set, and CI validates the merged result.
+	if remoteBase != "" {
+		baseCommit = remoteBase
 	}
 	branchTip, err := o.git.remoteTip(ctx, o.input.Branch)
 	if err != nil {

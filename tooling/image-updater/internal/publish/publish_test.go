@@ -149,6 +149,7 @@ func TestRunPublishesRollingProposal(t *testing.T) {
 		wantNumber    int
 		wantTitle     string
 		wantPrevious  string
+		wantBase      string
 		wantLease     string
 		wantPublishes int
 	}{
@@ -208,10 +209,11 @@ func TestRunPublishesRollingProposal(t *testing.T) {
 			wantErr:   githublib.ErrConflict,
 		},
 		{
-			name:      "refuses an advanced base",
-			files:     []string{testFile},
-			committed: []string{testFile},
-			wantErr:   githublib.ErrConflict,
+			name:          "publishes against an advanced base",
+			files:         []string{testFile},
+			committed:     []string{testFile},
+			wantBase:      testTipSHA,
+			wantPublishes: 1,
 		},
 		{
 			name:    "refuses an empty commit",
@@ -228,8 +230,8 @@ func TestRunPublishesRollingProposal(t *testing.T) {
 				committed:  test.committed,
 				branchTip:  test.branchTip,
 			}
-			if test.name == "refuses an advanced base" {
-				git.remoteBase = testTipSHA
+			if test.wantBase != "" {
+				git.remoteBase = test.wantBase
 			}
 			publisher := &fakePublisher{open: test.open, receipt: githublib.Receipt{Outcome: "observed"}}
 			out := &bytes.Buffer{}
@@ -259,8 +261,12 @@ func TestRunPublishesRollingProposal(t *testing.T) {
 			if request.ExpectedBody != test.wantPrevious {
 				t.Errorf("ExpectedBody = %q, want %q", request.ExpectedBody, test.wantPrevious)
 			}
-			if request.ExpectedHead != testHeadSHA || request.ExpectedBase != testBaseSHA {
-				t.Errorf("expected head/base = %s/%s, want %s/%s", request.ExpectedHead, request.ExpectedBase, testHeadSHA, testBaseSHA)
+			wantBase := testBaseSHA
+			if test.wantBase != "" {
+				wantBase = test.wantBase
+			}
+			if request.ExpectedHead != testHeadSHA || request.ExpectedBase != wantBase {
+				t.Errorf("expected head/base = %s/%s, want %s/%s", request.ExpectedHead, request.ExpectedBase, testHeadSHA, wantBase)
 			}
 			if !request.ReadyForReview {
 				t.Error("ReadyForReview = false, want true")
