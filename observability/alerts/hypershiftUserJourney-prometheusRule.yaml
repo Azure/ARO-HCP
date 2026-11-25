@@ -46,7 +46,7 @@ spec:
         slo: control-plane-operator-availability
         service: control-plane-operator
       annotations:
-        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods"
+        summary: "control-plane-operator has no available pods"
         description: |
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: {{ $labels.cluster }}

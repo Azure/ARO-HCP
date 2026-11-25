@@ -21,7 +21,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[MgmtClusterHCPCapacityWarning] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -51,7 +51,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[MgmtClusterNodeSwiftNICCapacityZero] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -81,7 +81,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[MgmtClusterHCPCapacityCritical] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -111,7 +111,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[MgmtAgentCapacityReportingSyncFailing] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -154,7 +154,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[HCPClusterOperatorUnavailable] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -172,8 +172,8 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           info: '''{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
-          summary: 'HCP cluster operator unavailable on {{ $labels.namespace }} ({{ $labels.cluster }})'
-          title: 'HCP cluster operator unavailable on {{ $labels.namespace }} ({{ $labels.cluster }})'
+          summary: 'HCP cluster operator unavailable'
+          title: 'HCP cluster operator unavailable'
         }
         expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="available",name!~"version|console"} == 0) and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
         for: 'PT30M'
@@ -184,7 +184,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[HCPClusterOperatorDegraded] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -202,8 +202,8 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           info: '''{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Degraded=true for more than 2 hours. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. A degraded operator is reporting reduced quality of service.
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
-          summary: 'HCP cluster operator degraded on {{ $labels.namespace }} ({{ $labels.cluster }})'
-          title: 'HCP cluster operator degraded on {{ $labels.namespace }} ({{ $labels.cluster }})'
+          summary: 'HCP cluster operator degraded'
+          title: 'HCP cluster operator degraded'
         }
         expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="degraded",name!~"version|console"} == 1) and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
         for: 'PT2H'
@@ -214,7 +214,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[HCPClusterVersionFailing] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -232,8 +232,8 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           info: '''The version operator (ClusterVersion) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) has been Failing for more than 1 hour while NO other cluster operator is unavailable or degraded. This points at a version-operator-specific failure -- payload image retrieval, release signature verification, an upgrade precondition, or a cluster-scoped manifest apply -- rather than a problem any individual component operator reports.
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
-          summary: 'HCP version operator failing on {{ $labels.namespace }} ({{ $labels.cluster }})'
-          title: 'HCP version operator failing on {{ $labels.namespace }} ({{ $labels.cluster }})'
+          summary: 'HCP version operator failing'
+          title: 'HCP version operator failing'
         }
         expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="failing",name="version"} == 1) unless on (cluster, namespace) count by (cluster, namespace, region) ((cluster_operator_conditions{condition="available",name!="version"} == 0) or (cluster_operator_conditions{condition="degraded",name!="version"} == 1))'
         for: 'PT1H'
@@ -257,7 +257,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeApplierDesiresMetricNotPresent] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -285,7 +285,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeApplierApplyFailing] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -313,7 +313,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeApplierReadFailing] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
