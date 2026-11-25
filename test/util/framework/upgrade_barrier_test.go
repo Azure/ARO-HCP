@@ -405,11 +405,15 @@ func TestUpgradeBarrier_WaitForUpgrade_NonRunnerPath(t *testing.T) {
 	b1 := newLinkedBarrier(t, b0)
 	coord := newTestCoordinator(t, b0)
 
-	// Coordinator writes upgrade done after a short delay.
+	// Coordinator writes upgrade done after a short delay. The goroutine
+	// must finish before t.Cleanup closes the coordinator's lock file.
+	markDone := make(chan struct{})
 	go func() {
+		defer close(markDone)
 		time.Sleep(50 * time.Millisecond)
 		_ = coord.markUpgradeDone(nil)
 	}()
+	defer func() { <-markDone }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
