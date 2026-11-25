@@ -45,6 +45,9 @@ var _ = Describe("Customer", func() {
 			// Each entry needs its own cluster name. The entries run in parallel.
 			clusterName := fmt.Sprintf("autonode-upgrade-%s-%s",
 				strings.ReplaceAll(nodeClassMinor, ".", ""), strings.ReplaceAll(targetMinor, ".", ""))
+
+			ensureCPOImageOverride()
+
 			tc := framework.NewTestContext()
 
 			By("checking that the v20270201 API is deployed before creating Azure resources")

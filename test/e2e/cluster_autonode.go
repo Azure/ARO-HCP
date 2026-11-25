@@ -51,6 +51,8 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			const clusterName = "autonode-enable-422"
 
+			ensureCPOImageOverride()
+
 			tc := framework.NewTestContext()
 
 			By("checking that the v20270201 API is deployed before creating Azure resources")

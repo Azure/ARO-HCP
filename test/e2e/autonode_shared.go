@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"time"
@@ -47,6 +48,35 @@ const autoNodeTestOpenshiftVersion = "4.22"
 // two-replica cluster-infra workloads. Thus Karpenter provisions nodes only for
 // the test workload.
 const autoNodeRegularWorkerReplicas = int32(2)
+
+// defaultAutoNodeCPOImage is the control plane operator build validated for
+// AutoNode e2e. It carries the OCPBUGS-131839 fix. The fix makes the Azure
+// cloud node manager tolerate the karpenter.sh/unregistered taint, so
+// Karpenter nodes can register. The image lives in the OCP ACR because the
+// HostedCluster pull secret covers only that registry.
+//
+// Remove this default before merge. Remove it earlier when a served 4.22
+// payload carries the fix; see
+// https://github.com/openshift/hypershift/pull/10383.
+const defaultAutoNodeCPOImage = "arohcpocpdev.azurecr.io/asampaio/hypershift-cpo:aro-hcp-4.22.23-20261124-r3@sha256:309483b32a2cad839a80379f7affadc34a6313dedc4d7c9a2ab99e4953ee1b86"
+
+// ensureCPOImageOverride defaults the CPO image override for AutoNode
+// clusters. The served 4.22 payload predates OCPBUGS-131839. Without the
+// override, the payload control plane operator does not tolerate the
+// karpenter.sh/unregistered taint, and Karpenter nodes never register. The
+// default flows through the same CPO_IMAGE_OVERRIDE path that the CI
+// hypershift-images-push step drives; see applyCPOImageOverride in
+// test/util/framework/deployment_params.go.
+//
+// The runner gives each spec its own worker process, so only AutoNode specs
+// receive the default. An explicit CPO_IMAGE_OVERRIDE always wins.
+func ensureCPOImageOverride() {
+	if os.Getenv("CPO_IMAGE_OVERRIDE") != "" {
+		return
+	}
+	GinkgoWriter.Printf("CPO_IMAGE_OVERRIDE is unset; defaulting to the AutoNode CPO build %s\n", defaultAutoNodeCPOImage)
+	os.Setenv("CPO_IMAGE_OVERRIDE", defaultAutoNodeCPOImage)
+}
 
 type karpenterRun struct {
 	resourceName, workloadNamespace, workloadName string

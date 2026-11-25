@@ -62,6 +62,9 @@ var _ = Describe("Customer", func() {
 			// One budget covers node initialization and Cilium DaemonSet
 			// readiness.
 			const karpenterNodeReadinessTimeout = 10 * time.Minute
+
+			ensureCPOImageOverride()
+
 			tc := framework.NewTestContext()
 
 			By("checking that the v20270201 API is deployed before creating Azure resources")

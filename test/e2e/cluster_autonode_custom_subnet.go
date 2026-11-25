@@ -40,6 +40,9 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const clusterName = "autonode-subnet-422"
+
+			ensureCPOImageOverride()
+
 			tc := framework.NewTestContext()
 
 			By("checking that the v20270201 API is deployed before creating Azure resources")
