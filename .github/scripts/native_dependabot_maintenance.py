@@ -693,6 +693,10 @@ def read_request(path, kind):
     if not selected:
         return None
     item = selected[0]
+    # The safe-output runtime attaches an opaque receipt ID outside the payload.
+    if "output_id" in item:
+        require(isinstance(item["output_id"], str) and item["output_id"], "invalid native output ID")
+        item = {key: value for key, value in item.items() if key != "output_id"}
     field = "request_sha256" if kind == "native_replacement" else "request"
     require(set(item) in ({"type", field}, {"type", "data"}), "ambiguous native output envelope")
     data = item.get("data") if "data" in item else {key: value for key, value in item.items() if key != "type"}

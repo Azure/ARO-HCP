@@ -83,6 +83,14 @@ func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest,
 	if selected == nil {
 		return nil, nil
 	}
+	// The safe-output runtime attaches an opaque receipt ID outside the payload.
+	if rawID, exists := selected["output_id"]; exists {
+		id, ok := rawID.(string)
+		if !ok || id == "" {
+			return nil, fmt.Errorf("invalid native output ID")
+		}
+		delete(selected, "output_id")
+	}
 	if len(selected) != 2 {
 		return nil, fmt.Errorf("ambiguous native output envelope")
 	}
