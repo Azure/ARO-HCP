@@ -35,7 +35,30 @@ This is why ci-operator logs of later jobs contain a line like:
 Tagging aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci into pipeline:root
 ```
 
-It means the shared build root is being imported into this job's namespace. How tool versions in the base image are pinned and bumped is covered in the [openshift-ci README](../../dev-infrastructure/openshift-ci/README.md#version-management).
+It means the shared build root is being imported into this job's namespace.
+
+#### Tool Versions In The Build Root
+
+The image carries the toolchain CI needs: the OCP builder base (Go on RHEL 9), Azure CLI with Bicep, `kubectl`, `kubelogin`, `oc`, `promtool` and the usual system tools. Some of those are pinned in more than one place, and the copies have to agree:
+
+- **Builder image and Go version** live in `.ci-operator.yaml` at the repository root, in `build_root_image.tag`. That is the single source of truth for ci-operator, which reads it directly, and for local builds, where `versions.mk` extracts it with `yq`.
+- **Bicep and `promtool`** are pinned in `versions.mk` and as `ARG` defaults in the Dockerfile.
+- `kubectl`, `kubelogin` and `oc` are downloaded at their latest stable release and are not pinned.
+
+To change them:
+
+1. **Go bump.** Update `.ci-operator.yaml` first, because the shared base image has to carry the new Go version before `go.work` refers to it. Update `go.work` in a follow-up PR.
+2. **Bicep or `promtool` bump.** Run `make update-tool-versions`, or `dev-infrastructure/openshift-ci/update-tool-versions.sh BICEP_VERSION` (or `PROMTOOL_VERSION`) to move one tool; both update the matching Dockerfile `ARG`.
+3. Run `make verify`, which fails when the Go minor version in `go.work` disagrees with the builder tag or a pinned tool is out of sync.
+4. Run `make -C dev-infrastructure/openshift-ci verify test`, which builds the image and smoke-tests every tool.
+
+Inside an already-built CI image, `make -C dev-infrastructure/openshift-ci verify test IN_CONTAINER=true` runs the same fail-closed `smoke-test.sh` against the caller's image, without nested Docker or Podman. It tests the image it is given and fails on a missing or broken tool. The `baseimage-generator` presubmit keeps its own non-root Go build and test check.
+
+#### Automated Tool Updates
+
+The [tool-version-updates GitHub Agentic Workflow](../../.github/workflows/tool-version-updates.md) checks `bicep`, `promtool` and every Bingo-managed tool daily and after an owned tool-update PR merges. It proposes one upstream family at a time: all five `k8s.io/code-generator` tools move together and unrelated tools stay separate. Native Bingo updates also regenerate module and checksum files and the Make and shell helpers, including their host-platform build settings. Runs are serialized against existing agent-owned tool-update PRs so two of them cannot fight over the same files, and published PRs use the normal CI and Tide auto-merge path.
+
+Each candidate is checked with the proposed tool rather than the old one: `bicep` compiles the committed golden fixtures, `promtool` runs the Prometheus rule generator's consumer tests, and a Bingo update builds its tool and runs repository verification and lint. Dockerfile and `.bingo/` changes also select the `baseimage-generator` Prow build. Current and single-flight-waiting states emit no-ops; missing data or a blocked check reports the run as incomplete instead of claiming the tools are current, and real API, authentication or infrastructure failures stay failures. The read-only `depctl inventory` preflight is the authority for current and latest versions.
 
 ### Nested Podman Toolchain
 
@@ -46,7 +69,42 @@ Integration tests and mega-linter run in nested-Podman jobs. Their toolchain fol
 
 Package downloads therefore happen when the toolchain is published rather than in every job. Two consequences are worth knowing. A failed toolchain build does not replace the last promoted image, so consumers keep working. The generator only rebuilds when one of its trigger paths changes, so upstream base-image and package updates reach CI only after such a change or a deliberate rebuild. The checkout in `nested-podman-src` is owned by UID 1000, the toolchain's default user, so jobs can create repository-local build outputs such as `bin/envtest` without becoming root.
 
-Local build and smoke-test commands are in the [openshift-ci README](../../dev-infrastructure/openshift-ci/README.md#nested-podman-base-image).
+Local build and smoke-test commands are in the `dev-infrastructure/openshift-ci` Makefile:
+
+```bash
+make -C dev-infrastructure/openshift-ci build-nested-podman
+make -C dev-infrastructure/openshift-ci test-nested-podman
+make -C dev-infrastructure/openshift-ci test-nested-podman-runtime
+```
+
+Local builds pull from `quay-proxy.ci.openshift.org` and need
+[CI registry access](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci).
+Set `NESTED_PODMAN_IMAGE=<pullspec>` to test a different upstream base. Never
+substitute an image from the legacy registry: the base has to initialize
+rootless Podman and forward commands through its entrypoint.
+
+The tests run the image as its default user, without a runtime user override.
+The tools test asserts UID 1000 and that Go can compile, test and install into
+`/opt/app-root`, the GOPATH integration jobs use. The image also provides `/go`
+owned by UID 1000 and group 0 with mode `0775`, so ci-operator can clone source
+into `/go/src` when it uses this image as a build root; an image-build check
+clones into it, so a permission regression fails the build rather than a job.
+The runtime test asserts that Podman is rootless, exercises the inherited
+entrypoint and checks the output of a nested container, so an entrypoint that
+silently discards commands fails. It uses host networking inside the outer
+container and therefore does not validate nested network isolation, and it needs
+privileged container support — privilege is scoped to that local test, not to
+the image build. On an ARM host, pass `PLATFORM=linux/arm64`. None of these
+tests replace the integration and mega-linter jobs on the CI build farm.
+
+Package sources are pinned deliberately. EPEL 9 and CentOS Stream 9 use inline
+repository definitions with official signing-key URLs and `gpgcheck=1`, EPEL
+comes from Fedora's mirror service with no release bootstrap RPM, and the one
+package UBI lacks (a dependency of `pass`) comes from a CentOS Stream 9 BaseOS
+repository restricted with `includepkgs=tree` so it cannot replace UBI
+packages. DNF picks architecture-specific packages and verifies their
+signatures, and a verification or installation failure fails the build instead
+of publishing an incomplete toolchain.
 
 ### Shared CI Test Runner Image
 

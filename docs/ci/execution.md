@@ -75,6 +75,8 @@ If a periodic fails, that usually points to shared-environment drift, backlog in
 
 E2E jobs in CI can be summarized as follows: the job authenticates as a test identity, that shared identity creates one test resource group per test in a testing subscription, and each request is then sent to the environment's RP entrypoint. In higher environments that request flows through ARM; in DEV it is a direct RP call. The RP then creates the ARO HCP cluster resource back into that test's resource group.
 
+Which identity a job uses, which subscription it targets, and which cluster profile field backs each of those choices are defined by the [Cluster Profile Secret Contract](cluster-profile-secret-contract.md).
+
 The charts below focus on that transaction path and the tenant and subscription boundaries it crosses:
 
 - **DEV** is a same-tenant, cross-subscription flow inside the Red Hat tenant.
@@ -143,7 +145,7 @@ flowchart LR
         direction LR
         subgraph intTestTenant["Red Hat tenant"]
             direction TB
-            intId["OpenShift Release Bot<br/>service principal"]
+            intId["OpenShift Release Bot - INT<br/>service principal"]
             subgraph intTestSub["Testing subscription<br/>ARO SRE Team - INT (EA Subscription 3)"]
                 direction TB
                 intTestSubPad[".<br/>."]
@@ -276,7 +278,7 @@ flowchart LR
 
 Each E2E mode starts from a CI identity:
 
-- **DEV and INT** use the `OpenShift Release Bot` service principal on the test side.
+- **DEV** uses the `OpenShift Release Bot` service principal and **INT** uses `OpenShift Release Bot - INT` on the test side.
 - **STG** uses the `OpenShift Release Bot - STG` and **PROD** uses the `OpenShift Release Bot - Prod` service principal, both in the Red Hat tenant.
 
 That identity is the caller that initiates the test-side Azure request. Across the job run, it creates one test resource group per test or spec.

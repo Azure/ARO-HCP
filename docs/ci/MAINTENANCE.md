@@ -19,13 +19,14 @@ The CI docs explain how the system fits together and how to operate it. They are
 | :--- | :------ | :------------- |
 | `README.md` | The reader journey through the set | pages are added, removed or renamed |
 | `execution.md` | What each CI mode validates, the Azure request path per environment, run-cost tagging, configuration overrides | modes, tenant or subscription flow, or the slot acquisition model change |
-| `image-lifecycle.md` | The CI image graph, promotion, the ACR push boundary | the build root, the job-local image graph or promotion rules change |
+| `image-lifecycle.md` | The CI image graph, promotion, the ACR push boundary, build-root tool pinning and updates | the build root, the job-local image graph, the pinned tool versions or promotion rules change |
 | `ev2-integration.md`, `ev2-retry-catcher.md` | EV2-to-Prow wiring, commit pinning, automatic retry | `prowJobName` or `gatePromotion` wiring, Gangway auth or retry eligibility change |
 | `cleanup.md` | Why and how cleanup is split into three paths | cleanup semantics, ownership or strictness change |
 | `slot-assets.md` | The three slot assets and how to provision and validate them | an asset is added, removed or changes lifecycle, or the asset commands change |
 | `dev-mock-identities.md` | What each mock identity stands in for, its roles, certificates, slot mock preparation | a mock identity or its roles change, or certificate handling changes |
 | `e2e-capacity.md` | Azure limits, how to check the catalog against them, how to change capacity | the formulas, the limits or the safe-change procedure change |
 | `e2e-subscription-onboarding.md` | Onboarding ARO-HCP-managed subscriptions | the steps, the owning teams or the required grants change |
+| `cluster-profile-secret-contract.md` | The supported cluster profile fields, the secret-store groups, the allowed field scopes, the transitional keys being retired and which rotation procedure applies per tenant | a profile field, group or consumer rule changes, or a credential procedure moves |
 | `external-subscription-management.md` | External subscription reconciliation, onboarding and scheduled maintenance | the reconciliation command, supported environments, safety boundaries or required grants change |
 | `dev-region-load-management.md` | Regional drain, rebalance and restore procedures | the way regions are selected or the procedure changes |
 | `e2e-testing.md`, `inplace-upgrade-presubmit.md`, `hypershift-v2-presubmit.md`, `capz-e2e.md` | How to trigger and narrow E2E runs and what the specialised presubmits do | `/test` commands, suites or the presubmit flows change |

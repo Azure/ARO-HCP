@@ -23,6 +23,7 @@ const (
 	SlotName                     = "ARO_HCP_E2E_SLOT_NAME"
 	SlotResourceType             = "ARO_HCP_E2E_SLOT_RESOURCE_TYPE"
 	CustomerSubscription         = "CUSTOMER_SUBSCRIPTION"
+	CustomerSubscriptionID       = "CUSTOMER_SUBSCRIPTION_ID"
 	SelectedClusterProfileDir    = "SELECTED_CLUSTER_PROFILE_DIR"
 	SelectedLocation             = "SELECTED_LOCATION"
 	VMFamilyPolicy               = "ARO_HCP_E2E_VM_FAMILY_POLICY"

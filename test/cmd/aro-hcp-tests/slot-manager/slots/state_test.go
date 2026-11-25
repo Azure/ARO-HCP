@@ -112,6 +112,9 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION='ARO HCP E2E Hosted Clusters (EA Subscription)'`) {
 		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION export, got %q", content)
 	}
+	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION_ID='e2e-id'`) {
+		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION_ID export, got %q", content)
+	}
 	if !strings.Contains(content, `export SELECTED_CLUSTER_PROFILE_DIR='/var/run/aro-hcp-dev'`) {
 		t.Fatalf("expected env file to contain SELECTED_CLUSTER_PROFILE_DIR export, got %q", content)
 	}
@@ -608,5 +611,14 @@ func TestRuntimePublicationValidatesInputs(t *testing.T) {
 	}
 	if err := AddCoreRuntimeExports(NewRuntimeContractBuilder(), nil, "dev-e2e", "profile"); err == nil {
 		t.Fatal("nil state must fail publication without panicking")
+	}
+	state := resolvedTestState()
+	state.Slot.Subscriptions.E2E.ID = " "
+	contract := NewRuntimeContractBuilder()
+	if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err == nil {
+		t.Fatal("expected publication to reject an unresolved customer subscription ID")
+	}
+	if exports := contract.MarshalShell(); strings.Contains(string(exports), leaseenv.CustomerSubscriptionID) {
+		t.Fatalf("expected no %s export without a resolved subscription ID, got %q", leaseenv.CustomerSubscriptionID, exports)
 	}
 }

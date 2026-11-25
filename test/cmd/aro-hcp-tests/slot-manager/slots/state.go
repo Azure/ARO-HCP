@@ -285,6 +285,10 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
 		return errors.New("customer subscription does not match resolved slot")
 	}
+	// Publication validation above already rejects an unresolved E2E
+	// subscription, so consumers can address the subscription by ID instead of
+	// re-reading a legacy subscription key from the cluster profile.
+	coreExports[leaseenv.CustomerSubscriptionID] = state.Slot.Subscriptions.E2E.ID
 	coreExports[leaseenv.RuntimeDeployEnvironment] = state.Slot.DeployEnvironment
 	if state.Slot.RequiresInfrastructureSubscription() {
 		coreExports[leaseenv.InfrastructureSubscriptionID] = state.Slot.Subscriptions.Infrastructure.ID

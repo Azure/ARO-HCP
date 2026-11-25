@@ -127,7 +127,12 @@ up expired app registrations in this tenant.
 | `aro-hcp-prod` | `prod` | `prod-e2e-parallel`, `production` (CAPZ), `delete-expired-prod-resource-groups` (hourly) |
 | `aro-hcp-msft-test-tenant` | `msft-test-tenant` | `delete-expired-msft-test-tenant-app-registrations` (hourly) |
 
-Other profiles (`dev`, `int-rh`, `stg-rh`, `prod-rh`) use their own groups and are not covered by this SOP.
+Other profiles (`dev`, `int-rh`, `stg-rh`, `prod-rh`, `red-hat-tenant`) use the
+Red Hat tenant bots and are not covered by this SOP; their rotation is
+[Rotating CI Bot Credentials](rotate-ci-bot-credentials.md). The full
+profile-to-application mapping, including the two profiles that share an
+application, is in the
+[cluster profile secret contract](../ci/cluster-profile-secret-contract.md#rotation).
 GSM values cannot be read back; `sm describe` shows a secret's metadata only.
 
 ### Rotating the CI Client Secret
