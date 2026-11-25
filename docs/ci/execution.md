@@ -145,7 +145,7 @@ flowchart LR
         direction LR
         subgraph intTestTenant["Red Hat tenant"]
             direction TB
-            intId["OpenShift Release Bot<br/>service principal"]
+            intId["OpenShift Release Bot - INT<br/>service principal"]
             subgraph intTestSub["Testing subscription<br/>ARO SRE Team - INT (EA Subscription 3)"]
                 direction TB
                 intTestSubPad[".<br/>."]
@@ -278,7 +278,7 @@ flowchart LR
 
 Each E2E mode starts from a CI identity:
 
-- **DEV and INT** use the `OpenShift Release Bot` service principal on the test side.
+- **DEV** uses the `OpenShift Release Bot` service principal and **INT** uses `OpenShift Release Bot - INT` on the test side.
 - **STG** uses the `OpenShift Release Bot - STG` and **PROD** uses the `OpenShift Release Bot - Prod` service principal, both in the Red Hat tenant.
 
 That identity is the caller that initiates the test-side Azure request. Across the job run, it creates one test resource group per test or spec.

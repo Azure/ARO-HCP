@@ -8,10 +8,15 @@ rotating their client secrets.
 
 | Environment | Application | Key Vault secret | CI secret store group (`VAULT_SECRET_PROFILE`) |
 | :---------- | :---------- | :--------------- | :--------------------------------------------- |
-| DEV | `OpenShift Release Bot` | `ci-bot-dev-client-secret` | `aro-hcp-dev` (`dev`) |
+| DEV | `OpenShift Release Bot` | `ci-bot-dev-client-secret` | `aro-hcp-dev` (`dev`) and `aro-hcp-red-hat-tenant` (`red-hat-tenant`) |
 | INT | `OpenShift Release Bot - INT` | `ci-bot-int-client-secret` | `aro-hcp-int-rh` (`int-rh`) |
 | STG | `OpenShift Release Bot - STG` | `ci-bot-stg-client-secret` | `aro-hcp-stg-rh` (`stg-rh`) |
 | PROD | `OpenShift Release Bot - Prod` | `ci-bot-prod-client-secret` | `aro-hcp-prod-rh` (`prod-rh`) |
+
+The DEV application is the one exception: it backs two profiles. The
+`red-hat-tenant` profile is mounted only by the expired app-registration cleanup,
+but it authenticates as `OpenShift Release Bot`, so a DEV rotation publishes the
+same value to both `aro-hcp-dev` and `aro-hcp-red-hat-tenant`.
 
 Application names come from `ci.<environment>.bot.applicationName` and the
 secrets are named by the `ensure-secret` mappings in
@@ -34,10 +39,9 @@ Not covered here:
   [Rotating the CI Client Secret](test-test-tenant-access.md#rotating-the-ci-client-secret).
 - Mock identity **certificates** (shared and per-slot), which follow
   [Rotating A Certificate](../ci/dev-mock-identities.md#rotating-a-certificate).
-- The identity behind the `aro-hcp-red-hat-tenant` profile, used only by the
-  expired app-registration cleanup. It is a Red Hat tenant application, but it
-  is not one of the four bots above, so confirm its application and where its
-  value is stored before rotating it.
+- The identity behind the `aro-hcp-red-hat-tenant` profile is the DEV application
+  from the table above, so it is covered here: its value is published together
+  with `aro-hcp-dev`.
 
 ## Where The Secret Lives
 
@@ -85,10 +89,11 @@ publication have drained.
 Rotate one environment at a time.
 
 1. **Secret store**: confirm you can update this environment's group. Stop here
-   if the line is missing, before anything is minted:
+   if the line is missing, before anything is minted. For DEV, that is both
+   groups, because one application backs both:
 
    ```bash
-   sm list -c hcm-aro | grep -E '^aro-hcp-(dev|int-rh|stg-rh|prod-rh)/client-secret'
+   sm list -c hcm-aro | grep -E '^aro-hcp-(dev|red-hat-tenant|int-rh|stg-rh|prod-rh)/client-secret'
    ```
 
 2. **Azure**: check the current expiry without changing anything. `--dry-run
@@ -118,6 +123,16 @@ Rotate one environment at a time.
    and unrelated to the secret, so a rotation does not need it unless consent is
    also missing.
 
+   The tool mints the password first and writes it to Key Vault afterwards, so a
+   failure can land between the two. A run that dies there leaves a live
+   credential on the application whose value no longer exists anywhere: Graph
+   returns only a hint, never the secret. If `ensure-secret` fails with
+   `store secret "<name>": ...`, the newest credential named
+   `<name>-managed` is that orphan — list the credentials as in step 6, delete
+   the orphan, and run step 3 again. If instead the vault write succeeded and a
+   later step failed, check the vault first: a new version means the value is
+   safe, so go on at step 4 and do not rotate again.
+
 4. **Secret store**: publish the new value into the group. Read it into a
    variable so the value never reaches shell history, write it without a
    trailing newline, and delete the file afterwards:
@@ -140,6 +155,24 @@ Rotate one environment at a time.
    same value and is safe. Do not edit `client-id` or `tenant` in the group:
    rotation changes the secret value only.
 
+   For DEV the same value goes to both groups, because both authenticate as
+   `OpenShift Release Bot`:
+
+   ```bash
+   S=$(az keyvault secret show --vault-name "${VAULT_NAME}" \
+        --name ci-bot-dev-client-secret --query value -o tsv)
+   F=$(mktemp "${HOME}/.ci-bot-secret.XXXXXX") && chmod 600 "${F}" \
+     && printf '%s' "${S}" > "${F}" && unset S \
+     && test -s "${F}" \
+     && sm update -c hcm-aro aro-hcp-dev/client-secret --from-file="${F}" \
+     && sm update -c hcm-aro aro-hcp-red-hat-tenant/client-secret --from-file="${F}" \
+     && echo "PUBLISHED to both DEV groups"
+   rm -f "${F}"
+   ```
+
+   Stop if the second publish fails and rerun it with the same file before moving
+   on; a group left on the old value fails its next job.
+
 5. **Verify**: new CI jobs use the new value immediately. Wait for a run that
    started after step 4 to pass in the environment you rotated — the hourly
    expired-resource-group periodic for that environment exercises the bot's
@@ -147,7 +180,7 @@ Rotate one environment at a time.
 
    | Environment | Job |
    | :---------- | :-- |
-   | DEV | `delete-expired-dev-ci-shard0-resource-groups` |
+   | DEV | `delete-expired-dev-ci-shard0-resource-groups`, and `delete-expired-red-hat-tenant-app-registrations` for the `red-hat-tenant` group |
    | INT | `delete-expired-integration-resource-groups` |
    | STG | `delete-expired-stage-resource-groups` |
    | PROD | `delete-expired-prod-00-resource-groups` |
@@ -180,9 +213,12 @@ Rotate one environment at a time.
 - **The application rejects the new credential.** Check the mapping's
   application name against `ci.<environment>.bot.applicationName`; a name that
   matches a different application mints the secret for that one.
-- **A rotation is interrupted before the vault write.** Nothing was minted, so
-  rerun from step 2. Never rotate twice to "make sure"; a second `--rotate`
-  mints a second credential and leaves the first one to expire.
+- **A rotation run is interrupted.** Do not assume nothing happened; the mint
+  comes before the vault write. Check the vault: a new version means the value is
+  safe and you resume at step 4. An error from `store secret` means a live
+  credential exists whose value is gone, so delete that orphan as step 3
+  describes and rotate again. Running `--rotate` twice just to be sure is what
+  creates the second situation, so decide from what you can see, not by retrying.
 
 ## Related Documentation
 

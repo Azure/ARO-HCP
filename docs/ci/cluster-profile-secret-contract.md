@@ -27,9 +27,10 @@ The collection holds one group per CI identity. The environment profiles
 (`aro-hcp-dev`, `aro-hcp-int-rh`, `aro-hcp-stg-rh`, `aro-hcp-prod-rh`) carry the
 Red Hat tenant bots that run the E2E and cleanup jobs for their environment, and
 [E2E Subscription Onboarding](e2e-subscription-onboarding.md) covers the
-subscription fields added to each one. The two groups below are the exception
-worth naming, because they hold the same application in the Microsoft Test Test
-tenant:
+subscription fields added to each one. The `aro-hcp-red-hat-tenant` group backs
+the expired app-registration cleanup and authenticates as the same application
+as `aro-hcp-dev`. The two groups below are the exception worth naming, because
+they hold the same application in the Microsoft Test Test tenant:
 
 | Group | Fields | Used by |
 | :---- | :----- | :------ |
@@ -40,9 +41,11 @@ The secret store cannot be read back: `sm describe` shows a secret's metadata
 only, never its value. See
 [adding a secret to CI GSM](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/).
 
-To confirm which profile a running job used, look for the acquisition line in
-its build log, for example `Acquired 1 lease(s) for aro-hcp-test-tenant-quota-slice`
-for a Test Test tenant job.
+To confirm which profile a job used, read `SELECTED_CLUSTER_PROFILE_DIR` from
+the `aro-hcp-slot.env` the job's acquisition step published into its artifacts,
+or the profile a step logs while resolving its credentials. The static lease
+line some jobs still print is not a reliable signal and is being removed with
+those leases.
 
 ## Identity Fields
 
@@ -130,11 +133,21 @@ environment binding in the profile stays as it is.
 The procedure depends on the tenant that owns the identity, and the two are not
 interchangeable:
 
-| Profiles | Tenant | Procedure |
-| :------- | :----- | :-------- |
-| `dev`, `int-rh`, `stg-rh`, `prod-rh` | Red Hat tenant | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md). The applications and principals are managed by the DEV CI privileged entrypoint and their secrets by `tooling/entra-app-credentials`. |
-| `red-hat-tenant` | Red Hat tenant | The same procedure, but this profile holds a different application: it is not one of the four bots, so confirm its application and where its value is stored first, as that page describes. |
-| `prod`, `msft-test-tenant` | Microsoft Test Test tenant | [Rotating the CI Client Secret](../sops/test-test-tenant-access.md#rotating-the-ci-client-secret). The application is created and rotated by hand with `az`, and belongs to a tenant this repository has no pipeline for. |
+| Profile | Tenant | Application | Procedure |
+| :------ | :----- | :---------- | :-------- |
+| `dev` | Red Hat tenant | OpenShift Release Bot | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md) |
+| `int-rh` | Red Hat tenant | OpenShift Release Bot - INT | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md) |
+| `stg-rh` | Red Hat tenant | OpenShift Release Bot - STG | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md) |
+| `prod-rh` | Red Hat tenant | OpenShift Release Bot - Prod | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md) |
+| `red-hat-tenant` | Red Hat tenant | OpenShift Release Bot (the same application as `dev`) | [Rotate CI bot credentials](../sops/rotate-ci-bot-credentials.md), published to both groups |
+| `prod` | Microsoft Test Test tenant | OpenShift Release Bot MSFT Test | [Rotating the CI Client Secret](../sops/test-test-tenant-access.md#rotating-the-ci-client-secret) |
+| `msft-test-tenant` | Microsoft Test Test tenant | OpenShift Release Bot MSFT Test (the same application as `prod`) | [Rotating the CI Client Secret](../sops/test-test-tenant-access.md#rotating-the-ci-client-secret), published to both groups |
+
+Two application names appear twice because one application backs two profiles:
+the Red Hat tenant bot behind `dev` also backs `red-hat-tenant`, and the Test
+Test tenant app behind `prod` also backs `msft-test-tenant`. Rotating one of
+those applications means publishing the new value to both of its groups in the
+same operation, so the application keeps a single live credential.
 
 In both cases the new value reaches CI through the secret store, not through the
 step definitions: a rotated secret is published into the group's `client-secret`
