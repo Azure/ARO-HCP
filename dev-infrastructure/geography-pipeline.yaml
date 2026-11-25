@@ -160,6 +160,18 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+  # Previous empty-ring stack name for public/int/westus3.
+  - name: remove-ring-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: clasqeuq3xi5l33pm42ng3socf4nw5pg6vmou6w2vfofi-usw3-
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   # Previous region-only stack name for public/int/westus3.
   - name: remove-region-only-stack
     action: ARMStack
@@ -193,6 +205,8 @@ resourceGroups:
       step: action-groups
     - resourceGroup: kusto-infra
       step: remove-region-only-stack
+    - resourceGroup: kusto-infra
+      step: remove-ring-stack
     variables:
     - name: kustoClusterId
       input:
