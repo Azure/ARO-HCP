@@ -42,11 +42,14 @@ func ReadNativeActionRequest(path string) (*NativeActionRequest, error) {
 	defer unix.Close(directory)
 	envelope, _, err := nativeReadOutputEnvelope(directory, filepath.Base(path))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read native action envelope: %w", err)
 	}
 	selected, payload, err := nativeSelectOutput(envelope, "native_action", "request")
-	if err != nil || selected == nil {
-		return nil, err
+	if err != nil {
+		return nil, fmt.Errorf("select native action: %w", err)
+	}
+	if selected == nil {
+		return nil, nil
 	}
 	if err := nativePublicationJSONUnicode([]byte(payload)); err != nil {
 		return nil, fmt.Errorf("validate native action Unicode: %w", err)
@@ -139,7 +142,7 @@ func (p *NativePublisher) Reconcile(ctx context.Context, request *NativeActionRe
 func (p *NativePublisher) nativeActionComment(ctx context.Context, request *NativeActionRequest) (body, status string, err error) {
 	pull, err := p.pullDetail(ctx, request.number)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("read native action target: %w", err)
 	}
 	author := pull.GetUser().GetLogin()
 	switch author {
@@ -153,12 +156,12 @@ func (p *NativePublisher) nativeActionComment(ctx context.Context, request *Nati
 	}
 	snapshot, err := p.nativePublicationSnapshot(ctx, request.number, request.head, author)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("read native action evidence: %w", err)
 	}
 	var intent map[string]any
 	if author == nativePublicationRobot {
 		if _, err := p.validateReplacement(snapshot.pull, false, false); err != nil {
-			return "", "", err
+			return "", "", fmt.Errorf("validate robot action target: %w", err)
 		}
 	}
 	if author == nativePublicationBot {
@@ -193,7 +196,10 @@ func (p *NativePublisher) nativeActionComment(ctx context.Context, request *Nati
 			return "", "", nativeReject("hold cancellation pending")
 		}
 		body, err := nativeRecoveryComment(snapshot.comments, ci, request.head, request.evidence, held)
-		return body, "", err
+		if err != nil {
+			return "", "", fmt.Errorf("verify native recovery: %w", err)
+		}
+		return body, "", nil
 	case "release-hold":
 		if !held || snapshot.cancellationPending {
 			return "", "not-held-or-cancel-pending", nil

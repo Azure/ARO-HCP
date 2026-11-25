@@ -62,11 +62,14 @@ func nativeReadPublicationSnapshot(outputFile string) (*nativePublicationArtifac
 	defer unix.Close(directory)
 	envelope, original, err := nativeReadOutputEnvelope(directory, filepath.Base(outputFile))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read publication envelope: %w", err)
 	}
 	selected, digest, err := nativeSelectOutput(envelope, "native_replacement", "request_sha256")
-	if err != nil || selected == nil {
-		return nil, err
+	if err != nil {
+		return nil, fmt.Errorf("select native replacement: %w", err)
+	}
+	if selected == nil {
+		return nil, nil
 	}
 	if !nativeCompilerHash.MatchString(digest) {
 		return nil, fmt.Errorf("replacement request digest must be lowercase SHA256")

@@ -30,6 +30,7 @@ type nativeReconcileFixture struct {
 	writes         []string
 	ciReads        int
 	beforeCI       func(*nativeReconcileFixture)
+	duringCoverage func(map[string]any)
 	invalidReceipt bool
 }
 
@@ -46,6 +47,9 @@ func (f *nativeReconcileFixture) publisher() *NativePublisher {
 	reader := client(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Has("recursive") {
 			f.t.Errorf("unexpected recursive tree query: %s", r.URL)
+		}
+		if f.duringCoverage != nil && strings.HasSuffix(r.URL.Path, "/compare/"+nativeInventoryTestSHA(101)+"..."+nativeInventoryTestSHA(0)) {
+			f.duringCoverage(f.api["pulls/100"].body.(map[string]any))
 		}
 		f.serve(w, r, false)
 	})
@@ -378,6 +382,25 @@ func TestNativeReconcile(t *testing.T) {
 			f.set("contents/backend/go.mod?ref="+nativeInventoryTestSHA(0), nativePublicationFixtureBlob("module example.test/component\n\ngo 1.26.0\n\nrequire example.com/library v1.0.0\n"))
 		}},
 		{name: "main moved during coverage", action: "close-superseded", replacement: 100, reject: "coverage evidence changed", setup: func(f *nativeReconcileFixture) { f.mergedReplacement(); f.moveMain = true }},
+		{name: "repository activity does not block closure", action: "close-superseded", replacement: 100, body: closeBody, setup: func(f *nativeReconcileFixture) {
+			f.mergedReplacement()
+			f.duringCoverage = func(pull map[string]any) {
+				repo := pull["base"].(map[string]any)["repo"].(map[string]any)
+				repo["pushed_at"] = "2026-11-25T00:00:00Z"
+			}
+		}},
+		{name: "merge identity changed during coverage", action: "close-superseded", replacement: 100, reject: "coverage evidence changed", setup: func(f *nativeReconcileFixture) {
+			f.mergedReplacement()
+			f.duringCoverage = func(pull map[string]any) {
+				pull["merge_commit_sha"] = nativeInventoryTestSHA(104)
+			}
+		}},
+		{name: "ownership changed during coverage", action: "close-superseded", replacement: 100, reject: "coverage evidence changed", setup: func(f *nativeReconcileFixture) {
+			f.mergedReplacement()
+			f.duringCoverage = func(pull map[string]any) {
+				pull["body"] = strings.ReplaceAll(pull["body"].(string), nativeInventoryTestSHA(1), nativeInventoryTestSHA(7))
+			}
+		}},
 		{name: "malformed write receipt is not retried", action: "admit", body: admit, reject: "comment response incomplete", setup: func(f *nativeReconcileFixture) { f.actionSource(); f.invalidReceipt = true }},
 	}
 	for _, test := range tests {

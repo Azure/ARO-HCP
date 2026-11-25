@@ -23,17 +23,17 @@ func (p *NativePublisher) nativeActionAdmission(ctx context.Context, snapshot na
 	cache := make(map[string]map[string]*github.TreeEntry)
 	available, err := p.nativeActionTreePaths(ctx, head, wanted, cache)
 	if err != nil {
-		return err
+		return fmt.Errorf("read admission head tree: %w", err)
 	}
 	var live map[string]bool
 	if group["ecosystem"] == "actions" {
 		base, err := p.mainSHA(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("read main for admission: %w", err)
 		}
 		live, err = p.nativeActionTreePaths(ctx, base, wanted, cache)
 		if err != nil {
-			return err
+			return fmt.Errorf("read live admission tree: %w", err)
 		}
 	}
 	paths := make(map[string]bool, len(snapshot.files))
@@ -52,11 +52,11 @@ func (p *NativePublisher) nativeActionAdmission(ctx context.Context, snapshot na
 func (p *NativePublisher) nativeActionClosure(ctx context.Context, request *NativeActionRequest, intent map[string]any) error {
 	target, err := p.pullDetail(ctx, request.replacement)
 	if err != nil {
-		return err
+		return fmt.Errorf("read merged replacement: %w", err)
 	}
 	meta, err := p.validateReplacement(target, true, false)
 	if err != nil {
-		return err
+		return fmt.Errorf("validate merged replacement: %w", err)
 	}
 	identified := false
 	for _, value := range meta["sources"].([]any) {
@@ -76,7 +76,7 @@ func (p *NativePublisher) nativeActionClosure(ctx context.Context, request *Nati
 	}
 	base, err := p.mainSHA(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("read main for closure: %w", err)
 	}
 	comparison, _, err := p.api.Repositories.CompareCommits(ctx, p.owner, p.repo, merge, base, nil)
 	if err != nil {
@@ -94,7 +94,7 @@ func (p *NativePublisher) nativeActionClosure(ctx context.Context, request *Nati
 	for _, ref := range []string{target.GetHead().GetSHA(), merge, base} {
 		available, err := p.nativeActionTreePaths(ctx, ref, wanted, cache)
 		if err != nil {
-			return err
+			return fmt.Errorf("read closure tree at %s: %w", ref, err)
 		}
 		if err := NativeVerifyCoverage(ctx, p.nativePublicationRead, intents, func(path string) (string, error) {
 			if !available[path] {
@@ -107,13 +107,27 @@ func (p *NativePublisher) nativeActionClosure(ctx context.Context, request *Nati
 	}
 	latestBase, err := p.mainSHA(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("recheck main for closure: %w", err)
+	}
+	if latestBase != base {
+		return nativeReject("merged coverage evidence changed")
 	}
 	latestTarget, err := p.pullDetail(ctx, request.replacement)
 	if err != nil {
-		return err
+		return fmt.Errorf("reread merged replacement: %w", err)
 	}
-	if latestBase != base || !reflect.DeepEqual(latestTarget, target) {
+	if _, err := p.validateReplacement(latestTarget, true, false); err != nil {
+		return fmt.Errorf("revalidate merged replacement: %w", err)
+	}
+	originalIdentity, err := nativePublicationHistoryIdentity(target)
+	if err != nil {
+		return fmt.Errorf("read original closure identity: %w", err)
+	}
+	latestIdentity, err := nativePublicationHistoryIdentity(latestTarget)
+	if err != nil {
+		return fmt.Errorf("read current closure identity: %w", err)
+	}
+	if !reflect.DeepEqual(latestIdentity, originalIdentity) {
 		return nativeReject("merged coverage evidence changed")
 	}
 	return nil
