@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-github/v69/github"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/model"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/policy"
 	automation "github.com/Azure/ARO-HCP/tooling/github"
 )
@@ -48,11 +49,13 @@ type nativePublicationAuthorization struct {
 
 // Native publication snapshots supplement shared evidence with source file identities.
 type nativePublicationSnapshot struct {
-	pull     *github.PullRequest
-	files    []*github.CommitFile
-	blocked  bool
-	comments []automation.Comment
-	ci       automation.CommitCI
+	pull                *github.PullRequest
+	files               []*github.CommitFile
+	blocked             bool
+	holds               []model.ActiveHold
+	cancellationPending bool
+	comments            []automation.Comment
+	ci                  automation.CommitCI
 }
 
 // NativePublicationMetadata validates the exact ownership marker and its immutable source identities.
@@ -175,7 +178,7 @@ func (p *NativePublisher) validateReplacement(pull *github.PullRequest, merged, 
 }
 
 // NativePublicationBlockedHolds uses shared hold replay without letting native-source CI authorize writes.
-func nativePublicationBlockedHolds(snapshot automation.Snapshot) (bool, error) {
+func nativePublicationBlockedHolds(snapshot automation.Snapshot) (holds []model.ActiveHold, pending, blocked bool, err error) {
 	comments := make([]forge.Comment, len(snapshot.Comments))
 	for index, comment := range snapshot.Comments {
 		comments[index] = forge.Comment(comment)
@@ -188,25 +191,25 @@ func nativePublicationBlockedHolds(snapshot automation.Snapshot) (bool, error) {
 	for _, sha := range snapshot.Commits {
 		commits[sha] = true
 	}
-	holds, pending, err := policy.ActiveHolds(comments, commits)
+	holds, pending, err = policy.ActiveHolds(comments, commits)
 	if err != nil {
-		return false, fmt.Errorf("evaluate hold commands: %w", err)
+		return nil, false, false, fmt.Errorf("evaluate hold commands: %w", err)
 	}
 	trusted, err := policy.TrustedHoldLabel(events)
 	if err != nil {
-		return false, fmt.Errorf("evaluate hold label provenance: %w", err)
+		return nil, false, false, fmt.Errorf("evaluate hold label provenance: %w", err)
 	}
 	for _, hold := range holds {
 		if hold.Kind != "retry-exhaustion" {
-			return true, nil
+			return holds, pending, true, nil
 		}
 	}
 	for _, label := range snapshot.Pull.Labels {
 		if label == policy.HoldLabel && (!trusted || len(holds) == 0 && !pending) {
-			return true, nil
+			return holds, pending, true, nil
 		}
 	}
-	return false, nil
+	return holds, pending, false, nil
 }
 
 // SameNativePublicationSnapshotPull binds authorization-relevant metadata, not mutable embedded repository data.
@@ -306,7 +309,7 @@ func (p *NativePublisher) nativePublicationSnapshot(ctx context.Context, number 
 	if !sameNativePublicationSnapshotPull(pull, latest) {
 		return result, nativeReject("pull request changed during snapshot")
 	}
-	result.blocked, err = nativePublicationBlockedHolds(shared)
+	result.holds, result.cancellationPending, result.blocked, err = nativePublicationBlockedHolds(shared)
 	if err != nil {
 		return result, fmt.Errorf("evaluate native snapshot #%d: %w", number, err)
 	}

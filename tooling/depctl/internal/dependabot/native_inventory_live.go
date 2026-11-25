@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-github/v69/github"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/forge"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/model"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/policy"
 	automation "github.com/Azure/ARO-HCP/tooling/github"
 )
@@ -191,15 +192,7 @@ func (p *NativePublisher) nativeInventorySource(ctx context.Context, pull *githu
 
 // NativeInventoryCI emits the same shared CI policy result and required keys as snapshot-evidence.
 func nativeInventoryCI(snapshot nativePublicationSnapshot) (map[string]any, error) {
-	statuses := make([]forge.Status, len(snapshot.ci.Statuses))
-	for i, status := range snapshot.ci.Statuses {
-		statuses[i] = forge.Status(status)
-	}
-	checks := make([]forge.Check, len(snapshot.ci.Checks))
-	for i, check := range snapshot.ci.Checks {
-		checks[i] = forge.Check(check)
-	}
-	evidence, err := policy.CIEvidence(statuses, checks, snapshot.pull.GetHead().GetSHA())
+	evidence, err := nativeSnapshotCI(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate current-head CI evidence: %w", err)
 	}
@@ -211,6 +204,19 @@ func nativeInventoryCI(snapshot nativePublicationSnapshot) (map[string]any, erro
 		blocked = append(blocked, map[string]any{"name": check.Name, "state": check.State, "url": check.URL, "pending": check.Pending})
 	}
 	return map[string]any{"positive": evidence.Positive, "blocked": blocked}, nil
+}
+
+// NativeSnapshotCI evaluates the current head with the shared CI policy.
+func nativeSnapshotCI(snapshot nativePublicationSnapshot) (model.CIEvidence, error) {
+	statuses := make([]forge.Status, len(snapshot.ci.Statuses))
+	for i, status := range snapshot.ci.Statuses {
+		statuses[i] = forge.Status(status)
+	}
+	checks := make([]forge.Check, len(snapshot.ci.Checks))
+	for i, check := range snapshot.ci.Checks {
+		checks[i] = forge.Check(check)
+	}
+	return policy.CIEvidence(statuses, checks, snapshot.pull.GetHead().GetSHA())
 }
 
 // NativeInventoryReplacements retains verified merged ownership and open maintenance evidence.

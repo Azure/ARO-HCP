@@ -60,78 +60,15 @@ func nativeReadPublicationSnapshot(outputFile string) (*nativePublicationArtifac
 		return nil, fmt.Errorf("open native output directory: %w", err)
 	}
 	defer unix.Close(directory)
-	file, err := nativePublicationOpenFile(directory, filepath.Base(outputFile), unix.O_RDONLY)
+	envelope, original, err := nativeReadOutputEnvelope(directory, filepath.Base(outputFile))
 	if err != nil {
-		return nil, fmt.Errorf("open native output: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-	output, original, err := nativePublicationReadFile(file)
-	if err != nil {
-		return nil, fmt.Errorf("read native output: %w", err)
+	selected, digest, err := nativeSelectOutput(envelope, "native_replacement", "request_sha256")
+	if err != nil || selected == nil {
+		return nil, err
 	}
-	value, err := nativeDecode(output)
-	if err != nil {
-		return nil, fmt.Errorf("decode native output: %w", err)
-	}
-	envelope, ok := value.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid global agent output")
-	}
-	items, ok := envelope["items"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid global agent output items")
-	}
-	if errors, exists := envelope["errors"]; exists {
-		list, ok := errors.([]any)
-		if !ok || len(list) != 0 {
-			return nil, fmt.Errorf("agent output contains errors")
-		}
-	}
-	var selected map[string]any
-	nativeItems := 0
-	for _, raw := range items {
-		item, ok := raw.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("malformed output item")
-		}
-		kind, ok := item["type"].(string)
-		if !ok {
-			return nil, fmt.Errorf("malformed output item type")
-		}
-		if kind == "native_replacement" || kind == "native_action" {
-			nativeItems++
-		}
-		if kind == "native_replacement" {
-			selected = item
-		}
-	}
-	if nativeItems > 1 {
-		return nil, fmt.Errorf("only one native output kind/item may run per workflow")
-	}
-	if selected == nil {
-		return nil, nil
-	}
-	// The safe-output runtime attaches an opaque receipt ID outside the payload.
-	fields := len(selected)
-	if rawID, exists := selected["output_id"]; exists {
-		id, ok := rawID.(string)
-		if !ok || id == "" {
-			return nil, fmt.Errorf("invalid native output ID")
-		}
-		fields--
-	}
-	if fields != 2 {
-		return nil, fmt.Errorf("ambiguous native output envelope")
-	}
-	data := selected
-	if nested, exists := selected["data"]; exists {
-		data, ok = nested.(map[string]any)
-		if !ok || len(data) != 1 {
-			return nil, fmt.Errorf("invalid native safe-output envelope")
-		}
-	}
-	digest, ok := data["request_sha256"].(string)
-	if !ok || !nativeCompilerHash.MatchString(digest) {
+	if !nativeCompilerHash.MatchString(digest) {
 		return nil, fmt.Errorf("replacement request digest must be lowercase SHA256")
 	}
 	request, err := nativeReadPublicationArtifact(directory, digest)
@@ -139,6 +76,90 @@ func nativeReadPublicationSnapshot(outputFile string) (*nativePublicationArtifac
 		return nil, err
 	}
 	return &nativePublicationArtifact{envelope: envelope, selected: selected, request: request, original: original}, nil
+}
+
+// Native output envelope reading binds parsed data to the original regular file identity.
+func nativeReadOutputEnvelope(directory int, name string) (map[string]any, unix.Stat_t, error) {
+	file, err := nativePublicationOpenFile(directory, name, unix.O_RDONLY)
+	if err != nil {
+		return nil, unix.Stat_t{}, fmt.Errorf("open native output: %w", err)
+	}
+	defer file.Close()
+	output, original, err := nativePublicationReadFile(file)
+	if err != nil {
+		return nil, original, fmt.Errorf("read native output: %w", err)
+	}
+	value, err := nativeDecode(output)
+	if err != nil {
+		return nil, original, fmt.Errorf("decode native output: %w", err)
+	}
+	envelope, ok := value.(map[string]any)
+	if !ok {
+		return nil, original, fmt.Errorf("invalid global agent output")
+	}
+	return envelope, original, nil
+}
+
+// Native output selection rejects mixed native actions and ambiguous payload identities.
+func nativeSelectOutput(envelope map[string]any, kind, field string) (map[string]any, string, error) {
+	items, ok := envelope["items"].([]any)
+	if !ok {
+		return nil, "", fmt.Errorf("invalid global agent output items")
+	}
+	if errors, exists := envelope["errors"]; exists {
+		list, ok := errors.([]any)
+		if !ok || len(list) != 0 {
+			return nil, "", fmt.Errorf("agent output contains errors")
+		}
+	}
+	var selected map[string]any
+	nativeItems := 0
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			return nil, "", fmt.Errorf("malformed output item")
+		}
+		itemKind, ok := item["type"].(string)
+		if !ok {
+			return nil, "", fmt.Errorf("malformed output item type")
+		}
+		if itemKind == "native_replacement" || itemKind == "native_action" {
+			nativeItems++
+		}
+		if itemKind == kind {
+			selected = item
+		}
+	}
+	if nativeItems > 1 {
+		return nil, "", fmt.Errorf("only one native output kind/item may run per workflow")
+	}
+	if selected == nil {
+		return nil, "", nil
+	}
+	// The safe-output runtime attaches an opaque receipt ID outside the payload.
+	fields := len(selected)
+	if rawID, exists := selected["output_id"]; exists {
+		id, ok := rawID.(string)
+		if !ok || id == "" {
+			return nil, "", fmt.Errorf("invalid native output ID")
+		}
+		fields--
+	}
+	if fields != 2 {
+		return nil, "", fmt.Errorf("ambiguous native output envelope")
+	}
+	data := selected
+	if nested, exists := selected["data"]; exists {
+		data, ok = nested.(map[string]any)
+		if !ok || len(data) != 1 {
+			return nil, "", fmt.Errorf("invalid native safe-output envelope")
+		}
+	}
+	payload, ok := data[field].(string)
+	if !ok {
+		return nil, "", fmt.Errorf("invalid native safe-output payload")
+	}
+	return selected, payload, nil
 }
 
 // Native artifact loading verifies the exact bytes before decoding and validating a request.

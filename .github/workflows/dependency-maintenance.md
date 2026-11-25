@@ -316,7 +316,7 @@ safe-outputs:
             GH_TOKEN: ${{ steps.write-token.outputs.token }}
             CI_TOKEN: ${{ github.token }}
             REPO: ${{ github.repository }}
-          run: python3 .github/scripts/native_dependabot_maintenance.py reconcile "$REPO" "$GH_AW_AGENT_OUTPUT"
+          run: '"$DEPCTL_BINARY" dependabot native reconcile --repository "$REPO" --output-file "$GH_AW_AGENT_OUTPUT"'
 ---
 
 # Daily dependency maintenance
@@ -453,8 +453,8 @@ Prove actual outcomes rather than equating a green run with completion. After pu
 
 The trusted default-branch checkout builds `depctl` for shared maintenance policy,
 read-only native inventory, offline selection, consumer validation, request
-preparation and privileged publication. The native Python helper retains
-detection staging and reconciliation. `make verify-agentic-maintenance` runs
+preparation, detection staging, privileged publication and guarded
+reconciliation. `make verify-agentic-maintenance` runs
 the Go validation and policy suites, Darwin/arm64 and Linux builds, and
 real-binary producer/publisher integration tests.
 
