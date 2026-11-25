@@ -1868,6 +1868,11 @@
         },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
+        },
+        "maxE2EMinimalSwiftClusters": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Best-effort limit on SWIFT-enabled minimal clusters. The frontend is a regional service, so this limits the clusters of one region. It rejects the creation of further such clusters once the limit is reached. 0 disables the limit."
         }
       },
       "additionalProperties": false,
@@ -1879,7 +1884,8 @@
         "managedIdentityName",
         "exitOnPanic",
         "logVerbosity",
-        "clusterScopedIdentitiesConfig"
+        "clusterScopedIdentitiesConfig",
+        "maxE2EMinimalSwiftClusters"
       ]
     },
     "billing": {

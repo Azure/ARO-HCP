@@ -48,6 +48,7 @@ const (
 	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 	CloudErrorCodeLockContention           = "LockContention"
 	CloudErrorCodeCapacityHeavyUse         = "AROHCPCapacityHeavyUse"
+	CloudErrorCodeCapacityExceeded         = "AROHCPCapacityExceeded"
 	CloudErrorCodeDeadlineExceeded         = "DeadlineExceeded"
 )
 
@@ -242,6 +243,13 @@ func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	}
 
 	return NewCloudError(http.StatusNotFound, code, resourceID.String(), "%s", message)
+}
+
+// NewCapacityExceededError creates a CloudError for a request rejected because
+// the service is out of capacity. It is a 400, in alignment with how AKS
+// reports its capacity errors; 409 stays reserved for resource state conflicts.
+func NewCapacityExceededError(err error) *CloudError {
+	return NewCloudError(http.StatusBadRequest, CloudErrorCodeCapacityExceeded, "", "%s", err)
 }
 
 // NewInvalidRequestContentError creates a CloudError for an invalid request content error

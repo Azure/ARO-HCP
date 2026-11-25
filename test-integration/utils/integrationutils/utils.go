@@ -202,7 +202,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	nodePoolInformer, _ := frontendInformers.NodePools()
 	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
 	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev), 0)
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")

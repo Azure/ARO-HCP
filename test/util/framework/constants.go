@@ -30,6 +30,11 @@ const (
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
+
+	// ClusterCapacityBackoffLimit bounds the time one cluster create may lose to
+	// capacity: rejected attempts and the backoff after them. That time does not
+	// count against the create timeout.
+	ClusterCapacityBackoffLimit = 30 * time.Minute
 )
 
 // Deletion timeouts

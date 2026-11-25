@@ -1049,6 +1049,7 @@ defaults:
     logVerbosity: 0
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+    maxE2EMinimalSwiftClusters: 20
   # Billing
   billing:
     rg: "placeholder"
@@ -1462,6 +1463,7 @@ clouds:
           issuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+        maxE2EMinimalSwiftClusters: 0
       # Backend
       backend:
         k8s:

@@ -190,9 +190,6 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		return nil, fmt.Errorf("location must be specified for subscription-scoped deployments")
 	}
 
-	ctx, cancel := context.WithTimeoutCause(ctx, cfg.timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateBicepTemplateAndWait for deployment %s in resource group %s", cfg.timeout.Minutes(), cfg.deploymentName, cfg.resourceGroup))
-	defer cancel()
-
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -227,7 +224,7 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 
 	switch cfg.scope {
 	case BicepDeploymentScopeResourceGroup:
-		pollerResp, err := beginDeploymentWithResubmit(ctx, fmt.Sprintf("%q in resourcegroup=%q", cfg.deploymentName, cfg.resourceGroup),
+		resp, err := deployWithCapacityRetry(ctx, cfg.timeout, fmt.Sprintf("%q in resourcegroup=%q", cfg.deploymentName, cfg.resourceGroup),
 			func(ctx context.Context) (*runtime.Poller[armresources.DeploymentsClientCreateOrUpdateResponse], error) {
 				return deploymentsClient.BeginCreateOrUpdate(ctx, cfg.resourceGroup, cfg.deploymentName, deploymentProperties, nil)
 			},
@@ -240,19 +237,13 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", cfg.deploymentName, cfg.resourceGroup, err)
-		}
-		resp, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-			Frequency: StandardPollInterval,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", cfg.deploymentName, cfg.resourceGroup, err)
+			return nil, err
 		}
 
 		return &resp.DeploymentExtended, nil
 
 	case BicepDeploymentScopeSubscription:
-		pollerResp, err := beginDeploymentWithResubmit(ctx, fmt.Sprintf("%q at subscription scope", cfg.deploymentName),
+		resp, err := deployWithCapacityRetry(ctx, cfg.timeout, fmt.Sprintf("%q at subscription scope", cfg.deploymentName),
 			func(ctx context.Context) (*runtime.Poller[armresources.DeploymentsClientCreateOrUpdateAtSubscriptionScopeResponse], error) {
 				return deploymentsClient.BeginCreateOrUpdateAtSubscriptionScope(ctx, cfg.deploymentName, deploymentProperties, nil)
 			},
@@ -265,13 +256,7 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating deployment %q at subscription scope: %w", cfg.deploymentName, err)
-		}
-		resp, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-			Frequency: StandardPollInterval,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed waiting for deployment %q at subscription scope to finish: %w", cfg.deploymentName, err)
+			return nil, err
 		}
 
 		return &resp.DeploymentExtended, nil

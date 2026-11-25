@@ -63,6 +63,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+		0,
 	)
 	return f
 }

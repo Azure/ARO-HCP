@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -96,47 +96,19 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for second cluster %q", customerClusterName2)
 
-			By("starting creation of both clusters in parallel")
+			By("creating both clusters in parallel")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
-			// Start first cluster creation
-			poller1, err := framework.BeginCreateHCPCluster20240610(
-				ctx,
-				GinkgoLogr,
-				clusterClient,
-				*customerResourceGroup.Name,
-				clusterParams1.ClusterName,
-				clusterParams1,
-				tc.Location(),
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of first cluster %q", customerClusterName)
-
-			// Start second cluster creation
-			poller2, err := framework.BeginCreateHCPCluster20240610(
-				ctx,
-				GinkgoLogr,
-				clusterClient,
-				*customerResourceGroup.Name,
-				clusterParams2.ClusterName,
-				clusterParams2,
-				tc.Location(),
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of second cluster %q", customerClusterName2)
-
-			By("waiting for first cluster to complete creation")
-			pollCtx, pollCancel := context.WithTimeout(ctx, framework.ClusterCreationTimeout)
-			defer pollCancel()
-			_, err = poller1.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
-				Frequency: framework.StandardPollInterval,
+			var creates errgroup.Group
+			creates.Go(func() error {
+				return tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams1, framework.ClusterCreationTimeout)
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for first cluster %q to complete creation (timeout '%f' minutes)", customerClusterName, framework.ClusterCreationTimeout.Minutes())
-
-			By("waiting for second cluster to complete creation")
-
-			_, err = poller2.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
-				Frequency: framework.StandardPollInterval,
+			creates.Go(func() error {
+				return tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams2, framework.ClusterCreationTimeout)
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for second cluster %q to complete creation (timeout '%f' minutes)", customerClusterName2, framework.ClusterCreationTimeout.Minutes())
+
+			By("waiting for both clusters to complete creation")
+			Expect(creates.Wait()).NotTo(HaveOccurred(), "failed to create clusters %q and %q in parallel", customerClusterName, customerClusterName2)
 
 			// Third cluster (should fail)
 			By("creating customer infrastructure and managed identities for third cluster")

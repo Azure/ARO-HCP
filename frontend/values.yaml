@@ -50,3 +50,4 @@ exitOnPanic: {{ .frontend.exitOnPanic }}
 logVerbosity: {{ .frontend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .frontend.clusterScopedIdentitiesConfig.roleSetName }}"
+maxE2EMinimalSwiftClusters: {{ .frontend.maxE2EMinimalSwiftClusters }}

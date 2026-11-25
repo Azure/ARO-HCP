@@ -86,18 +86,17 @@ var _ = Describe("Customer", func() {
 
 			By("starting HCP cluster creation asynchronously")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			timeout := framework.ClusterCreationTimeout
+			// The create is not awaited, so bound its submission here, with room for capacity backoff.
+			timeout := framework.ClusterCreationTimeout + framework.ClusterCapacityBackoffLimit
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
-			_, err = framework.BeginCreateHCPCluster20240610(
+			err = tc.CreateHCPClusterFromParam20240610(
 				deploymentCtx,
 				GinkgoLogr,
-				clusterClient,
 				*resourceGroup.Name,
-				clusterName,
 				clusterParams,
-				tc.Location(),
+				0,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to begin creating HCP cluster %q", clusterName)
 

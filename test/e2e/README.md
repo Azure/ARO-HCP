@@ -617,10 +617,24 @@ Set each shared constant to the **99th percentile** of observed operation durati
 
 Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
+Cluster create helpers retry only a 400 with `AROHCPCapacityExceeded`. Each
+backoff is one minute plus up to 50% jitter. The time lost to capacity is every
+rejected attempt and the backoff after it: `ClusterCapacityBackoffLimit` bounds
+it to 30 minutes for one create, and it does not count against the create
+timeout. Requests, recovery, and provisioning of the attempt that is accepted
+do. Caller cancellation and deadlines still apply.
+
+Bicep retries require a terminal deployment failure whose error details are all
+`AROHCPCapacityExceeded`; mixed failures and transient polling errors are not
+resubmitted. Each backoff, including an interrupted one, appears as a
+`capacity-backoff` timing span and duration sample. A create span starts at
+the last attempt, so its duration sample excludes the time lost to capacity.
+
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
 
 | Category | Constant | Typical use |
 |----------|----------|-------------|
+| Capacity admission | `ClusterCapacityBackoffLimit` | Total time lost to capacity for cluster creates and `CreateBicepTemplateAndWait`: rejected attempts and backoff |
 | Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
 | Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
