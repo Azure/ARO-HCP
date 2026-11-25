@@ -29,7 +29,7 @@ tests:
       exp_annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: the alert waits 15m (its for: duration) before firing.
 - name: critical_waits_for_duration
   interval: 1m
@@ -126,7 +126,7 @@ tests:
       exp_annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: refresher healthy, scraped and reconciling. No alert.
 - name: stalled_does_not_fire_when_healthy
   interval: 1m
@@ -182,7 +182,7 @@ tests:
       exp_annotations:
         summary: "Credential refresher is down or not reconciling"
         description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: refresher pod gone for more than 7 days. Still firing on day 8.
 - name: stalled_keeps_firing_beyond_seven_days
   interval: 1m
@@ -205,7 +205,7 @@ tests:
       exp_annotations:
         summary: "Credential refresher is down or not reconciling"
         description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: refresher up but not reconciling (hung). Fires after the 1h for.
 - name: stalled_fires_when_not_reconciling
   interval: 1m
@@ -231,7 +231,7 @@ tests:
       exp_annotations:
         summary: "Credential refresher is down or not reconciling"
         description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: duplicate series from two Prometheus replicas fire one alert, not two.
 - name: stalled_replica_duplicates_fire_once
   interval: 1m
@@ -260,7 +260,7 @@ tests:
       exp_annotations:
         summary: "Credential refresher is down or not reconciling"
         description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
-        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+        runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
 # Test: no refresher deployment in the region. No alert.
 - name: stalled_does_not_fire_without_deployment
   interval: 1m

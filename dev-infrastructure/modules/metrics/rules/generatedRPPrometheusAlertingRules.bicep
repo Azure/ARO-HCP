@@ -1835,7 +1835,7 @@ resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusR
           correlationId: 'userJourneyWorkloadIdentitySaturationCredentialExpiry/{{ $labels.cluster }}'
           description: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
           info: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          runbook_url: 'https://aka.ms/arohcp-runbook-workload-identity'
           summary: 'MSI credential close to expiry (7 days or less left)'
           title: 'MSI credential close to expiry (7 days or less left)'
         }
@@ -1864,7 +1864,7 @@ resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusR
           correlationId: 'userJourneyWorkloadIdentityRefresherStalled/{{ $labels.cluster }}'
           description: 'The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed.'
           info: 'The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          runbook_url: 'https://aka.ms/arohcp-runbook-workload-identity'
           summary: 'Credential refresher is down or not reconciling'
           title: 'Credential refresher is down or not reconciling'
         }
