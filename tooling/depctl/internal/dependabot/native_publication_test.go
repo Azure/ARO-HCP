@@ -37,6 +37,12 @@ func TestNativePublicationDigestTransport(t *testing.T) {
 		invalid bool
 	}{
 		{name: "valid digest"},
+		{name: "hosted receipt ID", mutate: func(t *testing.T, directory string, payload *[]byte, envelope *map[string]any) {
+			(*envelope)["items"].([]any)[0].(map[string]any)["output_id"] = "so_WEOMbF-MTV-Q"
+		}},
+		{name: "invalid receipt ID", invalid: true, mutate: func(t *testing.T, directory string, payload *[]byte, envelope *map[string]any) {
+			(*envelope)["items"].([]any)[0].(map[string]any)["output_id"] = true
+		}},
 		{name: "nested safe envelope", mutate: func(t *testing.T, directory string, payload *[]byte, envelope *map[string]any) {
 			item := (*envelope)["items"].([]any)[0].(map[string]any)
 			(*envelope)["items"] = []any{map[string]any{"type": "native_replacement", "data": map[string]any{"request_sha256": item["request_sha256"]}}}
@@ -62,6 +68,7 @@ func TestNativePublicationDigestTransport(t *testing.T) {
 			(*envelope)["items"] = append((*envelope)["items"].([]any), map[string]any{"type": "native_action", "request": "{}"})
 		}},
 		{name: "ambiguous envelope", invalid: true, mutate: func(t *testing.T, directory string, payload *[]byte, envelope *map[string]any) {
+			(*envelope)["items"].([]any)[0].(map[string]any)["output_id"] = "so_WEOMbF-MTV-Q"
 			(*envelope)["items"].([]any)[0].(map[string]any)["request"] = "{}"
 		}},
 		{name: "artifact symlink", invalid: true, mutate: func(t *testing.T, directory string, payload *[]byte, envelope *map[string]any) {

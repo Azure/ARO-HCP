@@ -1094,6 +1094,7 @@ class RequestTransportTests(unittest.TestCase):
             with self.subTest(nested=nested):
                 output = replacement_output(self.root, self.request, nested=nested)
                 document = json.loads(output.read_text())
+                document["items"][0]["output_id"] = "so_WEOMbF-MTV-Q"
                 other = {"type": "noop", "message": "Other safe output remains present."}
                 document["items"].insert(0, other)
                 output.write_text(json.dumps(document))
