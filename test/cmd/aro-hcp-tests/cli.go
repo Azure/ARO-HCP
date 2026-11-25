@@ -241,6 +241,7 @@ func setupCli() (*cobra.Command, error) {
 				`name == "Customer should sustain ingress degradation for health signal validation"`,
 				`name == "Customer should report healthy after sustained ingress degradation for health signal validation"`,
 				`name == "Customer should produce intermittent ingress degradation for health signal validation"`,
+				`name == "Customer should sustain a stuck node drain for health signal validation"`,
 			})
 		}
 
