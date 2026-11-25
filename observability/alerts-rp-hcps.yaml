@@ -5,6 +5,7 @@ prometheusRules:
   - alerts/backup-slo-hcp-prometheusRule.yaml
   - alerts/swift-networking-prometheusRule.yaml
   - alerts/ingress-availability-slo-prometheusRule.yaml
+  - alerts/hosted-cluster-deletion-stuck-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-hcps.yaml
