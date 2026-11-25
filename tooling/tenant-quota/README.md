@@ -18,7 +18,7 @@ The raw collector lives in [`pkg/cijoboutcomes`](pkg/cijoboutcomes/) and the fai
 
 ## Runtime Model
 
-At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
+At startup the process loads the rendered runtime config, loads and validates both credential files, starts watching them for changes, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
 
 The detailed startup, configuration, credentials, and rendered deployment behavior is defined in:
 
@@ -375,11 +375,11 @@ Do not update tenant definitions in `deploy/values.yaml`. That file contains sta
 Subscription IDs are resolved at runtime from configured subscription display names rather than stored in the config.
 Role assignment usage and limits are retrieved directly from Azure rather than configured per subscription.
 
-## Secrets and Credential Reload
+## Secrets and Credential Rotation
 
-Client secrets live in the `opstool` workload Key Vault and are mounted into the pod with the CSI Secret Store driver.
+Client IDs and client secrets live in the `opstool` workload Key Vault and are mounted into the pod with the CSI Secret Store driver.
 
-Credential reload behavior is defined in [`pkg/credentials/provider.go`](pkg/credentials/provider.go). A Key Vault secret update can be picked up without restarting the pod when the CSI-mounted file refreshes and the process rereads the invalidated credential on its next use.
+Credentials are loaded at startup by [`pkg/credentials/provider.go`](pkg/credentials/provider.go) and cached for the lifetime of the process. The process also watches every mounted client-ID and client-secret file (polling every minute); when any of them changes it shuts down so Kubernetes restarts the container, which loads the new values.
 
 ## Alerting
 
@@ -427,10 +427,29 @@ cd tooling/tenant-quota
 ./scripts/manage-service-principals.sh --list
 ```
 
+The collector reads both values from the Key Vault, so every tenant needs a
+client-ID object next to its client-secret object. `entra-app-credentials ensure-secret`
+publishes `<prefix>-client-id` and `<prefix>-tenant-id` alongside
+`<prefix>-client-secret` for the applications it manages (RedHat0). The
+imperative TestTestARO bootstrap only stores the client secret, so publish its
+client ID once, before the first deployment that references it (the value is the
+application (client) ID, not the object ID, and the CSI volume fails to mount
+while the object is missing):
+
+```bash
+az keyvault secret set --vault-name opstool-kv-usw3 \
+  --name custom-metrics-collector-test-test-azure-arohcp-client-id \
+  --value e46ecbd4-9ef3-439e-a28a-74a4d8270349
+```
+
+Repeat the same step whenever TestTestARO's application is recreated with a new
+client ID, and update the value to the new application ID.
+
 After adding or changing a tenant:
 
 1. Update [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml).
-2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
+2. Publish the tenant's client ID and client secret objects in the opstool Key Vault (see above).
+3. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
 
 ### Check and renew a client secret
 
@@ -450,7 +469,7 @@ AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret
   --mapping 'custom-metrics-collector-redhat0-ms-graph-ro;custom-metrics-collector-redhat0-client-secret'
 ```
 
-The application and secret names come from `opstool.tenantQuota.tenants.<tenant>.applicationName` and `keyVaultSecretName` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml). The caller needs the permissions described in [`tooling/entra-app-credentials`](../entra-app-credentials/README.md).
+The application and secret names come from `opstool.tenantQuota.tenants.<tenant>.applicationName` and `clientSecretKeyVaultSecretName` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml). The caller needs the permissions described in [`tooling/entra-app-credentials`](../entra-app-credentials/README.md).
 
 `ensure-secret` authenticates to Key Vault and Microsoft Graph with the same Azure credential, so it only covers tenants whose Entra application is reconciled by the privileged pipeline (that is, with an `applicationName`). The TestTestARO service principal lives in a different Entra tenant and has no `applicationName`; it is not covered. To renew its secret, use the script's two-phase flow: `./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault` with a target-tenant identity (it mints a new client secret with `az ad sp credential reset`, which replaces the application's existing client secrets, and writes it to a local file), then switch to an identity that can write to the Key Vault and run `./scripts/manage-service-principals.sh --keyvault-only --secret-name <name> --secret-file <printed-path>`.
 
@@ -460,4 +479,4 @@ After rotating, confirm the collector recovered:
 kubectl -n tenant-quota logs deploy/tenant-quota-collector --since=10m | grep -E 'AADSTS|Collected resource group metrics'
 ```
 
-The collector does not restart itself on rotation. The Key Vault CSI driver re-reads the secret into the pod mount on its rotation poll, which is **1 hour** on the opstool AKS add-on (`az aks show ... --query addonProfiles.azureKeyvaultSecretsProvider.config`; the rotation reconciler logs `controller="rotation"` in the `secrets-store` container of the `aks-secrets-store-csi-driver` pod on the collector's node). The collector's secret watcher then polls the mounted file every minute and, on a change, drops its cached credential so the next collection cycle authenticates with the new secret. Expect up to about an hour before the collector recovers. To recover immediately, restart the collector, whose new pod mounts the latest secret version: `kubectl -n tenant-quota rollout restart deployment/tenant-quota-collector`.
+The collector does not hot-reload credentials. The Key Vault CSI driver re-reads the secrets into the pod mount on its rotation poll (**1 hour** on the opstool AKS add-on: `az aks show ... --query addonProfiles.azureKeyvaultSecretsProvider.config`); the collector's file watcher then detects the change within a minute and the process exits so Kubernetes restarts the container with the new credentials. To recover immediately, restart it: `kubectl -n tenant-quota rollout restart deployment/tenant-quota-collector`.

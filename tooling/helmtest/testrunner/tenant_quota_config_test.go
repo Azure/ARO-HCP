@@ -232,7 +232,7 @@ func expectedTenants(testConfig map[string]any) []any {
 		t := tenants[key].(map[string]any)
 		return map[string]any{
 			"tenantId": t["tenantId"], "tenantName": t["tenantName"],
-			"servicePrincipalClientId": t["servicePrincipalClientId"], "keyVaultSecretName": t["keyVaultSecretName"],
+			"clientIdKeyVaultSecretName": t["clientIdKeyVaultSecretName"], "clientSecretKeyVaultSecretName": t["clientSecretKeyVaultSecretName"],
 			"scope": "https://graph.microsoft.com/.default", "directoryQuota": t["directoryQuota"],
 			"subscriptions": subs,
 		}

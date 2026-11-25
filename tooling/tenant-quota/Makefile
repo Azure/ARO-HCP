@@ -55,14 +55,14 @@ render-config: _output/config.yaml
 # ---------------------------------------------------------------------------
 # Fetch secrets from Key Vault for local development
 # ---------------------------------------------------------------------------
-# Downloads SP client secrets from the opstool Key Vault into _output/secrets/.
+# Downloads paired SP credentials from the opstool Key Vault into _output/secrets/.
 # Requires: az login (into the dev tenant where the Key Vault lives)
 KEYVAULT_NAME ?= opstool-kv-usw3
 SECRETS_DIR := _output/secrets
 
 fetch-secrets: _output/config.yaml
 	@mkdir -p $(SECRETS_DIR)
-	@for secret_name in $$(grep 'keyVaultSecretName:' _output/config.yaml | sed 's/.*keyVaultSecretName: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/'); do \
+	@for secret_name in $$($(YQ) -r '.tenants[] | .clientIdKeyVaultSecretName, .clientSecretKeyVaultSecretName' _output/config.yaml | sort -u); do \
 		echo "Fetching secret: $$secret_name"; \
 		az keyvault secret show \
 			--vault-name $(KEYVAULT_NAME) \

@@ -22,6 +22,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -61,7 +63,7 @@ func TestCollectorRestartsAfterRecoveredPanic(t *testing.T) {
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
 		},
-		Tenants: []config.TenantConfig{{TenantID: "tenant", ServicePrincipalClientId: "client", KeyVaultSecretName: "secret"}},
+		Tenants: []config.TenantConfig{{TenantID: "tenant", ClientIDKeyVaultSecretName: "client", ClientSecretKeyVaultSecretName: "secret"}},
 		Prow: config.ProwConfig{
 			Enabled: true, Interval: "1h", BaseURL: "https://prow.example.com",
 			Repository: config.ProwRepositoryConfig{Org: "Azure", Name: "ARO-HCP"},
@@ -167,6 +169,35 @@ func TestPanicPolicy(t *testing.T) {
 			require.Contains(t, logs.String(), "Observed a panic")
 		})
 	}
+}
+
+func TestStartupRejectsMissingCredentialPair(t *testing.T) {
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`tenants:
+- tenantId: test-tenant
+  clientIdKeyVaultSecretName: missing-client-id
+  clientSecretKeyVaultSecretName: missing-client-secret
+ciJobOutcomes:
+  clusterURI: http://localhost:8080
+  ingestionURI: http://localhost:8081
+  database: local
+  testNames:
+    table: ciTestNames
+  testResults:
+    table: ciTestResults
+ciFailurePatterns:
+  results:
+    table: ciFailurePatterns
+    ingestionMapping: ciFailurePatternsMapping
+`), 0600))
+	t.Setenv("SECRETS_STORE_PATH", directory)
+	t.Setenv("CONFIG_PATH", configPath)
+	err := run(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	// Which file is reported first depends on map iteration order; assert the
+	// tenant and read-error context that is stable either way.
+	require.ErrorContains(t, err, "start credential watchers: tenant test-tenant: ")
+	require.ErrorContains(t, err, "cannot read credential file")
 }
 
 func TestMetricsEndpoint(t *testing.T) {
