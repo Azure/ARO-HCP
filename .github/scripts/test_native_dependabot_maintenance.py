@@ -412,8 +412,9 @@ class RepositoryFixture(unittest.TestCase):
         detector_output = detection / "agent_output.json"
         detector_output.write_bytes(original_output)
         self.calls.clear()
-        command = [sys.executable, str(Path(native.__file__).resolve()), "stage-detection", REPO,
-                   str(output), str(detection)]
+        command = [os.environ["DEPCTL_BINARY"], "dependabot", "native", "stage-detection",
+                   "--repository", REPO, "--output-file", str(output),
+                   "--detection-dir", str(detection)]
         staged = subprocess.run(command, cwd=self.seed, capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(staged.stdout),
                          {"status": "staged", "patch": "aw-native-replacement.patch"})
@@ -1083,107 +1084,6 @@ class RequestTransportTests(unittest.TestCase):
         output.write_text('{"items":[]}')
         self.assertIsNone(native.read_request(output, "native_replacement"))
 
-    def prepared_detection(self, output, name="detection"):
-        directory = self.root / name
-        directory.mkdir()
-        (directory / "agent_output.json").write_bytes(output.read_bytes())
-        return directory
-
-    def test_detection_expands_flattened_and_nested_items_without_changing_digest_or_other_items(self):
-        for nested in (False, True):
-            with self.subTest(nested=nested):
-                output = replacement_output(self.root, self.request, nested=nested)
-                document = json.loads(output.read_text())
-                document["items"][0]["output_id"] = "so_WEOMbF-MTV-Q"
-                other = {"type": "noop", "message": "Other safe output remains present."}
-                document["items"].insert(0, other)
-                output.write_text(json.dumps(document))
-                original = output.read_bytes()
-                artifact = self.root / "agent" / native.REQUEST_FILE
-                payload = artifact.read_bytes()
-                detection = self.prepared_detection(output, f"detection-{nested}")
-                native.stage_detection(REPO, output, detection)
-                scanned = json.loads((detection / "agent_output.json").read_text())
-                self.assertEqual(scanned["items"][0], other)
-                expanded = scanned["items"][1]
-                original_item = document["items"][1]
-                self.assertEqual({key: expanded[key] for key in original_item}, original_item)
-                self.assertEqual(set(expanded) - set(original_item),
-                                 {"title", "body", "source_prs", "expected_base_sha"})
-                self.assertEqual(expanded["title"], self.request["title"].replace("@", "\uff20"))
-                self.assertEqual(expanded["body"], self.request["body"].replace("@", "\uff20"))
-                self.assertEqual((detection / native.DETECTION_PATCH).read_bytes(),
-                                 self.request["patch"].encode("utf-8"))
-                self.assertEqual(output.read_bytes(), original)
-                self.assertEqual(artifact.read_bytes(), payload)
-                self.assertEqual(native.read_request(output, "native_replacement"), self.request)
-
-    def test_detection_no_request_leaves_prepared_files_unchanged(self):
-        output = self.root / "agent_output.json"
-        output.write_text('{"items":[{"type":"noop","message":"No replacement"}]}')
-        detection = self.prepared_detection(output)
-        ordinary_patch = detection / "aw-ordinary.patch"
-        ordinary_patch.write_text("Ordinary detector input\n")
-        before = {path.name: path.read_bytes() for path in detection.iterdir()}
-        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
-            self.assertEqual(native.main(["stage-detection", REPO, str(output), str(detection)]), 0)
-        self.assertEqual(json.loads(stdout.getvalue()), {"status": "no-request"})
-        self.assertEqual({path.name: path.read_bytes() for path in detection.iterdir()}, before)
-        self.assertEqual(output.read_bytes(), before["agent_output.json"])
-
-    def test_detection_rejects_missing_tampered_or_invalid_artifact_before_staging(self):
-        for failure in ("missing", "tampered", "schema", "commands", "marker"):
-            with self.subTest(failure=failure):
-                request = copy.deepcopy(self.request)
-                if failure == "schema":
-                    del request["title"]
-                elif failure == "commands":
-                    request["body"] = "Evidence\n/retest"
-                elif failure == "marker":
-                    request["body"] = "<!-- " + native.MARKER + "spoof -->"
-                output = replacement_output(self.root / failure, request)
-                artifact = output.parent / "agent" / native.REQUEST_FILE
-                if failure == "missing":
-                    artifact.unlink()
-                elif failure == "tampered":
-                    artifact.write_bytes(artifact.read_bytes() + b"\n")
-                detection = self.prepared_detection(output, f"detection-{failure}")
-                (detection / "aw-ordinary.patch").write_text("Existing detector input\n")
-                before = {path.name: path.read_bytes() for path in detection.iterdir()}
-                original = output.read_bytes()
-                payload = artifact.read_bytes() if artifact.exists() else None
-                with patch("sys.stderr", new_callable=io.StringIO) as stderr, \
-                        patch("sys.stdout", new_callable=io.StringIO) as stdout:
-                    self.assertEqual(native.main(["stage-detection", REPO, str(output), str(detection)]), 1)
-                self.assertIn("native Dependabot maintenance blocked:", stderr.getvalue())
-                self.assertEqual(stdout.getvalue(), "")
-                self.assertEqual({path.name: path.read_bytes() for path in detection.iterdir()}, before)
-                self.assertEqual(output.read_bytes(), original)
-                self.assertEqual(artifact.read_bytes() if artifact.exists() else None, payload)
-
-    def test_detection_requires_matching_separate_prepared_output_and_never_overwrites_patch(self):
-        output = replacement_output(self.root, self.request)
-        original = output.read_bytes()
-        with self.assertRaisesRegex(ValueError, "separate copy"):
-            native.stage_detection(REPO, output, output.parent)
-        self.assertEqual(output.read_bytes(), original)
-        self.assertFalse((output.parent / native.DETECTION_PATCH).exists())
-        detection = self.prepared_detection(output)
-        detector_output = detection / "agent_output.json"
-        detector_output.write_text('{"items":[]}')
-        with self.assertRaisesRegex(ValueError, "does not match"):
-            native.stage_detection(REPO, output, detection)
-        self.assertEqual(detector_output.read_text(), '{"items":[]}')
-        self.assertFalse((detection / native.DETECTION_PATCH).exists())
-        detector_output.write_bytes(original)
-        outside = self.root / "outside.patch"
-        outside.write_text("Must not overwrite outside detection directory\n")
-        (detection / native.DETECTION_PATCH).symlink_to(outside)
-        with self.assertRaises(OSError):
-            native.stage_detection(REPO, output, detection)
-        self.assertEqual(detector_output.read_bytes(), original)
-        self.assertEqual(outside.read_text(), "Must not overwrite outside detection directory\n")
-        self.assertEqual(output.read_bytes(), original)
 
     def test_legacy_ambiguous_or_path_selected_envelopes_are_rejected(self):
         output = replacement_output(self.root, self.request)

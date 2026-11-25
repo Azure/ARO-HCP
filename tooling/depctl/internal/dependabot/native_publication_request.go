@@ -35,9 +35,37 @@ type nativePublicationRequest struct {
 // NativePublicationRequest is an opaque, digest-verified publication request.
 type NativePublicationRequest struct{ request nativePublicationRequest }
 
+// Native publication snapshots retain the envelope and file identity used to validate the request.
+type nativePublicationArtifact struct {
+	envelope map[string]any
+	selected map[string]any
+	request  *NativePublicationRequest
+	original unix.Stat_t
+}
+
 // ReadNativePublicationRequest validates the envelope and exact artifact before any authenticated work.
 func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest, error) {
-	output, err := nativePublicationReadFile(outputFile, -1)
+	snapshot, err := nativeReadPublicationSnapshot(outputFile)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+	return snapshot.request, nil
+}
+
+// Native publication loading binds the artifact and selected output to one envelope snapshot.
+func nativeReadPublicationSnapshot(outputFile string) (*nativePublicationArtifact, error) {
+	outputFile = filepath.Clean(outputFile)
+	directory, err := unix.Open(filepath.Dir(outputFile), unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open native output directory: %w", err)
+	}
+	defer unix.Close(directory)
+	file, err := nativePublicationOpenFile(directory, filepath.Base(outputFile), unix.O_RDONLY)
+	if err != nil {
+		return nil, fmt.Errorf("open native output: %w", err)
+	}
+	defer file.Close()
+	output, original, err := nativePublicationReadFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("read native output: %w", err)
 	}
@@ -84,14 +112,15 @@ func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest,
 		return nil, nil
 	}
 	// The safe-output runtime attaches an opaque receipt ID outside the payload.
+	fields := len(selected)
 	if rawID, exists := selected["output_id"]; exists {
 		id, ok := rawID.(string)
 		if !ok || id == "" {
 			return nil, fmt.Errorf("invalid native output ID")
 		}
-		delete(selected, "output_id")
+		fields--
 	}
-	if len(selected) != 2 {
+	if fields != 2 {
 		return nil, fmt.Errorf("ambiguous native output envelope")
 	}
 	data := selected
@@ -105,12 +134,26 @@ func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest,
 	if !ok || !nativeCompilerHash.MatchString(digest) {
 		return nil, fmt.Errorf("replacement request digest must be lowercase SHA256")
 	}
-	directory, err := unix.Open(filepath.Join(filepath.Dir(outputFile), "agent"), unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	request, err := nativeReadPublicationArtifact(directory, digest)
+	if err != nil {
+		return nil, err
+	}
+	return &nativePublicationArtifact{envelope: envelope, selected: selected, request: request, original: original}, nil
+}
+
+// Native artifact loading verifies the exact bytes before decoding and validating a request.
+func nativeReadPublicationArtifact(outputDirectory int, digest string) (*NativePublicationRequest, error) {
+	directory, err := unix.Openat(outputDirectory, "agent", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open native artifact directory: %w", err)
 	}
 	defer unix.Close(directory)
-	payload, err := nativePublicationReadFile(nativeRequestFile, directory)
+	file, err := nativePublicationOpenFile(directory, nativeRequestFile, unix.O_RDONLY)
+	if err != nil {
+		return nil, fmt.Errorf("open native request artifact: %w", err)
+	}
+	defer file.Close()
+	payload, _, err := nativePublicationReadFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("read native request artifact: %w", err)
 	}
@@ -118,7 +161,7 @@ func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest,
 	if hex.EncodeToString(sum[:]) != digest {
 		return nil, fmt.Errorf("replacement request artifact digest mismatch")
 	}
-	value, err = nativeDecode(payload)
+	value, err := nativeDecode(payload)
 	if err != nil {
 		return nil, fmt.Errorf("decode native request: %w", err)
 	}
@@ -165,36 +208,35 @@ func ReadNativePublicationRequest(outputFile string) (*NativePublicationRequest,
 	return &NativePublicationRequest{request: request}, nil
 }
 
-// Native publication file reads reject links, special files and unbounded input.
-func nativePublicationReadFile(path string, directory int) ([]byte, error) {
-	flags := unix.O_RDONLY | unix.O_NOFOLLOW | unix.O_NONBLOCK | unix.O_CLOEXEC
-	if directory == -1 {
-		directory = unix.AT_FDCWD
-	}
-	fd, err := unix.Openat(directory, path, flags, 0)
+// Native publication file opens never follow the named entry or block on a FIFO.
+func nativePublicationOpenFile(directory int, name string, access int) (*os.File, error) {
+	fd, err := unix.Openat(directory, name, access|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
-	file := os.NewFile(uintptr(fd), path)
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("stat publication file: %w", err)
+	return os.NewFile(uintptr(fd), name), nil
+}
+
+// Native publication file reads reject hard links, special files and unbounded input.
+func nativePublicationReadFile(file *os.File) ([]byte, unix.Stat_t, error) {
+	var info unix.Stat_t
+	if err := unix.Fstat(int(file.Fd()), &info); err != nil {
+		return nil, info, fmt.Errorf("stat publication file: %w", err)
 	}
-	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > nativeMaxRequest {
-		return nil, fmt.Errorf("publication input must be a bounded regular file")
+	if info.Mode&unix.S_IFMT != unix.S_IFREG || info.Nlink != 1 || info.Size <= 0 || info.Size > nativeMaxRequest {
+		return nil, info, fmt.Errorf("publication input must be a bounded, singly linked regular file")
 	}
 	payload, err := io.ReadAll(io.LimitReader(file, nativeMaxRequest+1))
 	if err != nil {
-		return nil, fmt.Errorf("read publication file: %w", err)
+		return nil, info, fmt.Errorf("read publication file: %w", err)
 	}
 	if len(payload) == 0 || len(payload) > nativeMaxRequest || !utf8.Valid(payload) {
-		return nil, fmt.Errorf("publication input must be bounded UTF-8")
+		return nil, info, fmt.Errorf("publication input must be bounded UTF-8")
 	}
 	if err := nativePublicationJSONUnicode(payload); err != nil {
-		return nil, err
+		return nil, info, err
 	}
-	return payload, nil
+	return payload, info, nil
 }
 
 // Native request validation rejects every local input error before dependencies are used.

@@ -107,11 +107,26 @@ safe-outputs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      - name: Set up trusted detection Go toolchain
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Build trusted native detection guard
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        run: |
+          mkdir -p "$RUNNER_TEMP/gh-aw/bin"
+          go build -mod=vendor -o "$RUNNER_TEMP/gh-aw/bin/depctl" ./tooling/depctl
       - name: Stage verified native replacement for detection
         if: contains(needs.agent.outputs.output_types, 'native_replacement')
         env:
           REPO: ${{ github.repository }}
-        run: python3 .github/scripts/native_dependabot_maintenance.py stage-detection "$REPO" /tmp/gh-aw/agent_output.json /tmp/gh-aw/threat-detection
+        run: |
+          "$RUNNER_TEMP/gh-aw/bin/depctl" dependabot native stage-detection \
+            --repository "$REPO" \
+            --output-file /tmp/gh-aw/agent_output.json \
+            --detection-dir /tmp/gh-aw/threat-detection
   report-missing-tool:
     create-issue: false
   report-incomplete:
