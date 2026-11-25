@@ -292,7 +292,6 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20261001(ctx
 
 	// ensure customer-infra resource names are unique per cluster
 	infraParameters["clusterName"] = clusterParams.ClusterName
-	infraParameters["jobTags"] = WithJobTags(map[string]*string{})
 
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),

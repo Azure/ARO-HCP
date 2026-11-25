@@ -285,7 +285,6 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create user-assigned identities client")
 
 			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, armmsi.Identity{
-				Tags:     framework.WithJobTags(nil),
 				Location: resourceGroup.Location,
 			}, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create managed identity %s", testManagedIdentity)

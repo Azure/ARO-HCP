@@ -81,7 +81,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -117,7 +116,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -153,7 +151,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -203,7 +200,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -253,7 +249,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -289,7 +284,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -311,7 +305,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -361,7 +354,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -397,7 +389,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -447,7 +438,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -469,7 +459,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -519,7 +508,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {
@@ -555,7 +543,6 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     {

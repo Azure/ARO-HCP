@@ -94,7 +94,6 @@ func (tc *perItOrDescribeTestContext) CreateDiskEncryptionSet(ctx context.Contex
 	desClient := tc.GetARMComputeClientFactoryOrDie(ctx).NewDiskEncryptionSetsClient()
 
 	poller, err := desClient.BeginCreateOrUpdate(ctx, resourceGroupName, desName, armcompute.DiskEncryptionSet{
-		Tags:     WithJobTags(nil),
 		Location: &location,
 		Identity: &armcompute.EncryptionSetIdentity{
 			Type: to.Ptr(armcompute.DiskEncryptionSetIdentityTypeSystemAssigned),

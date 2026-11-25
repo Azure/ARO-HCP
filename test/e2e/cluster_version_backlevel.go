@@ -88,7 +88,6 @@ var _ = Describe("Customer", func() {
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]any{
 						"customerNsgName":        customerNetworkSecurityGroupName + clusterSuffix,
-						"jobTags":                framework.WithJobTags(map[string]*string{}),
 						"customerVnetName":       customerVnetName + clusterSuffix,
 						"customerVnetSubnetName": customerVnetSubnetName + clusterSuffix,
 					}),
@@ -110,7 +109,6 @@ var _ = Describe("Customer", func() {
 					framework.WithLocation(tc.Location()),
 					framework.WithParameters(map[string]any{
 						"nsgName":                  customerInfraOutputs.nsgName,
-						"jobTags":                  framework.WithJobTags(map[string]*string{}),
 						"vnetName":                 customerInfraOutputs.vnetName,
 						"subnetName":               customerInfraOutputs.subnetName,
 						"keyVaultName":             customerInfraOutputs.keyVaultName,

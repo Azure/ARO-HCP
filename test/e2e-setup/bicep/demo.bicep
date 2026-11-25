@@ -27,7 +27,6 @@ param tags object = {}
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
-    jobTags: jobTags
     persistTagValue: persistTagValue
   }
 }
@@ -36,7 +35,6 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'mi-${resourceGroup().name}'
   scope: subscription()
   params: {
-    jobTags: jobTags
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities

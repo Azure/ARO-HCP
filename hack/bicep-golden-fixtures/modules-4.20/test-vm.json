@@ -28,13 +28,6 @@
       },
       "type": "string"
     },
-    "jobTags": {
-      "defaultValue": {},
-      "metadata": {
-        "description": "Job attribution tags applied to resources created by this deployment"
-      },
-      "type": "object"
-    },
     "location": {
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
@@ -86,7 +79,6 @@
       "sku": {
         "name": "Standard"
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/publicIPAddresses"
     },
     {
@@ -112,7 +104,6 @@
           }
         ]
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/networkInterfaces"
     },
     {
@@ -163,7 +154,6 @@
           }
         }
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Compute/virtualMachines"
     },
     {
@@ -183,7 +173,6 @@
         "type": "CustomScript",
         "typeHandlerVersion": "2.1"
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Compute/virtualMachines/extensions"
     }
   ]

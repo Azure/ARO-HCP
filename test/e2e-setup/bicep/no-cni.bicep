@@ -18,7 +18,6 @@ param openshiftControlPlaneVersionId string = '4.20'
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
-    jobTags: jobTags
     persistTagValue: persistTagValue
   }
 }
@@ -27,7 +26,6 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'managedIdentities'
   scope: subscription()
   params: {
-    jobTags: jobTags
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities

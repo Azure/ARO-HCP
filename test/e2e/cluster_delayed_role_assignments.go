@@ -82,7 +82,6 @@ var _ = Describe("ARO HCP Service", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]any{
-					"jobTags":                framework.WithJobTags(map[string]*string{}),
 					"customerNsgName":        customerNsgName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -123,7 +122,6 @@ var _ = Describe("ARO HCP Service", func() {
 					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]any{
-						"jobTags":    framework.WithJobTags(map[string]*string{}),
 						"identities": identities,
 					}),
 					framework.WithTimeout(10*time.Minute),

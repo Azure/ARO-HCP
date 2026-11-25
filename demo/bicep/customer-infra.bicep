@@ -13,9 +13,6 @@ param customerVirtualNetworkIntegrationSubnetName string
 @description('If the key vault used for etcd encryption should be public or private')
 param privateKeyVault bool = true
 
-@description('Job attribution tags applied to resources created by this deployment')
-param jobTags object = {}
-
 var randomSuffix = toLower(uniqueString(resourceGroup().id))
 
 // The Key Vault Name is defined here in a variable instead of using a
@@ -31,17 +28,17 @@ var virtualNetworkIntegrationSubnetPrefix = '10.0.1.0/24'
 resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: customerNsgName
   location: resourceGroup().location
-  tags: union(jobTags, {
+  tags: {
     persist: 'true'
-  })
+  }
 }
 
 resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   name: customerVnetName
   location: resourceGroup().location
-  tags: union(jobTags, {
+  tags: {
     persist: 'true'
-  })
+  }
   properties: {
     addressSpace: {
       addressPrefixes: [
@@ -78,7 +75,6 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
 }
 
 resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
-  tags: jobTags
   name: customerKeyVaultName
   location: resourceGroup().location
   properties: {
@@ -94,7 +90,6 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
 }
 
 resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
-  tags: jobTags
   parent: customerKeyVault
   name: 'etcd-data-kms-encryption-key'
   properties: {
@@ -104,7 +99,6 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' =
 }
 
 resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (privateKeyVault) {
-  tags: jobTags
   name: 'privatelink.vaultcore.azure.net'
   location: 'global'
   properties: {}
@@ -114,7 +108,6 @@ resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' =
 }
 
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = if (privateKeyVault) {
-  tags: jobTags
   name: 'kv-private-endpoint'
   properties: {
     privateLinkServiceConnections: [
@@ -152,7 +145,6 @@ resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
 }
 
 resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (privateKeyVault) {
-  tags: jobTags
   name: uniqueString('kv-private-dns-zone-link')
   parent: privateEndpointDnsZone
   location: 'global'

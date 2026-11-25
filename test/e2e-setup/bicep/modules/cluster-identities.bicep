@@ -1,8 +1,5 @@
 targetScope = 'resourceGroup'
 
-@description('Job attribution tags applied to newly created identities')
-param jobTags object = {}
-
 // Managed Identities layout mirrors the structure used by assignment modules.
 type ManagedIdentities = {
   clusterApiAzureMiName: string
@@ -26,87 +23,73 @@ param identities ManagedIdentities
 
 // Control-plane operator identities
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.clusterApiAzureMiName
   location: resourceGroup().location
 }
 
 resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.controlPlaneMiName
   location: resourceGroup().location
 }
 
 resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.cloudControllerManagerMiName
   location: resourceGroup().location
 }
 
 resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.ingressMiName
   location: resourceGroup().location
 }
 
 resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.diskCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.fileCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.imageRegistryMiName
   location: resourceGroup().location
 }
 
 resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.cloudNetworkConfigMiName
   location: resourceGroup().location
 }
 
 resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.kmsMiName
   location: resourceGroup().location
 }
 
 // Dataplane operator identities
 resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.dpDiskCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.dpFileCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.dpImageRegistryMiName
   location: resourceGroup().location
 }
 
 resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.dpAutoNodeMiName
   location: resourceGroup().location
 }
 
 // Service managed identity
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  tags: jobTags
   name: identities.serviceManagedIdentityName
   location: resourceGroup().location
 }
@@ -128,4 +111,5 @@ output msiIdentities ManagedIdentities = {
   dpAutoNodeMiName: dpAutoNodeMi.name
   serviceManagedIdentityName: serviceManagedIdentity.name
 }
+
 

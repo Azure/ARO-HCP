@@ -116,7 +116,6 @@ func createStorageAccount(ctx context.Context, subscriptionID string, creds azco
 	}
 
 	storagePoller, err := storageClient.BeginCreate(ctx, resourceGroupName, storageAccountName, armstorage.AccountCreateParameters{
-		Tags:     framework.WithJobTags(nil),
 		Kind:     to.Ptr(armstorage.KindStorageV2),
 		Location: to.Ptr(location),
 		SKU: &armstorage.SKU{
@@ -164,7 +163,6 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 	}
 
 	nsPoller, err := nsClient.BeginCreateOrUpdate(ctx, resourceGroupName, namespaceName, armeventhub.EHNamespace{
-		Tags:     framework.WithJobTags(nil),
 		Location: to.Ptr(location),
 		SKU: &armeventhub.SKU{
 			Name: to.Ptr(armeventhub.SKUNameStandard),

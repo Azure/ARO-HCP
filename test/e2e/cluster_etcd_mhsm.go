@@ -130,7 +130,6 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"jobTags":                   framework.WithJobTags(map[string]*string{}),
 					"hsmName":                   hsmName,
 					"location":                  tc.Location(),
 					"adminObjectIds":            []interface{}{deployerIdentity.ObjectID},

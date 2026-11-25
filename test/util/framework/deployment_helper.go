@@ -216,7 +216,6 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	}
 
 	deploymentProperties := armresources.Deployment{
-		Tags:     WithJobTags(nil),
 		Location: to.Ptr(cfg.location),
 		Properties: &armresources.DeploymentProperties{
 			DebugSetting: &armresources.DebugSetting{DetailLevel: to.Ptr(cfg.debugDetailLevel)},

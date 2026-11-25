@@ -1,8 +1,5 @@
 targetScope = 'resourceGroup'
 
-@description('Job attribution tags applied to resources created by this deployment')
-param jobTags object = {}
-
 // Provisions an un-activated Managed HSM for the etcd mHSM e2e test. Activation
 // (security-domain download), data-plane role assignments and key creation run
 // from the test process: a deploymentScript would add an ACI dependency that
@@ -27,7 +24,6 @@ param enablePurgeProtection bool = false
 param softDeleteRetentionInDays int = 7
 
 resource managedHsm 'Microsoft.KeyVault/managedHSMs@2025-05-01' = {
-  tags: jobTags
   name: hsmName
   location: location
   sku: {

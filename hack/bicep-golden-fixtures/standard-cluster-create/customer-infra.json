@@ -54,13 +54,6 @@
       },
       "type": "string"
     },
-    "jobTags": {
-      "defaultValue": {},
-      "metadata": {
-        "description": "Job attribution tags applied to resources created by this deployment"
-      },
-      "type": "object"
-    },
     "privateKeyVault": {
       "defaultValue": true,
       "metadata": {
@@ -84,14 +77,15 @@
         },
         "tenantId": "[subscription().tenantId]"
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.KeyVault/vaults"
     },
     "customerNsg": {
       "apiVersion": "2023-05-01",
       "location": "[resourceGroup().location]",
       "name": "[parameters('customerNsgName')]",
-      "tags": "[union(parameters('jobTags'), createObject('persist', 'true'))]",
+      "tags": {
+        "persist": "true"
+      },
       "type": "Microsoft.Network/networkSecurityGroups"
     },
     "customerVnet": {
@@ -134,7 +128,9 @@
           }
         ]
       },
-      "tags": "[union(parameters('jobTags'), createObject('persist', 'true'))]",
+      "tags": {
+        "persist": "true"
+      },
       "type": "Microsoft.Network/virtualNetworks"
     },
     "etcdEncryptionKey": {
@@ -147,7 +143,6 @@
         "keySize": 2048,
         "kty": "RSA"
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.KeyVault/vaults/keys"
     },
     "privateDnsZoneVnetLink": {
@@ -165,7 +160,6 @@
           "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
         }
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks"
     },
     "privateEndpoint": {
@@ -193,7 +187,6 @@
           "id": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), parameters('customerVnetSubnetName'))]"
         }
       },
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateEndpoints"
     },
     "privateEndpointDnsGroup": {
@@ -226,7 +219,6 @@
       "location": "global",
       "name": "privatelink.vaultcore.azure.net",
       "properties": {},
-      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateDnsZones"
     }
   },

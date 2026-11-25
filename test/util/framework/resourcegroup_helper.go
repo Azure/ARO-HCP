@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -73,9 +74,12 @@ func CreateResourceGroup(
 		"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
 		"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
 	}
+	if jobID := os.Getenv("BUILD_ID"); strings.TrimSpace(jobID) != "" {
+		tags[ProwJobIDTag] = to.Ptr(jobID)
+	}
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),
-		Tags:     WithJobTags(tags),
+		Tags:     tags,
 	}, nil)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

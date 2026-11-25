@@ -85,7 +85,6 @@ func createACRPullMI(
 	location *string,
 ) (string, error) {
 	resp, err := msiClient.CreateOrUpdate(ctx, resourceGroupName, miName, armmsi.Identity{
-		Tags:     framework.WithJobTags(nil),
 		Location: location,
 	}, nil)
 	if err != nil {
@@ -513,7 +512,6 @@ var _ = Describe("Customer", func() {
 
 			By("creating a private Azure Container Registry")
 			acrPoller, err := registriesClient.BeginCreate(ctx, *resourceGroup.Name, acrName, armcontainerregistry.Registry{
-				Tags:     framework.WithJobTags(nil),
 				Location: resourceGroup.Location,
 				SKU:      &armcontainerregistry.SKU{Name: to.Ptr(armcontainerregistry.SKUNameBasic)},
 				Properties: &armcontainerregistry.RegistryProperties{

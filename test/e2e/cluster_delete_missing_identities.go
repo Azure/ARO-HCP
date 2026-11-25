@@ -65,7 +65,6 @@ var _ = Describe("Customer", func() {
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
 					"clusterName": customerClusterName,
-					"jobTags":     framework.WithJobTags(map[string]*string{}),
 				}),
 				framework.WithTimeout(45*time.Minute),
 			)
@@ -89,7 +88,6 @@ var _ = Describe("Customer", func() {
 				framework.WithLocation(tc.Location()),
 				framework.WithParameters(map[string]interface{}{
 					"useMsiPool":               false,
-					"jobTags":                  framework.WithJobTags(map[string]*string{}),
 					"clusterResourceGroupName": *resourceGroup.Name,
 					"msiResourceGroupName":     *resourceGroup.Name,
 					"identities":               identities,
