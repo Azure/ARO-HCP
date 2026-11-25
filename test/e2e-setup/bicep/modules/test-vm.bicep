@@ -1,6 +1,9 @@
 @description('Name of the virtual machine')
 param vmName string
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 @description('The virtual network name')
 param vnetName string
 
@@ -37,6 +40,7 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
 //
 
 resource publicIP 'Microsoft.Network/publicIPAddresses@2022-07-01' = {
+  tags: jobTags
   name: '${vmName}-pip'
   location: location
   sku: {
@@ -49,6 +53,7 @@ resource publicIP 'Microsoft.Network/publicIPAddresses@2022-07-01' = {
 }
 
 resource nic 'Microsoft.Network/networkInterfaces@2022-07-01' = {
+  tags: jobTags
   name: '${vmName}-nic'
   location: location
   properties: {
@@ -74,6 +79,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2022-07-01' = {
 //
 
 resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
+  tags: jobTags
   name: vmName
   location: location
   properties: {
@@ -124,6 +130,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
 //
 
 resource vmExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = {
+  tags: jobTags
   name: 'installTools'
   parent: vm
   location: location

@@ -1,5 +1,8 @@
 targetScope = 'resourceGroup'
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 @description('If set to true, the cluster will not be deleted automatically after few days.')
 param persistTagValue bool = false
 
@@ -9,6 +12,7 @@ param identities object
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
+    jobTags: jobTags
     persistTagValue: persistTagValue
   }
 }
@@ -17,6 +21,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'managedIdentities'
   scope: subscription()
   params: {
+    jobTags: jobTags
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities

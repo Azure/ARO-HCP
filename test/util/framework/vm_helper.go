@@ -146,6 +146,7 @@ func RunVMCommand(ctx context.Context, tc interface {
 	// or commandId). Custom shell content must use Script only — CommandID is
 	// for predefined gallery/builtin commands, not the old RunShellScript action.
 	runCommand := armcompute.VirtualMachineRunCommand{
+		Tags:     WithJobTags(nil),
 		Location: vm.Location,
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{

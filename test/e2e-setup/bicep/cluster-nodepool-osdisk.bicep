@@ -1,5 +1,8 @@
 targetScope = 'resourceGroup'
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 @description('If set to true, the cluster will not be deleted automatically after few days.')
 param persistTagValue bool = false
 
@@ -30,6 +33,7 @@ param nodeReplicas int = 2
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
+    jobTags: jobTags
     persistTagValue: persistTagValue
   }
 }
@@ -38,6 +42,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'mi-${resourceGroup().name}'
   scope: subscription()
   params: {
+    jobTags: jobTags
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities
@@ -52,6 +57,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
   params: {
+    jobTags: jobTags
     openshiftVersionId: openshiftControlPlaneVersionId
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
@@ -67,6 +73,7 @@ module AroHcpCluster 'modules/cluster.bicep' = {
 module AroHcpNodePool 'modules/nodepool.bicep' = {
   name: 'nodepool'
   params: {
+    jobTags: jobTags
     openshiftVersionId: openshiftNodePoolVersionId
     clusterName: AroHcpCluster.outputs.name
     nodePoolName: nodePoolName

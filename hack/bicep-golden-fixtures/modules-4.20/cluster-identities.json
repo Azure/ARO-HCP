@@ -82,6 +82,13 @@
       "metadata": {
         "description": "MSI identities in the pool"
       }
+    },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to newly created identities"
+      },
+      "type": "object"
     }
   },
   "resources": {
@@ -89,78 +96,91 @@
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').cloudControllerManagerMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "cloudNetworkConfigMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').cloudNetworkConfigMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "clusterApiAzureMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').clusterApiAzureMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "controlPlaneMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').controlPlaneMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "diskCsiDriverMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').diskCsiDriverMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "dpDiskCsiDriverMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').dpDiskCsiDriverMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "dpFileCsiDriverMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').dpFileCsiDriverMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "dpImageRegistryMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').dpImageRegistryMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "fileCsiDriverMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').fileCsiDriverMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "imageRegistryMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').imageRegistryMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "ingressMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').ingressMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "kmsMi": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').kmsMiName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
     "serviceManagedIdentity": {
       "apiVersion": "2023-01-31",
       "location": "[resourceGroup().location]",
       "name": "[parameters('identities').serviceManagedIdentityName]",
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     }
   }

@@ -238,6 +238,7 @@ var _ = Describe("Customer", func() {
 			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create UAMI client")
 			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, "cert-manager", armmsi.Identity{
+				Tags:     framework.WithJobTags(nil),
 				Location: resourceGroup.Location,
 			}, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create UAMI")

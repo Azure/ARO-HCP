@@ -1,5 +1,8 @@
 targetScope = 'subscription'
 
+@description('Job attribution tags applied to newly created identities')
+param jobTags object = {}
+
 @description('Resource group name where identities are located')
 param msiResourceGroupName string
 
@@ -87,6 +90,7 @@ module clusterIdentities 'cluster-identities.bicep' = if (!useMsiPool) {
   name: 'clusterIdentities${deploymentSuffix}'
   scope: resourceGroup(clusterResourceGroupName)
   params: {
+    jobTags: jobTags
     identities: identities
   }
 }

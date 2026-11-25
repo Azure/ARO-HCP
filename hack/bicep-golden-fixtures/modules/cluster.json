@@ -39,6 +39,13 @@
       },
       "type": "object"
     },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to resources created by this deployment"
+      },
+      "type": "object"
+    },
     "keyVaultName": {
       "metadata": {
         "description": "The KeyVault name that contains the etcd encryption key"
@@ -160,7 +167,7 @@
           "id": "[parameters('openshiftVersionId')]"
         }
       },
-      "tags": "[parameters('tags')]",
+      "tags": "[union(parameters('tags'), parameters('jobTags'))]",
       "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
     },
     "keyVault": {

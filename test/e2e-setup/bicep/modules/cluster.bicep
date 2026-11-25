@@ -49,6 +49,9 @@ param authorizedCidrs array?
 // E X I S T I N G   R E S O U R C E S
 //
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' existing = {
   name: vnetName
 }
@@ -78,7 +81,7 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' e
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
   name: clusterName
   location: resourceGroup().location
-  tags: tags
+  tags: union(tags, jobTags)
   properties: {
     version: {
       id: openshiftVersionId

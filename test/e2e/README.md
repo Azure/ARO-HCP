@@ -303,6 +303,45 @@ Run specific test case: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:H
 
 Run in debug mode: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' --vv ./`
 
+## Job attribution tags
+
+`run-suite` and `run-test` accept `--job-name` (defaults to `$JOB_NAME`) and
+`--job-id` (defaults to `$BUILD_ID`). These values tag resources created by tests:
+
+| Flag | ARM tag |
+| --- | --- |
+| `--job-name` | `jobName.aro-hcp-ci.redhat.com` |
+| `--job-id` | `jobID.aro-hcp-ci.redhat.com` |
+
+```bash
+./test/aro-hcp-tests run-suite integration/parallel --job-name local-debug --job-id run-123
+```
+
+Explicit flags override the defaults. Empty or whitespace-only values omit the
+corresponding tag, and values longer than ARM's 256-character limit are rejected
+before running tests. The runner passes resolved values to worker processes through
+`ARO_HCP_TEST_JOB_NAME` and `ARO_HCP_TEST_JOB_ID`, without changing `JOB_NAME` or
+`BUILD_ID`. These internal variables take precedence when present, even when empty.
+
+The framework adds job tags to resource groups, clusters, node pools, deployments,
+and taggable supporting resources created through SDK helpers and Bicep templates.
+Resources without ARM tag support (such as subnets, role assignments, and external
+auth resources) cannot carry them. Existing pooled identities and resources created
+by the service on behalf of a cluster are outside this runner's creation paths.
+Resource-group expiry and experimental-feature tags are preserved, and
+`cleanup --job-id run-123` uses the same job ID tag as before.
+
+When adding creation paths, use `framework.WithJobTags(existingTags)` for SDK
+resources. Bicep templates accept an optional `jobTags` object, which
+`CreateBicepTemplateAndWait` supplies automatically; forward it through modules
+that create taggable resources and merge it with any resource-specific tags.
+
+Experimental-feature tags use a separate namespace, for example
+`aro-hcp.experimental.cluster.size-override=Minimal` and
+`aro-hcp.experimental.cluster.single-replica=SingleReplica`. They are honored only
+when the subscription registers `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures`.
+See `arohcp-cosmos-client/api/metadataapi/featureflags.go` for supported keys.
+
 ## E2E Test Suite Configuration
 To run the test suite, you must configure the following environment variables.
 

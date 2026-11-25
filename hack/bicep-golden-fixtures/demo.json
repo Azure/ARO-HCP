@@ -19,6 +19,13 @@
       },
       "type": "object"
     },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to resources created by this deployment"
+      },
+      "type": "object"
+    },
     "openshiftControlPlaneVersionId": {
       "defaultValue": "4.20",
       "metadata": {
@@ -65,6 +72,9 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
+          },
           "persistTagValue": {
             "value": "[parameters('persistTagValue')]"
           }
@@ -199,6 +209,13 @@
               },
               "type": "bool"
             },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to resources created by this deployment"
+              },
+              "type": "object"
+            },
             "keyVaultSoftDeleteRetentionInDays": {
               "defaultValue": 7,
               "metadata": {
@@ -226,9 +243,7 @@
               "apiVersion": "2023-05-01",
               "location": "[resourceGroup().location]",
               "name": "[parameters('customerNsgName')]",
-              "tags": {
-                "persist": "[string(parameters('persistTagValue'))]"
-              },
+              "tags": "[union(parameters('jobTags'), createObject('persist', string(parameters('persistTagValue'))))]",
               "type": "Microsoft.Network/networkSecurityGroups"
             },
             {
@@ -270,9 +285,7 @@
                   }
                 ]
               },
-              "tags": {
-                "persist": "[string(parameters('persistTagValue'))]"
-              },
+              "tags": "[union(parameters('jobTags'), createObject('persist', string(parameters('persistTagValue'))))]",
               "type": "Microsoft.Network/virtualNetworks"
             },
             {
@@ -291,6 +304,7 @@
                 "softDeleteRetentionInDays": "[if(parameters('enableKeyVaultSoftDelete'), parameters('keyVaultSoftDeleteRetentionInDays'), null())]",
                 "tenantId": "[subscription().tenantId]"
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.KeyVault/vaults"
             },
             {
@@ -303,6 +317,7 @@
                 "keySize": 2048,
                 "kty": "RSA"
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.KeyVault/vaults/keys"
             },
             {
@@ -329,6 +344,7 @@
               "location": "global",
               "name": "privatelink.vaultcore.azure.net",
               "properties": {},
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.Network/privateDnsZones"
             },
             {
@@ -356,6 +372,7 @@
                   "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), '2023-05-01').subnets[0].id]"
                 }
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.Network/privateEndpoints"
             },
             {
@@ -394,6 +411,7 @@
                   "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
                 }
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks"
             }
           ],
@@ -427,6 +445,9 @@
           },
           "identities": {
             "value": "[parameters('identities').identities]"
+          },
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
           },
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'customerInfra'), '2025-04-01').outputs.keyVaultName.value]"
@@ -542,6 +563,13 @@
                 "description": "MSI identities in the pool"
               }
             },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to newly created identities"
+              },
+              "type": "object"
+            },
             "keyVaultName": {
               "metadata": {
                 "description": "The KeyVault name that contains the etcd encryption key"
@@ -604,6 +632,9 @@
                 "parameters": {
                   "identities": {
                     "value": "[parameters('identities')]"
+                  },
+                  "jobTags": {
+                    "value": "[parameters('jobTags')]"
                   }
                 },
                 "template": {
@@ -694,6 +725,13 @@
                       "metadata": {
                         "description": "MSI identities in the pool"
                       }
+                    },
+                    "jobTags": {
+                      "defaultValue": {},
+                      "metadata": {
+                        "description": "Job attribution tags applied to newly created identities"
+                      },
+                      "type": "object"
                     }
                   },
                   "resources": {
@@ -701,84 +739,98 @@
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').cloudControllerManagerMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "cloudNetworkConfigMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').cloudNetworkConfigMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "clusterApiAzureMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').clusterApiAzureMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "controlPlaneMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').controlPlaneMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "diskCsiDriverMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').diskCsiDriverMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "dpAutoNodeMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').dpAutoNodeMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "dpDiskCsiDriverMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').dpDiskCsiDriverMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "dpFileCsiDriverMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').dpFileCsiDriverMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "dpImageRegistryMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').dpImageRegistryMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "fileCsiDriverMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').fileCsiDriverMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "imageRegistryMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').imageRegistryMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "ingressMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').ingressMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "kmsMi": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').kmsMiName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
                     "serviceManagedIdentity": {
                       "apiVersion": "2023-01-31",
                       "location": "[resourceGroup().location]",
                       "name": "[parameters('identities').serviceManagedIdentityName]",
+                      "tags": "[parameters('jobTags')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     }
                   }
@@ -3250,6 +3302,9 @@
           "identityValue": {
             "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('mi-{0}', resourceGroup().name)), '2025-04-01').outputs.identityValue.value]"
           },
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
+          },
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'customerInfra'), '2025-04-01').outputs.keyVaultName.value]"
           },
@@ -3310,6 +3365,13 @@
             "identityValue": {
               "metadata": {
                 "description": "Cluster Managed Identities"
+              },
+              "type": "object"
+            },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to resources created by this deployment"
               },
               "type": "object"
             },
@@ -3434,7 +3496,7 @@
                   "id": "[parameters('openshiftVersionId')]"
                 }
               },
-              "tags": "[parameters('tags')]",
+              "tags": "[union(parameters('tags'), parameters('jobTags'))]",
               "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
             },
             "keyVault": {
@@ -3481,6 +3543,9 @@
           "clusterName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cluster'), '2025-04-01').outputs.name.value]"
           },
+          "jobTags": {
+            "value": "[parameters('jobTags')]"
+          },
           "nodePoolName": {
             "value": "nodepool-1"
           },
@@ -3502,6 +3567,13 @@
                 "description": "The name of the Hypershift cluster to which the node pool will be attached."
               },
               "type": "string"
+            },
+            "jobTags": {
+              "defaultValue": {},
+              "metadata": {
+                "description": "Job attribution tags applied to resources created by this deployment"
+              },
+              "type": "object"
             },
             "nodePoolName": {
               "metadata": {
@@ -3557,6 +3629,7 @@
                   "id": "[parameters('openshiftVersionId')]"
                 }
               },
+              "tags": "[parameters('jobTags')]",
               "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
             }
           ]

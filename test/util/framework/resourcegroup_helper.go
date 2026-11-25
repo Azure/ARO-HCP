@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -37,8 +36,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
-
-const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
 	pager := subscriptionClient.NewListPager(nil)
@@ -76,12 +73,9 @@ func CreateResourceGroup(
 		"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
 		"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
 	}
-	if jobID := os.Getenv("BUILD_ID"); strings.TrimSpace(jobID) != "" {
-		tags[ProwJobIDTag] = to.Ptr(jobID)
-	}
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),
-		Tags:     tags,
+		Tags:     WithJobTags(tags),
 	}, nil)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

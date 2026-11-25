@@ -128,6 +128,13 @@
       },
       "type": "bool"
     },
+    "jobTags": {
+      "defaultValue": {},
+      "metadata": {
+        "description": "Job attribution tags applied to resources created by this deployment"
+      },
+      "type": "object"
+    },
     "keyVaultSoftDeleteRetentionInDays": {
       "defaultValue": 7,
       "metadata": {
@@ -155,9 +162,7 @@
       "apiVersion": "2023-05-01",
       "location": "[resourceGroup().location]",
       "name": "[parameters('customerNsgName')]",
-      "tags": {
-        "persist": "[string(parameters('persistTagValue'))]"
-      },
+      "tags": "[union(parameters('jobTags'), createObject('persist', string(parameters('persistTagValue'))))]",
       "type": "Microsoft.Network/networkSecurityGroups"
     },
     {
@@ -199,9 +204,7 @@
           }
         ]
       },
-      "tags": {
-        "persist": "[string(parameters('persistTagValue'))]"
-      },
+      "tags": "[union(parameters('jobTags'), createObject('persist', string(parameters('persistTagValue'))))]",
       "type": "Microsoft.Network/virtualNetworks"
     },
     {
@@ -220,6 +223,7 @@
         "softDeleteRetentionInDays": "[if(parameters('enableKeyVaultSoftDelete'), parameters('keyVaultSoftDeleteRetentionInDays'), null())]",
         "tenantId": "[subscription().tenantId]"
       },
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.KeyVault/vaults"
     },
     {
@@ -232,6 +236,7 @@
         "keySize": 2048,
         "kty": "RSA"
       },
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.KeyVault/vaults/keys"
     },
     {
@@ -258,6 +263,7 @@
       "location": "global",
       "name": "privatelink.vaultcore.azure.net",
       "properties": {},
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateDnsZones"
     },
     {
@@ -285,6 +291,7 @@
           "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), '2023-05-01').subnets[0].id]"
         }
       },
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateEndpoints"
     },
     {
@@ -323,6 +330,7 @@
           "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
         }
       },
+      "tags": "[parameters('jobTags')]",
       "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks"
     }
   ],

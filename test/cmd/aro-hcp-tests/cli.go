@@ -275,11 +275,11 @@ func setupCli() (*cobra.Command, error) {
 		hooks := commandHooks{}
 		switch c.Name() {
 		case "run-suite":
-			hooks.BeforePersistent = []commandHook{initializeSuites}
+			hooks.BeforePersistent = []commandHook{bindJobFlags(c), initializeSuites}
 			hooks.BeforePersistentLocal = []commandHook{configureScheduler}
 			hooks.AfterPreRun = []commandHook{configureSuiteConcurrency(registry)}
 		case "run-test":
-			hooks.BeforePersistent = []commandHook{initializeSuites}
+			hooks.BeforePersistent = []commandHook{bindJobFlags(c), initializeSuites}
 			hooks.BeforePersistentLocal = []commandHook{configureScheduler}
 		default:
 			hooks.BeforePersistent = []commandHook{initializeSuites}

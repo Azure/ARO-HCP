@@ -28,6 +28,9 @@ param clusterVersion string
 @description('Tags that should be added to the ARO HCP cluster')
 param tags object = {}
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -77,6 +80,7 @@ var readerRoleId = subscriptionResourceId(
 //
 
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-cluster-api-azure-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -113,6 +117,7 @@ resource serviceManagedIdentityReaderOnClusterApiAzureMi 'Microsoft.Authorizatio
 //
 
 resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-kms-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -148,6 +153,7 @@ resource serviceManagedIdentityReaderOnKmsMi 'Microsoft.Authorization/roleAssign
 //
 
 resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-control-plane-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -193,6 +199,7 @@ resource serviceManagedIdentityReaderOnControlPlaneMi 'Microsoft.Authorization/r
 //
 
 resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-cloud-controller-manager-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -238,6 +245,7 @@ resource serviceManagedIdentityReaderOnCloudControllerManagerMi 'Microsoft.Autho
 //
 
 resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-ingress-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -273,6 +281,7 @@ resource serviceManagedIdentityReaderOnIngressMi 'Microsoft.Authorization/roleAs
 //
 
 resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-disk-csi-driver-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -292,6 +301,7 @@ resource serviceManagedIdentityReaderOnDiskCsiDriverMi 'Microsoft.Authorization/
 //
 
 resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-file-csi-driver-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -338,6 +348,7 @@ resource serviceManagedIdentityReaderOnFileCsiDriverMi 'Microsoft.Authorization/
 //
 
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-image-registry-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -372,6 +383,7 @@ resource serviceManagedIdentityReaderOnImageRegistryMi 'Microsoft.Authorization/
 //
 
 resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-cp-cloud-network-config-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -425,6 +437,7 @@ var federatedCredentialsRoleId = subscriptionResourceId(
 )
 
 resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-dp-disk-csi-driver-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -440,6 +453,7 @@ resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 }
 
 resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-dp-file-csi-driver-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -475,6 +489,7 @@ resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authoriz
 }
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-dp-image-registry-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -503,6 +518,7 @@ resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  tags: jobTags
   name: '${clusterName}-service-managed-identity-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -538,7 +554,7 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' = {
   name: clusterName
   location: resourceGroup().location
-  tags: tags
+  tags: union(tags, jobTags)
   properties: {
     dns: {}
     network: {

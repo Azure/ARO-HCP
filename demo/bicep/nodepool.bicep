@@ -7,11 +7,15 @@ param nodePoolName string
 @description('The version of OpenShift to use for the node pool (e.g. 4.20.16)')
 param nodePoolVersion string
 
+@description('Job attribution tags applied to resources created by this deployment')
+param jobTags object = {}
+
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' existing = {
   name: clusterName
 }
 
 resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2025-12-23-preview' = {
+  tags: jobTags
   parent: hcp
   name: nodePoolName
   location: resourceGroup().location
