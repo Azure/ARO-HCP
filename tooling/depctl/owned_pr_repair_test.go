@@ -157,6 +157,8 @@ func newOwnedPRRepairFixture(t *testing.T) ownedPRRepairFixture {
 			"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=" + os.DevNull,
 			"GIT_ALLOW_PROTOCOL=file", "GIT_TERMINAL_PROMPT=0",
 			"GOENV=off", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOVCS=*:off",
+			// Go can extract a bundled FIPS module even with the proxy disabled.
+			"GOFLAGS=-modcacherw",
 		},
 	}
 	nativeCLIWrite(t, filepath.Join(bin, "gh"), repairGHStub, 0700)

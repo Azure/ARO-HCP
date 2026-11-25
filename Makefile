@@ -120,7 +120,7 @@ verify-tool-versions:
 .PHONY: verify-tool-versions
 
 verify-tool-automation: $(JQ)
-	PATH="$(dir $(JQ)):$$PATH" go test -C tooling/depctl -tags toolintegration -count=1 ./internal/consumers -run '^TestToolUpdaterNetworkPolicy$$'
+	PATH="$(dir $(JQ)):$$PATH" go test -C tooling/depctl -tags toolintegration -count=1 ./internal/consumers -run '^TestTool(UpdaterNetworkPolicy|ImageSmokeMissingTool)$$'
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
@@ -133,7 +133,7 @@ verify-agentic-maintenance:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-agentic-maintenance
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation verify-agentic-maintenance
 .PHONY: verify
 
 verify-schema:

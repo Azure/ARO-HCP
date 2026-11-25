@@ -19,6 +19,7 @@ package consumers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"os"
 	"os/exec"
@@ -28,6 +29,17 @@ import (
 	"testing"
 	"time"
 )
+
+// TestToolImageSmokeMissingTool proves the real smoke script fails when a required tool is absent.
+func TestToolImageSmokeMissingTool(t *testing.T) {
+	cmd := exec.CommandContext(t.Context(), "/bin/bash", "../../../../dev-infrastructure/openshift-ci/smoke-test.sh")
+	cmd.Env = []string{"PATH=" + t.TempDir(), "LC_ALL=C"}
+	output, err := cmd.CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 127 {
+		t.Fatalf("missing required tool: want exit 127, got %v\n%s", err, output)
+	}
+}
 
 // TestToolUpdaterNetworkPolicy checks the generated AWF policy against real updater requests and release redirects.
 func TestToolUpdaterNetworkPolicy(t *testing.T) {
