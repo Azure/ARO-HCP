@@ -30,6 +30,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -59,6 +60,8 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		AllowedSubscriptions:   allowedSubscriptions,
 		AllowedLocations:       allowedLocations,
 		SelectedLocation:       selectedLocation,
+		PoolSelector:           effectiveAcquireEnv("POOL_SELECTOR"),
+		PlacementRegion:        effectiveAcquireEnv("PLACEMENT_REGION"),
 		LocationWeights:        strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
 		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
 		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
@@ -98,6 +101,14 @@ func defaultSetupAzureGlobalLogger(path string) (io.Closer, error) {
 	return azureGlobalLoggerLogFile, nil
 }
 
+// effectiveAcquireEnv lets a nonempty MULTISTAGE_PARAM_OVERRIDE_<name> replace the baseline <name>.
+func effectiveAcquireEnv(name string) string {
+	if value := strings.TrimSpace(os.Getenv("MULTISTAGE_PARAM_OVERRIDE_" + name)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(os.Getenv(name))
+}
+
 func defaultAcquireSelectors() ([]string, []string, string) {
 	allowedSubscriptions := splitSelectorValues(os.Getenv("ALLOWED_SUBSCRIPTIONS"))
 	selectedLocation := strings.TrimSpace(os.Getenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION"))
@@ -135,6 +146,9 @@ func normalizeValues(parts []string) []string {
 }
 
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
+	opts.flags = cmd.Flags()
+	cmd.Flags().StringVar(&opts.PoolSelector, "pool-selector", opts.PoolSelector, "Kubernetes-style label selector for pools in the resolved environment; pool.name is always available. Selects the pool selector API.")
+	cmd.Flags().StringVar(&opts.PlacementRegion, "placement-region", opts.PlacementRegion, "Hard runtime placement region. Selects the pool selector API.")
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringSliceVar(&opts.ClusterProfileDirs, "cluster-profile-dirs", opts.ClusterProfileDirs, "Optional list of cluster profile dirs to resolve the leased subscription's owning tenant/credentials across. Falls back to --cluster-profile-dir when unset.")
 	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Logical slot environment (dev, dev-xs, int, stg, prod).")
@@ -163,6 +177,9 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 }
 
 type RawAcquireOptions struct {
+	PoolSelector           string
+	PlacementRegion        string
+	flags                  *pflag.FlagSet
 	WriteState             func(string, *slots.AcquiredSlotState) error
 	ClusterProfileDir      string
 	ClusterProfileDirs     []string
@@ -262,7 +279,33 @@ func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 	return completed.Run(ctx)
 }
 
+// usesPoolSelector reports whether the request uses --pool-selector/--placement-region (or their
+// environment equivalents). Explicit presence counts even when the value is empty, so an empty
+// --pool-selector selects every pool in the environment.
+func (o *RawAcquireOptions) usesPoolSelector() bool {
+	changed := func(name string) bool { return o.flags != nil && o.flags.Changed(name) }
+	return changed("pool-selector") || changed("placement-region") || o.PoolSelector != "" || o.PlacementRegion != ""
+}
+
+func (o *RawAcquireOptions) validatePoolSelectorRequest() error {
+	changed := func(name string) bool { return o.flags != nil && o.flags.Changed(name) }
+	switch {
+	case !o.usesPoolSelector():
+		return nil
+	case changed("placement-region") && strings.TrimSpace(o.PlacementRegion) == "":
+		return fmt.Errorf("--placement-region must not be empty when explicitly supplied")
+	case changed("allowed-subscriptions") || changed("allowed-locations") || len(o.AllowedSubscriptions) != 0 || len(o.AllowedLocations) != 0:
+		return fmt.Errorf("--pool-selector/--placement-region cannot be combined with --allowed-subscriptions or --allowed-locations")
+	case strings.TrimSpace(o.PlacementRegion) != "" && strings.TrimSpace(o.SelectedLocation) != "":
+		return fmt.Errorf("--placement-region and MULTISTAGE_PARAM_OVERRIDE_LOCATION are duplicate placement sources")
+	}
+	return nil
+}
+
 func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
+	if err := o.validatePoolSelectorRequest(); err != nil {
+		return nil, err
+	}
 	switch {
 	case len(o.effectiveClusterProfileDirs()) == 0:
 		return nil, fmt.Errorf("--cluster-profile-dir or --cluster-profile-dirs must not be empty")
@@ -322,6 +365,9 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	}
 
 	selectedLocation := strings.TrimSpace(o.SelectedLocation)
+	if placement := strings.TrimSpace(o.PlacementRegion); placement != "" {
+		selectedLocation = placement
+	}
 	environment := strings.TrimSpace(o.Environment)
 	if environment == "" {
 		environment, err = catalog.ResolveEnvironmentForDeployEnv(o.DeployEnv)
@@ -332,7 +378,12 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
 
-	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
+	var candidatePools []slots.Pool
+	if o.usesPoolSelector() {
+		candidatePools, err = catalog.SelectPools(environment, strings.TrimSpace(o.PoolSelector), selectedLocation)
+	} else {
+		candidatePools, err = catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
+	}
 	if err != nil {
 		return nil, err
 	}

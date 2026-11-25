@@ -131,6 +131,8 @@ type Pool struct {
 	SlotCount                          int                `yaml:"slot_count"`
 	IdentityContainerProvisioningCount int                `yaml:"identity_container_provisioning_count,omitempty"`
 	VMFamilyPolicy                     PoolVMFamilyPolicy `yaml:"vm_family_policy,omitempty"`
+	// Labels are optional scalar selector data; see selector.go.
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 const (
@@ -344,6 +346,9 @@ func validateDeploymentEnvironmentName(name string) error {
 }
 
 func validatePool(environmentName string, pool *Pool) error {
+	if err := validatePoolLabels(environmentName, *pool); err != nil {
+		return err
+	}
 	if asset := pool.SlotAssets.MockIdentities; asset != nil {
 		if environmentName != "dev" && environmentName != "dev-xs" {
 			return fmt.Errorf("mock_identities is restricted to dev and dev-xs")
