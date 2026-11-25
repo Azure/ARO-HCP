@@ -232,6 +232,22 @@ make -C config materialize
 
 **Note**: The tool will fetch the specified digest and update all target environments. Unlike `tagPattern`, this will not automatically update to newer images.
 
+### Publishing the Digest Pull Request
+
+`image-updater publish` turns the committed digest update into one pull request through the shared `tooling/github` library:
+
+```bash
+./image-updater publish --body-file /tmp/image-updater-output.md \
+  --base-commit "$(git rev-parse HEAD)" \
+  --paths tooling/image-updater/config.yaml \
+  --paths-file /tmp/publishable-paths.txt \
+  --app-id-file "$GITHUB_APP_ID_PATH" --app-key-file "$GITHUB_APP_KEY_PATH"
+```
+
+It stages and commits only the listed paths as `aro-hcp-robot[bot]`, refusing a checkout whose index already holds staged changes, and then pushes the rolling `bot/image-updater` branch with a lease pinned to the tip read before publication. Before pushing it refuses open proposals that use that branch without the `<!-- aro-hcp-image-updater -->` marker, and refuses a `main` that moved away from `--base-commit`. The library then verifies the head, the base, the title, the body and the complete changed-file set before returning a receipt.
+
+Later runs fold into the same open pull request instead of opening a second one. `--dry-run` commits locally with no credentials, no remote reads and no publication. When App credentials are unavailable, `--token-file` supplies a GitHub token instead.
+
 ## Configuration
 
 ### Basic Image Configuration
