@@ -303,8 +303,7 @@ The read-only `dependabot native check-tree`, `check-coverage` (or
 not executable commands. Go owns replacement scope, immutable consumer coverage
 and native admission eligibility. These commands use the trusted default-branch
 binary and official release GETs through `gh`; a missing binary or rejected check
-fails closed. Discovery, detector staging and reconciliation remain in Python
-until their callers and tests are migrated; publication does not call Python.
+fails closed.
 
 ### dependabot native validate-candidate
 
@@ -369,7 +368,7 @@ to the ordinary token. No request returns `{"status":"no-request"}` without
 credentials or Git access.
 
 Run `make verify-agentic-maintenance` from the repository root for Go publication
-and validation checks, remaining Python lifecycle regressions, and Darwin/arm64 coverage.
+and validation checks, including a Darwin/arm64 build.
 
 ### maintenance inventory
 
