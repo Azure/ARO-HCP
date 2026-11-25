@@ -44,11 +44,6 @@ import (
 //
 // Provisioning: Karpenter provisions a real Azure node under scheduling
 // pressure, and removes it when the pressure is gone.
-//
-// Known gap: Azure has no CSR auto-approver for Karpenter-provisioned nodes.
-// This test works around that gap and does not fix it (see
-// framework.RunKarpenterNodeCSRApprover). A passing run is not proof that the
-// gap is closed.
 var _ = Describe("Customer", func() {
 	It("should be able to create a cluster with autonode enabled on OCP version >= 4.22 and run a web app on the Karpenter-provisioned node",
 		labels.RequireNothing, labels.Medium, labels.Slow, labels.Positive, labels.AroRpApiCompatible, labels.CreateCluster,

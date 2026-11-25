@@ -209,24 +209,11 @@ func provisionKarpenterNode(ctx context.Context, adminRESTConfig *rest.Config, c
 		}
 	}, time.Minute, 5*time.Second).Should(Succeed(), "workload pods never reached Pending phase")
 
-	By("waiting for Karpenter to provision a real Azure node, approving its CSRs as a workaround for the missing Azure auto-approver")
-	csrApproverCtx, stopCSRApprover := context.WithCancel(ctx)
-	var approvedCSRCount int
-	var csrApproverErr error
-	csrApproverDone := make(chan struct{})
-	go func() {
-		defer close(csrApproverDone)
-		approvedCSRCount, csrApproverErr = framework.RunKarpenterNodeCSRApprover(csrApproverCtx, adminRESTConfig, 10*time.Second)
-	}()
-
+	By("waiting for Karpenter to provision and register a real Azure node")
 	// A Karpenter-provisioned Azure VM needs about five minutes to initialize and
 	// start registration. The cluster creation above adds more time. Budget
 	// generously.
 	err = verifiers.VerifyKarpenterNodeProvisioned(karpenterResourceName, 25*time.Minute, options.provisioningChecks).Verify(ctx, adminRESTConfig)
-	stopCSRApprover()
-	<-csrApproverDone
-	GinkgoLogr.Info("Karpenter node CSR approver finished", "approved", approvedCSRCount)
-	Expect(csrApproverErr).NotTo(HaveOccurred(), "background Karpenter node CSR approver failed")
 	Expect(err).NotTo(HaveOccurred(), "Karpenter never provisioned a Ready, schedulable, fully-linked node for NodePool %q", karpenterResourceName)
 
 	By("verifying every workload pod reaches Running on a Karpenter-provisioned node")

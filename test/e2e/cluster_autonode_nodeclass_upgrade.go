@@ -204,19 +204,6 @@ var _ = Describe("Customer", func() {
 			Expect(upgradeState.NodeClassHash).NotTo(BeEmpty(), "the AKSNodeClass must carry the %s annotation before the version change", "karpenter.azure.com/aksnodeclass-hash")
 			Expect(upgradeState.NodeClaimNames).NotTo(BeEmpty(), "expected at least one NodeClaim before the version change")
 
-			// Replacement nodes need the same CSR workaround as the initial node.
-			csrApproverCtx, stopCSRApprover := context.WithCancel(ctx)
-			csrApproverDone := make(chan struct{})
-			var csrApproverErr error
-			go func() {
-				defer close(csrApproverDone)
-				_, csrApproverErr = framework.RunKarpenterNodeCSRApprover(csrApproverCtx, adminRESTConfig, 10*time.Second)
-			}()
-			DeferCleanup(func() {
-				stopCSRApprover()
-				<-csrApproverDone
-			})
-
 			By(fmt.Sprintf("changing only NodeClass spec.version from %s to %s", initialVersion, targetVersion))
 			err = framework.UpdateOpenShiftAzureNodeClassVersion(ctx, adminRESTConfig, run.resourceName, targetVersion)
 			Expect(err).NotTo(HaveOccurred(), "failed to set NodeClass %q spec.version to %s", run.resourceName, targetVersion)
@@ -230,9 +217,6 @@ var _ = Describe("Customer", func() {
 				PreviousNodeClassHash:  upgradeState.NodeClassHash,
 			}
 			upgradeErr := verifiers.VerifyKarpenterNodeClassVersion(run.resourceName, targetVersion, evidence, framework.NodePoolVersionUpgradeTimeout).Verify(ctx, adminRESTConfig)
-			stopCSRApprover()
-			<-csrApproverDone
-			Expect(csrApproverErr).NotTo(HaveOccurred(), "failed to approve replacement node CSRs")
 			Expect(upgradeErr).NotTo(HaveOccurred(), "failed to replace old Karpenter nodes and reach OpenShift %s after the NodeClass version change", targetVersion)
 
 			By("verifying the existing workload runs on a replacement node")

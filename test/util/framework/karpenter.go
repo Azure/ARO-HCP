@@ -17,19 +17,14 @@ package framework
 import (
 	"context"
 	"fmt"
-	"time"
-
-	"github.com/onsi/ginkgo/v2"
 
 	appsv1 "k8s.io/api/apps/v1"
-	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -438,108 +433,6 @@ func DeleteNamespace(ctx context.Context, adminRESTConfig *rest.Config, namespac
 		return fmt.Errorf("failed to delete namespace %q: %w", namespace, err)
 	}
 	return nil
-}
-
-// TODO: remove this approver when Karpenter supplies an auto-approver for node
-// CSRs.
-//
-// RunKarpenterNodeCSRApprover approves pending kubelet-bootstrap
-// CertificateSigningRequests at each pollInterval. It stops when the context
-// ends.
-//
-// Run it in a background goroutine while the test waits for node readiness. A
-// Karpenter-provisioned node sends two CSRs at times that are not predictable:
-// first a client CSR, then a serving CSR. No signal shows that no more CSRs
-// will arrive. Therefore this function approves each pending CSR until the
-// caller's context ends.
-//
-// The return values are the number of approved CSRs and a terminal error. A
-// context cancellation is not an error. It is the usual way to stop this
-// function.
-//
-// This function is a workaround. It is not a fix. Azure has no CSR
-// auto-approver for Karpenter-provisioned nodes today. ROSA uses the
-// MachineApproverController for this task. The capability was lost when
-// Karpenter moved out of the HyperShift-embedded operator into the standalone
-// karpenter-operator. The standalone karpenter-operator does not implement that
-// capability. Track the real fix in a separate item. A passing e2e run does not
-// show that this gap is closed.
-func RunKarpenterNodeCSRApprover(ctx context.Context, adminRESTConfig *rest.Config, pollInterval time.Duration) (int, error) {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	approved := 0
-	err = wait.PollUntilContextCancel(ctx, pollInterval, true, func(ctx context.Context) (bool, error) {
-		csrs, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, fmt.Errorf("failed to list CertificateSigningRequests: %w", err)
-		}
-		for i := range csrs.Items {
-			csr := &csrs.Items[i]
-			if !isKubeletBootstrapCSR(csr) || isCSRApproved(csr) {
-				continue
-			}
-			csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-				Type:    certificatesv1.CertificateApproved,
-				Status:  corev1.ConditionTrue,
-				Reason:  "E2EKarpenterCSRApprover",
-				Message: "approved by the AutoNode e2e test as a workaround for the missing Azure Karpenter CSR auto-approver",
-			})
-			if _, err := kubeClient.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
-				return false, fmt.Errorf("failed to approve CertificateSigningRequest %q: %w", csr.Name, err)
-			}
-			approved++
-			// Log each approval, not only the final count. Then a run timeline
-			// can be compared with the Node and NodeClaim creation times when
-			// Karpenter provisions more nodes than expected. The requestor and
-			// the signerName identify the client CSR and the serving CSR of a
-			// node.
-			ginkgo.GinkgoLogr.Info("approved Karpenter node CSR",
-				"name", csr.Name, "requestor", csr.Spec.Username, "signerName", csr.Spec.SignerName,
-				"creationTimestamp", csr.CreationTimestamp.Time, "totalApproved", approved)
-		}
-		// Never report done here. Only the end of the context stops this loop.
-		return false, nil
-	})
-	if err != nil && ctx.Err() == nil {
-		// A real error. A failed CSR approval is an example. A context
-		// cancellation is not an error.
-		return approved, err
-	}
-	return approved, nil
-}
-
-func isCSRApproved(csr *certificatesv1.CertificateSigningRequest) bool {
-	for _, c := range csr.Status.Conditions {
-		if c.Type == certificatesv1.CertificateApproved && c.Status == corev1.ConditionTrue {
-			return true
-		}
-		if c.Type == certificatesv1.CertificateDenied && c.Status == corev1.ConditionTrue {
-			// A denied CSR is also final. Do not try to approve it.
-			return true
-		}
-	}
-	return false
-}
-
-// isKubeletBootstrapCSR reports whether the CSR is a kubelet bootstrap request
-// for a client certificate or a serving certificate. It rejects unrelated CSRs
-// in the cluster.
-func isKubeletBootstrapCSR(csr *certificatesv1.CertificateSigningRequest) bool {
-	switch {
-	case csr.Spec.Username == "system:serviceaccount:openshift-machine-config-operator:node-bootstrapper":
-		return true
-	case len(csr.Spec.Username) > len("system:node:") && csr.Spec.Username[:len("system:node:")] == "system:node:":
-		return true
-	case csr.Spec.SignerName == certificatesv1.KubeletServingSignerName:
-		return true
-	case csr.Spec.SignerName == certificatesv1.KubeAPIServerClientKubeletSignerName:
-		return true
-	default:
-		return false
-	}
 }
 
 func to32Ptr(i int32) *int32 { return &i }
