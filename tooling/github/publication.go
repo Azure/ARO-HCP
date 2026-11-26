@@ -18,8 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
+	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	gh "github.com/google/go-github/v69/github"
 )
@@ -292,7 +295,8 @@ func (c *Client) verifyFiles(ctx context.Context, number int, expected []string)
 }
 
 // Publish finds, creates or updates exactly one owned proposal and verifies all remote evidence.
-// Write failures are indeterminate, never automatically retried. Concurrent publishers require external serialization.
+// Only transient create errors are retried, after checking for an existing proposal and rechecking refs.
+// Concurrent publishers require external serialization.
 // GitHub cannot atomically condition PR metadata writes on the head or current text.
 func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, error) {
 	receipt := Receipt{RequestedHead: r.ExpectedHead, Outcome: "not-applicable"}
@@ -330,19 +334,12 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 	}
 	receipt.Outcome = "requested"
 	if prior == nil {
-		head := r.HeadRef
-		var headRepo *string
-		if r.HeadRepository != c.owner+"/"+c.repo {
-			parts := strings.Split(r.HeadRepository, "/")
-			head = parts[0] + ":" + r.HeadRef
-			headRepo = &parts[1]
-		}
-		p, _, writeErr := c.writer.PullRequests.Create(ctx, c.owner, c.repo, &gh.NewPullRequest{Title: &r.Title, Body: &r.Body, Head: &head, HeadRepo: headRepo, Base: &r.BaseRef, Draft: gh.Ptr(!r.ReadyForReview)})
-		if writeErr != nil || p == nil || p.GetNumber() <= 0 {
+		number, err := c.createProposal(ctx, r)
+		if err != nil {
 			receipt.Outcome = "indeterminate"
-			return receipt, indeterminate("create proposal", writeErr)
+			return receipt, err
 		}
-		receipt.Number = p.GetNumber()
+		receipt.Number = number
 	} else if prior.Title != r.Title || prior.Body != r.Body {
 		if r.ExpectedNumber > 0 {
 			latest, err := c.boundPull(ctx, r.ExpectedNumber, r.ExpectedHead)
@@ -402,4 +399,53 @@ func (c *Client) Publish(ctx context.Context, r PublicationRequest) (Receipt, er
 	receipt.Base = p.BaseRef
 	receipt.Outcome = "observed"
 	return receipt, nil
+}
+
+// CreateProposal retries transient GitHub server errors without blindly repeating a write.
+func (c *Client) createProposal(ctx context.Context, r PublicationRequest) (int, error) {
+	head := r.HeadRef
+	var headRepo *string
+	if r.HeadRepository != c.owner+"/"+c.repo {
+		owner, repo, _ := strings.Cut(r.HeadRepository, "/")
+		head = owner + ":" + head
+		headRepo = &repo
+	}
+	request := &gh.NewPullRequest{Title: &r.Title, Body: &r.Body, Head: &head, HeadRepo: headRepo, Base: &r.BaseRef, Draft: gh.Ptr(!r.ReadyForReview)}
+	const maxRetries = 2
+	for attempt := 0; ; attempt++ {
+		p, response, err := c.writer.PullRequests.Create(ctx, c.owner, c.repo, request)
+		if err == nil && p.GetNumber() > 0 {
+			return p.GetNumber(), nil
+		}
+		if response == nil {
+			return 0, indeterminate("create proposal", err)
+		}
+		switch response.StatusCode {
+		case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		default:
+			return 0, indeterminate("create proposal", err)
+		}
+		delay := (250 * time.Millisecond) << attempt
+		timer := time.NewTimer(delay + rand.N(delay))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return 0, indeterminate("wait to verify proposal", ctx.Err())
+		case <-timer.C:
+		}
+		owned, readErr := c.ownedPulls(ctx, r)
+		if readErr != nil {
+			return 0, indeterminate("check proposal after failed create", readErr)
+		}
+		if len(owned) == 1 {
+			// Publish verifies content, readiness, files, and refs before accepting it.
+			return owned[0].Number, nil
+		}
+		if attempt == maxRetries {
+			return 0, indeterminate("create proposal", err)
+		}
+		if err := c.publicationHeads(ctx, r); err != nil {
+			return 0, indeterminate("recheck refs before retrying proposal creation", err)
+		}
+	}
 }
