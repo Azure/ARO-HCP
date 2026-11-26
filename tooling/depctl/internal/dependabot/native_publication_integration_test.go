@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -361,7 +362,7 @@ func TestNativePublicationIntegrationReplacementConflicts(t *testing.T) {
 	}
 }
 
-// TestNativePublicationIntegrationUncertainMutations preserves exact interrupted publication state without automatic retry.
+// TestNativePublicationIntegrationUncertainMutations preserves interrupted state after bounded create retries or a single metadata write.
 func TestNativePublicationIntegrationUncertainMutations(t *testing.T) {
 	for _, mutation := range []string{"POST pulls", "POST issues/100/labels", "PATCH pulls/100"} {
 		t.Run(mutation, func(t *testing.T) {
@@ -377,14 +378,15 @@ func TestNativePublicationIntegrationUncertainMutations(t *testing.T) {
 			if !errors.Is(err, automation.ErrIndeterminate) {
 				t.Fatalf("uncertainty lost: %v", err)
 			}
-			attempts := 0
-			for _, write := range f.writes {
-				if write == mutation {
-					attempts++
-				}
+			wantWrites := []string{mutation}
+			switch mutation {
+			case "POST pulls":
+				wantWrites = []string{mutation, mutation, mutation}
+			case "POST issues/100/labels":
+				wantWrites = []string{"POST pulls", mutation}
 			}
-			if attempts != 1 || f.writes[len(f.writes)-1] != mutation {
-				t.Fatalf("uncertain mutation retried or followed by another write: %v", f.writes)
+			if !slices.Equal(f.writes, wantWrites) {
+				t.Fatalf("writes = %v; want %v", f.writes, wantWrites)
 			}
 			orphan := f.remoteGit("rev-parse", "refs/heads/"+f.branch)
 			f.failWrite = ""

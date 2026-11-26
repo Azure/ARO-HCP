@@ -108,8 +108,12 @@ func TestUncertainWritesRetainSDKCause(t *testing.T) {
 			} else {
 				receipt, err = client.Publish(context.Background(), testPublicationRequest())
 			}
+			wantWrites := 1
+			if operation == "create" {
+				wantWrites = 3
+			}
 			var cause *gh.ErrorResponse
-			if !errors.Is(err, ErrIndeterminate) || !errors.As(err, &cause) || cause.Response.StatusCode != http.StatusBadGateway || writes != 1 || receipt.Outcome != "indeterminate" {
+			if !errors.Is(err, ErrIndeterminate) || !errors.As(err, &cause) || cause.Response.StatusCode != http.StatusBadGateway || writes != wantWrites || receipt.Outcome != "indeterminate" {
 				t.Fatalf("receipt=%+v err=%v cause=%+v writes=%d", receipt, err, cause, writes)
 			}
 		})

@@ -309,11 +309,15 @@ func TestPublicationReadinessIsExplicitAndExistingReadinessIsPreserved(t *testin
 	cases := []struct {
 		name                   string
 		existing, ready, draft bool
+		createError            int
+		acceptedOnError        bool
 	}{
 		{name: "default draft", draft: true},
 		{name: "explicit ready", ready: true},
 		{name: "existing ready", existing: true},
 		{name: "existing draft despite ready request", existing: true, ready: true, draft: true},
+		{name: "transient create failure", draft: true, createError: http.StatusInternalServerError},
+		{name: "create accepted despite server error", draft: true, createError: http.StatusInternalServerError, acceptedOnError: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -341,6 +345,16 @@ func TestPublicationReadinessIsExplicitAndExistingReadinessIsPreserved(t *testin
 					if request.GetDraft() == tc.ready || request.GetHead() != "update" || request.GetBase() != "main" {
 						t.Error("unsafe create request")
 					}
+					if writes == 1 && tc.createError != 0 {
+						published = tc.acceptedOnError
+						w.WriteHeader(tc.createError)
+						return
+					}
+					if published {
+						t.Error("create attempted again after GitHub accepted the proposal")
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						return
+					}
 					published = true
 					respond(t, w, p)
 				case r.URL.Path == "/repos/owner/repo/pulls":
@@ -362,8 +376,15 @@ func TestPublicationReadinessIsExplicitAndExistingReadinessIsPreserved(t *testin
 			if err != nil || receipt.Outcome != "observed" || receipt.Number != 7 || p.GetDraft() != tc.draft {
 				t.Fatalf("%+v %v", receipt, err)
 			}
-			if existing && writes != 0 || !existing && writes != 1 {
-				t.Fatalf("writes %d", writes)
+			wantWrites := 1
+			switch {
+			case existing:
+				wantWrites = 0
+			case tc.createError != 0 && !tc.acceptedOnError:
+				wantWrites = 2
+			}
+			if writes != wantWrites {
+				t.Fatalf("writes = %d; want %d", writes, wantWrites)
 			}
 		})
 	}
