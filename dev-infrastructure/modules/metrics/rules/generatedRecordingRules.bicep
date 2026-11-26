@@ -849,10 +849,6 @@ resource arohcpWorkloadIdentitySloRecordingRules 'Microsoft.AlertsManagement/pro
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[1h])))'
       }
       {
-        record: 'workload_identity:credential_refresher_expiry_le7d:increase1h'
-        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h])))'
-      }
-      {
         record: 'workload_identity:credential_refresher_expiry_le0d:increase1h'
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))'
       }
