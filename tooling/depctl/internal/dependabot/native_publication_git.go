@@ -62,7 +62,10 @@ func (g nativePublicationGit) fetch(ctx context.Context, ref string) error {
 func (g nativePublicationGit) publish(ctx context.Context, base, branch, old, head string, unchanged bool) error {
 	main, err := g.remoteHead(ctx, "main")
 	if err != nil {
-		return err
+		return fmt.Errorf("read remote main before publication: %w", err)
+	}
+	if main == "" {
+		return fmt.Errorf("remote main is missing before publication")
 	}
 	if main != base {
 		return errNativePublicationBaseMoved
