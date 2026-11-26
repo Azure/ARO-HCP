@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slotmanager
+package acquire
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ func TestSelectedRuntimeRegionDeterminesVMFamilyPolicy(t *testing.T) {
 		{"weighted default policy", catalog.RegionModeWeighted, "regions: [westus3, centralus, canadacentral]", "", "0", "canadacentral", "standardDSv5Family"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			slotCatalog, err := catalog.LoadCatalog(writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 2
+			slotCatalog := loadCatalogFromYAML(t, fmt.Sprintf(`version: 2
 environments:
   dev:
     deployment_environment: {name: ci01}
@@ -64,22 +64,19 @@ environments:
         regions:
           centralus:
             worker_families: [standardDASv5Family]
-`, tc.mode, tc.regionConfig)))
-			if err != nil {
-				t.Fatal(err)
-			}
+`, tc.mode, tc.regionConfig))
 			selection, err := resolveRegionSelection(slotCatalog, "dev", tc.mode, tc.override, "westus3=1,centralus=1,canadacentral=1", tc.buildID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			pool := slotCatalog.Environments["dev"].Pools[0]
-			opts := &AcquireOptions{completedAcquireOptions: &completedAcquireOptions{RegionSelection: selection}}
+			plan := &Plan{RegionSelection: selection}
 			slot := catalog.ExpandSlotsForPool("dev", pool)[0]
 			slot.Subscriptions.E2E.ID = "e2e-id"
 			state := &lease.AcquiredSlotState{
 				Version:            2,
 				DeployEnvironment:  pool.DeployEnv,
-				RuntimeRegion:      opts.runtimeRegionForPool(pool),
+				RuntimeRegion:      plan.RuntimeRegionForPool(pool),
 				Slot:               slot,
 				LeasedResourceName: slot.ResourceName,
 				Leases:             lease.LeaseSet{Primary: lease.Lease{ResourceType: slot.ResourceType, ResourceName: slot.ResourceName}},

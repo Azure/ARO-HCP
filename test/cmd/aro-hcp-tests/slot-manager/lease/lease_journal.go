@@ -35,6 +35,22 @@ type LeaseJournal struct {
 	attempted map[string]bool
 }
 
+// NewJournal returns a journal for state that persists under sharedDir and
+// acquires and returns leases through the lease proxy at proxyURL.
+func NewJournal(state *AcquiredSlotState, sharedDir, proxyURL string, timeout time.Duration) *LeaseJournal {
+	return &LeaseJournal{
+		State:   state,
+		Timeout: timeout,
+		Persist: func() error { return WriteAcquiredSlotState(sharedDir, state) },
+		Acquire: func(ctx context.Context, resourceType string, budget time.Duration) (string, error) {
+			return AcquireLease(ctx, proxyURL, resourceType, budget)
+		},
+		Return: func(ctx context.Context, name string, budget time.Duration) error {
+			return ReleaseLease(ctx, proxyURL, name, budget)
+		},
+	}
+}
+
 func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind catalog.AssetKind, assetInventory catalog.AssetInventory) (Lease, error) {
 	if j.Timeout <= 0 {
 		return Lease{}, errors.New("independent lease timeout must be positive")

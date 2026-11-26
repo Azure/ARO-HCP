@@ -132,7 +132,7 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		}
 		return err
 	}
-	journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
+	journal := lease.NewJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
 	registry, err := newAssetRegistry()
 	if err != nil {
 		return err
@@ -141,18 +141,4 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		return err
 	}
 	return lease.RemoveStateFiles(o.SharedDir)
-}
-
-func newLeaseJournal(state *lease.AcquiredSlotState, sharedDir, proxyURL string, timeout time.Duration) *lease.LeaseJournal {
-	return &lease.LeaseJournal{
-		State:   state,
-		Timeout: timeout,
-		Persist: func() error { return lease.WriteAcquiredSlotState(sharedDir, state) },
-		Acquire: func(ctx context.Context, resourceType string, budget time.Duration) (string, error) {
-			return lease.AcquireLease(ctx, proxyURL, resourceType, budget)
-		},
-		Return: func(ctx context.Context, name string, budget time.Duration) error {
-			return lease.ReleaseLease(ctx, proxyURL, name, budget)
-		},
-	}
 }
