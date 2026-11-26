@@ -45,6 +45,44 @@ tests:
   - eval_time: 30m
     alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts: []
+# Test: the alert fires on a live expiring credential, the credential then
+# becomes customer-blocked, and the alert clears once the blocked
+# observations overtake the stale live ones inside the trailing 1h
+# increase() window (fully rolled off at 90m: blocked at 30m + 1h).
+- name: firing_alert_clears_when_credential_becomes_blocked
+  interval: 1m
+  input_series:
+  # Live credential approaching expiry until t=30m, then blocked:
+  # observations stop on the main histogram...
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x30 60x90"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x120"
+  # ...and resume on the customer_blocked histogram from t=30m.
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x30 0+2x90"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x120"
+  alert_rule_test:
+  # Firing before the block (for: 15m already satisfied).
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+  # Still firing inside the trailing 1h window: the stale live
+  # observations have not rolled off and the blocked count has not
+  # caught up yet.
+  - eval_time: 45m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+  # Cleared: the blocked observations overtake the stale live ones.
+  - eval_time: 75m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+  # Cleared: the 1h increase() window has fully rolled off the
+  # pre-block live observations.
+  - eval_time: 90m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
 - name: blocked_at_twenty_days_does_not_hide_real_failure_at_five_days
   interval: 1m
   input_series:
