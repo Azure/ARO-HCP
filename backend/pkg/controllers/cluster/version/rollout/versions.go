@@ -52,6 +52,16 @@ func earliestActiveVersionEntry(activeVersions []coreapi.ServiceProviderClusterA
 	return nil
 }
 
+// hasPartialActiveVersion reports whether any Partial update is still present.
+func hasPartialActiveVersion(activeVersions []coreapi.ServiceProviderClusterActiveVersion) bool {
+	for i := range activeVersions {
+		if activeVersions[i].State == configv1.PartialUpdate {
+			return true
+		}
+	}
+	return false
+}
+
 // earliestActiveVersion returns the earliest (oldest) version present in a
 // cluster's completed active versions, or nil when there are none.
 func earliestActiveVersion(activeVersions []coreapi.ServiceProviderClusterActiveVersion) *semver.Version {
