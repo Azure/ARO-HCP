@@ -81,7 +81,7 @@ func TestControllerKustoIntegration(t *testing.T) {
 		_, err := client.Mgmt(ctx, database, statement)
 		require.NoError(t, err)
 	}
-	for _, script := range []string{"tables/ciTestResults.kql", "tables/ciTestNames.kql", "tables/ciFailurePatterns.kql"} {
+	for _, script := range []string{"tables/ciTestResults.kql", "tables/ciTestNames.kql", "tables/ciFailurePatterns.kql", "tables/ciFailurePatternControl.kql"} {
 		content, err := os.ReadFile(filepath.Join("../../../../dev-infrastructure/modules/logs/kusto", script))
 		require.NoError(t, err)
 		dataset, err := client.Mgmt(ctx, database, (&kql.Builder{}).AddUnsafe(".execute database script <|\n"+string(content)))
@@ -377,7 +377,7 @@ range n from 0 to %d step 1
 		require.NoError(t, discovery.sweepStep(ctx))
 		require.Equal(t, steps, queries, "sweep rests after reaching the oldest build")
 	})
-	t.Run("startup reconciles without manual admission", func(t *testing.T) {
+	t.Run("startup reconciles and records activation", func(t *testing.T) {
 		const startupBuild = "zzz-startup" // newest: the head poll reaches it before the sweep drains older history
 		ingest(t, "ciTestResults", "ciTestResultsMapping", []map[string]any{
 			{"buildId": startupBuild, "testId": "startup", "source": "e2e", "failed": true, "message": "context deadline exceeded"},
@@ -393,6 +393,10 @@ range n from 0 to %d step 1
 			// The emulator has no managed queue; persist using the real JSON mapping.
 			owner.submit = func(ctx context.Context, payload *bytes.Buffer) error {
 				_, err := client.Mgmt(ctx, database, kql.New(".ingest inline into table ciFailurePatterns with (format='multijson', ingestionMappingReference='ciFailurePatternsMapping') <| ").AddUnsafe(payload.String()))
+				return err
+			}
+			owner.submitControl = func(ctx context.Context, payload *bytes.Buffer) error {
+				_, err := client.Mgmt(ctx, database, kql.New(".ingest inline into table ciFailurePatternControl with (format='multijson', ingestionMappingReference='ciFailurePatternControlMapping') <| ").AddUnsafe(payload.String()))
 				return err
 			}
 			return nil
@@ -411,6 +415,12 @@ range n from 0 to %d step 1
 			}
 			visible, err := validatedVisibleResults(current, compiledFailurePatternVersion(), rows)
 			return err == nil && len(visible) == 1
+		}, 10*time.Second, 50*time.Millisecond)
+		// The first check runs at startup: the empty control table is activated by the
+		// compiled pair because the 15 minute margin leaves nothing uncovered.
+		require.Eventually(t, func() bool {
+			newest, found, err := c.loadNewestControl(ctx, client)
+			return err == nil && found && newest == compiledFailurePatternVersion()
 		}, 10*time.Second, 50*time.Millisecond)
 	}) // A test that fails twice in one run shares (buildId, source, testId) between
 	// two raw rows with different messages. Only the hash tells them apart.

@@ -39,3 +39,20 @@ with (
   {"column":"rawFailedInputsWithoutResult","path":"$['rawFailedInputsWithoutResult']","datatype":"long"}
 ]
 ```
+
+// Consumer entry point: the ciFailurePatterns rows of the (extractorVersion,
+// resultSchemaVersion) pair named by the control row with the greatest
+// coverageCheckedAt, collapsed to one row per resultKey (retry copies differ only
+// in computedAt). Returns no rows while no control row exists. skipvalidation is
+// required because table scripts are deployed independently and ciFailurePatterns
+// may not exist yet.
+.create-or-alter function
+with (docstring = 'Failure pattern results of the active extractor version, one row per resultKey', folder = 'CI', skipvalidation = "true")
+ciFailurePatternActive() {
+    let active = ciFailurePatternControl
+        | top 1 by coverageCheckedAt desc
+        | project extractorVersion, resultSchemaVersion;
+    ciFailurePatterns
+    | join kind=inner active on extractorVersion, resultSchemaVersion
+    | summarize arg_max(computedAt, *) by resultKey
+}
