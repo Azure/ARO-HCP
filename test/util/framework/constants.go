@@ -47,6 +47,9 @@ const (
 	UpdateHCPClusterTimeout         = 10 * time.Minute
 )
 
+// OIDCTokenAcquisitionTimeout allows a newly created Entra credential to propagate.
+const OIDCTokenAcquisitionTimeout = 2 * time.Minute
+
 // Identity assignment
 const (
 	IdentityContainerAssignmentRetryInterval = 60 * time.Second

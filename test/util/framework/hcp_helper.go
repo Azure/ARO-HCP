@@ -157,7 +157,16 @@ func (e *NonConformingClustersError) Error() string {
 	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing, e.clusters)
 }
 
+// CreateClusterRoleBinding grants cluster-admin to subject using the entra-admins binding.
 func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {
+	return CreateClusterRoleBindingForSubject(ctx, "entra-admins", subject, "cluster-admin", adminRESTConfig)
+}
+
+// CreateClusterRoleBindingForSubject binds a named cluster role to a single Kubernetes user.
+func CreateClusterRoleBindingForSubject(ctx context.Context, bindingName, subject, clusterRoleName string, adminRESTConfig *rest.Config) error {
+	if adminRESTConfig == nil {
+		return fmt.Errorf("admin REST config is required to create cluster role binding %q", bindingName)
+	}
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -165,12 +174,12 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 
 	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &v1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "entra-admins",
+			Name: bindingName,
 		},
 		RoleRef: v1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "cluster-admin",
+			Name:     clusterRoleName,
 		},
 		Subjects: []v1.Subject{
 			{
