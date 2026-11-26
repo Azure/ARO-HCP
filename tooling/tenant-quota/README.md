@@ -187,15 +187,31 @@ The controller is independent of Prow job discovery and of `ciProcessedJobs`: it
 
 **Results.** One row holds the findings for one distinct failed input: the origin, build ID, source, and test ID of a failure, its resolved test name, a fingerprint of the raw input, the extractor and schema versions, and the ordered findings with their evidence locations. Identical failures share a row, so the number of occurrences always comes from `ciTestResults`. The raw message and timings are not copied. Join `ciTestResults` on `(buildId, source, testId, messageHash)` to get them, where `messageHash` is the lowercase hex SHA-256 of the raw message and `hash_sha256(message)` computes it in Kusto (both give an empty string for an empty message). The hash is needed because a test can fail more than once in a run, which leaves several raw rows with the same `(buildId, source, testId)` and different messages. Finding locations are byte offsets into the raw message. Rows are identified by `resultKey`, which includes the extractor version, so a new extractor version produces new rows next to the old ones. A retried submission can leave physical copies of the same row; conflicting findings for one `resultKey` are reported as an error.
 
-**Configuration.** The controller reuses the Kusto connection and raw table settings from `ciJobOutcomes`, which does not need to be enabled. `ciFailurePatterns` defines the results table and ingestion mapping, the poll interval, the number of workers, and the submission cache. The Kusto deployment creates the results table and mapping.
+**Configuration.** The controller reuses the Kusto connection and raw table settings from `ciJobOutcomes`, which does not need to be enabled. `ciFailurePatterns` defines the results table and ingestion mapping, the control table and ingestion mapping, the poll interval, the number of workers, and the submission cache. The Kusto deployment creates both tables, their mappings and the `ciFailurePatternActive` function.
 
-**Querying.** Always select the extractor and schema version explicitly; never take the newest row or aggregate across versions. Missing rows mean a build has not been reconciled yet, not that it has no findings. A pattern match is a symptom, not a confirmed root cause. To join results to their raw rows:
+**Activation.** The extractor version is compiled into the binary (`cifailurepatterns.Version`) and cannot be configured. Results are append-only and qualified by extractor and result schema version, so a binary with a new version simply starts producing results of that version and the history sweep rebuilds the whole retained population with it. Consumers switch only when the new version is recorded as active, through the `ciFailurePatternControl` table: each row is one coverage check (`extractorVersion`, `resultSchemaVersion`, `coverageCheckedAt`, `rawFailedInputsConsidered`, `rawFailedInputsWithoutResult`), and the row with the greatest `coverageCheckedAt` names the active pair.
+
+- **Coverage check.** A strongly consistent anti-join counts the distinct raw failed inputs `(buildId, source, testId, messageHash)` ingested at least 15 minutes before the check (so builds still arriving do not hold the count up) and how many have no result of the compiled version and schema. A result computed under an outdated test name still counts as covered; the sweep repairs it.
+- **The 1% rule.** While the newest row names another pair (or there is none), a row is written only if the inputs without a result are at most `floor(total/100)`. With fewer than 100 inputs nothing may be missing. Until then the previous version stays active and queries on it show new failures as pending. A new extractor that cannot produce results for more than 1% of the inputs never activates.
+- **Heartbeat.** Once the newest row names the compiled pair, every check writes a row with the honest counts, whatever the residual, so the active record does not expire with the 90-day retention. A rise in the residual is a metric alert, not a gate.
+- **Schedule.** Every `interval` until a control read shows the compiled pair as the newest row (and after a failed check), then once per completed history sweep, or after 24 hours if no sweep completes. A failed read writes no row. Rows go through queued ingestion and become visible after a few minutes, so a check that runs before that may write another row; duplicates are harmless.
+- **Metrics.** `ci_failure_patterns_uncovered_inputs{source}` and `ci_failure_patterns_considered_inputs{source}` at the last successful check, `ci_failure_patterns_last_successful_coverage_check_timestamp_seconds` and `ci_failure_patterns_control_rows_written_total`. Alert on a non-zero uncovered count for the active version and on a stale check timestamp.
+- **Bumping `Version`.** Deploy the new binary. No control row appears until the rebuilt results pass the rule; then the first row for the new version switches `ciFailurePatternActive` to it. Redeploying the previous version reuses its existing results and re-activates after one sweep. The control table assumes a single controller replica (`Recreate` strategy) and an accurate clock: ordering is by check time.
+
+**Querying.** Read the results of the active version with `ciFailurePatternActive()`: it returns the `ciFailurePatterns` rows of the pair named by the newest control row, one row per `resultKey`, and nothing while no control row exists. Otherwise select the extractor and schema version explicitly; never take the newest row or aggregate across versions. Join raw failed inputs to the results, so an input without a result row is pending, not a failure without findings. Missing rows mean a build has not been reconciled yet, not that it has no findings. A pattern match is a symptom, not a confirmed root cause. To join results to their raw rows:
 
 ```kusto
-ciFailurePatterns
-| join kind=inner (
-    ciTestResults | where failed | extend messageHash = hash_sha256(message)
-  ) on buildId, source, testId, messageHash
+// A test name that arrives late is a new computation (a new resultKey) for the same raw
+// failure, and the obsolete result remains until the sweep retires it. Keep the newest
+// result per raw input so such a failure is not counted twice.
+let results = ciFailurePatternActive()
+    | summarize arg_max(computedAt, *) by buildId, source, testId, messageHash;
+ciTestResults
+| where failed
+| extend messageHash = hash_sha256(message)
+| join kind=leftouter results on buildId, source, testId, messageHash
+// An empty resultKey means the failure has no result yet (pending), which is not
+// the same as a processed failure with no findings.
 ```
 
 To inspect the stored rows of one version and spot physical copies:
