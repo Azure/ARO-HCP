@@ -38,5 +38,5 @@ tests:
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: mc1
           Namespace: ocm-prefix-1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://aka.ms/hypershift-cpo-down-tsg
         correlationId: "hypershiftCPODown/mc1/ocm-prefix-1"
