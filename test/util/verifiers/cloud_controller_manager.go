@@ -17,15 +17,24 @@ package verifiers
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	sigyaml "sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
@@ -34,14 +43,30 @@ const (
 	ccmLBServiceName      = "e2e-ccm-lb-test"
 	ccmLBServiceNamespace = "e2e-ccm-lb"
 	ccmLBServicePort      = 80
+
+	// ccmLBBackendDeploymentPath is the agnhost serve-hostname Deployment
+	// (shared with VerifySimpleWebApp) used as the backend behind the CCM
+	// load balancer. It replies to HTTP GET / with the serving pod's hostname.
+	ccmLBBackendDeploymentPath = "artifacts/serving_app/deployment.yaml"
+	ccmLBBackendLabelKey       = "app"
+	ccmLBBackendLabelValue     = "agnhost"
+	ccmLBBackendPort           = 8080
+
+	// ccmLBHTTPRequestTimeout bounds each individual HTTP probe through the
+	// load balancer so a single hung connection cannot stall the poll.
+	ccmLBHTTPRequestTimeout = 10 * time.Second
 )
 
-// verifyCCMLoadBalancer creates a Service of type LoadBalancer in the guest
-// cluster, waits for the Cloud Controller Manager to assign an external IP
-// (proving its Service controller reconciled the object using its managed
-// identity), confirms via a direct Azure API call that a corresponding
-// public IP address exists in the managed resource group, then deletes the
-// Service and confirms the public IP is released — exercising the identity's
+// verifyCCMLoadBalancer deploys an agnhost serve-hostname backend in the guest
+// cluster and exposes it through a Service of type LoadBalancer. It waits for
+// the Cloud Controller Manager to assign an external IP (proving its Service
+// controller reconciled the object using its managed identity), then fetches
+// the backend's reply from the test runner via that IP — proving the CCM fully
+// wired the data path (LB rule, health probe, backend pool membership of the
+// worker NICs, and NSG allow rule), not merely allocated a public IP. It then
+// confirms via a direct Azure API call that a corresponding public IP address
+// exists in the managed resource group, deletes the Service, and confirms the
+// public IP is released — exercising the identity's
 // Microsoft.Network/publicIPAddresses/delete permission.
 type verifyCCMLoadBalancer struct {
 	networkFactory           *armnetwork.ClientFactory
@@ -74,6 +99,10 @@ func (v verifyCCMLoadBalancer) Verify(ctx context.Context, adminRESTConfig *rest
 		}
 	}()
 
+	if err := v.deployBackend(ctx, kubeClient, adminRESTConfig, nsName); err != nil {
+		return err
+	}
+
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ccmLBServiceName,
@@ -82,11 +111,12 @@ func (v verifyCCMLoadBalancer) Verify(ctx context.Context, adminRESTConfig *rest
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeLoadBalancer,
 			Ports: []corev1.ServicePort{{
-				Port:     ccmLBServicePort,
-				Protocol: corev1.ProtocolTCP,
+				Port:       ccmLBServicePort,
+				TargetPort: intstr.FromInt32(ccmLBBackendPort),
+				Protocol:   corev1.ProtocolTCP,
 			}},
 			Selector: map[string]string{
-				"app": "e2e-ccm-lb-dummy",
+				ccmLBBackendLabelKey: ccmLBBackendLabelValue,
 			},
 		},
 	}
@@ -113,6 +143,10 @@ func (v verifyCCMLoadBalancer) Verify(ctx context.Context, adminRESTConfig *rest
 	)
 	if ipErr != nil {
 		return fmt.Errorf("ccm did not assign an external IP to LoadBalancer Service %s/%s: %w", nsName, ccmLBServiceName, ipErr)
+	}
+
+	if err := v.verifyTrafficThroughLB(ctx, kubeClient, adminRESTConfig, nsName, assignedIP); err != nil {
+		return err
 	}
 
 	ginkgo.GinkgoWriter.Printf("[%s] verifying public IP %s exists in managed resource group %s via Azure API\n", v.Name(), assignedIP, v.managedResourceGroupName)
@@ -151,6 +185,141 @@ func (v verifyCCMLoadBalancer) Verify(ctx context.Context, adminRESTConfig *rest
 	return nil
 }
 
+// deployBackend creates the agnhost serve-hostname Deployment in nsName and
+// waits for at least one of its pods to become Ready, so the load balancer has
+// a healthy backend to forward to once it is provisioned.
+func (v verifyCCMLoadBalancer) deployBackend(ctx context.Context, kubeClient kubernetes.Interface, adminRESTConfig *rest.Config, nsName string) error {
+	deploymentYAML, err := staticFiles.ReadFile(ccmLBBackendDeploymentPath)
+	if err != nil {
+		return fmt.Errorf("failed to read backend deployment manifest %s: %w", ccmLBBackendDeploymentPath, err)
+	}
+	deployment := &appsv1.Deployment{}
+	if err := sigyaml.Unmarshal(deploymentYAML, deployment); err != nil {
+		return fmt.Errorf("failed to decode backend deployment manifest %s: %w", ccmLBBackendDeploymentPath, err)
+	}
+	if got := deployment.Spec.Template.Labels[ccmLBBackendLabelKey]; got != ccmLBBackendLabelValue {
+		return fmt.Errorf("backend deployment manifest %s has pod label %s=%q, expected %q", ccmLBBackendDeploymentPath, ccmLBBackendLabelKey, got, ccmLBBackendLabelValue)
+	}
+	deployment.Namespace = nsName
+
+	ginkgo.GinkgoWriter.Printf("[%s] creating backend Deployment %s/%s\n", v.Name(), nsName, deployment.Name)
+	if _, err := kubeClient.AppsV1().Deployments(nsName).Create(ctx, deployment, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("failed to create backend Deployment %s/%s: %w", nsName, deployment.Name, err)
+	}
+
+	var readyPodNames []string
+	podErr := pollUntilReady(ctx, v.Name()+"-backend", v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil,
+		func(ctx context.Context) error {
+			ready, states, listErr := listReadyBackendPods(ctx, kubeClient, nsName)
+			if listErr != nil {
+				return listErr
+			}
+			if len(ready) == 0 {
+				return fmt.Errorf("no backend pod is Ready yet in %s: [%s]", nsName, strings.Join(states, ", "))
+			}
+			readyPodNames = ready
+			return nil
+		},
+	)
+	if podErr != nil {
+		return fmt.Errorf("backend Deployment %s/%s did not become ready: %w", nsName, deployment.Name, podErr)
+	}
+
+	ginkgo.GinkgoWriter.Printf("[%s] backend pod(s) Ready in %s: [%s]\n", v.Name(), nsName, strings.Join(readyPodNames, ", "))
+	return nil
+}
+
+// listReadyBackendPods returns the names of the backend pods selected by the
+// LoadBalancer Service that are currently Ready and not terminating, along with
+// a short state summary of every selected pod for diagnostics.
+func listReadyBackendPods(ctx context.Context, kubeClient kubernetes.Interface, nsName string) ([]string, []string, error) {
+	labelSelector := ccmLBBackendLabelKey + "=" + ccmLBBackendLabelValue
+	pods, err := kubeClient.CoreV1().Pods(nsName).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list backend pods in %s with selector %s: %w", nsName, labelSelector, err)
+	}
+
+	var ready, states []string
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		isReady := pod.DeletionTimestamp == nil && isPodReady(pod)
+		if isReady {
+			ready = append(ready, pod.Name)
+		}
+		states = append(states, fmt.Sprintf("%s(phase=%s,ready=%t,terminating=%t)", pod.Name, pod.Status.Phase, isReady, pod.DeletionTimestamp != nil))
+	}
+	return ready, states, nil
+}
+
+// isPodReady reports whether the pod's Ready condition is True.
+func isPodReady(pod *corev1.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// verifyTrafficThroughLB polls http://<assignedIP>:<ccmLBServicePort>/ from the
+// test runner until the backend replies with the hostname of one of the backend
+// pods that is Ready and not terminating at that moment. The set of acceptable
+// replies is re-read on every attempt rather than frozen up front, so a backend
+// pod being replaced while the load balancer converges does not cause a false
+// failure. Azure load balancer rules and health probes typically take a few
+// minutes to start forwarding after the external IP is reported, so transient
+// failures are retried.
+func (v verifyCCMLoadBalancer) verifyTrafficThroughLB(ctx context.Context, kubeClient kubernetes.Interface, adminRESTConfig *rest.Config, nsName, assignedIP string) error {
+	url := "http://" + net.JoinHostPort(assignedIP, strconv.Itoa(ccmLBServicePort)) + "/"
+	client := &http.Client{Timeout: ccmLBHTTPRequestTimeout}
+
+	ginkgo.GinkgoWriter.Printf("[%s] fetching %s through the CCM load balancer, expecting a Ready backend pod's hostname\n", v.Name(), url)
+	start := time.Now()
+	var reply string
+	err := pollUntilReady(ctx, v.Name()+"-traffic", v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil,
+		func(ctx context.Context) error {
+			req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if reqErr != nil {
+				return fmt.Errorf("failed to build request for %s: %w", url, reqErr)
+			}
+			resp, getErr := client.Do(req)
+			if getErr != nil {
+				return fmt.Errorf("no response from load balancer at %s (LB rule, health probe, backend pool, or NSG not ready): %w", url, getErr)
+			}
+			defer resp.Body.Close()
+
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			if readErr != nil {
+				return fmt.Errorf("failed to read response body from %s: %w", url, readErr)
+			}
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("load balancer at %s returned status %d, expected %d; body: %q", url, resp.StatusCode, http.StatusOK, strings.TrimSpace(string(body)))
+			}
+			got := strings.TrimSpace(string(body))
+
+			// Compare against the backend pods that are Ready right now: the
+			// Deployment may have replaced the original pod while the LB was
+			// converging, and the replacement replies with its own hostname.
+			readyPods, states, listErr := listReadyBackendPods(ctx, kubeClient, nsName)
+			if listErr != nil {
+				return listErr
+			}
+			if !slices.Contains(readyPods, got) {
+				return fmt.Errorf("load balancer at %s replied %q, which is not the hostname of any Ready, non-terminating backend pod; selected pods: [%s]",
+					url, got, strings.Join(states, ", "))
+			}
+			reply = got
+			return nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("could not reach backend through CCM load balancer at %s: %w", url, err)
+	}
+
+	ginkgo.GinkgoWriter.Printf("[%s] received reply %q (a Ready backend pod) from %s after %s\n", v.Name(), reply, url, time.Since(start).Round(time.Second))
+	return nil
+}
+
 // publicIPExistsInMRG lists public IP addresses in the managed resource group
 // and returns whether expectedIP is among them, along with all observed IPs.
 func (v verifyCCMLoadBalancer) publicIPExistsInMRG(ctx context.Context, expectedIP string) (bool, []string, error) {
@@ -179,8 +348,10 @@ func (v verifyCCMLoadBalancer) publicIPExistsInMRG(ctx context.Context, expected
 	return found, observedIPs, nil
 }
 
-// VerifyCCMLoadBalancer returns a verifier that creates a LoadBalancer Service
-// in the guest cluster, waits for the CCM to assign an external IP, confirms
+// VerifyCCMLoadBalancer returns a verifier that deploys an agnhost backend and
+// exposes it through a LoadBalancer Service in the guest cluster, waits for the
+// CCM to assign an external IP, fetches the backend's reply through that IP
+// from the test runner, confirms
 // via a direct Azure API call that the public IP exists in the managed
 // resource group, then deletes the Service and confirms the public IP is
 // released — exercising the CCM identity's load balancer, public IP, NSG,
