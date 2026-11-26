@@ -39,6 +39,8 @@ steps:
       check-latest: true
   - name: Build depctl
     run: make -C tooling/depctl build BINARY="$RUNNER_TEMP/depctl"
+  - name: Verify updater network coverage
+    run: make verify-tool-automation
   - name: Collect deterministic tool-family inventory
     env:
       GH_TOKEN: ${{ github.token }}

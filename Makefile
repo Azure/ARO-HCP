@@ -120,7 +120,7 @@ verify-tool-versions:
 .PHONY: verify-tool-versions
 
 verify-tool-automation: $(JQ)
-	python3 -m unittest discover -s .github/scripts -p 'test_tool*.py'
+	PATH="$(dir $(JQ)):$$PATH" go test -C tooling/depctl -tags toolintegration -count=1 ./internal/consumers -run '^TestTool(UpdaterNetworkPolicy|ImageSmokeMissingTool)$$'
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
