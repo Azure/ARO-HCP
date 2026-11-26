@@ -211,7 +211,6 @@ func TestControllerKustoIntegration(t *testing.T) {
 		require.Equal(t, wantPending, pending)
 	}
 	checkCoverage(0, 5)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	require.NoError(t, c.scanHead(ctx))
 	require.Equal(t, 1, c.queue.Len())
 	require.True(t, c.processNext(ctx))
@@ -354,7 +353,6 @@ range n from 0 to %d step 1
 			t.Error("metadata discovery attempted to load derived results")
 			return nil, fmt.Errorf("results access unavailable")
 		}
-		require.NoError(t, discovery.allowNormalReconciliation(compiledFailurePatternVersion()))
 		want := []string{build}
 		for index := range largeBuilds {
 			want = append(want, fmt.Sprintf("paged-%d", 100000+index))

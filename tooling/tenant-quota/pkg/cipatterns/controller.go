@@ -81,12 +81,6 @@ type Controller struct {
 
 	pendingMu       sync.Mutex
 	pendingAttempts map[string]int
-
-	normalAdmissionMu             sync.Mutex
-	admittedFailurePatternVersion failurePatternVersion
-	normalReconciliationAllowed   bool
-	admittedReconciliations       int
-	admittedReconciliationsDone   chan struct{}
 }
 
 func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
@@ -129,12 +123,8 @@ func (c *Controller) Start(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
-	if err := c.allowNormalReconciliation(compiledFailurePatternVersion()); err != nil {
-		c.logger.Error("Cannot start normal reconciliation", "error", err)
-		return
-	}
 	version := compiledFailurePatternVersion()
-	c.logger.Info("Normal reconciliation admitted",
+	c.logger.Info("Reconciliation started",
 		"extractorVersion", version.extractorVersion, "resultSchemaVersion", version.resultSchemaVersion,
 		"table", c.config.CIFailurePatterns.Results.Table, "workers", c.config.CIFailurePatterns.GetWorkers(),
 		"interval", c.config.CIFailurePatterns.GetInterval(), "producerCommit", buildversion.CommitSHA)
@@ -230,73 +220,9 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	return true
 }
 
-func (c *Controller) normalReconciliationVersion() (failurePatternVersion, bool) {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	return c.admittedFailurePatternVersion, c.normalReconciliationAllowed && c.admittedFailurePatternVersion == compiledFailurePatternVersion()
-}
-
-func (c *Controller) tryAdmitNormalReconciliation() (failurePatternVersion, bool) {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	if !c.normalReconciliationAllowed || c.admittedFailurePatternVersion != compiledFailurePatternVersion() {
-		return failurePatternVersion{}, false
-	}
-	if c.admittedReconciliations == 0 {
-		c.admittedReconciliationsDone = make(chan struct{})
-	}
-	c.admittedReconciliations++
-	return c.admittedFailurePatternVersion, true
-}
-
-func (c *Controller) finishNormalReconciliation() {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	c.admittedReconciliations--
-	if c.admittedReconciliations == 0 {
-		close(c.admittedReconciliationsDone)
-	}
-}
-
-// pauseNormalReconciliationAndWait prevents new normal work before waiting, without holding the
-// mutex over a network operation. Cancellation never reopens the gate.
-func (c *Controller) pauseNormalReconciliationAndWait(ctx context.Context) error {
-	c.normalAdmissionMu.Lock()
-	c.normalReconciliationAllowed = false
-	if c.admittedReconciliations == 0 {
-		c.normalAdmissionMu.Unlock()
-		return nil
-	}
-	admittedReconciliationsDone := c.admittedReconciliationsDone
-	c.normalAdmissionMu.Unlock()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-admittedReconciliationsDone:
-		return nil
-	}
-}
-
-// allowNormalReconciliation admits only the contract compiled into this process.
-func (c *Controller) allowNormalReconciliation(version failurePatternVersion) error {
-	if version != compiledFailurePatternVersion() {
-		return fmt.Errorf("admission target does not match executable")
-	}
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	if c.admittedReconciliations != 0 {
-		return fmt.Errorf("cannot open admission before drain")
-	}
-	c.admittedFailurePatternVersion, c.normalReconciliationAllowed = version, true
-	return nil
-}
-
 // scanHead enqueues the newest builds. It always starts from the newest build, so
 // a recent run never waits for the history sweep to reach it.
 func (c *Controller) scanHead(ctx context.Context) error {
-	if _, allowed := c.normalReconciliationVersion(); !allowed {
-		return nil
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -319,9 +245,6 @@ func (c *Controller) scanHead(ctx context.Context) error {
 // history. It rests for sweepRest after reaching the oldest build. Failed or
 // cancelled steps leave the cursor unchanged.
 func (c *Controller) sweepStep(ctx context.Context) error {
-	if _, allowed := c.normalReconciliationVersion(); !allowed {
-		return nil
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -412,14 +335,9 @@ func (c *Controller) forgetPending(build string) {
 }
 
 func (c *Controller) reconcile(ctx context.Context, build string) (time.Duration, error) {
-	version, allowed := c.tryAdmitNormalReconciliation()
-	if !allowed {
-		return c.retryDelay, nil
-	}
-	defer c.finishNormalReconciliation()
 	inputs, err := c.readInputs(ctx, build)
 	if err != nil {
 		return 0, fmt.Errorf("read build %s inputs: %w", build, err)
 	}
-	return c.reconcileInputs(ctx, version, inputs)
+	return c.reconcileInputs(ctx, compiledFailurePatternVersion(), inputs)
 }

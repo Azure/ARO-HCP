@@ -253,7 +253,6 @@ func TestCoverageFailedCheckRetriesAtInterval(t *testing.T) {
 
 func TestSweepCompletionSignalsCoverageLoop(t *testing.T) {
 	c := newTestController(t)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	c.readBuildIDs = func(context.Context, string, int) ([]string, error) { return []string{"2"}, nil }
 	require.NoError(t, c.sweepStep(t.Context()))
 	select {
