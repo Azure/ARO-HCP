@@ -414,7 +414,7 @@ func (p *NativePublisher) authorize(ctx context.Context, request nativePublicati
 		return result, err
 	}
 	if base != request.ExpectedBaseSHA {
-		return result, nativeReject("main moved")
+		return result, errNativePublicationBaseMoved
 	}
 	result.group, err = p.sourceGroup(ctx, request.SourcePRs)
 	if err != nil {

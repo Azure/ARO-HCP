@@ -99,9 +99,6 @@ func TestNativePublicationIntegrationRejectsUntrustedSources(t *testing.T) {
 		name, reason string
 		change       func(*nativeIntegrationFixture, *NativePublicationRequest)
 	}{
-		{name: "stale main", reason: "main moved", change: func(f *nativeIntegrationFixture, r *NativePublicationRequest) {
-			r.request.ExpectedBaseSHA = strings.Repeat("f", 40)
-		}},
 		{name: "stale source", reason: "stale head", change: func(f *nativeIntegrationFixture, r *NativePublicationRequest) {
 			r.request.SourcePRs[0].HeadSHA = strings.Repeat("f", 40)
 		}},
@@ -290,9 +287,16 @@ func TestNativePublicationIntegrationRaces(t *testing.T) {
 					f.setHold(1, "human")
 				}
 			}
-			_, err := f.publish(request)
-			if err == nil {
-				t.Fatal("race accepted")
+			result, err := f.publish(request)
+			switch mode {
+			case "main moved":
+				if err != nil || result["status"] != "deferred" {
+					t.Fatalf("stale candidate = %v, %v; want deferral", result, err)
+				}
+			default:
+				if err == nil {
+					t.Fatal("race accepted")
+				}
 			}
 			if mode == "concurrent normal push" && !errors.Is(err, automation.ErrIndeterminate) {
 				t.Fatalf("push failure lost uncertainty: %v", err)
