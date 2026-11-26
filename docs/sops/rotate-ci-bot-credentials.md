@@ -170,8 +170,12 @@ Rotate one environment at a time.
    rm -f "${F}"
    ```
 
-   Stop if the second publish fails and rerun it with the same file before moving
-   on; a group left on the old value fails its next job.
+   If the second publish fails, rerun the whole block: it re-reads the current
+   value from the vault and deletes its own temporary file either way, so
+   nothing is lost. A group left on the old value does not fail immediately —
+   the previous credential stays valid until it is deleted in step 6 — which is
+   exactly why this is easy to miss. Confirm both groups in step 5 before
+   deleting anything.
 
 5. **Verify**: new CI jobs use the new value immediately. Wait for a run that
    started after step 4 to pass in the environment you rotated — the hourly
