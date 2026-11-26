@@ -61,11 +61,22 @@ func NewDefaultExternalAuthParams() ExternalAuthParams {
 type EntraExternalAuthContext struct {
 	App          *graphutil.Application
 	SP           *graphutil.ServicePrincipal
-	Credential   azcore.TokenCredential
-	ClientSecret string
+	Credential   azcore.TokenCredential `json:"-"`
+	ClientSecret string                 `json:"-"`
 	Subject      string
 	Scope        string
 }
+
+// String describes the external subject without formatting its credentials.
+func (auth EntraExternalAuthContext) String() string {
+	return fmt.Sprintf("Entra external auth subject %q", auth.Subject)
+}
+
+// GoString keeps credentials out of Go-syntax diagnostics.
+func (auth EntraExternalAuthContext) GoString() string { return auth.String() }
+
+// GomegaString keeps credentials out of Gomega assertion failures.
+func (auth EntraExternalAuthContext) GomegaString() string { return auth.String() }
 
 func buildEntraExternalAuth(tenantID, appID string, params ExternalAuthParams) hcpsdk20240610preview.ExternalAuth {
 	username := &hcpsdk20240610preview.UsernameClaimProfile{
@@ -119,30 +130,30 @@ func (tc *perItOrDescribeTestContext) SetupEntraExternalAuth(ctx context.Context
 	}
 	app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("register Entra app and service principal: %s", azureFailureError(err))
 	}
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get Graph client for Entra application: %w", err)
+		return nil, fmt.Errorf("get Graph client for Entra application: %s", azureFailureError(err))
 	}
 	now := time.Now()
 	// Allow for clock skew between the test runner and Microsoft Graph.
 	password, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", now.Add(-5*time.Minute), now.Add(24*time.Hour))
 	if err != nil {
-		return nil, fmt.Errorf("add password to Entra application: %w", err)
+		return nil, fmt.Errorf("add password to Entra application: %s", azureFailureError(err))
 	}
 	credential, err := azidentity.NewClientSecretCredential(tenantID, app.AppID, password.SecretText, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create credential for Entra application: %w", err)
+		return nil, fmt.Errorf("create credential for Entra application: %s", azureFailureError(err))
 	}
 	factory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get ExternalAuth client factory: %w", err)
+		return nil, fmt.Errorf("get ExternalAuth client factory: %s", azureFailureError(err))
 	}
 	externalAuth := buildEntraExternalAuth(tenantID, app.AppID, params)
 	result, err := CreateOrUpdateExternalAuthAndWait20240610(ctx, factory.NewExternalAuthsClient(), resourceGroup, cluster, authName, externalAuth, ExternalAuthCreationTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provision external auth %q: %s", authName, azureFailureError(err))
 	}
 	if result == nil || result.Properties == nil || result.Properties.ProvisioningState == nil {
 		return nil, fmt.Errorf("external auth %q returned no provisioning state", authName)
@@ -180,28 +191,36 @@ func (auth *EntraExternalAuthContext) GetRESTConfig(ctx context.Context, adminRE
 	if adminRESTConfig == nil {
 		return nil, errors.New("admin REST config is required for the cluster connection settings")
 	}
+	server, _, err := rest.DefaultServerUrlFor(adminRESTConfig)
+	if err != nil {
+		return nil, errors.New("invalid cluster server address in admin REST config")
+	}
+	// A kubeconfig server URL can itself contain credentials.
+	server.User = nil
+	server.RawQuery = ""
+	server.ForceQuery = false
+	server.Fragment = ""
+	server.RawFragment = ""
+
 	ctx, cancel := context.WithTimeout(ctx, OIDCTokenAcquisitionTimeout)
 	defer cancel()
 	var token azcore.AccessToken
-	var pollErr error
-	g := gomega.NewGomega(func(message string, _ ...int) { pollErr = errors.New(message) })
-	g.Eventually(ctx, func() error {
-		var err error
-		token, err = auth.Credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{auth.Scope}})
-		if err != nil {
-			// Keep credential and HTTP response details out of assertion diagnostics.
-			return fmt.Errorf("Entra token request failed (%T)", err)
+	var tokenErr error
+	// Return a safe error to the caller. Gomega's failure message may include
+	// the caller's cancellation cause or other request details.
+	g := gomega.NewGomega(func(string, ...int) {})
+	acquired := g.Eventually(ctx, func() bool {
+		token, tokenErr = auth.Credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{auth.Scope}})
+		return tokenErr == nil && token.Token != ""
+	}).WithPolling(10*time.Second).Should(gomega.BeTrue(), "acquire an OIDC token for external authentication")
+	if !acquired {
+		if tokenErr != nil {
+			return nil, fmt.Errorf("acquire Entra OIDC token: %s", azureFailureError(tokenErr))
 		}
-		if token.Token == "" {
-			return errors.New("Entra returned an empty access token")
-		}
-		return nil
-	}).WithPolling(10*time.Second).Should(gomega.Succeed(), "acquire an OIDC token for external authentication")
-	if pollErr != nil {
-		return nil, pollErr
+		return nil, errors.New("received no access token from Entra")
 	}
 	return &rest.Config{
-		Host:        adminRESTConfig.Host,
+		Host:        server.String(),
 		APIPath:     adminRESTConfig.APIPath,
 		BearerToken: token.Token,
 		TLSClientConfig: rest.TLSClientConfig{

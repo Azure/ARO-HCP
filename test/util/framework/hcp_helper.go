@@ -35,6 +35,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -169,7 +170,7 @@ func CreateClusterRoleBindingForSubject(ctx context.Context, bindingName, subjec
 	}
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return consoleFixtureAPIError("create Kubernetes client for role binding", err)
 	}
 
 	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &v1.ClusterRoleBinding{
@@ -191,7 +192,17 @@ func CreateClusterRoleBindingForSubject(ctx context.Context, bindingName, subjec
 	}, metav1.CreateOptions{})
 
 	if err != nil {
-		return fmt.Errorf("failed to create cluster role binding: %w", err)
+		// Preserve the API status for callers such as apierrors.IsAlreadyExists,
+		// while keeping response bodies out of test failure output.
+		var status apierrors.APIStatus
+		if errors.As(err, &status) {
+			s := status.Status()
+			return &apierrors.StatusError{ErrStatus: metav1.Status{
+				Code: s.Code, Reason: s.Reason,
+				Message: fmt.Sprintf("create cluster role binding %q: HTTP %d (%s)", bindingName, s.Code, s.Reason),
+			}}
+		}
+		return consoleFixtureAPIError("create cluster role binding", err)
 	}
 
 	return nil

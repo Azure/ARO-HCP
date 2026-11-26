@@ -15,10 +15,20 @@
 package framework
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/onsi/gomega/format"
 	"github.com/stretchr/testify/require"
 
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -87,7 +97,7 @@ func TestBuildEntraExternalAuthCustomClaimsWithoutClients(t *testing.T) {
 
 func TestEntraRESTConfigUsesOnlyExternalCredentials(t *testing.T) {
 	admin := &rest.Config{
-		Host:    "https://cluster.example.test",
+		Host:    "https://admin:unused@cluster.example.test/proxy?token=unused#unused",
 		APIPath: "/api",
 		TLSClientConfig: rest.TLSClientConfig{
 			ServerName: "cluster.example.test",
@@ -106,10 +116,67 @@ func TestEntraRESTConfigUsesOnlyExternalCredentials(t *testing.T) {
 	cfg, err := auth.GetRESTConfig(t.Context(), admin)
 	require.NoError(t, err)
 	require.Equal(t, &rest.Config{
-		Host: admin.Host, APIPath: admin.APIPath, BearerToken: "external",
+		Host: "https://cluster.example.test/proxy", APIPath: admin.APIPath, BearerToken: "external",
 		TLSClientConfig: rest.TLSClientConfig{
 			ServerName: admin.ServerName, CAData: admin.CAData, CAFile: admin.CAFile,
 			NextProtos: admin.NextProtos,
 		},
 	}, cfg)
+}
+
+func TestEntraTokenFailureOmitsCredentials(t *testing.T) {
+	const marker = "synthetic-sensitive-detail"
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(errors.New(marker))
+	auth := EntraExternalAuthContext{
+		Credential:   stubTokenCredential{err: errors.New(marker)},
+		ClientSecret: marker,
+	}
+	config, err := auth.GetRESTConfig(ctx, &rest.Config{Host: "https://cluster.example.test"})
+	require.Nil(t, config)
+	require.Error(t, err)
+	require.NotContains(t, format.Object(err, 1), marker)
+	require.NotContains(t, format.Object(auth, 1), marker)
+	require.NotContains(t, fmt.Sprintf("%+v %#v", auth, auth), marker)
+}
+
+func TestExternalAuthRoleBindings(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		role   string
+		create func(context.Context, *rest.Config) error
+	}{
+		{"entra-admins", "cluster-admin", func(ctx context.Context, config *rest.Config) error {
+			return CreateClusterRoleBinding(ctx, "test-user", config)
+		}},
+		{"custom-binding", "view", func(ctx context.Context, config *rest.Config) error {
+			auth := EntraExternalAuthContext{Subject: "test-user"}
+			return auth.GrantClusterRole(ctx, "custom-binding", "view", config)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const marker = "synthetic-response-detail"
+			var binding rbacv1.ClusterRoleBinding
+			config := &rest.Config{
+				Host: "https://cluster.example.test",
+				Transport: manifestRoundTripper(func(req *http.Request) (*http.Response, error) {
+					require.Equal(t, http.MethodPost, req.Method)
+					require.Equal(t, "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", req.URL.Path)
+					require.NoError(t, json.NewDecoder(req.Body).Decode(&binding))
+					return &http.Response{
+						StatusCode: http.StatusConflict,
+						Header:     http.Header{"Content-Type": {"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(`{"kind":"Status","apiVersion":"v1","status":"Failure","code":409,"reason":"AlreadyExists","message":"synthetic-response-detail"}`)),
+					}, nil
+				}),
+			}
+			config.ContentType = "application/json"
+			err := tc.create(t.Context(), config)
+			require.True(t, apierrors.IsAlreadyExists(err))
+			require.NotContains(t, format.Object(err, 1), marker)
+			require.Equal(t, tc.name, binding.Name)
+			require.Equal(t, rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: tc.role}, binding.RoleRef)
+			require.Equal(t, []rbacv1.Subject{{APIGroup: rbacv1.GroupName, Kind: "User", Name: "test-user"}}, binding.Subjects)
+		})
+	}
 }
