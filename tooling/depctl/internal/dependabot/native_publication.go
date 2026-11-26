@@ -21,6 +21,8 @@ import (
 	automation "github.com/Azure/ARO-HCP/tooling/github"
 )
 
+var errNativePublicationBaseMoved = errors.New("main moved; rebuild and validate against the new base")
+
 // NativePublisher publishes authorized native dependency replacements with explicit credentials.
 type NativePublisher struct {
 	repository, owner, repo string
@@ -101,8 +103,14 @@ type NativePublishOptions struct {
 	Request *NativePublicationRequest
 }
 
-// Publish prepares an isolated Git tree, rechecks authority and publishes through the shared PR library.
-func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOptions) (map[string]any, error) {
+// Publish prepares an isolated Git tree, defers stale candidates before pushing, and publishes through the shared PR library.
+func (p *NativePublisher) Publish(ctx context.Context, options NativePublishOptions) (result map[string]any, err error) {
+	defer func() {
+		if errors.Is(err, errNativePublicationBaseMoved) && !errors.Is(err, automation.ErrIndeterminate) {
+			result = map[string]any{"status": "deferred", "reason": err.Error()}
+			err = nil
+		}
+	}()
 	if options.Request == nil {
 		return map[string]any{"status": "no-request"}, nil
 	}

@@ -351,9 +351,13 @@ Native Dependabot remains the discovery mechanism; validated robot replacements 
 
 Select inventory entries by the exact `(group, target)` pair, never by family `group` alone: a merged older target awaiting source cleanup and a new candidate target can coexist. Pass the selected entry's exact target string unchanged, including any JSON package-target map. Published ownership markers and reusable branches remain family-scoped; only exact source PR numbers and immutable heads authorize cleanup.
 
-The trusted Go selector `"$DEPCTL_BINARY" dependabot native select-group --repository Azure/ARO-HCP --inventory "$inventory" --group "$group" --target "$target"` validates this exact selection offline and returns JSON containing `base_sha`, the complete selected `group`, and sorted unique `manifests`. It performs no network calls or writes. Both candidate validation and request preparation use that selector; do not replace it with Python filtering or read a different inventory entry when validation fails.
+Set `candidate_inventory` to the absolute path of `native-maintenance-inventory.json`. The trusted Go selector `"$DEPCTL_BINARY" dependabot native select-group --repository Azure/ARO-HCP --inventory "$candidate_inventory" --group "$group" --target "$target"` validates the exact selection offline and returns JSON containing `base_sha`, the complete selected `group`, and sorted unique `manifests`. It performs no network calls or writes. Use the same candidate inventory for selection and validation; do not bypass the selector or read a different inventory entry when validation fails.
 
 Publish at most **one dependency family per run**, from clean current `main` at the inventory's `base_sha`; assessing a family that is already covered or cannot yield a validated candidate must not prevent assessing another eligible family. Include all native source PRs in that supported group, not unrelated packages that share files. Examples are one Velero module upgrade across workspace modules, one Spectral package/target across duplicate npm PRs, or CodeQL `init` and `analyze` references at the same immutable action release. Do not invent groups from titles or combine ecosystems. Keep npm security overrides and unrelated existing main changes intact.
+
+Inventory is read-only and pins a candidate base even if `main` advances while evidence is collected. Before preparing a replacement and again after validation, read the current base with `gh api repos/Azure/ARO-HCP/git/ref/heads/main --jq '.object.sha'`. If it moved, refresh the candidate base once: fetch current `main`, verify the new commit descends from the inventory base, and create a separate candidate inventory with `jq --arg base "$new_base" '.base_sha = $base' "$candidate_inventory" > "$refreshed_inventory"`. Change only `base_sha`, not the selected group or source evidence. Set `candidate_inventory` to the absolute path of the refreshed file, rerun the selector, and prepare and fully validate from a clean checkout of that exact base. Never reuse the old patch or request. The publisher independently checks the complete live source family before writing.
+
+If `main` advances again, or the new base is not a descendant, record why publication was deferred and continue assessing lifecycle actions with their own live guards. Do not emit a replacement output for a known stale base. The trusted publisher also defers a stale candidate detected before the branch push; ambiguous post-push outcomes still require inspection.
 
 Follow `next_action`, not native source CI readiness:
 
@@ -415,12 +419,12 @@ From the prepared candidate checkout, run:
 ```bash
 "$DEPCTL_BINARY" dependabot native validate-candidate \
   --repository Azure/ARO-HCP --repo . \
-  --inventory "$inventory" --group "$group" --target "$target" \
+  --inventory "$candidate_inventory" --group "$group" --target "$target" \
   --title-file "$title_file" --body-file "$body_file" \
   --artifact-dir /tmp/gh-aw/agent --compiler "$compiler"
 ```
 
-Here `inventory` is the absolute path to `native-maintenance-inventory.json`, and `group` and `target` are the exact selected inventory entry's fields. The runner requires exactly one matching pair, derives its complete source set and base, validates the actual candidate, and captures its complete tracked diff, including committed changes. Only a successful run writes `/tmp/gh-aw/agent/native-replacement-request.json` and returns `{"request_sha256":"..."}`. Pass that result unchanged to the safe-output function. On failure, inspect the full per-step logs, fix the candidate and rerun the complete validation; never construct the request manually or bypass a failed gate.
+Here `candidate_inventory` is the absolute path used for selection, and `group` and `target` are the exact selected entry's fields. The runner requires exactly one matching pair, derives its complete source set and base, validates the actual candidate, and captures its complete tracked diff, including committed changes. Only a successful run writes `/tmp/gh-aw/agent/native-replacement-request.json` and returns `{"request_sha256":"..."}`. Pass that result unchanged to the safe-output function. On failure, inspect the full per-step logs, fix the candidate and rerun the complete validation; never construct the request manually or bypass a failed gate.
 
 Pass the returned `request_sha256` unchanged to the native safe-output function. Do not edit the payload afterward or put the patch inside tool arguments. The artifact preserves patch bytes without text/mention sanitization or custom-input truncation. The trusted publisher reads only the fixed artifact path beside its downloaded agent output, verifies its hash, and rechecks the complete request, identities, source coverage and scope before publication. A digest is integrity evidence, not authorization. Native lifecycle actions retain their separate `request` JSON-string contract.
 

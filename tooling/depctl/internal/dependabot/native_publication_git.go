@@ -62,10 +62,13 @@ func (g nativePublicationGit) fetch(ctx context.Context, ref string) error {
 func (g nativePublicationGit) publish(ctx context.Context, base, branch, old, head string, unchanged bool) error {
 	main, err := g.remoteHead(ctx, "main")
 	if err != nil {
-		return err
+		return fmt.Errorf("read remote main before publication: %w", err)
+	}
+	if main == "" {
+		return fmt.Errorf("remote main is missing before publication")
 	}
 	if main != base {
-		return fmt.Errorf("remote main moved before publication")
+		return errNativePublicationBaseMoved
 	}
 	current, err := g.remoteHead(ctx, branch)
 	if err != nil {
@@ -94,8 +97,11 @@ func (p *NativePublisher) preparePublication(ctx context.Context, git nativePubl
 		return "", "", nil, false, err
 	}
 	fetched, err := git.run(ctx, nil, "rev-parse", "FETCH_HEAD")
-	if err != nil || fetched != base {
-		return "", "", nil, false, fmt.Errorf("main moved during publication fetch")
+	if err != nil {
+		return "", "", nil, false, fmt.Errorf("resolve fetched publication base: %w", err)
+	}
+	if fetched != base {
+		return "", "", nil, false, errNativePublicationBaseMoved
 	}
 	old, err := git.remoteHead(ctx, branch)
 	if err != nil {
