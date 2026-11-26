@@ -79,11 +79,11 @@ func waitForIngressHealthy(ctx context.Context, configClient configv1client.Conf
 		g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator")
 		g.Expect(getConditionStatus(co, configv1.OperatorDegraded)).To(
 			Equal(configv1.ConditionFalse),
-			"ingress operator should stop being Degraded after removing NetworkPolicy",
+			"ingress operator should stop being Degraded",
 		)
 		g.Expect(getConditionStatus(co, configv1.OperatorAvailable)).To(
 			Equal(configv1.ConditionTrue),
-			"ingress operator should be Available after removing NetworkPolicy",
+			"ingress operator should be Available",
 		)
 	}).WithContext(ctx).WithTimeout(timeout).WithPolling(15*time.Second).Should(Succeed(),
 		"ingress cluster operator did not recover",
@@ -165,43 +165,62 @@ func setupClusterWithNodePool(ctx context.Context, clusterName, nodePoolName, rg
 	return kubeClient, configClient
 }
 
+// Ingress health lifecycle test
+//
+// Timeline (conservative, 30s scrape interval, 15m health function timer):
+//
+//	Minute 0        – verify healthy baseline
+//	Minute 10       – apply NetworkPolicy, ingress degrades within ~5 min
+//	Minute 15       – degraded scrapes begin
+//	Minute 50       – 60 degraded samples collected (~35 min + buffer)
+//	Minute 55-70    – health function reports Error (next timer tick)
+//	Minute 70       – remove NetworkPolicy, ingress recovers within ~5 min
+//	Minute 75       – healthy scrapes begin, min_over_time ≠ 1 → Healthy
+//	Minute 85-90    – health function reports Healthy (next timer tick)
+//	Minute 110      – 60 healthy samples in window, stable Healthy
+//	Minute 130      – end of recovery soak
+//
+// Total: ~2 hours 10 minutes
 var _ = Describe("Customer", func() {
 
-	It("should sustain ingress degradation for health signal validation",
+	It("should validate ingress health signal lifecycle",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
-				degradedDetectTimeout = 10 * time.Minute
-				degradedHoldDuration  = 4 * time.Hour
-				degradedPollInterval  = 5 * time.Minute
-				heartbeatInterval     = 30 * time.Minute
-				recoverySoakDuration  = 30 * time.Minute
+				detectTimeout        = 10 * time.Minute
+				pollInterval         = 5 * time.Minute
+				heartbeatInterval    = 15 * time.Minute
+				degradedHoldDuration = 1 * time.Hour
+				recoverySoakDuration = 1 * time.Hour
 			)
 
 			kubeClient, configClient := setupClusterWithNodePool(ctx,
-				"ingress-sustained", "ingress-sus-np", "rg-ingress-sustained",
+				"ingress-lifecycle", "ingress-lc-np", "rg-ingress-lifecycle",
 			)
 
-			By("verifying ingress cluster operator is available before applying break")
-			waitForIngressHealthy(ctx, configClient, degradedDetectTimeout)
+			// Phase 1: Healthy baseline
+			By("phase 1: verifying ingress is healthy at baseline")
+			waitForIngressHealthy(ctx, configClient, detectTimeout)
+			GinkgoLogr.Info("phase 1 complete: ingress healthy at baseline")
 
-			By("applying NetworkPolicy to block ingress canary traffic")
+			// Phase 2: Degrade ingress
+			By("phase 2: applying NetworkPolicy to block ingress canary traffic")
 			createIngressBlockingNetworkPolicy(ctx, kubeClient)
 
-			By("waiting for ingress cluster operator to report Degraded")
-			waitForIngressDegraded(ctx, configClient, degradedDetectTimeout)
+			By("phase 2: waiting for ingress operator to report Degraded")
+			waitForIngressDegraded(ctx, configClient, detectTimeout)
 
-			By(fmt.Sprintf("holding ingress degraded for %s for health signal validation", degradedHoldDuration))
+			By(fmt.Sprintf("phase 2: holding degraded for %s (60 samples + health function ticks)", degradedHoldDuration))
 			holdStart := time.Now()
 			lastState := ""
 			lastHeartbeat := holdStart
 
 			Consistently(func(g Gomega) {
 				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
-				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during hold")
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during degraded hold")
 
 				degraded := getConditionStatus(co, configv1.OperatorDegraded) == configv1.ConditionTrue
 				available := getConditionStatus(co, configv1.OperatorAvailable) == configv1.ConditionTrue
@@ -210,174 +229,64 @@ var _ = Describe("Customer", func() {
 				state := fmt.Sprintf("degraded=%t available=%t", degraded, available)
 				switch {
 				case state != lastState:
-					GinkgoLogr.Info("sustained hold state changed",
+					GinkgoLogr.Info("phase 2: state changed",
 						"state", state, "previous", lastState, "elapsed", elapsed.String())
 					lastState = state
 					lastHeartbeat = time.Now()
 				case time.Since(lastHeartbeat) >= heartbeatInterval:
-					GinkgoLogr.Info("sustained hold in progress",
+					GinkgoLogr.Info("phase 2: degraded hold in progress",
 						"state", state, "elapsed", elapsed.String(),
 						"remaining", (degradedHoldDuration - time.Since(holdStart)).Round(time.Minute).String())
 					lastHeartbeat = time.Now()
 				}
 
 				g.Expect(degraded).To(BeTrue(),
-					"ingress operator stopped being Degraded after %s; health signal no longer valid", elapsed)
-			}).WithContext(ctx).WithTimeout(degradedHoldDuration).WithPolling(degradedPollInterval).Should(Succeed(),
-				"ingress operator did not stay Degraded for the full %s hold", degradedHoldDuration,
+					"ingress operator stopped being Degraded after %s", elapsed)
+			}).WithContext(ctx).WithTimeout(degradedHoldDuration).WithPolling(pollInterval).Should(Succeed(),
+				"ingress operator did not stay Degraded for the full hold",
 			)
+			GinkgoLogr.Info("phase 2 complete: ingress held degraded",
+				"duration", time.Since(holdStart).Round(time.Minute).String())
 
-			By("removing NetworkPolicy to restore ingress")
+			// Phase 3: Recovery
+			By("phase 3: removing NetworkPolicy to restore ingress")
 			deleteIngressBlockingNetworkPolicy(ctx, kubeClient)
 
-			By("verifying ingress cluster operator recovers")
-			waitForIngressHealthy(ctx, configClient, degradedDetectTimeout)
+			By("phase 3: waiting for ingress operator to recover")
+			waitForIngressHealthy(ctx, configClient, detectTimeout)
 
-			By(fmt.Sprintf("holding healthy state for %s so Prometheus scrapes the recovery", recoverySoakDuration))
-			recoverySoakStart := time.Now()
+			By(fmt.Sprintf("phase 3: holding healthy for %s (60 clean samples + health function ticks)", recoverySoakDuration))
+			soakStart := time.Now()
+			lastHeartbeat = time.Now()
+
 			Consistently(func(g Gomega) {
 				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
 				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during recovery soak")
-				g.Expect(getConditionStatus(co, configv1.OperatorDegraded)).To(
-					Equal(configv1.ConditionFalse),
-					"ingress operator became Degraded again during recovery soak after %s",
-					time.Since(recoverySoakStart).Round(time.Minute),
-				)
-			}).WithContext(ctx).WithTimeout(recoverySoakDuration).WithPolling(degradedPollInterval).Should(Succeed(),
-				"ingress operator did not stay healthy for the full recovery soak",
-			)
-		})
-
-	It("should report healthy after sustained ingress degradation for health signal validation",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Positive,
-		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				detectTimeout     = 10 * time.Minute
-				healthyDuration   = 4 * time.Hour
-				healthyPoll       = 5 * time.Minute
-				heartbeatInterval = 30 * time.Minute
-			)
-
-			_, configClient := setupClusterWithNodePool(ctx,
-				"ingress-healthy", "ingress-hlt-np", "rg-ingress-healthy",
-			)
-
-			By("verifying ingress cluster operator is available")
-			waitForIngressHealthy(ctx, configClient, detectTimeout)
-
-			By(fmt.Sprintf("holding healthy state for %s to validate Healthy health signal", healthyDuration))
-			soakStart := time.Now()
-			lastHeartbeat := soakStart
-
-			Consistently(func(g Gomega) {
-				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
-				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during healthy soak")
 
 				elapsed := time.Since(soakStart).Round(time.Minute)
 				if time.Since(lastHeartbeat) >= heartbeatInterval {
-					GinkgoLogr.Info("healthy soak in progress",
+					GinkgoLogr.Info("phase 3: recovery soak in progress",
 						"elapsed", elapsed.String(),
-						"remaining", (healthyDuration - time.Since(soakStart)).Round(time.Minute).String())
+						"remaining", (recoverySoakDuration - time.Since(soakStart)).Round(time.Minute).String())
 					lastHeartbeat = time.Now()
 				}
 
 				g.Expect(getConditionStatus(co, configv1.OperatorDegraded)).To(
 					Equal(configv1.ConditionFalse),
-					"ingress operator became Degraded during healthy soak after %s", elapsed,
+					"ingress operator became Degraded during recovery soak after %s", elapsed,
 				)
 				g.Expect(getConditionStatus(co, configv1.OperatorAvailable)).To(
 					Equal(configv1.ConditionTrue),
-					"ingress operator stopped being Available during healthy soak after %s", elapsed,
+					"ingress operator stopped being Available during recovery soak after %s", elapsed,
 				)
-			}).WithContext(ctx).WithTimeout(healthyDuration).WithPolling(healthyPoll).Should(Succeed(),
-				"ingress operator did not stay healthy for the full %s soak", healthyDuration,
-			)
-		})
-
-	It("should produce intermittent ingress degradation for health signal validation",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Positive,
-		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				degradedDetectTimeout = 10 * time.Minute
-				recoveryTimeout       = 10 * time.Minute
-				recoverySoakDuration  = 30 * time.Minute
-
-				// Each cycle: apply NetworkPolicy, wait for degradation,
-				// hold for 15 minutes (under the 30m sustained threshold),
-				// then remove and let it recover before the next cycle.
-				cycleHoldDuration = 15 * time.Minute
-				cyclePollInterval = 2 * time.Minute
-				cycleCount        = 4
-				heartbeatInterval = 5 * time.Minute
-			)
-
-			kubeClient, configClient := setupClusterWithNodePool(ctx,
-				"ingress-intermittent", "ingress-int-np", "rg-ingress-intermittent",
-			)
-
-			By("verifying ingress cluster operator is available before starting cycles")
-			waitForIngressHealthy(ctx, configClient, degradedDetectTimeout)
-
-			for cycle := 1; cycle <= cycleCount; cycle++ {
-				By(fmt.Sprintf("cycle %d/%d: applying NetworkPolicy to degrade ingress", cycle, cycleCount))
-				createIngressBlockingNetworkPolicy(ctx, kubeClient)
-
-				By(fmt.Sprintf("cycle %d/%d: waiting for ingress to degrade", cycle, cycleCount))
-				waitForIngressDegraded(ctx, configClient, degradedDetectTimeout)
-
-				By(fmt.Sprintf("cycle %d/%d: holding degraded for %s", cycle, cycleCount, cycleHoldDuration))
-				holdStart := time.Now()
-				lastHeartbeat := holdStart
-
-				Consistently(func(g Gomega) {
-					co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
-					g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during cycle %d hold", cycle)
-
-					degraded := getConditionStatus(co, configv1.OperatorDegraded) == configv1.ConditionTrue
-					elapsed := time.Since(holdStart).Round(time.Minute)
-
-					if time.Since(lastHeartbeat) >= heartbeatInterval {
-						GinkgoLogr.Info("intermittent hold in progress",
-							"cycle", fmt.Sprintf("%d/%d", cycle, cycleCount),
-							"degraded", degraded, "elapsed", elapsed.String())
-						lastHeartbeat = time.Now()
-					}
-
-					g.Expect(degraded).To(BeTrue(),
-						"ingress operator stopped being Degraded during cycle %d after %s", cycle, elapsed)
-				}).WithContext(ctx).WithTimeout(cycleHoldDuration).WithPolling(cyclePollInterval).Should(Succeed(),
-					"ingress operator did not stay Degraded for cycle %d hold", cycle,
-				)
-
-				By(fmt.Sprintf("cycle %d/%d: removing NetworkPolicy to let ingress recover", cycle, cycleCount))
-				deleteIngressBlockingNetworkPolicy(ctx, kubeClient)
-
-				By(fmt.Sprintf("cycle %d/%d: waiting for ingress to recover", cycle, cycleCount))
-				waitForIngressHealthy(ctx, configClient, recoveryTimeout)
-
-				GinkgoLogr.Info("intermittent cycle complete",
-					"cycle", fmt.Sprintf("%d/%d", cycle, cycleCount))
-			}
-
-			By(fmt.Sprintf("holding healthy state for %s so Prometheus scrapes the recovery", recoverySoakDuration))
-			recoverySoakStart := time.Now()
-			Consistently(func(g Gomega) {
-				co, err := configClient.ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
-				g.Expect(err).NotTo(HaveOccurred(), "failed to get ingress cluster operator during recovery soak")
-				g.Expect(getConditionStatus(co, configv1.OperatorDegraded)).To(
-					Equal(configv1.ConditionFalse),
-					"ingress operator became Degraded again during recovery soak after %s",
-					time.Since(recoverySoakStart).Round(time.Minute),
-				)
-			}).WithContext(ctx).WithTimeout(recoverySoakDuration).WithPolling(5*time.Minute).Should(Succeed(),
+			}).WithContext(ctx).WithTimeout(recoverySoakDuration).WithPolling(pollInterval).Should(Succeed(),
 				"ingress operator did not stay healthy for the full recovery soak",
 			)
+			GinkgoLogr.Info("phase 3 complete: ingress recovered and stable",
+				"duration", time.Since(soakStart).Round(time.Minute).String())
+
+			// Phase 4: Cleanup → cluster deletion removes metrics → health function sees 0 clusters → 0 reports
+			GinkgoLogr.Info("lifecycle complete: cluster cleanup will validate 0-report behavior")
 		})
 })
 

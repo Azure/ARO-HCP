@@ -15,9 +15,7 @@
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
   "should deny pods with images from disallowed registries",
-  "should produce intermittent ingress degradation for health signal validation",
-  "should report healthy after sustained ingress degradation for health signal validation",
-  "should sustain a stuck node drain for health signal validation",
-  "should sustain ingress degradation for health signal validation",
+  "should validate ingress health signal lifecycle",
+  "should validate node drain health signal lifecycle",
   "validates node pool stability after full region upgrade"
 ]

@@ -135,7 +135,7 @@ func nodeHasCordoned(nodes []corev1.Node) bool {
 
 var _ = Describe("Customer", func() {
 
-	It("should sustain a stuck node drain for health signal validation",
+	It("should validate node drain health signal lifecycle",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
@@ -153,9 +153,9 @@ var _ = Describe("Customer", func() {
 				recoverySoakDuration  = 30 * time.Minute
 			)
 
-			clusterName := "drain-stuck"
-			nodePoolName := "drain-stuck-np"
-			rgPrefix := "rg-drain-stuck"
+			clusterName := "drain-lifecycle"
+			nodePoolName := "drain-lc-np"
+			rgPrefix := "rg-drain-lifecycle"
 
 			tc := framework.NewTestContext()
 
@@ -228,13 +228,14 @@ var _ = Describe("Customer", func() {
 				_ = kubeClient.PolicyV1().PodDisruptionBudgets(drainBlockNamespace).Delete(cleanupCtx, drainBlockApp, metav1.DeleteOptions{})
 			})
 
-			By("deploying drain blocker workload with PDB across both nodes")
+			// Phase 1: Deploy drain blocker and trigger stuck drain
+			By("phase 1: deploying drain blocker workload with PDB across both nodes")
 			deployDrainBlocker(ctx, kubeClient, int32(nodePoolReplicas))
 
-			By("waiting for drain blocker pods to be ready on both nodes")
+			By("phase 1: waiting for drain blocker pods to be ready on both nodes")
 			waitForDrainBlockerReady(ctx, kubeClient, int32(nodePoolReplicas), deployReadyTimeout)
 
-			By("starting node pool scale-down from 2 to 1 to trigger drain")
+			By("phase 1: starting node pool scale-down from 2 to 1 to trigger drain")
 			npClient := tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20251223preview.NodePoolUpdate{
 				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
@@ -250,7 +251,7 @@ var _ = Describe("Customer", func() {
 				scaleErr <- err
 			}()
 
-			By("waiting for a node to be cordoned (drain started)")
+			By("phase 1: waiting for a node to be cordoned (drain started)")
 			Eventually(func(g Gomega) {
 				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				g.Expect(err).NotTo(HaveOccurred(), "failed to list nodes")
@@ -259,7 +260,8 @@ var _ = Describe("Customer", func() {
 				"no node was cordoned after initiating scale-down",
 			)
 
-			By(fmt.Sprintf("holding stuck drain for %s for health signal validation", stuckDrainHoldDur))
+			// Phase 2: Hold stuck drain for health signal accumulation
+			By(fmt.Sprintf("phase 2: holding stuck drain for %s for health signal validation", stuckDrainHoldDur))
 			holdStart := time.Now()
 			lastHeartbeat := holdStart
 
@@ -274,7 +276,7 @@ var _ = Describe("Customer", func() {
 					"no node is cordoned during hold after %s; drain may have been abandoned", elapsed)
 
 				if time.Since(lastHeartbeat) >= heartbeatInterval {
-					GinkgoLogr.Info("stuck drain hold in progress",
+					GinkgoLogr.Info("phase 2: stuck drain hold in progress",
 						"elapsed", elapsed.String(),
 						"remaining", (stuckDrainHoldDur - time.Since(holdStart)).Round(time.Minute).String())
 					lastHeartbeat = time.Now()
@@ -283,10 +285,11 @@ var _ = Describe("Customer", func() {
 				"drain did not stay stuck for the full %s hold", stuckDrainHoldDur,
 			)
 
-			By("removing PDB to unblock the drain")
+			// Phase 3: Recovery — remove PDB and verify drain completes
+			By("phase 3: removing PDB to unblock the drain")
 			deleteDrainBlockerPDB(ctx, kubeClient)
 
-			By("waiting for scale-down to complete")
+			By("phase 3: waiting for scale-down to complete")
 			select {
 			case err := <-scaleErr:
 				Expect(err).NotTo(HaveOccurred(), "node pool scale-down failed after PDB removal")
@@ -294,7 +297,7 @@ var _ = Describe("Customer", func() {
 				Fail("scale-down did not complete within timeout after PDB removal")
 			}
 
-			By("verifying node count is 1 and node is Ready")
+			By("phase 3: verifying node count is 1 and node is Ready")
 			Eventually(func(g Gomega) {
 				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				g.Expect(err).NotTo(HaveOccurred(), "failed to list nodes after scale-down")
@@ -312,7 +315,7 @@ var _ = Describe("Customer", func() {
 				"did not converge to 1 Ready node after scale-down",
 			)
 
-			By(fmt.Sprintf("holding for %s so the health function reports no stuck drains", recoverySoakDuration))
+			By(fmt.Sprintf("phase 3: holding for %s so the health function reports no stuck drains", recoverySoakDuration))
 			soakStart := time.Now()
 			Consistently(func(g Gomega) {
 				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
