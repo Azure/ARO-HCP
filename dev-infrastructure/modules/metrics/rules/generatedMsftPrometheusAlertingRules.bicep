@@ -791,7 +791,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential on {{ $labels.cluster }} expiring soon'
           title: 'Customer cluster credential on {{ $labels.cluster }} expiring soon'
         }
-        expression: 'sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0'
+        expression: '(sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

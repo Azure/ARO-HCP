@@ -5433,14 +5433,14 @@
   group: msft-msi-credential-refresher
   alert: ClusterCredentialExpiringSoon
   occurrence: 1
-  input: sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+  input: (sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0
   plan:
-    expression: sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+    expression: (sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0
     conditions:
-      - expression: sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+      - expression: (sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0
         path: root
         queries:
-          - expression: sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))
+          - expression: (sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0)
             role: signal
         thresholds:
           - operator: '>'
@@ -7326,14 +7326,14 @@
   group: arohcp_workload_identity_slo_alerts
   alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
   occurrence: 1
-  input: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+  input: (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0
   plan:
-    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    expression: (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0
     conditions:
-      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+      - expression: (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0
         path: root
         queries:
-          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+          - expression: (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0)
             role: signal
         thresholds:
           - operator: '>'
@@ -12128,14 +12128,29 @@
   group: msi-credential-refresher
   alert: ClusterCredentialExpiringSoon
   occurrence: 1
-  input: sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+  input: |
+    (
+      sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m]))
+      -
+      sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))
+    )
+    -
+    (
+      (
+        sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m]))
+        -
+        sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))
+      )
+      or
+      sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0
+    ) > 0
   plan:
-    expression: sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+    expression: (sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0
     conditions:
-      - expression: sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0
+      - expression: (sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0) > 0
         path: root
         queries:
-          - expression: sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))
+          - expression: (sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) - ((sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m]))) or sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) * 0)
             role: signal
         thresholds:
           - operator: '>'
@@ -13170,17 +13185,27 @@
   occurrence: 1
   input: |
     (
-      workload_identity:credential_refresher_expiry_le7d:increase1h
+      sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h])))
       -
-      workload_identity:credential_refresher_expiry_le0d:increase1h
+      sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))
+    )
+    -
+    (
+      (
+        sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h])))
+        -
+        sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))
+      )
+      or
+      sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0
     ) > 0
   plan:
-    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    expression: (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0
     conditions:
-      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+      - expression: (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0
         path: root
         queries:
-          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+          - expression: (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0)
             role: signal
         thresholds:
           - operator: '>'

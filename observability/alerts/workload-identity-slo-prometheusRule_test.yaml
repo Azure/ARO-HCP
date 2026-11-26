@@ -20,7 +20,7 @@ tests:
   alert_rule_test:
   - eval_time: 30m
     alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
-    exp_alerts:
+    exp_alerts: &critical-alert
     - exp_labels:
         cluster: svc-1
         component: slo
@@ -30,6 +30,55 @@ tests:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
         runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
+- name: customer_blocked_credentials_do_not_fire
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+- name: blocked_at_twenty_days_does_not_hide_real_failure_at_five_days
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30.0"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7.0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0.0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30.0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7.0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0.0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+- name: expired_blocked_credential_does_not_hide_live_failure
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0+1x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
 # Test: the alert waits 15m (its for: duration) before firing.
 - name: critical_waits_for_duration
   interval: 1m
