@@ -37,7 +37,7 @@ All cluster and node pool operations are tied to a specific API version. This me
 
 ## Entra external authentication
 
-Use `tc.SetupExternalAuthAccess` for an uninterrupted setup, such as feature aggregation, when the runner can bind cluster-admin and use the returned OIDC config. Use `tc.SetupEntraExternalAuth` and the individual grant and token steps when a scenario needs assertions between operations (such as `external_auth_create`), custom claims or a non-admin role. With authorized CIDRs, the runner may need to create the binding from an allowed VM using the returned `Subject`.
+Use `tc.SetupExternalAuthAccess20240610` for an uninterrupted setup, such as feature aggregation, when the runner can bind cluster-admin and use the returned OIDC config. Use `tc.SetupEntraExternalAuth20240610` and the individual grant and token steps when a scenario needs assertions between operations (such as `external_auth_create`), custom claims or a non-admin role. With authorized CIDRs, the runner may need to create the binding from an allowed VM using the returned `Subject`.
 
 ## Kubernetes verifiers
 

@@ -37,9 +37,9 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-func TestBuildEntraExternalAuthDefaults(t *testing.T) {
-	params := NewDefaultExternalAuthParams()
-	require.Equal(t, ExternalAuthParams{
+func TestBuildEntraExternalAuth20240610Defaults(t *testing.T) {
+	params := NewDefaultExternalAuthParams20240610()
+	require.Equal(t, ExternalAuthParams20240610{
 		PrefixPolicy:   hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix,
 		SubjectPrefix:  "prefix-",
 		UsernameClaim:  "sub",
@@ -47,7 +47,7 @@ func TestBuildEntraExternalAuthDefaults(t *testing.T) {
 		IncludeClients: true,
 	}, params)
 
-	props := buildEntraExternalAuth("tenant", "app", params).Properties
+	props := buildEntraExternalAuth20240610("tenant", "app", params).Properties
 	require.Equal(t, &hcpsdk20240610preview.TokenIssuerProfile{
 		URL:       to.Ptr("https://login.microsoftonline.com/tenant/v2.0"),
 		Audiences: []*string{to.Ptr("app")},
@@ -74,21 +74,21 @@ func TestBuildEntraExternalAuthDefaults(t *testing.T) {
 	}
 }
 
-func TestBuildEntraExternalAuthNoPrefix(t *testing.T) {
-	params := NewDefaultExternalAuthParams()
+func TestBuildEntraExternalAuth20240610NoPrefix(t *testing.T) {
+	params := NewDefaultExternalAuthParams20240610()
 	params.PrefixPolicy = hcpsdk20240610preview.UsernameClaimPrefixPolicyNoPrefix
-	username := buildEntraExternalAuth("tenant", "app", params).Properties.Claim.Mappings.Username
+	username := buildEntraExternalAuth20240610("tenant", "app", params).Properties.Claim.Mappings.Username
 	require.Equal(t, to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyNoPrefix), username.PrefixPolicy)
 	require.Nil(t, username.Prefix)
 }
 
-func TestBuildEntraExternalAuthCustomClaimsWithoutClients(t *testing.T) {
-	params := NewDefaultExternalAuthParams()
+func TestBuildEntraExternalAuth20240610CustomClaimsWithoutClients(t *testing.T) {
+	params := NewDefaultExternalAuthParams20240610()
 	params.UsernameClaim = "oid"
 	params.SubjectPrefix = "entra:"
 	params.GroupsClaim = "roles"
 	params.IncludeClients = false
-	props := buildEntraExternalAuth("tenant", "app", params).Properties
+	props := buildEntraExternalAuth20240610("tenant", "app", params).Properties
 	require.Equal(t, to.Ptr("oid"), props.Claim.Mappings.Username.Claim)
 	require.Equal(t, to.Ptr("entra:"), props.Claim.Mappings.Username.Prefix)
 	require.Equal(t, to.Ptr("roles"), props.Claim.Mappings.Groups.Claim)

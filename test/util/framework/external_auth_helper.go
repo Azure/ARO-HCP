@@ -34,9 +34,9 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-// ExternalAuthParams configures Entra claim mappings and the console and CLI clients.
+// ExternalAuthParams20240610 configures Entra claim mappings and the console and CLI clients.
 // Prefix and NoPrefix give the test a predictable RBAC subject.
-type ExternalAuthParams struct {
+type ExternalAuthParams20240610 struct {
 	PrefixPolicy   hcpsdk20240610preview.UsernameClaimPrefixPolicy
 	SubjectPrefix  string
 	UsernameClaim  string
@@ -44,10 +44,10 @@ type ExternalAuthParams struct {
 	IncludeClients bool
 }
 
-// NewDefaultExternalAuthParams maps sub and groups with an explicit username prefix
+// NewDefaultExternalAuthParams20240610 maps sub and groups with an explicit username prefix
 // and configures both OpenShift clients.
-func NewDefaultExternalAuthParams() ExternalAuthParams {
-	return ExternalAuthParams{
+func NewDefaultExternalAuthParams20240610() ExternalAuthParams20240610 {
+	return ExternalAuthParams20240610{
 		PrefixPolicy:   hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix,
 		SubjectPrefix:  "prefix-",
 		UsernameClaim:  "sub",
@@ -78,7 +78,7 @@ func (auth EntraExternalAuthContext) GoString() string { return auth.String() }
 // GomegaString keeps credentials out of Gomega assertion failures.
 func (auth EntraExternalAuthContext) GomegaString() string { return auth.String() }
 
-func buildEntraExternalAuth(tenantID, appID string, params ExternalAuthParams) hcpsdk20240610preview.ExternalAuth {
+func buildEntraExternalAuth20240610(tenantID, appID string, params ExternalAuthParams20240610) hcpsdk20240610preview.ExternalAuth {
 	username := &hcpsdk20240610preview.UsernameClaimProfile{
 		Claim:        to.Ptr(params.UsernameClaim),
 		PrefixPolicy: to.Ptr(params.PrefixPolicy),
@@ -117,10 +117,10 @@ func buildEntraExternalAuth(tenantID, appID string, params ExternalAuthParams) h
 	return hcpsdk20240610preview.ExternalAuth{Properties: props}
 }
 
-// SetupEntraExternalAuth registers a test-managed application and service principal
+// SetupEntraExternalAuth20240610 registers a test-managed application and service principal
 // and waits for their ExternalAuth resource to reach Succeeded. The username claim
 // should identify the service principal by its object ID when using the grant helpers.
-func (tc *perItOrDescribeTestContext) SetupEntraExternalAuth(ctx context.Context, resourceGroup, cluster, authName string, params ExternalAuthParams) (*EntraExternalAuthContext, error) {
+func (tc *perItOrDescribeTestContext) SetupEntraExternalAuth20240610(ctx context.Context, resourceGroup, cluster, authName string, params ExternalAuthParams20240610) (*EntraExternalAuthContext, error) {
 	if params.PrefixPolicy != hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix && params.PrefixPolicy != hcpsdk20240610preview.UsernameClaimPrefixPolicyNoPrefix {
 		return nil, fmt.Errorf("expected Prefix or NoPrefix to determine the Entra subject, got %q", params.PrefixPolicy)
 	}
@@ -150,7 +150,7 @@ func (tc *perItOrDescribeTestContext) SetupEntraExternalAuth(ctx context.Context
 	if err != nil {
 		return nil, fmt.Errorf("get ExternalAuth client factory: %s", azureFailureError(err))
 	}
-	externalAuth := buildEntraExternalAuth(tenantID, app.AppID, params)
+	externalAuth := buildEntraExternalAuth20240610(tenantID, app.AppID, params)
 	result, err := CreateOrUpdateExternalAuthAndWait20240610(ctx, factory.NewExternalAuthsClient(), resourceGroup, cluster, authName, externalAuth, ExternalAuthCreationTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("provision external auth %q: %s", authName, azureFailureError(err))
@@ -233,10 +233,10 @@ func (auth *EntraExternalAuthContext) GetRESTConfig(ctx context.Context, adminRE
 	}, nil
 }
 
-// SetupExternalAuthAccess provisions the default Entra provider, grants cluster-admin,
+// SetupExternalAuthAccess20240610 provisions the default Entra provider, grants cluster-admin,
 // and returns the identity and its bearer-token config.
-func (tc *perItOrDescribeTestContext) SetupExternalAuthAccess(ctx context.Context, resourceGroup, cluster, authName string, adminRESTConfig *rest.Config) (*EntraExternalAuthContext, *rest.Config, error) {
-	auth, err := tc.SetupEntraExternalAuth(ctx, resourceGroup, cluster, authName, NewDefaultExternalAuthParams())
+func (tc *perItOrDescribeTestContext) SetupExternalAuthAccess20240610(ctx context.Context, resourceGroup, cluster, authName string, adminRESTConfig *rest.Config) (*EntraExternalAuthContext, *rest.Config, error) {
+	auth, err := tc.SetupEntraExternalAuth20240610(ctx, resourceGroup, cluster, authName, NewDefaultExternalAuthParams20240610())
 	if err != nil {
 		return nil, nil, err
 	}
