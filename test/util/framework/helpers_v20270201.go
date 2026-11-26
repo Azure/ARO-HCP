@@ -125,11 +125,11 @@ func NewDefaultClusterParams20270201() ClusterParams20270201 {
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
-		Tags: map[string]*string{
+		Tags: WithJobTags(map[string]*string{
 			metadataapi.TagClusterSizeOverride:        to.Ptr(string(coreapi.MinimalControlPlanePodSizing)),
 			metadataapi.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 			metadataapi.TagClusterMaxDeletionDuration: to.Ptr((HCPClusterDeletionTimeout - time.Minute).String()),
-		},
+		}),
 	}
 	applyCPOImageOverride(params.Tags)
 	return params
@@ -149,9 +149,9 @@ func NewDefaultNodePoolParams20270201() NodePoolParams20270201 {
 		AutoRepair:             true,
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
-		Tags: map[string]*string{
+		Tags: WithJobTags(map[string]*string{
 			metadataapi.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
-		},
+		}),
 	}
 }
 
@@ -470,7 +470,7 @@ func BuildHCPClusterFromParams20270201(
 	cluster := hcpsdk20270201.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
-		Tags:     tags,
+		Tags:     WithJobTags(tags),
 		Properties: &hcpsdk20270201.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20270201.VersionProfile{
 				ID:           to.Ptr(versionID),
@@ -563,6 +563,7 @@ func CreateHCPClusterAndWait20270201(
 
 	logger.Info("Starting HCP cluster creation (v20270201)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
 	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	cluster.Tags = WithJobTags(cluster.Tags)
 	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
 		poller, err = resumeInFlightHCPClusterCreate20270201(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
@@ -674,7 +675,7 @@ func BuildNodePoolFromParams20270201(
 
 	nodePool := hcpsdk20270201.NodePool{
 		Location: to.Ptr(location),
-		Tags:     parameters.Tags,
+		Tags:     WithJobTags(parameters.Tags),
 		Properties: &hcpsdk20270201.NodePoolProperties{
 			Version: &hcpsdk20270201.NodePoolVersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -722,6 +723,7 @@ func CreateNodePoolAndWait20270201(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait20270201 for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
 	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	nodePool.Tags = WithJobTags(nodePool.Tags)
 	poller, err := nodePoolsClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
 	if err != nil {
 		poller, err = resumeInFlightNodePoolCreate20270201(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName, createAttempts, err)
