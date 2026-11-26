@@ -66,7 +66,7 @@ type DeploymentStackDesire struct {
 	// CosmosMetadata identifies the stored desire and its owning HCP cluster.
 	// PartitionKey must be set to the lowercased subscription ID of the owning
 	// HCP cluster before creation, independently of the Azure target's scope.
-	// Written by: MockFPARoleAssignments (resource identity and partition), Cosmos storage (persistence metadata)
+	// Written by: Cosmos storage (persistence metadata), MockFPARoleAssignments (resource identity and partition)
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
 	// Spec describes the Azure stack operation the producer wants reconciled.
 	// Written by: MockFPARoleAssignments

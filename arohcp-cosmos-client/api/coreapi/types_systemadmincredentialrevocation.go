@@ -65,7 +65,7 @@ type SystemAdminCredentialRevocationStatus struct {
 	//     certificates have been revoked on the hosted cluster.
 	//   - "Complete": True when the whole revocation flow is done and this document
 	//     may be deleted.
-	// Written by: SystemAdminCredentialRevocationMarkRequests (CredentialsMarkedForDeletion), SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)
+	// Written by: SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete), SystemAdminCredentialRevocationMarkRequests (CredentialsMarkedForDeletion)
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DeletionTimestamp is set once revocation is complete and the deletion
 	// controller should tear down the revocation's desires and remove this

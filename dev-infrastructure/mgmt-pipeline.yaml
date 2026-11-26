@@ -490,11 +490,10 @@ resourceGroups:
   # workload-identity federated credentials, KeyVault/Geneva access, metrics,
   # Maestro, kube-applier, HCP backups, diagnostic settings.
   - name: cluster
-    action: ARMStack
+    action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     variables:
     - name: nodeSubnetId
       input:

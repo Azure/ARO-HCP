@@ -23,20 +23,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	githublib "github.com/Azure/ARO-HCP/tooling/github"
 )
 
 // errNoChanges reports a run whose commit does not differ from the base branch.
 var errNoChanges = errors.New("no committed changes differ from the base branch")
-
-// publishBackoff bounds publication retries while GitHub catches up with the pushed branch.
-// Steps bounds the loop, so no Cap is needed: with a Cap, the last delay can end the loop
-// without a following attempt.
-var publishBackoff = wait.Backoff{Duration: time.Second, Factor: 2, Jitter: 0.2, Steps: 5}
 
 // Publisher is the verified publication surface used by Options.
 type Publisher interface {
@@ -166,40 +158,13 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 	request := o.publicationRequest(head, baseCommit, files, prior)
-	receipt, err := o.publishWithRetry(ctx, publisher, request)
+	receipt, err := publisher.Publish(ctx, request)
 	if err != nil {
 		return fmt.Errorf("publish the pull request: %w", err)
 	}
 	encoder := json.NewEncoder(o.out)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(receipt)
-}
-
-// publishWithRetry retries pre-write conflicts while GitHub catches up with the pushed branch.
-// A proposal head trails its branch for a moment after a force push, and the library refuses
-// the mismatch before writing anything. Indeterminate writes are never retried.
-func (o *Options) publishWithRetry(ctx context.Context, publisher Publisher, request githublib.PublicationRequest) (githublib.Receipt, error) {
-	var receipt githublib.Receipt
-	var conflict error
-	err := wait.ExponentialBackoffWithContext(ctx, publishBackoff, func(context.Context) (bool, error) {
-		attempt, err := publisher.Publish(ctx, request)
-		receipt = attempt
-		if err == nil {
-			return true, nil
-		}
-		if errors.Is(err, githublib.ErrIndeterminate) || !errors.Is(err, githublib.ErrConflict) {
-			return false, err
-		}
-		conflict = err
-		return false, nil
-	})
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return receipt, err
-	}
-	if wait.Interrupted(err) && conflict != nil {
-		return receipt, conflict
-	}
-	return receipt, err
 }
 
 // ownedProposal returns the open proposal this run must update, refusing a branch it does not own.

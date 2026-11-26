@@ -576,11 +576,10 @@ resourceGroups:
       durationBetweenRetries: 2m
   # Configure resources that depend on the service cluster.
   - name: cluster
-    action: ARMStack
+    action: ARM
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     variables:
     - name: nodeSubnetId
       input:

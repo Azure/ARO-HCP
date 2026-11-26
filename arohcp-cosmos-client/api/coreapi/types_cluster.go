@@ -33,11 +33,11 @@ type Cluster struct {
 	TrackedResource
 
 	// CustomerProperties contains the customer's desired cluster configuration.
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
+	// Written by: ClusterBaseDomainPrefixSync, ClusterDNSAllocation, Frontend PUT/PATCH Cluster
 	CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
-	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
+	// Written by: ClusterClusterServiceCreate, ClusterDeletion* controllers, ClusterPropertiesSync, CreateBillingDoc, Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers
 	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	// Written by: Frontend PUT/PATCH Cluster (Create/Update), ClusterIdentitySync
+	// Written by: ClusterIdentitySync, Frontend PUT/PATCH Cluster (Create/Update)
 	Identity *ManagedServiceIdentity `json:"identity,omitempty"`
 	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
 	Status ClusterStatus `json:"status"`
@@ -91,7 +91,7 @@ type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
 	// DNS contains the short cluster name used within its allocated base domain.
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
+	// Written by: ClusterBaseDomainPrefixSync, ClusterDNSAllocation, Frontend PUT/PATCH Cluster
 	DNS CustomerDNSProfile `json:"dns,omitempty"`
 	// Written by: Frontend PUT Cluster (Create)
 	Network NetworkProfile `json:"network,omitempty"`
@@ -117,13 +117,13 @@ type ClusterCustomerProperties struct {
 
 // ClusterServiceProviderProperties represents the service-provider-managed property bag of a Cluster resource.
 type ClusterServiceProviderProperties struct {
-	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
+	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterDelete, OperationClusterUpdate
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: ClusterPendingClusterServiceIDAssign
 	PendingClusterServiceID *metadataapi.InternalID `json:"pendingClusterServiceID,omitempty"`
-	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
+	// Written by: ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer, Frontend PUT Cluster (Create)
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
-	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
+	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterDelete, OperationClusterUpdate
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
@@ -211,7 +211,7 @@ type VersionProfile struct {
 // CustomerDNSProfile represents the DNS configuration of the cluster.
 type CustomerDNSProfile struct {
 	// BaseDomainPrefix is the short OpenShift cluster name inside its allocated DNS domain.
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
+	// Written by: ClusterBaseDomainPrefixSync, ClusterDNSAllocation, Frontend PUT/PATCH Cluster
 	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
 }
 
@@ -273,7 +273,7 @@ type CustomerPlatformProfile struct {
 // ContainerRegistryProfile represents Azure Container Registry pull
 // configuration for the cluster.
 type ContainerRegistryProfile struct {
-	// Written by: Frontend PUT Cluster (Create), Frontend PATCH Cluster (Update)
+	// Written by: Frontend PATCH Cluster (Update), Frontend PUT Cluster (Create)
 	PullManagedIdentity *azcorearm.ResourceID `json:"pullManagedIdentity,omitempty"`
 }
 

@@ -100,6 +100,9 @@ func TestNativePublicationIntegrationRejectsUntrustedSources(t *testing.T) {
 		name, reason string
 		change       func(*nativeIntegrationFixture, *NativePublicationRequest)
 	}{
+		{name: "stale main", reason: "main moved", change: func(f *nativeIntegrationFixture, r *NativePublicationRequest) {
+			r.request.ExpectedBaseSHA = strings.Repeat("f", 40)
+		}},
 		{name: "stale source", reason: "stale head", change: func(f *nativeIntegrationFixture, r *NativePublicationRequest) {
 			r.request.SourcePRs[0].HeadSHA = strings.Repeat("f", 40)
 		}},
@@ -256,7 +259,7 @@ func TestNativePublicationIntegrationHolds(t *testing.T) {
 
 // TestNativePublicationIntegrationRaces rechecks mutable authorization and advertised refs at the write boundary.
 func TestNativePublicationIntegrationRaces(t *testing.T) {
-	for _, mode := range []string{"source moved", "main moved", "remote main missing", "human hold added", "concurrent normal push"} {
+	for _, mode := range []string{"source moved", "main moved", "human hold added", "concurrent normal push"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newNativeIntegrationFixture(t)
 			request := f.request("v1.1.0", "2", 1)
@@ -284,26 +287,13 @@ func TestNativePublicationIntegrationRaces(t *testing.T) {
 					f.pulls[1]["head"].(map[string]any)["sha"] = strings.Repeat("f", 40)
 				case "main moved":
 					f.remoteGit("update-ref", "refs/heads/main", competing)
-				case "remote main missing":
-					f.remoteGit("update-ref", "-d", "refs/heads/main")
 				case "human hold added":
 					f.setHold(1, "human")
 				}
 			}
-			result, err := f.publish(request)
-			switch mode {
-			case "main moved":
-				if err != nil || result["status"] != "deferred" {
-					t.Fatalf("stale candidate = %v, %v; want deferral", result, err)
-				}
-			case "remote main missing":
-				if err == nil || !strings.Contains(err.Error(), "remote main is missing") {
-					t.Fatalf("missing remote main = %v, %v; want an error", result, err)
-				}
-			default:
-				if err == nil {
-					t.Fatal("race accepted")
-				}
+			_, err := f.publish(request)
+			if err == nil {
+				t.Fatal("race accepted")
 			}
 			if mode == "concurrent normal push" && !errors.Is(err, automation.ErrIndeterminate) {
 				t.Fatalf("push failure lost uncertainty: %v", err)

@@ -1,0 +1,908 @@
+{
+  "azureresourcesapi/types_deployment_stack_desire.go": {
+    "DeploymentStackDesire": {
+      "CosmosMetadata": [
+        "MockFPARoleAssignments (resource identity and partition)",
+        "Cosmos storage (persistence metadata)"
+      ],
+      "Spec": [
+        "MockFPARoleAssignments"
+      ],
+      "Status": [
+        "AzureDeploymentStackDesires"
+      ]
+    },
+    "DeploymentStackDesireAuthenticationServiceManagedIdentity": {
+      "ClusterIdentityURL": [
+        "DeploymentStackDesire producer"
+      ],
+      "ServiceManagedIdentityResourceID": [
+        "DeploymentStackDesire producer"
+      ]
+    },
+    "DeploymentStackDesireList": {
+      "Items": [
+        "DeploymentStackDesire informer list/watch"
+      ],
+      "ListMeta": [
+        "DeploymentStackDesire informer list/watch"
+      ],
+      "TypeMeta": [
+        "DeploymentStackDesire informer list/watch"
+      ]
+    },
+    "DeploymentStackDesireSpec": {
+      "Action": [
+        "MockFPARoleAssignments"
+      ],
+      "Authentication": [
+        "MockFPARoleAssignments"
+      ],
+      "Stack": [
+        "MockFPARoleAssignments"
+      ],
+      "TargetResourceID": [
+        "MockFPARoleAssignments"
+      ]
+    },
+    "DeploymentStackDesireStatus": {
+      "Conditions": [
+        "AzureDeploymentStackDesires"
+      ],
+      "Error": [
+        "AzureDeploymentStackDesires"
+      ],
+      "ObservedAt": [
+        "AzureDeploymentStackDesires"
+      ],
+      "ObservedSpecHash": [
+        "AzureDeploymentStackDesires"
+      ],
+      "Stack": [
+        "AzureDeploymentStackDesires"
+      ]
+    }
+  },
+  "coreapi/identity.go": {
+    "ManagedServiceIdentity": {
+      "PrincipalID": [
+        "Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values; cleared from Create input)"
+      ],
+      "TenantID": [
+        "Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values; cleared from Create input)"
+      ]
+    },
+    "UserAssignedIdentity": {
+      "ClientID": [
+        "ClusterIdentitySync (resolved values)",
+        "Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values)"
+      ],
+      "PrincipalID": [
+        "ClusterIdentitySync (resolved values)",
+        "Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values)"
+      ]
+    }
+  },
+  "coreapi/types_cluster.go": {
+    "Cluster": {
+      "CustomerProperties": [
+        "Frontend PUT/PATCH Cluster",
+        "ClusterBaseDomainPrefixSync",
+        "ClusterDNSAllocation"
+      ],
+      "Identity": [
+        "Frontend PUT/PATCH Cluster (Create/Update)",
+        "ClusterIdentitySync"
+      ],
+      "ServiceProviderProperties": [
+        "Frontend PUT/PATCH/DELETE Cluster",
+        "all Operation*Cluster controllers",
+        "ClusterPropertiesSync",
+        "ClusterClusterServiceCreate",
+        "ClusterDeletion* controllers",
+        "CreateBillingDoc"
+      ],
+      "Status": [
+        "ClusterDegradedAggregator",
+        "ClusterRequirementsValidAggregator"
+      ]
+    },
+    "ClusterCustomerProperties": {
+      "API": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "Autoscaling": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "ClusterImageRegistry": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "CryptoRestrictions": [
+        "Frontend PUT Cluster"
+      ],
+      "DNS": [
+        "Frontend PUT/PATCH Cluster",
+        "ClusterBaseDomainPrefixSync",
+        "ClusterDNSAllocation"
+      ],
+      "Etcd": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "ImageDigestMirrors": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "Ingress": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "Network": [
+        "Frontend PUT Cluster (Create)"
+      ],
+      "NodeDrainTimeoutMinutes": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "Platform": [
+        "Frontend PUT/PATCH Cluster"
+      ],
+      "Version": [
+        "Frontend PUT/PATCH Cluster"
+      ]
+    },
+    "ClusterServiceProviderProperties": {
+      "API": [
+        "ClusterPropertiesSync"
+      ],
+      "ActiveOperationID": [
+        "Frontend PUT/PATCH/DELETE Cluster",
+        "OperationClusterCreate",
+        "OperationClusterUpdate",
+        "OperationClusterDelete"
+      ],
+      "BillingDocumentCosmosID": [
+        "CreateBillingDoc"
+      ],
+      "ClusterServiceDeletionTimestamp": [
+        "ClusterClusterServiceDeleteDispatch"
+      ],
+      "ClusterServiceID": [
+        "Frontend PUT Cluster (Create)",
+        "ClusterClusterServiceCreate",
+        "ClusterDeletionClusterServiceIDClearer"
+      ],
+      "ClusterUID": [
+        "Frontend PUT Cluster (Create) via admission.MutateCluster"
+      ],
+      "Console": [
+        "ClusterPropertiesSync"
+      ],
+      "DNS": [
+        "ClusterPropertiesSync"
+      ],
+      "DeleteOperationCompletionDeadline": [
+        "Frontend DELETE Cluster"
+      ],
+      "DeleteOperationCompletionTimeout": [
+        "Frontend PUT/PATCH Cluster (via admission)"
+      ],
+      "DeletionTimestamp": [
+        "Frontend DELETE Cluster"
+      ],
+      "ExperimentalFeatures": [
+        "Frontend PUT Cluster (Create)"
+      ],
+      "ManagedIdentitiesDataPlaneIdentityURL": [
+        "Frontend PUT Cluster (Create)"
+      ],
+      "PendingClusterServiceID": [
+        "ClusterPendingClusterServiceIDAssign"
+      ],
+      "Platform": [
+        "ClusterPropertiesSync"
+      ],
+      "ProvisioningState": [
+        "Frontend PUT/PATCH/DELETE Cluster",
+        "OperationClusterCreate",
+        "OperationClusterUpdate",
+        "OperationClusterDelete"
+      ],
+      "RevokeCredentialsOperationID": [
+        "Frontend POST RevokeCredentials",
+        "SystemAdminCredentialOperationRevokeCredentialsPoll"
+      ],
+      "UpdateOperationCompletionDeadline": [
+        "Frontend PUT/PATCH Cluster (via admission)"
+      ]
+    },
+    "ClusterStatus": {
+      "ActiveVersions": [
+        "ControlPlaneActiveVersions"
+      ],
+      "Conditions": [
+        "ClusterDegradedAggregator"
+      ],
+      "UserFacingConditions": [
+        "ClusterRequirementsValidAggregator"
+      ]
+    },
+    "ContainerRegistryProfile": {
+      "PullManagedIdentity": [
+        "Frontend PUT Cluster (Create)",
+        "Frontend PATCH Cluster (Update)"
+      ]
+    },
+    "CustomerDNSProfile": {
+      "BaseDomainPrefix": [
+        "Frontend PUT/PATCH Cluster",
+        "ClusterBaseDomainPrefixSync",
+        "ClusterDNSAllocation"
+      ]
+    },
+    "CustomerPlatformProfile": {
+      "ContainerRegistry": [
+        "Frontend PUT/PATCH Cluster"
+      ]
+    },
+    "HCPClusterActiveVersion": {
+      "Version": [
+        "ControlPlaneActiveVersions"
+      ]
+    },
+    "KmsEncryptionProfile": {
+      "KeyVaultType": [
+        "Frontend PUT Cluster (Create)"
+      ]
+    },
+    "ServiceProviderAPIProfile": {
+      "URL": [
+        "ClusterPropertiesSync"
+      ]
+    },
+    "ServiceProviderConsoleProfile": {
+      "URL": [
+        "ClusterPropertiesSync"
+      ]
+    },
+    "ServiceProviderDNSProfile": {
+      "BaseDomain": [
+        "ClusterDNSAllocation",
+        "ClusterDNSBackfill"
+      ]
+    },
+    "ServiceProviderPlatformProfile": {
+      "IssuerURL": [
+        "ClusterPropertiesSync"
+      ]
+    }
+  },
+  "coreapi/types_experimental.go": {
+    "ExperimentalFeatures": {
+      "BackupScheduleOverride": [
+        "Frontend PUT/PATCH Cluster (admission)"
+      ],
+      "ZStreamUpdatePolicy": [
+        "Frontend PUT/PATCH Cluster (admission)"
+      ]
+    }
+  },
+  "coreapi/types_externalauth.go": {
+    "ExternalAuth": {
+      "Properties": [
+        "Frontend PUT/PATCH ExternalAuth",
+        "OperationExternalAuth* controllers"
+      ],
+      "ServiceProviderProperties": [
+        "Frontend PUT/PATCH/DELETE ExternalAuth",
+        "OperationExternalAuth* controllers",
+        "ExternalAuthClusterServiceCreate",
+        "ExternalAuthDeletion* controllers"
+      ],
+      "Status": [
+        "ExternalAuthDegradedAggregator"
+      ]
+    },
+    "ExternalAuthProperties": {
+      "Claim": [
+        "Frontend PUT/PATCH ExternalAuth"
+      ],
+      "Clients": [
+        "Frontend PUT/PATCH ExternalAuth"
+      ],
+      "Issuer": [
+        "Frontend PUT/PATCH ExternalAuth"
+      ],
+      "ProvisioningState": [
+        "Frontend PUT/PATCH/DELETE ExternalAuth",
+        "OperationExternalAuthCreate",
+        "OperationExternalAuthUpdate",
+        "OperationExternalAuthDelete"
+      ]
+    },
+    "ExternalAuthServiceProviderProperties": {
+      "ActiveOperationID": [
+        "Frontend PUT/PATCH/DELETE ExternalAuth",
+        "OperationExternalAuthCreate",
+        "OperationExternalAuthUpdate",
+        "OperationExternalAuthDelete"
+      ],
+      "ClusterServiceDeletionTimestamp": [
+        "ExternalAuthClusterServiceDeleteDispatch"
+      ],
+      "ClusterServiceID": [
+        "Frontend PUT ExternalAuth (Create)",
+        "ExternalAuthClusterServiceCreate",
+        "ExternalAuthDeletionClusterServiceIDClearer"
+      ],
+      "CreateOperationCompletionDeadline": [
+        "Frontend PUT ExternalAuth (via admission)"
+      ],
+      "DeleteOperationCompletionDeadline": [
+        "Frontend DELETE ExternalAuth",
+        "Frontend DELETE Cluster/Subscription (cascade)"
+      ],
+      "DeletionTimestamp": [
+        "Frontend DELETE ExternalAuth"
+      ],
+      "UpdateOperationCompletionDeadline": [
+        "Frontend PUT/PATCH ExternalAuth (via admission)"
+      ]
+    },
+    "ExternalAuthStatus": {
+      "Conditions": [
+        "ExternalAuthDegradedAggregator"
+      ],
+      "UserFacingConditions": [
+        "ExternalAuthUserFacingDegradedAggregator"
+      ]
+    }
+  },
+  "coreapi/types_nodepool.go": {
+    "HCPNodePoolActiveVersion": {
+      "Version": [
+        "NodePoolActiveVersions"
+      ]
+    },
+    "NodePool": {
+      "Properties": [
+        "Frontend PUT/PATCH NodePool",
+        "OperationNodePoolCreate",
+        "OperationNodePoolUpdate",
+        "OperationNodePoolDelete"
+      ],
+      "ServiceProviderProperties": [
+        "Frontend PUT/PATCH/DELETE NodePool",
+        "OperationNodePool* controllers",
+        "NodePoolClusterServiceCreate",
+        "NodePoolDeletion* controllers"
+      ],
+      "Status": [
+        "NodePoolDegradedAggregator",
+        "NodePoolRequirementsValidAggregator"
+      ]
+    },
+    "NodePoolProperties": {
+      "AutoRepair": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "AutoScaling": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "Labels": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "NodeDrainTimeoutMinutes": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "Platform": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "ProvisioningState": [
+        "Frontend PUT/PATCH/DELETE NodePool",
+        "OperationNodePoolCreate",
+        "OperationNodePoolUpdate",
+        "OperationNodePoolDelete"
+      ],
+      "Replicas": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "Taints": [
+        "Frontend PUT/PATCH NodePool"
+      ],
+      "Version": [
+        "Frontend PUT/PATCH NodePool"
+      ]
+    },
+    "NodePoolServiceProviderProperties": {
+      "ActiveOperationID": [
+        "Frontend PUT/PATCH/DELETE NodePool",
+        "OperationNodePoolCreate",
+        "OperationNodePoolUpdate",
+        "OperationNodePoolDelete"
+      ],
+      "ClusterServiceDeletionTimestamp": [
+        "NodePoolClusterServiceDeleteDispatch"
+      ],
+      "ClusterServiceID": [
+        "Frontend PUT NodePool (Create)",
+        "NodePoolClusterServiceCreate",
+        "NodePoolDeletionClusterServiceIDClearer"
+      ],
+      "DeleteOperationCompletionDeadline": [
+        "Frontend DELETE NodePool",
+        "Frontend DELETE Cluster/Subscription (cascade)"
+      ],
+      "DeleteOperationCompletionTimeout": [
+        "Frontend PUT/PATCH NodePool (via admission)"
+      ],
+      "DeletionTimestamp": [
+        "Frontend DELETE NodePool"
+      ],
+      "UpdateOperationCompletionDeadline": [
+        "Frontend PUT/PATCH NodePool (via admission)"
+      ]
+    },
+    "NodePoolStatus": {
+      "ActiveVersions": [
+        "NodePoolActiveVersions"
+      ],
+      "Conditions": [
+        "NodePoolDegradedAggregator"
+      ],
+      "UserFacingConditions": [
+        "NodePoolRequirementsValidAggregator"
+      ]
+    }
+  },
+  "coreapi/types_operation.go": {
+    "Operation": {
+      "SystemAdminCredentialRequest": [
+        "Frontend POST requestAdminCredential",
+        "backend systemadmincredentialcontrollers"
+      ],
+      "SystemAdminCredentialRevocation": [
+        "Frontend POST revokeCredentials",
+        "backend systemadmincredentialcontrollers"
+      ]
+    }
+  },
+  "coreapi/types_serviceprovider_cluster.go": {
+    "AzureResources": {
+      "IngressCertificate": [
+        "IngressTLSCertificate"
+      ],
+      "KubeAPIServerCertificate": [
+        "KubeAPIServerTLSCertificate"
+      ],
+      "ManagedResourceGroup": [
+        "EnsureManagedResourceGroup"
+      ],
+      "RoleAssignments": [
+        "IdentityRoleAssignments"
+      ]
+    },
+    "AzureTLSCertificateReference": {
+      "CertificateName": [
+        "KubeAPIServerTLSCertificate",
+        "IngressTLSCertificate"
+      ],
+      "KeyVaultURL": [
+        "KubeAPIServerTLSCertificate",
+        "IngressTLSCertificate"
+      ]
+    },
+    "DataplaneOIDCFederationAssignmentStatus": {
+      "AzureResources": [
+        "DataPlaneOIDCFederationIntent",
+        "DataPlaneOIDCFederation"
+      ],
+      "DeconfigureTimestamp": [
+        "DataPlaneOIDCFederationIntent"
+      ],
+      "EnsuredIdentity": [
+        "DataPlaneOIDCFederationIntent",
+        "DataPlaneOIDCFederation"
+      ],
+      "PendingAzureResources": [
+        "DataPlaneOIDCFederationIntent",
+        "DataPlaneOIDCFederation"
+      ],
+      "TargetIdentity": [
+        "DataPlaneOIDCFederationIntent"
+      ]
+    },
+    "DenyAssignmentReference": {
+      "DenyAssignmentResourceID": [
+        "ClusterDenyAssignment"
+      ],
+      "DenyAssignmentType": [
+        "ClusterDenyAssignment"
+      ]
+    },
+    "DenyAssignmentReferences": {
+      "AzureResources": [
+        "ClusterDenyAssignment"
+      ],
+      "EarliestRecheckTime": [
+        "ClusterDenyAssignment"
+      ],
+      "PendingAzureResources": [
+        "ClusterDenyAssignment"
+      ]
+    },
+    "IdentityMetadataValue": {
+      "ClientID": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "PrincipalID": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "RetrievalError": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "TenantID": [
+        "FetchManagedIdentitiesInfo"
+      ]
+    },
+    "ManagedIdentityMetadata": {
+      "MetadataFromARMUserAssignedIdentitiesAPI": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "MetadataFromHardcodedIdentity": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "MetadataFromManagedIdentitiesDataplaneService": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "ResourceID": [
+        "FetchManagedIdentitiesInfo"
+      ]
+    },
+    "MockFPARoleAssignmentStatus": {
+      "CasePreservedPrincipalID": [
+        "MockFPARoleAssignmentsIntent"
+      ],
+      "CasePreservedRoleDefinitionResourceID": [
+        "MockFPARoleAssignmentsIntent"
+      ],
+      "DeconfigureTimestamp": [
+        "ClusterRoleAssignmentIntent",
+        "MockFPARoleAssignmentsIntent"
+      ],
+      "ReservedAzureResourceID": [
+        "ClusterRoleAssignments",
+        "MockFPARoleAssignments"
+      ]
+    },
+    "ServiceProviderClusterActiveVersion": {
+      "LastTransitionTime": [
+        "ControlPlaneActiveVersions"
+      ],
+      "State": [
+        "ControlPlaneActiveVersions"
+      ],
+      "Version": [
+        "ControlPlaneActiveVersions"
+      ]
+    },
+    "ServiceProviderClusterDataPlaneOperatorManagedIdentity": {
+      "ClientID": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ],
+      "PrincipalID": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ],
+      "ResourceID": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ],
+      "RetrievalError": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ]
+    },
+    "ServiceProviderClusterDataPlaneOperatorsManagedIdentities": {
+      "Identities": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ]
+    },
+    "ServiceProviderClusterMSIManagedIdentities": {
+      "ControlPlaneOperatorsIdentities": [
+        "FetchMSIIdentitiesInfo"
+      ],
+      "ServiceManagedIdentity": [
+        "FetchMSIIdentitiesInfo"
+      ]
+    },
+    "ServiceProviderClusterPinnedVersion": {
+      "ExactVersion": [
+        "Forced Cluster Desired Version Assignment (clear)",
+        "Admin API HCPVersionPinHandler (set/clear)",
+        "Admin API FleetControlPlaneVersionPinHandler (set/clear)"
+      ],
+      "UntilExactVersion": [
+        "Forced Cluster Desired Version Assignment (clear)",
+        "Admin API HCPVersionPinHandler (set/clear)",
+        "Admin API FleetControlPlaneVersionPinHandler (set/clear)"
+      ]
+    },
+    "ServiceProviderClusterPlacementStatus": {
+      "Conditions": [
+        "PlacementController"
+      ]
+    },
+    "ServiceProviderClusterSpec": {
+      "DesiredDNSBaseDomain": [
+        "ClusterDNSAllocation"
+      ],
+      "DesiredHostedCluster": [
+        "IngressServingCertificateK8sResources",
+        "KubeAPIServerServingCertificateK8sResources"
+      ],
+      "EarliestRecheckTimesByController": [
+        "FetchMSIIdentitiesInfo",
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController",
+        "FetchManagedIdentitiesInfo",
+        "IdentityRoleAssignments",
+        "DataPlaneOIDCFederation"
+      ],
+      "ManagementClusterResourceID": [
+        "PlacementController"
+      ],
+      "PinnedVersion": [
+        "Forced Cluster Desired Version Assignment (clear)",
+        "Admin API HCPVersionPinHandler (set/clear)",
+        "Admin API FleetControlPlaneVersionPinHandler (set/clear)"
+      ]
+    },
+    "ServiceProviderClusterSpecVersion": {
+      "DesiredVersion": [
+        "Forced Cluster Desired Version Assignment",
+        "Z-stream Progressive Desired Version Rollout",
+        "InitialNormalClusterDesiredVersion",
+        "MinorUpgradeNormalClusterDesiredVersion"
+      ],
+      "DesiredVersionLastTransitionTime": [
+        "Forced Cluster Desired Version Assignment",
+        "Z-stream Progressive Desired Version Rollout",
+        "InitialNormalClusterDesiredVersion",
+        "MinorUpgradeNormalClusterDesiredVersion"
+      ]
+    },
+    "ServiceProviderClusterStatus": {
+      "ControlPlaneNamespace": [
+        "ServiceProviderClusterPropertiesSync"
+      ],
+      "ControlPlaneVersionHistory": [
+        "ActualHostedCluster"
+      ],
+      "DataPlaneOperatorsManagedIdentities": [
+        "FetchDataPlaneOperatorsManagedIdentitiesInfoController"
+      ],
+      "DesiredVersionChannels": [
+        "ControlPlaneActiveVersions"
+      ],
+      "HostedClusterNamespace": [
+        "ServiceProviderClusterPropertiesSync"
+      ],
+      "ImageContentSources": [
+        "ActualHostedCluster"
+      ],
+      "KeyRotationBackupFingerprint": [
+        "KeyRotationBackup"
+      ],
+      "MSIManagedIdentities": [
+        "FetchMSIIdentitiesInfo"
+      ],
+      "ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation": [
+        "DataPlaneOIDCFederationIntent",
+        "DataPlaneOIDCFederation"
+      ],
+      "ManagedIdentityDetails": [
+        "FetchManagedIdentitiesInfo"
+      ],
+      "MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup": [
+        "MockFPARoleAssignmentsIntent",
+        "MockFPARoleAssignments"
+      ],
+      "Placement": [
+        "PlacementController"
+      ],
+      "ServingCABundle": [
+        "ServiceProviderClusterPropertiesSync"
+      ]
+    },
+    "ServiceProviderClusterStatusVersion": {
+      "ActiveVersions": [
+        "ControlPlaneActiveVersions"
+      ]
+    },
+    "TLSCertificate": {
+      "AzureReference": [
+        "KubeAPIServerTLSCertificate",
+        "IngressTLSCertificate"
+      ],
+      "PendingReference": [
+        "KubeAPIServerTLSCertificate",
+        "IngressTLSCertificate"
+      ]
+    }
+  },
+  "coreapi/types_serviceprovider_nodepool.go": {
+    "ServiceProviderNodePoolActiveVersion": {
+      "Version": [
+        "NodePoolActiveVersions"
+      ]
+    },
+    "ServiceProviderNodePoolStatusVersion": {
+      "ActiveVersions": [
+        "NodePoolActiveVersions"
+      ]
+    }
+  },
+  "coreapi/types_systemadmincredential.go": {
+    "SystemAdminCredentialRequestSpec": {
+      "CertificateSigningRequestPEM": [
+        "SystemAdminCredentialDispatchRequestCredential"
+      ],
+      "CreationTimestamp": [
+        "SystemAdminCredentialDispatchRequestCredential"
+      ],
+      "ExpirationTimestamp": [
+        "SystemAdminCredentialDispatchRequestCredential"
+      ],
+      "OperationID": [
+        "SystemAdminCredentialDispatchRequestCredential"
+      ]
+    },
+    "SystemAdminCredentialRequestStatus": {
+      "Conditions": [
+        "SystemAdminCredentialIssuanceObserver (Issued, Failed)"
+      ],
+      "DeletionTimestamp": [
+        "SystemAdminCredentialRevocationMarkRequests"
+      ],
+      "SignedCertificate": [
+        "SystemAdminCredentialIssuanceObserver"
+      ]
+    }
+  },
+  "coreapi/types_systemadmincredentialrevocation.go": {
+    "SystemAdminCredentialRevocationSpec": {
+      "OperationID": [
+        "SystemAdminCredentialDispatchRevokeCredentials"
+      ],
+      "RevokeOpSuffix": [
+        "SystemAdminCredentialDispatchRevokeCredentials"
+      ]
+    },
+    "SystemAdminCredentialRevocationStatus": {
+      "Conditions": [
+        "SystemAdminCredentialRevocationMarkRequests (CredentialsMarkedForDeletion)",
+        "SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)"
+      ],
+      "DeletionTimestamp": [
+        "SystemAdminCredentialRevocationCompletion"
+      ]
+    }
+  },
+  "fleetapi/types_control_plane_version_rollout.go": {
+    "ControlPlaneVersionRolloutSpec": {
+      "BestExactVersion": [
+        "ControlPlaneVersionBestVersionSelection"
+      ],
+      "PinnedVersion": [
+        "Admin API RolloutVersionPinHandler (set/clear)"
+      ],
+      "Version": [
+        "ControlPlaneVersionRolloutSeeding",
+        "ControlPlaneVersionCincinnatiSeeding",
+        "CosmosRolloutVersionMigration (legacy profiles)"
+      ]
+    },
+    "ControlPlaneVersionRolloutStatus": {
+      "ClusterCountByAchievedExactVersion": [
+        "ControlPlaneVersionStatusCollector"
+      ],
+      "ClusterCountByDesiredExactVersion": [
+        "ControlPlaneVersionStatusCollector"
+      ],
+      "Conditions": [
+        "ZStreamProgressiveDesiredVersionRollout"
+      ],
+      "FailedClusterCountByDesiredExactVersion": [
+        "ControlPlaneVersionStatusCollector"
+      ],
+      "LastAssignmentTime": [
+        "ZStreamProgressiveDesiredVersionRollout"
+      ],
+      "MismatchedClusterCountByDesiredExactVersion": [
+        "ControlPlaneVersionStatusCollector"
+      ],
+      "ReferencingClusterCount": [
+        "ControlPlaneVersionStatusCollector"
+      ],
+      "SuccessfulClusterCountByAchievedExactVersion": [
+        "ControlPlaneVersionStatusCollector"
+      ]
+    },
+    "ServiceProviderClusterPinnedVersion": {
+      "ExactVersion": [
+        "Admin API RolloutVersionPinHandler (set/clear)"
+      ],
+      "UntilExactVersion": [
+        "Admin API RolloutVersionPinHandler (set/clear)"
+      ]
+    }
+  },
+  "fleetapi/types_dns_claim.go": {
+    "DNSClaim": {
+      "BaseDomain": [
+        "ClusterDNSAllocation",
+        "ClusterDNSBackfill"
+      ],
+      "ClusterResourceID": [
+        "ClusterDNSAllocation",
+        "ClusterDNSBackfill"
+      ],
+      "ClusterUUID": [
+        "ClusterDNSAllocation",
+        "ClusterDNSBackfill"
+      ],
+      "CreatedAt": [
+        "ClusterDNSAllocation",
+        "ClusterDNSBackfill"
+      ],
+      "DeletionTimestamp": [
+        "DNSClaimCleanup"
+      ]
+    }
+  },
+  "fleetapi/types_hcp_resource_requirements.go": {
+    "HCPResourceRequirementsStatus": {
+      "AverageRequests": [
+        "HCPResourceRequirementsController"
+      ],
+      "AverageUsage": [
+        "HCPResourceRequirementsController"
+      ],
+      "Conditions": [
+        "HCPResourceRequirementsController"
+      ],
+      "LastUpdatedAt": [
+        "HCPResourceRequirementsController"
+      ],
+      "SampleSize": [
+        "HCPResourceRequirementsController"
+      ]
+    }
+  },
+  "fleetapi/types_management_cluster.go": {
+    "ManagementClusterStatus": {
+      "SharedIngressIPAddresses": [
+        "SharedIngressReportingController."
+      ]
+    }
+  },
+  "fleetapi/types_management_cluster_scheduling.go": {
+    "ManagementClusterSchedulingStatus": {
+      "NotReadyResourceIDs": [
+        "CapacityReportingController."
+      ],
+      "ObservedResources": [
+        "CapacityReportingController."
+      ],
+      "PendingAssignedClusters": [
+        "PlacementController",
+        "CapacityReportingController",
+        "PendingCleanupController."
+      ],
+      "ReadyResourceIDs": [
+        "CapacityReportingController."
+      ],
+      "ScaleCeiling": [
+        "ScaleCeilingReportingController."
+      ]
+    },
+    "ScaleCeiling": {
+      "LastReportedAt": [
+        "ScaleCeilingReportingController."
+      ]
+    }
+  }
+}

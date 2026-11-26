@@ -99,7 +99,7 @@ type ManagementClusterSchedulingStatus struct {
 	// becomes stale (by PendingCleanupController).
 	//
 	// +optional
-	// Written by: PlacementController, CapacityReportingController, PendingCleanupController.
+	// Written by: CapacityReportingController, PendingCleanupController., PlacementController
 	PendingAssignedClusters []*azcorearm.ResourceID `json:"pendingAssignedClusters,omitempty"`
 }
 
