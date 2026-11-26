@@ -15,10 +15,12 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,26 +30,31 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/discovery"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 type controlPlaneVersionPinResponse struct {
 	ExactVersion      string `json:"exactVersion"`
-	UntilExactVersion string `json:"untilExactVersion"`
+	UntilExactVersion string `json:"untilExactVersion,omitempty"`
 }
 
 var _ = Describe("SRE", func() {
-	It("starts a control plane z-stream upgrade with an SRE pin",
+	DescribeTable("",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -56,444 +63,215 @@ var _ = Describe("SRE", func() {
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
 		labels.StartPriority(60),
-		func(ctx context.Context) {
-			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			if channelGroup == string(metadataapi.ChannelGroupNightly) {
-				Skip("nightly channels do not have a rollout best version for a forward pin")
+		func(ctx context.Context, autoRelease bool) {
+			target := os.Getenv("ARO_HCP_TEST_PIN_VERSION")
+			expectedCommit := os.Getenv("ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT")
+			baselineVersion := os.Getenv("ARO_HCP_TEST_PIN_BASELINE_VERSION")
+			if autoRelease && baselineVersion == "" {
+				Skip("set ARO_HCP_TEST_PIN_BASELINE_VERSION to exercise automatic release onto stable")
 			}
-			requestedVersion, err := semver.ParseTolerant(framework.DefaultOpenshiftControlPlaneVersionId())
-			Expect(err).NotTo(HaveOccurred(), "failed to parse default control-plane version")
-			minorVersion := fmt.Sprintf("%d.%d", requestedVersion.Major, requestedVersion.Minor)
-			channel := fmt.Sprintf("%s-%s", channelGroup, minorVersion)
-			bestOffset := clusterversion.GetZStreamOffset(channelGroup)
+			if !autoRelease && target == "" && expectedCommit == "" {
+				Skip("set ARO_HCP_TEST_PIN_VERSION and ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT to test an unreleased build")
+			}
+			targetVersion, err := semver.Parse(target)
+			Expect(err).NotTo(HaveOccurred(), "ARO_HCP_TEST_PIN_VERSION must be an exact release version")
+			Expect(expectedCommit).To(MatchRegexp("^[0-9a-f]{40}$"), "ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT must be the full Kubernetes source commit of the target build")
 
-			// Start one release behind the fleet's normal selection. The cluster's
-			// creation-time exact override holds it there until the SRE pin advances it.
-			installRelease, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, bestOffset+1)
-			if err != nil || installRelease == nil {
-				Skip(fmt.Sprintf("no older install release available for %s at offset %d: %v", channel, bestOffset+1, err))
+			By("selecting a stable install version on the target release line")
+			channelGroup := string(metadataapi.ChannelGroupStable)
+			channel := fmt.Sprintf("%s-%d.%d", channelGroup, targetVersion.Major, targetVersion.Minor)
+			var holdUntil semver.Version
+			var fleet fleetcosmosstorage.FleetDBClient
+			var resources corecosmosstorage.ResourcesDBClient
+			// The regional rollout is the authoritative input to the forced assignment controller.
+			readBest := func(ctx context.Context) (*semver.Version, error) {
+				rollout, err := fleet.ControlPlaneVersionRollouts().Get(ctx, channel)
+				if err != nil {
+					return nil, err
+				}
+				if rollout.Spec.BestExactVersion == nil {
+					return nil, fmt.Errorf("rollout %s has no best version", channel)
+				}
+				return rollout.Spec.BestExactVersion, nil
 			}
-			bestRelease, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, bestOffset)
-			if err != nil || bestRelease == nil {
-				Skip(fmt.Sprintf("no best release available for %s at offset %d: %v", channel, bestOffset, err))
-			}
-			installVersion, err := semver.Parse(installRelease.Version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse install release %q", installRelease.Version)
-			bestVersion, err := semver.Parse(bestRelease.Version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse best release %q", bestRelease.Version)
-			if !bestVersion.GT(installVersion) {
-				Skip(fmt.Sprintf("channel %s has no newer release than %s for a forward pin", channel, installVersion))
+			if autoRelease {
+				baseline, err := semver.Parse(baselineVersion)
+				Expect(err).NotTo(HaveOccurred(), "invalid exact baseline version %q", baselineVersion)
+				Expect(len(baseline.Pre)+len(baseline.Build)).To(BeZero(), "baseline must be a stable X.Y.Z release")
+				Expect(targetVersion.Pre).NotTo(BeEmpty(), "the pin must name a prerelease")
+				Expect(targetVersion.Build).To(BeEmpty(), "the pin cannot contain build metadata")
+				Expect(baseline.Major == targetVersion.Major && baseline.Minor == targetVersion.Minor && baseline.LT(targetVersion)).To(BeTrue(),
+					"baseline %s must precede prerelease %s on the same minor line", baseline, target)
+				endpoint, database := os.Getenv("COSMOS_URL"), os.Getenv("COSMOS_NAME")
+				Expect(endpoint).NotTo(BeEmpty(), "set COSMOS_URL to the test region's Cosmos endpoint")
+				Expect(database).NotTo(BeEmpty(), "set COSMOS_NAME to the test region's database")
+				fleet, err = fleetcosmosstorage.NewFleetDBClient(endpoint, database, cosmosclient.Options{}, cosmosratelimit.NewUnlimitedTokenBucket("pin-e2e-fleet"))
+				Expect(err).NotTo(HaveOccurred(), "failed to open fleet reader")
+				resources, err = corecosmosstorage.NewResourcesDBClient(endpoint, database, cosmosclient.Options{}, cosmosratelimit.NewUnlimitedTokenBucket("pin-e2e-resources"))
+				Expect(err).NotTo(HaveOccurred(), "failed to open cluster resource reader")
+				best, err := readBest(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to read regional rollout %s", channel)
+				Expect(best.Major == targetVersion.Major && best.Minor == targetVersion.Minor && len(best.Build)+len(best.Pre) == 0 && best.GTE(targetVersion)).To(BeTrue(),
+					"regional %s best %s must be a stable release at or above pin %s", channel, best, target)
+				holdUntil = semver.Version{Major: best.Major, Minor: best.Minor, Patch: best.Patch + 100}
+			} else {
+				install, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, clusterversion.GetZStreamOffset(channelGroup))
+				Expect(err).NotTo(HaveOccurred(), "failed to select a baseline release from %s", channel)
+				Expect(install).NotTo(BeNil(), "no baseline release found in %s", channel)
+				Expect(install.Version).NotTo(Equal(target), "the stable baseline and pin target must differ")
+				baselineVersion = install.Version
 			}
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
+				Expect(tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)).To(Succeed(), "failed to assign identity containers")
 			}
-			clusterName := "sre-version-pin-" + rand.String(6)
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-version-pin", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for version pin test")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = clusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = installVersion.String()
-			clusterParams.ChannelGroup = channelGroup
-			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"customerNsgName":        "sre-version-pin-nsg",
-					"customerVnetName":       "sre-version-pin-vnet",
-					"customerVnetSubnetName": "sre-version-pin-subnet",
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for version pin cluster")
+			clusterName := "sre-pin-build-" + rand.String(6)
+			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-pin-build", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for %s", clusterName)
+			params := framework.NewDefaultClusterParams20261001()
+			params.ClusterName = clusterName
+			params.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			params.OpenshiftVersionId = baselineVersion
+			params.ChannelGroup = channelGroup
+			params, err = tc.CreateClusterCustomerResources20261001(ctx, resourceGroup, params, map[string]any{
+				"customerNsgName":        "sre-pin-build-nsg",
+				"customerVnetName":       "sre-pin-build-vnet",
+				"customerVnetSubnetName": "sre-pin-build-subnet",
+			}, TestArtifactsFS, framework.RBACScopeResourceGroup)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for %s", clusterName)
 
-			By(fmt.Sprintf("creating cluster %s at exact version %s", clusterName, installVersion))
-			err = tc.CreateHCPClusterFromParam20261001(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, nil, framework.ClusterCreationTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster %q at %s", clusterName, installVersion)
-
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20261001(
-				ctx,
-				tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-				*resourceGroup.Name,
-				clusterName,
-				framework.GetAdminRESTConfigTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
-			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster %q is not viable", clusterName)
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster version client")
-			currentDesiredVersion := func() (string, error) {
-				clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-				if err != nil {
-					return "", err
-				}
-				return clusterVersion.Status.Desired.Version, nil
-			}
-			Eventually(currentDesiredVersion, 5*time.Minute, 15*time.Second).Should(Equal(installVersion.String()),
-				"control plane should start at the exact creation version")
-
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
-				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
-			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
-			pinURL := fmt.Sprintf("%s/admin/v1/hcp%s/controlplaneversionpin", adminAPIAddress, hcpResourceID)
-
-			By(fmt.Sprintf("pinning the control plane forward to %s through the Admin API", bestVersion))
-			pinResponse, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost,
-				pinURL, http.StatusOK, strings.NewReader(fmt.Sprintf(`{"exactVersion":%q}`, bestVersion.String())))
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to %s", clusterName, bestVersion)
-			Expect(pinResponse.ExactVersion).To(Equal(bestVersion.String()), "Admin API returned an unexpected pinned version")
-
-			// The creation-time exact override still requests installVersion. Seeing
-			// bestVersion before changing the Cluster proves the SRE pin took precedence.
-			By(fmt.Sprintf("verifying the SRE pin starts an upgrade to %s", bestVersion))
-			Eventually(currentDesiredVersion, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Equal(bestVersion.String()),
-				"control plane desired version did not advance to the SRE pin on cluster %q", clusterName)
-			// A control-plane-only cluster can leave ClusterVersion history Partial
-			// while worker-dependent operators are unavailable. Check that the
-			// exact pinned target is being applied, without requiring completion.
-			Eventually(func() (string, error) {
-				clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-				if err != nil {
-					return "", err
-				}
-				if len(clusterVersion.Status.History) == 0 {
-					return "<no history>", nil
-				}
-				return clusterVersion.Status.History[0].Version, nil
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Equal(bestVersion.String()),
-				"cluster %q did not start applying the SRE-pinned version %s", clusterName, bestVersion)
-			Expect(verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion.String()).Verify(ctx, adminRESTConfig)).
-				NotTo(HaveOccurred(),
-					"cluster %q did not start a z-stream upgrade beyond %s with the SRE pin", clusterName, installVersion)
-
-			// Remove the creation-time exact override before clearing the SRE pin;
-			// otherwise it would request the old version again.
-			By("removing the creation-time exact override")
-			update := hcpsdk20261001.HcpOpenShiftCluster{
-				Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-					Version: &hcpsdk20261001.VersionProfile{
-						ID:           to.Ptr(minorVersion),
-						ChannelGroup: to.Ptr(channelGroup),
-					},
-				},
-			}
-			_, err = framework.UpdateHCPCluster20261001(ctx,
-				tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-				*resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
-
-			By("clearing the SRE pin through the Admin API")
-			clearResponse, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost,
-				pinURL, http.StatusOK, strings.NewReader(`{}`))
-			Expect(err).NotTo(HaveOccurred(), "failed to clear version pin for cluster %q", clusterName)
-			Expect(clearResponse.ExactVersion).To(BeEmpty(), "Admin API returned a pin after clear")
-		})
-
-	It("rejects a customer minor upgrade that conflicts with an SRE pin and leaves the cluster healthy admin api",
-		labels.RequireNothing,
-		labels.High,
-		labels.Negative,
-		labels.CoreInfraService,
-		labels.DevelopmentOnly,
-		labels.AroRpApiCompatible,
-		labels.MIContainers(1),
-		labels.StartPriority(60),
-		func(ctx context.Context) {
-			// This covers two requirements in one cluster, because mechanically they are
-			// the same run:
-			//
-			//  1. The pin is observable at all. There is no read endpoint for it: none of
-			//     the per-cluster admin GET routes return
-			//     ServiceProviderClusterSpec.PinnedVersion. The only observable surface is
-			//     the cluster-update operation check, which fails a version.id change
-			//     whose release line differs from the forced version and names that
-			//     forced version in its message.
-			//  2. A pinned cluster does not follow a customer-requested Y-stream upgrade.
-			//     MinorUpgradeNormalClusterDesiredVersion declines to assign a desired
-			//     version while a forced version is present (rollout/versions.go
-			//     hasForcedVersion), and the operation check fails the request outright.
-			//     The rejection is clean: the control plane stays where the pin put it.
-			//
-			// Pinning to the version the cluster is already running keeps this cheap:
-			// nothing upgrades, so no second version has to exist.
-			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			if channelGroup == string(metadataapi.ChannelGroupNightly) {
-				Skip("nightly is not served by the update service graph API, so no concrete install version can be resolved")
-			}
-			requestedVersion, err := semver.ParseTolerant(framework.DefaultOpenshiftControlPlaneVersionId())
-			Expect(err).NotTo(HaveOccurred(), "failed to parse default control-plane version")
-			minorVersion := fmt.Sprintf("%d.%d", requestedVersion.Major, requestedVersion.Minor)
-			nextMinorVersion := fmt.Sprintf("%d.%d", requestedVersion.Major, requestedVersion.Minor+1)
-			channel := fmt.Sprintf("%s-%s", channelGroup, minorVersion)
-
-			installRelease, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, clusterversion.GetZStreamOffset(channelGroup))
-			if err != nil || installRelease == nil {
-				Skip(fmt.Sprintf("no install release available for %s: %v", channel, err))
-			}
-			installVersion, err := semver.Parse(installRelease.Version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse install release %q", installRelease.Version)
-
-			tc := framework.NewTestContext()
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
-			}
-			clusterName := "sre-pin-observe-" + rand.String(6)
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-pin-observe", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for pin observability test")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = clusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = installVersion.String()
-			clusterParams.ChannelGroup = channelGroup
-			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]any{
-					"customerNsgName":        "sre-pin-observe-nsg",
-					"customerVnetName":       "sre-pin-observe-vnet",
-					"customerVnetSubnetName": "sre-pin-observe-subnet",
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for pin observability cluster")
-
-			By(fmt.Sprintf("creating cluster %s at exact version %s", clusterName, installVersion))
-			err = tc.CreateHCPClusterFromParam20261001(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, nil, framework.ClusterCreationTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster %q at %s", clusterName, installVersion)
-
+			By(fmt.Sprintf("creating %s at %s and reading the running kube-apiserver build", clusterName, baselineVersion))
+			Expect(tc.CreateHCPClusterFromParam20261001(ctx, GinkgoLogr, *resourceGroup.Name, params, nil, framework.ClusterCreationTimeout)).To(Succeed(), "failed to create %s", clusterName)
 			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20261001(ctx, hcpClient,
-				*resourceGroup.Name, clusterName, framework.GetAdminRESTConfigTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
-			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster %q is not viable", clusterName)
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster version client")
-			currentDesiredVersion := func() (string, error) {
-				clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+			config, err := tc.GetAdminRESTConfigForHCPCluster20261001(ctx, hcpClient, *resourceGroup.Name, clusterName, framework.GetAdminRESTConfigTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to get guest access for %s", clusterName)
+			configClient, err := configv1client.NewForConfig(config)
+			Expect(err).NotTo(HaveOccurred(), "failed to create guest ClusterVersion client")
+			guestRelease := func(ctx context.Context) (string, error) {
+				cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 				if err != nil {
 					return "", err
 				}
-				return clusterVersion.Status.Desired.Version, nil
+				return cv.Status.Desired.Version, nil
 			}
+			Eventually(ctx, guestRelease, 5*time.Minute, 15*time.Second).Should(Equal(baselineVersion),
+				"guest did not reach baseline version %s", baselineVersion)
+			guest, err := discovery.NewDiscoveryClientForConfig(config)
+			Expect(err).NotTo(HaveOccurred(), "failed to create discovery client for %s", clusterName)
+			runningCommit := func(ctx context.Context) (string, error) {
+				info, err := guest.ServerVersionWithContext(ctx)
+				if err != nil {
+					return "", err
+				}
+				return info.GitCommit, nil
+			}
+			baselineCommit, err := runningCommit(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to read kube-apiserver /version before pinning %s", clusterName)
+			Expect(baselineCommit).NotTo(BeEmpty(), "baseline kube-apiserver did not report a Git commit")
+			Expect(baselineCommit).NotTo(Equal(expectedCommit), "baseline kube-apiserver already serves the target build")
 
-			// The creation-time exact-version tag produces the same conflict message as
-			// an SRE pin, so the message only proves the pin once the tag is gone.
-			// Build the PATCH tag set from the cluster's current tags, not from
-			// ClusterParams.Tags: BuildHCPClusterFromParams20261001 adds tags of its own
-			// at creation (the exact-version tag, and disable-swift via
-			// buildClusterNetworking) that ClusterParams.Tags never sees, and an ARM
-			// PATCH replaces the whole tag set.
-			By("removing the creation-time exact override")
-			current, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to read current tags for cluster %q", clusterName)
-			versionLine, overrideTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
-			patchTags := framework.TagsForPatch(current.Tags, overrideTags)
-			_, err = framework.UpdateHCPCluster20261001(ctx, hcpClient, *resourceGroup.Name, clusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Tags: patchTags,
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Version: &hcpsdk20261001.VersionProfile{
-							ID:           to.Ptr(versionLine),
-							ChannelGroup: to.Ptr(channelGroup),
-						},
-					},
-				}, framework.UpdateHCPClusterTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
-
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
-				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+			By(fmt.Sprintf("pinning %s to %s", clusterName, target))
 			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
-			pinURL := fmt.Sprintf("%s/admin/v1/hcp%s/controlplaneversionpin", adminAPIAddress, hcpResourceID)
-
-			By(fmt.Sprintf("pinning the control plane to its current version %s", installVersion))
-			pinResponse, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost,
-				pinURL, http.StatusOK, strings.NewReader(fmt.Sprintf(`{"exactVersion":%q}`, installVersion.String())))
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to %s", clusterName, installVersion)
-			Expect(pinResponse.ExactVersion).To(Equal(installVersion.String()), "Admin API returned an unexpected pinned version")
-			Expect(pinResponse.UntilExactVersion).To(BeEmpty(), "Admin API returned an auto-release threshold that was never requested")
-
-			By(fmt.Sprintf("requesting a minor upgrade to %s, which conflicts with the pin", nextMinorVersion))
-			_, err = framework.UpdateHCPCluster20261001(ctx, hcpClient, *resourceGroup.Name, clusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Tags: patchTags,
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Version: &hcpsdk20261001.VersionProfile{
-							ID:           to.Ptr(nextMinorVersion),
-							ChannelGroup: to.Ptr(channelGroup),
-						},
-					},
-				}, framework.UpdateHCPClusterTimeout)
-			Expect(err).To(HaveOccurred(), "minor upgrade of pinned cluster %q to %s unexpectedly succeeded", clusterName, nextMinorVersion)
-			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("conflicts with forced control plane version %s", installVersion)),
-				"the failed update for cluster %q did not report the SRE pin; got: %v", clusterName, err)
-
-			By(fmt.Sprintf("verifying the rejected upgrade left cluster %q healthy at %s", clusterName, installVersion))
-			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(),
-				"cluster %q is no longer viable after the rejected minor upgrade", clusterName)
-			Consistently(currentDesiredVersion, 2*time.Minute, 30*time.Second).Should(Equal(installVersion.String()),
-				"cluster %q moved off the pinned version %s after the rejected minor upgrade", clusterName, installVersion)
-		})
-
-	It("holds a pinned cluster until the fleet best version reaches the auto-release threshold admin api",
-		labels.RequireNothing,
-		labels.High,
-		labels.Positive,
-		labels.CoreInfraService,
-		labels.DevelopmentOnly,
-		labels.AroRpApiCompatible,
-		labels.MIContainers(1),
-		labels.StartPriority(60),
-		func(ctx context.Context) {
-			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			if channelGroup == string(metadataapi.ChannelGroupNightly) {
-				Skip("nightly channels have no rollout best version, so untilExactVersion is rejected")
+			pinURL := fmt.Sprintf("%s/admin/v1/hcp%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/controlplaneversionpin", adminAPIAddress, *resourceGroup.ID, clusterName)
+			request := controlPlaneVersionPinResponse{ExactVersion: target}
+			if autoRelease {
+				request.UntilExactVersion = holdUntil.String()
 			}
-			requestedVersion, err := semver.ParseTolerant(framework.DefaultOpenshiftControlPlaneVersionId())
-			Expect(err).NotTo(HaveOccurred(), "failed to parse default control-plane version")
-			minorVersion := fmt.Sprintf("%d.%d", requestedVersion.Major, requestedVersion.Minor)
-			channel := fmt.Sprintf("%s-%s", channelGroup, minorVersion)
-			bestOffset := clusterversion.GetZStreamOffset(channelGroup)
-
-			installRelease, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, bestOffset+1)
-			if err != nil || installRelease == nil {
-				Skip(fmt.Sprintf("no older install release available for %s at offset %d: %v", channel, bestOffset+1, err))
+			postPin := func(request controlPlaneVersionPinResponse) {
+				GinkgoHelper()
+				body, err := json.Marshal(request)
+				Expect(err).NotTo(HaveOccurred(), "failed to encode pin request")
+				pin, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost, pinURL, http.StatusOK, bytes.NewReader(body))
+				Expect(err).NotTo(HaveOccurred(), "failed to pin %s to %s until %s", clusterName, request.ExactVersion, request.UntilExactVersion)
+				Expect(pin).To(BeComparableTo(request), "admin API returned an unexpected pin or release threshold")
 			}
-			bestRelease, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, bestOffset)
-			if err != nil || bestRelease == nil {
-				Skip(fmt.Sprintf("no best release available for %s at offset %d: %v", channel, bestOffset, err))
+			postPin(request)
+
+			// A single response from the target build proves at least one API server
+			// rolled. The guest ClusterVersion can stay at the baseline during this update.
+			By("waiting for the running kube-apiserver to serve the pinned build")
+			Eventually(ctx, runningCommit, framework.HCPClusterVersionUpgradeTimeout, 30*time.Second).Should(Equal(expectedCommit),
+				"cluster %s did not start serving pin %s (baseline commit %s)", clusterName, target, baselineCommit)
+			if !autoRelease {
+				Eventually(ctx, guestRelease, 5*time.Minute, 15*time.Second).Should(Equal(baselineVersion),
+					"guest ClusterVersion did not report the baseline after the control-plane pin")
+				return
 			}
-			installVersion, err := semver.Parse(installRelease.Version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse install release %q", installRelease.Version)
-			bestVersion, err := semver.Parse(bestRelease.Version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse best release %q", bestRelease.Version)
-			if !bestVersion.GT(installVersion) {
-				Skip(fmt.Sprintf("channel %s has no newer release than %s to release the pin onto", channel, installVersion))
+			subscription, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to identify the cluster subscription")
+			provider := resources.ServiceProviderClusters(subscription, *resourceGroup.Name, clusterName)
+			readProvider := func(ctx context.Context) (*coreapi.ServiceProviderCluster, error) {
+				return provider.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			}
-			// An unreachable threshold in the pinned release line. The fleet's best
-			// version can never reach it, so the pin holds until the test lowers it.
-			unreachableVersion := semver.Version{Major: bestVersion.Major, Minor: bestVersion.Minor, Patch: bestVersion.Patch + 100}
+			minorVersion := fmt.Sprintf("%d.%d", targetVersion.Major, targetVersion.Minor)
+			removeCreationVersionOverride(ctx, hcpClient, *resourceGroup.Name, clusterName, minorVersion, channelGroup)
 
-			tc := framework.NewTestContext()
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
-			}
-			clusterName := "sre-pin-hold-" + rand.String(6)
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-pin-hold", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for pin hold test")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = clusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = installVersion.String()
-			clusterParams.ChannelGroup = channelGroup
-			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]any{
-					"customerNsgName":        "sre-pin-hold-nsg",
-					"customerVnetName":       "sre-pin-hold-vnet",
-					"customerVnetSubnetName": "sre-pin-hold-subnet",
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for pin hold cluster")
-
-			By(fmt.Sprintf("creating cluster %s at exact version %s", clusterName, installVersion))
-			err = tc.CreateHCPClusterFromParam20261001(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, nil, framework.ClusterCreationTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster %q at %s", clusterName, installVersion)
-
-			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20261001(ctx, hcpClient,
-				*resourceGroup.Name, clusterName, framework.GetAdminRESTConfigTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
-			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster %q is not viable", clusterName)
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create cluster version client")
-			currentDesiredVersion := func() (string, error) {
-				clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-				if err != nil {
-					return "", err
-				}
-				return clusterVersion.Status.Desired.Version, nil
-			}
-			Eventually(currentDesiredVersion, 5*time.Minute, 15*time.Second).Should(Equal(installVersion.String()),
-				"control plane should start at the exact creation version")
-
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
-				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
-			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
-			pinURL := fmt.Sprintf("%s/admin/v1/hcp%s/controlplaneversionpin", adminAPIAddress, hcpResourceID)
-
-			By(fmt.Sprintf("pinning the control plane at %s until the fleet best version reaches %s", installVersion, unreachableVersion))
-			pinResponse, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost,
-				pinURL, http.StatusOK, strings.NewReader(fmt.Sprintf(`{"exactVersion":%q,"untilExactVersion":%q}`,
-					installVersion.String(), unreachableVersion.String())))
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q at %s", clusterName, installVersion)
-			Expect(pinResponse.ExactVersion).To(Equal(installVersion.String()), "Admin API returned an unexpected pinned version")
-			Expect(pinResponse.UntilExactVersion).To(Equal(unreachableVersion.String()), "Admin API returned an unexpected auto-release threshold")
-
-			// With the creation-time exact override gone, the pin is the only thing
-			// holding the cluster below the channel's best version. Build the PATCH tag
-			// set from the cluster's current tags, not from ClusterParams.Tags:
-			// BuildHCPClusterFromParams20261001 adds tags of its own at creation (the
-			// exact-version tag, and disable-swift via buildClusterNetworking) that
-			// ClusterParams.Tags never sees, and an ARM PATCH replaces the whole tag set.
-			By("removing the creation-time exact override")
-			current, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to read current tags for cluster %q", clusterName)
-			versionLine, overrideTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
-			_, err = framework.UpdateHCPCluster20261001(ctx, hcpClient, *resourceGroup.Name, clusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Tags: framework.TagsForPatch(current.Tags, overrideTags),
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Version: &hcpsdk20261001.VersionProfile{
-							ID:           to.Ptr(versionLine),
-							ChannelGroup: to.Ptr(channelGroup),
-						},
-					},
-				}, framework.UpdateHCPClusterTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
-
-			By(fmt.Sprintf("verifying the pin holds the control plane at %s", installVersion))
-			Consistently(currentDesiredVersion, 3*time.Minute, 30*time.Second).Should(Equal(installVersion.String()),
-				"cluster %q moved off the pinned version %s before the auto-release threshold was reached", clusterName, installVersion)
-
-			// This crosses the release threshold by lowering untilExactVersion, not by
-			// advancing the fleet's BestExactVersion. It exercises the same controller
-			// branch (best >= until), but it does not prove best-version discovery.
-			By(fmt.Sprintf("lowering the auto-release threshold to %s so the fleet best version %s reaches it", installVersion, bestVersion))
-			releaseResponse, err := framework.DoAdminAPIRequest[controlPlaneVersionPinResponse](ctx, httpClient, http.MethodPost,
-				pinURL, http.StatusOK, strings.NewReader(fmt.Sprintf(`{"exactVersion":%q,"untilExactVersion":%q}`,
-					installVersion.String(), installVersion.String())))
-			Expect(err).NotTo(HaveOccurred(), "failed to lower the auto-release threshold for cluster %q", clusterName)
-			Expect(releaseResponse.UntilExactVersion).To(Equal(installVersion.String()), "Admin API returned an unexpected auto-release threshold")
-
-			By(fmt.Sprintf("verifying the released pin advances the control plane to the fleet best version %s", bestVersion))
-			Eventually(currentDesiredVersion, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Equal(bestVersion.String()),
-				"cluster %q did not adopt the fleet best version %s after the pin auto-released", clusterName, bestVersion)
-			// A control-plane-only cluster can leave ClusterVersion history Partial
-			// while worker-dependent operators are unavailable. Check that the best
-			// version is being applied, without requiring completion.
-			Eventually(func() (string, error) {
-				clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-				if err != nil {
-					return "", err
-				}
-				if len(clusterVersion.Status.History) == 0 {
-					return "<no history>", nil
-				}
-				return clusterVersion.Status.History[0].Version, nil
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Equal(bestVersion.String()),
-				"cluster %q did not start applying the fleet best version %s", clusterName, bestVersion)
-		})
+			By("checking the prerelease remains assigned after removing the creation override")
+			Eventually(ctx, func(g Gomega, ctx context.Context) {
+				sp, err := readProvider(ctx)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to read provider cluster %s", clusterName)
+				g.Expect(sp.Spec.PinnedVersion.ExactVersion).To(BeComparableTo(&targetVersion), "prerelease pin must still be set")
+				g.Expect(sp.Spec.PinnedVersion.UntilExactVersion).To(BeComparableTo(&holdUntil), "initial threshold must still be set")
+				g.Expect(sp.Spec.ControlPlaneVersion.DesiredVersion).To(BeComparableTo(&targetVersion), "prerelease must still be assigned")
+			}, 5*time.Minute, 15*time.Second).Should(Succeed())
+			best, err := readBest(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to read regional rollout %s before lowering the threshold", channel)
+			Expect(best.GTE(targetVersion) && best.LT(holdUntil) && best.Major == targetVersion.Major && best.Minor == targetVersion.Minor &&
+				len(best.Pre)+len(best.Build) == 0).To(BeTrue(), "fleet best %s must be stable and between pin %s and original threshold %s", best, target, holdUntil)
+			By(fmt.Sprintf("lowering only untilExactVersion to the current fleet best %s", best))
+			request.UntilExactVersion = best.String()
+			postPin(request)
+			verifyPrereleasePinRelease(ctx, clusterName, *best, readBest, readProvider)
+		},
+		Entry("starts applying an unreleased control plane version pinned through the admin api", false),
+		Entry("releases a prerelease control plane pin after lowering its threshold to the stable fleet best", true),
+	)
 })
+
+func removeCreationVersionOverride(ctx context.Context, hcpClient *hcpsdk20261001.HcpOpenShiftClustersClient, resourceGroup, clusterName, minorVersion, channelGroup string) {
+	GinkgoHelper()
+	// ARM replaces the tag set on PATCH. Preserve tags added during provisioning.
+	By("removing the creation-time exact override")
+	current, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
+	Expect(err).NotTo(HaveOccurred(), "failed to read current tags for cluster %q", clusterName)
+	versionLine, overrideTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
+	_, err = framework.UpdateHCPCluster20261001(ctx, hcpClient, resourceGroup, clusterName,
+		hcpsdk20261001.HcpOpenShiftCluster{
+			Tags: framework.TagsForPatch(current.Tags, overrideTags),
+			Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
+				Version: &hcpsdk20261001.VersionProfile{
+					ID:           to.Ptr(versionLine),
+					ChannelGroup: to.Ptr(channelGroup),
+				},
+			},
+		}, framework.UpdateHCPClusterTimeout)
+	Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
+}
+
+func verifyPrereleasePinRelease(ctx context.Context, clusterName string, threshold semver.Version,
+	readBest func(context.Context) (*semver.Version, error), readProvider func(context.Context) (*coreapi.ServiceProviderCluster, error)) {
+	GinkgoHelper()
+	By("verifying the backend cleared the pin and the control plane started applying the stable release")
+	Eventually(ctx, func(g Gomega, ctx context.Context) {
+		sp, err := readProvider(ctx)
+		g.Expect(err).NotTo(HaveOccurred(), "failed to read provider cluster %s", clusterName)
+		g.Expect(sp.Spec.PinnedVersion.ExactVersion).To(BeNil(), "the prerelease pin is still set")
+		g.Expect(sp.Spec.PinnedVersion.UntilExactVersion).To(BeNil(), "the release threshold is still set")
+		desired := sp.Spec.ControlPlaneVersion.DesiredVersion
+		g.Expect(desired).NotTo(BeNil(), "control plane has no assigned version")
+		g.Expect(desired.Major == threshold.Major && desired.Minor == threshold.Minor && len(desired.Pre) == 0 && desired.GTE(threshold)).To(BeTrue(),
+			"expected a stable assignment on the same line at or above %s, got %s", threshold, desired)
+		// The rollout can select a newer stable release between the second POST and reconciliation.
+		if !desired.EQ(threshold) {
+			best, err := readBest(ctx)
+			g.Expect(err).NotTo(HaveOccurred(), "failed to read the current regional fleet best")
+			g.Expect(desired.String()).To(Equal(best.String()), "stable assignment must match the fleet best")
+		}
+		history := sp.Status.ControlPlaneVersionHistory
+		g.Expect(history).NotTo(BeNil(), "control-plane update history has not been observed")
+		g.Expect(*history).NotTo(BeEmpty(), "control-plane update history is empty")
+		g.Expect((*history)[0].Version).To(Equal(desired.String()), "control plane has not started applying the stable assignment")
+	}, framework.HCPClusterVersionUpgradeTimeout, time.Minute).Should(Succeed())
+}

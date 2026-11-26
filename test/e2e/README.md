@@ -303,6 +303,47 @@ Run specific test case: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:H
 
 Run in debug mode: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' --vv ./`
 
+### Testing a control-plane pin to an unreleased build
+
+In a development environment configured to serve the target, set
+`ARO_HCP_TEST_PIN_VERSION` to the exact OpenShift release version and
+`ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT` to the full Kubernetes source Git SHA
+reported by that build's kube-apiserver. The test creates a cluster on the
+stable channel in the same minor release line. It checks the running API
+server before and after applying the pin. With both inputs unset, it skips.
+
+```sh
+./test/aro-hcp-tests run-test "SRE starts applying an unreleased control plane version pinned through the admin api"
+```
+
+### Testing release from a prerelease pin onto stable
+
+Set the two build inputs above and `ARO_HCP_TEST_PIN_BASELINE_VERSION` to an
+installable stable X.Y.Z older than the prerelease on the same minor line.
+The development region must already have a stable fleet best at or above
+the prerelease and be able to deploy all three builds. For example, use
+`4.20.47` as the baseline and `4.20.48-assembly.example-multi` as the pin
+once the regional best is `4.20.48` or later. The test checks these version
+relationships before provisioning.
+
+Set `COSMOS_URL` and `COSMOS_NAME` for the development region and
+`AZURE_TOKEN_CREDENTIALS` for an identity with data-plane read access to the
+fleet and cluster resources containers. With the usual development e2e
+environment configured, run
+
+```sh
+./test/aro-hcp-tests run-test --timeout=3h "SRE releases a prerelease control plane pin after lowering its threshold to the stable fleet best"
+```
+
+The first pin sets a threshold 100 patch versions above the current best.
+After the guest API server reports the prerelease commit, the test removes
+the creation-time exact override and checks the pin is still active. A second
+POST keeps the same prerelease and lowers only `untilExactVersion` to the
+already-selected regional best. The test verifies both pin fields clear and
+that the newest control-plane history entry shows the stable assignment
+starting. The second POST triggers this scenario. Fleet-best advancement
+with an unchanged pin requires separate controller coverage.
+
 ## Job attribution tags
 
 `run-suite` and `run-test` accept `--job-name` (defaults to `$JOB_NAME`) and
