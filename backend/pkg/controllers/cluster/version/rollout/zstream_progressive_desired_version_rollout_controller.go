@@ -110,12 +110,13 @@ func NewZStreamProgressiveDesiredVersionRolloutController(clock utilsclock.Passi
 }
 
 // eligibleClusters returns the clusters that may be advanced to best now: those
-// with a desired version below best that are either unpinned or pinned
+// with a desired version below best (or different when allowRollback is set)
+// that are either unpinned or pinned
 // with a release threshold at/under best. Clusters whose backing
 // HCPOpenShiftCluster carries an experimental exact version or Immediate policy
 // (their lowercased cluster ID is in clustersWithExperimentalAssignment) are owned
 // by the forced assignment controller and never advanced here. It is a pure function.
-func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster, best semver.Version, clustersWithExperimentalAssignment map[string]bool) []*coreapi.ServiceProviderCluster {
+func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster, best semver.Version, allowRollback bool, clustersWithExperimentalAssignment map[string]bool) []*coreapi.ServiceProviderCluster {
 	var eligible []*coreapi.ServiceProviderCluster
 	for _, serviceProviderCluster := range serviceProviderClusters {
 		// Experimental version assignment belongs to the forced controller,
@@ -128,9 +129,8 @@ func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster,
 		// Initial assignment owns uninitialized clusters. Their active minor may
 		// differ from the requested minor, so this rollout must not initialize them.
 		// MinorUpgradeNormalClusterDesiredVersion owns requested minor changes.
-		// This channel handles only z-stream advances; desired at or above best
-		// already needs no progressive assignment.
-		if desired == nil || !desired.LT(best) {
+		// Only an active channel pin permits backwards z-stream assignment.
+		if desired == nil || desired.EQ(best) || (!allowRollback && desired.GT(best)) {
 			continue
 		}
 		pin := serviceProviderCluster.Spec.PinnedVersion
@@ -189,7 +189,7 @@ type rolloutDecisionResult struct {
 // channel, and how many are currently eligible to advance. It is a pure function
 // mirroring design §5.5.
 func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters, eligibleCount int, config RolloutConfig) rolloutDecisionResult {
-	best := rollout.Spec.BestExactVersion
+	best := effectiveExactVersion(&rollout.Spec)
 	if best == nil {
 		return rolloutDecisionResult{Outcome: outcomeNoBest, Message: "no best version selected yet"}
 	}
@@ -257,7 +257,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	logger.Info("Loaded rollout", "bestVersion", versionString(rollout.Spec.BestExactVersion), "conditions", rollout.Status.Conditions)
+	logger.Info("Loaded rollout", "bestVersion", versionString(effectiveExactVersion(&rollout.Spec)), "conditions", rollout.Status.Conditions)
 	if last := rollout.Status.LastAssignmentTime; last != nil {
 		if remaining := last.Add(time.Minute).Sub(c.clock.Now()); remaining > 0 {
 			if c.enqueueAfter != nil {
@@ -288,8 +288,8 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 
 	logger.Info("Loaded rollout membership and overrides", "channelMemberCount", len(serviceProviderClusters), "experimentalOverrideCount", len(clustersWithExperimentalAssignment))
 	var eligible []*coreapi.ServiceProviderCluster
-	if rollout.Spec.BestExactVersion != nil {
-		eligible = eligibleClusters(serviceProviderClusters, *rollout.Spec.BestExactVersion, clustersWithExperimentalAssignment)
+	if effectiveExactVersion(&rollout.Spec) != nil {
+		eligible = eligibleClusters(serviceProviderClusters, *effectiveExactVersion(&rollout.Spec), hasActiveRolloutPin(&rollout.Spec), clustersWithExperimentalAssignment)
 	}
 
 	eligibleSet := make(map[*coreapi.ServiceProviderCluster]bool, len(eligible))
@@ -298,8 +298,8 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 	}
 	for _, cluster := range serviceProviderClusters {
 		experimentalOverride := cluster.ResourceID != nil && cluster.ResourceID.Parent != nil && clustersWithExperimentalAssignment[strings.ToLower(cluster.ResourceID.Parent.String())]
-		reason := "unpinned cluster below best version"
-		best := rollout.Spec.BestExactVersion
+		reason := "cluster eligible for rollout target"
+		best := effectiveExactVersion(&rollout.Spec)
 		desired := cluster.Spec.ControlPlaneVersion.DesiredVersion
 		pin := cluster.Spec.PinnedVersion
 		switch {
@@ -309,7 +309,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 			reason = "experimental version assignment is owned by forced assignment controller"
 		case desired == nil:
 			reason = "initial desired version is owned by initial assignment controller"
-		case !desired.LT(*best):
+		case desired.EQ(*best) || (!hasActiveRolloutPin(&rollout.Spec) && desired.GT(*best)):
 			reason = "desired version is already at or above best version"
 		case pin.ExactVersion != nil && pin.UntilExactVersion == nil:
 			reason = "version pin has no release threshold"
@@ -321,7 +321,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 		logger.V(1).Info("Evaluated cluster rollout eligibility", "reason", reason, "bestVersion", versionString(best), "resourceID", cluster.ResourceID, "eligible", eligibleSet[cluster], "experimentalOverride", experimentalOverride, "desiredVersion", versionString(cluster.Spec.ControlPlaneVersion.DesiredVersion), "pinnedVersion", versionString(cluster.Spec.PinnedVersion.ExactVersion), "untilVersion", versionString(cluster.Spec.PinnedVersion.UntilExactVersion))
 	}
 	logger.Info("Evaluating rollout progress", "desired", rollout.Status.ClusterCountByDesiredExactVersion, "mismatched", rollout.Status.MismatchedClusterCountByDesiredExactVersion, "failed", rollout.Status.FailedClusterCountByDesiredExactVersion, "achieved", rollout.Status.ClusterCountByAchievedExactVersion, "successful", rollout.Status.SuccessfulClusterCountByAchievedExactVersion)
-	if best := rollout.Spec.BestExactVersion; best != nil {
+	if best := effectiveExactVersion(&rollout.Spec); best != nil {
 		version := best.String()
 		total := int64(len(serviceProviderClusters))
 		desired := rollout.Status.ClusterCountByDesiredExactVersion[version]
@@ -338,7 +338,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 			"rollingThreshold", rollingThreshold, "rollingSlotsRemaining", max(int64(0), rollingThreshold-max(int64(0), inFlightOrDone-successful)))
 	}
 	decision := rolloutDecision(rollout, len(serviceProviderClusters), len(eligible), c.config)
-	logger.Info("Computed rollout decision", "bestVersion", versionString(rollout.Spec.BestExactVersion), "totalClusters", len(serviceProviderClusters), "eligibleClusters", len(eligible), "outcome", decision.Outcome, "reason", decision.Message, "selectCount", decision.SelectCount, "canaryPercentage", c.config.CanaryPercentage, "rollingPercentage", c.config.RollingPercentage)
+	logger.Info("Computed rollout decision", "bestVersion", versionString(effectiveExactVersion(&rollout.Spec)), "totalClusters", len(serviceProviderClusters), "eligibleClusters", len(eligible), "outcome", decision.Outcome, "reason", decision.Message, "selectCount", decision.SelectCount, "canaryPercentage", c.config.CanaryPercentage, "rollingPercentage", c.config.RollingPercentage)
 
 	// Advance the selected clusters, accumulating errors so one failure does not
 	// stop the others; a partial failure still records the rollout condition and
@@ -348,7 +348,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 	rollout = observedRollout.DeepCopy()
 	var assignErrs []error
 	if decision.SelectCount > 0 {
-		best := *rollout.Spec.BestExactVersion
+		best := *effectiveExactVersion(&rollout.Spec)
 		now := metav1.Time{Time: c.clock.Now()}
 		// Reserve the batch with an ETag-guarded write before changing clusters.
 		// A stale rollout cache or a competing writer cannot start another batch.

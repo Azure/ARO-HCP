@@ -44,9 +44,11 @@ func (q *initialVersionRetryQueue) EnqueueAfter(key any, delay time.Duration) {
 func TestInitialNormalDesiredVersion(t *testing.T) {
 	for _, tc := range []struct {
 		name, requested, desired, want          string
+		fleetPin                                string
 		missingRollout, missingBest, concurrent bool
 		pinned, experimental, backfill          bool
 	}{
+		{name: "fleet nightly pin", requested: "4.21", fleetPin: "4.21.0-0.nightly-2026-09-10-123456", want: "4.21.0-0.nightly-2026-09-10-123456"},
 		{name: "initialize despite failed rollout", requested: "4.21", want: "4.21.6"},
 		{name: "requested exact version selects channel best", requested: "4.21.1", want: "4.21.6"},
 		{name: "preserve existing desired", requested: "4.21", desired: "4.21.1", want: "4.21.1"},
@@ -86,6 +88,9 @@ func TestInitialNormalDesiredVersion(t *testing.T) {
 				FailedClusterCountByDesiredExactVersion: map[string]int64{"4.21.6": 100},
 				Conditions:                              []metav1.Condition{{Type: ConditionDegraded, Status: metav1.ConditionTrue, Reason: "Failure", Message: "existing condition"}},
 			})
+			if tc.fleetPin != "" {
+				rollout.Spec.PinnedVersion.ExactVersion = v(tc.fleetPin)
+			}
 			if tc.missingBest {
 				rollout.Spec.BestExactVersion = nil
 			}

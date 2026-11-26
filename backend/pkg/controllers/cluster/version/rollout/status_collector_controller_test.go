@@ -112,6 +112,60 @@ func TestComputeRolloutStatusCounts_PartialOnlyIsNotAchieved(t *testing.T) {
 	require.Equal(t, int64(1), counts.Failed["4.21.6"])
 }
 
+func TestComputeRolloutStatusCounts_PinDuringIncompleteUpgrade(t *testing.T) {
+	t.Parallel()
+	cfg := NewDefaultRolloutConfig()
+	cfg.MinVersionReadyDuration = time.Hour
+
+	for _, tc := range []struct {
+		name           string
+		active         []coreapi.ServiceProviderClusterActiveVersion
+		wantMismatched int64
+		wantAchieved   int64
+		wantSuccessful int64
+	}{
+		{
+			name:           "partial matching completed pin target",
+			active:         []coreapi.ServiceProviderClusterActiveVersion{partial("4.20.34"), partial("4.20.36"), completedAgo("4.20.34", 5*time.Hour)},
+			wantMismatched: 1,
+			wantAchieved:   0,
+			wantSuccessful: 0,
+		},
+		{
+			// desired=4.20.34 is a rollback; it does not appear as Partial — only
+			// the newer attempt does — while the old completed base is still listed.
+			name:           "rollback desired does not appear as partial",
+			active:         []coreapi.ServiceProviderClusterActiveVersion{partial("4.20.36"), completedAgo("4.20.34", 5*time.Hour)},
+			wantMismatched: 1,
+			wantAchieved:   0,
+			wantSuccessful: 0,
+		},
+		{
+			name:           "freshly settled rollback is achieved but not yet successful",
+			active:         []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.20.34", 10*time.Minute)},
+			wantAchieved:   1,
+			wantSuccessful: 0,
+		},
+		{
+			name:           "settled rollback past readiness duration is successful",
+			active:         []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.20.34", 5*time.Hour)},
+			wantAchieved:   1,
+			wantSuccessful: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cluster := desiredSince(newTestServiceProviderCluster("rolling-back", v("4.20.34"), tc.active, nil), 30*time.Minute)
+			counts := computeRolloutStatusCounts([]*coreapi.ServiceProviderCluster{cluster}, cfg, statusTestNow)
+
+			assert.Equal(t, int64(1), counts.Desired["4.20.34"])
+			assert.Equal(t, tc.wantMismatched, counts.Mismatched["4.20.34"])
+			assert.Equal(t, tc.wantAchieved, counts.Achieved["4.20.34"])
+			assert.Equal(t, tc.wantSuccessful, counts.Successful["4.20.34"])
+		})
+	}
+}
+
 func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
