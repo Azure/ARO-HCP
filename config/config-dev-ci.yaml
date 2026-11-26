@@ -211,6 +211,9 @@ clouds:
             results:
               table: "ciFailurePatterns"
               ingestionMapping: "ciFailurePatternsMapping"
+            control:
+              table: "ciFailurePatternControl"
+              ingestionMapping: "ciFailurePatternControlMapping"
             # Newest-build poll interval; the paced history sweep is separate.
             interval: "5m"
             workers: 4

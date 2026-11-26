@@ -57,6 +57,7 @@ func testConfig(subs ...config.SubscriptionConfig) *config.Config {
 		},
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 		Tenants: []config.TenantConfig{
 			{
@@ -308,6 +309,7 @@ func TestCollectAll_SkipsTenantWithoutSubscriptions(t *testing.T) {
 		},
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 		Tenants: []config.TenantConfig{
 			{

@@ -55,6 +55,7 @@ func testConfig(t *testing.T) *config.Config {
 		},
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 		Prow: config.ProwConfig{
 			Enabled:   true,

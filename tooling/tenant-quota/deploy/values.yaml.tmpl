@@ -53,6 +53,9 @@ ciFailurePatterns:
   results:
     table: "{{ .opstool.tenantQuota.ciFailurePatterns.results.table }}"
     ingestionMapping: "{{ .opstool.tenantQuota.ciFailurePatterns.results.ingestionMapping }}"
+  control:
+    table: "{{ .opstool.tenantQuota.ciFailurePatterns.control.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciFailurePatterns.control.ingestionMapping }}"
   interval: "{{ .opstool.tenantQuota.ciFailurePatterns.interval }}"
   workers: {{ .opstool.tenantQuota.ciFailurePatterns.workers }}
   cacheSize: {{ .opstool.tenantQuota.ciFailurePatterns.cacheSize }}

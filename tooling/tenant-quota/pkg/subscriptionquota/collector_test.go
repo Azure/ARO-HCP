@@ -76,6 +76,7 @@ func testConfig(tenants ...config.TenantConfig) *config.Config {
 		},
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 		Tenants: tenants,
 	}
