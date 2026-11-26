@@ -320,29 +320,26 @@ server before and after applying the pin. With both inputs unset, it skips.
 
 Set the two build inputs above and `ARO_HCP_TEST_PIN_BASELINE_VERSION` to an
 installable stable X.Y.Z older than the prerelease on the same minor line.
-The development region must already have a stable fleet best at or above
-the prerelease and be able to deploy all three builds. For example, use
-`4.20.47` as the baseline and `4.20.48-assembly.example-multi` as the pin
-once the regional best is `4.20.48` or later. The test checks these version
-relationships before provisioning.
+Before provisioning, the test derives the stable channel from the prerelease
+and selects a release from Cincinnati using the backend's stable z-stream
+offset. If that release is older than the prerelease, the release scenario
+skips. The prerelease-only scenario can still run.
 
-Set `COSMOS_URL` and `COSMOS_NAME` for the development region and
-`AZURE_TOKEN_CREDENTIALS` for an identity with data-plane read access to the
-fleet and cluster resources containers. With the usual development e2e
-environment configured, run
+For example, with baseline `4.20.47`, pin `4.20.48-assembly.example-multi`,
+and Cincinnati selection `4.20.48`, the first request holds until `4.20.148`
+and the second lowers the threshold to `4.20.48`. Run in a development region
+that can deploy these builds:
 
 ```sh
-./test/aro-hcp-tests run-test --timeout=3h "SRE releases a prerelease control plane pin after lowering its threshold to the stable fleet best"
+./test/aro-hcp-tests run-test --timeout=3h "SRE releases a prerelease control plane pin after lowering its threshold to the selected stable release"
 ```
 
-The first pin sets a threshold 100 patch versions above the current best.
-After the guest API server reports the prerelease commit, the test removes
-the creation-time exact override and checks the pin is still active. A second
-POST keeps the same prerelease and lowers only `untilExactVersion` to the
-already-selected regional best. The test verifies both pin fields clear and
-that the newest control-plane history entry shows the stable assignment
-starting. The second POST triggers this scenario. Fleet-best advancement
-with an unchanged pin requires separate controller coverage.
+After observing the prerelease kube-apiserver commit, the test removes the
+creation-time exact override and checks that the guest still serves the
+prerelease. It then lowers only `untilExactVersion` and waits for a new guest
+`ClusterVersion` history entry showing a stable update on the same minor line
+at or above that threshold. The backend applies its regional selection, which
+can be newer than the version selected from Cincinnati.
 
 ## Job attribution tags
 

@@ -25,7 +25,7 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 4.22 minor to 5.0 minor
 Customer should be able to successfully upgrade control plane minor version from 5.0 minor to 5.1 minor
 SRE starts applying an unreleased control plane version pinned through the admin api
-SRE releases a prerelease control plane pin after lowering its threshold to the stable fleet best
+SRE releases a prerelease control plane pin after lowering its threshold to the selected stable release
 Customer should be able to update node pool labels and taints
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion

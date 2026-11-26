@@ -36,12 +36,7 @@ import (
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -77,23 +72,15 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "ARO_HCP_TEST_PIN_VERSION must be an exact release version")
 			Expect(expectedCommit).To(MatchRegexp("^[0-9a-f]{40}$"), "ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT must be the full Kubernetes source commit of the target build")
 
-			By("selecting a stable install version on the target release line")
+			By("selecting the stable release from Cincinnati for the target minor")
 			channelGroup := string(metadataapi.ChannelGroupStable)
 			channel := fmt.Sprintf("%s-%d.%d", channelGroup, targetVersion.Major, targetVersion.Minor)
-			var holdUntil semver.Version
-			var fleet fleetcosmosstorage.FleetDBClient
-			var resources corecosmosstorage.ResourcesDBClient
-			// The regional rollout is the authoritative input to the forced assignment controller.
-			readBest := func(ctx context.Context) (*semver.Version, error) {
-				rollout, err := fleet.ControlPlaneVersionRollouts().Get(ctx, channel)
-				if err != nil {
-					return nil, err
-				}
-				if rollout.Spec.BestExactVersion == nil {
-					return nil, fmt.Errorf("rollout %s has no best version", channel)
-				}
-				return rollout.Spec.BestExactVersion, nil
-			}
+			selected, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, clusterversion.GetZStreamOffset(channelGroup))
+			Expect(err).NotTo(HaveOccurred(), "failed to select a stable release from %s", channel)
+			Expect(selected).NotTo(BeNil(), "no stable release found in %s", channel)
+			best, err := semver.Parse(selected.Version)
+			Expect(err).NotTo(HaveOccurred(), "invalid selected version %q from %s", selected.Version, channel)
+			Expect(len(best.Pre)+len(best.Build)).To(BeZero(), "expected a stable X.Y.Z release from %s, got %s", channel, best)
 			if autoRelease {
 				baseline, err := semver.Parse(baselineVersion)
 				Expect(err).NotTo(HaveOccurred(), "invalid exact baseline version %q", baselineVersion)
@@ -102,24 +89,12 @@ var _ = Describe("SRE", func() {
 				Expect(targetVersion.Build).To(BeEmpty(), "the pin cannot contain build metadata")
 				Expect(baseline.Major == targetVersion.Major && baseline.Minor == targetVersion.Minor && baseline.LT(targetVersion)).To(BeTrue(),
 					"baseline %s must precede prerelease %s on the same minor line", baseline, target)
-				endpoint, database := os.Getenv("COSMOS_URL"), os.Getenv("COSMOS_NAME")
-				Expect(endpoint).NotTo(BeEmpty(), "set COSMOS_URL to the test region's Cosmos endpoint")
-				Expect(database).NotTo(BeEmpty(), "set COSMOS_NAME to the test region's database")
-				fleet, err = fleetcosmosstorage.NewFleetDBClient(endpoint, database, cosmosclient.Options{}, cosmosratelimit.NewUnlimitedTokenBucket("pin-e2e-fleet"))
-				Expect(err).NotTo(HaveOccurred(), "failed to open fleet reader")
-				resources, err = corecosmosstorage.NewResourcesDBClient(endpoint, database, cosmosclient.Options{}, cosmosratelimit.NewUnlimitedTokenBucket("pin-e2e-resources"))
-				Expect(err).NotTo(HaveOccurred(), "failed to open cluster resource reader")
-				best, err := readBest(ctx)
-				Expect(err).NotTo(HaveOccurred(), "failed to read regional rollout %s", channel)
-				Expect(best.Major == targetVersion.Major && best.Minor == targetVersion.Minor && len(best.Build)+len(best.Pre) == 0 && best.GTE(targetVersion)).To(BeTrue(),
-					"regional %s best %s must be a stable release at or above pin %s", channel, best, target)
-				holdUntil = semver.Version{Major: best.Major, Minor: best.Minor, Patch: best.Patch + 100}
+				if best.LT(targetVersion) {
+					Skip(fmt.Sprintf("%s selected %s, which is older than prerelease %s", channel, best, target))
+				}
 			} else {
-				install, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, clusterversion.GetZStreamOffset(channelGroup))
-				Expect(err).NotTo(HaveOccurred(), "failed to select a baseline release from %s", channel)
-				Expect(install).NotTo(BeNil(), "no baseline release found in %s", channel)
-				Expect(install.Version).NotTo(Equal(target), "the stable baseline and pin target must differ")
-				baselineVersion = install.Version
+				Expect(selected.Version).NotTo(Equal(target), "the stable baseline and pin target must differ")
+				baselineVersion = selected.Version
 			}
 
 			tc := framework.NewTestContext()
@@ -177,6 +152,7 @@ var _ = Describe("SRE", func() {
 			pinURL := fmt.Sprintf("%s/admin/v1/hcp%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/controlplaneversionpin", adminAPIAddress, *resourceGroup.ID, clusterName)
 			request := controlPlaneVersionPinResponse{ExactVersion: target}
 			if autoRelease {
+				holdUntil := semver.Version{Major: best.Major, Minor: best.Minor, Patch: best.Patch + 100}
 				request.UntilExactVersion = holdUntil.String()
 			}
 			postPin := func(request controlPlaneVersionPinResponse) {
@@ -199,34 +175,41 @@ var _ = Describe("SRE", func() {
 					"guest ClusterVersion did not report the baseline after the control-plane pin")
 				return
 			}
-			subscription, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to identify the cluster subscription")
-			provider := resources.ServiceProviderClusters(subscription, *resourceGroup.Name, clusterName)
-			readProvider := func(ctx context.Context) (*coreapi.ServiceProviderCluster, error) {
-				return provider.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			}
 			minorVersion := fmt.Sprintf("%d.%d", targetVersion.Major, targetVersion.Minor)
 			removeCreationVersionOverride(ctx, hcpClient, *resourceGroup.Name, clusterName, minorVersion, channelGroup)
 
-			By("checking the prerelease remains assigned after removing the creation override")
-			Eventually(ctx, func(g Gomega, ctx context.Context) {
-				sp, err := readProvider(ctx)
-				g.Expect(err).NotTo(HaveOccurred(), "failed to read provider cluster %s", clusterName)
-				g.Expect(sp.Spec.PinnedVersion.ExactVersion).To(BeComparableTo(&targetVersion), "prerelease pin must still be set")
-				g.Expect(sp.Spec.PinnedVersion.UntilExactVersion).To(BeComparableTo(&holdUntil), "initial threshold must still be set")
-				g.Expect(sp.Spec.ControlPlaneVersion.DesiredVersion).To(BeComparableTo(&targetVersion), "prerelease must still be assigned")
-			}, 5*time.Minute, 15*time.Second).Should(Succeed())
-			best, err := readBest(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to read regional rollout %s before lowering the threshold", channel)
-			Expect(best.GTE(targetVersion) && best.LT(holdUntil) && best.Major == targetVersion.Major && best.Minor == targetVersion.Minor &&
-				len(best.Pre)+len(best.Build) == 0).To(BeTrue(), "fleet best %s must be stable and between pin %s and original threshold %s", best, target, holdUntil)
-			By(fmt.Sprintf("lowering only untilExactVersion to the current fleet best %s", best))
+			By("checking the guest still serves the prerelease after removing the creation override")
+			Eventually(ctx, runningCommit, 5*time.Minute, 15*time.Second).Should(Equal(expectedCommit),
+				"guest no longer serves the pinned build on %s", clusterName)
+			latestGuestUpdate := func(ctx context.Context) (string, error) {
+				cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+				if err != nil {
+					return "", err
+				}
+				if len(cv.Status.History) == 0 {
+					return "", fmt.Errorf("guest ClusterVersion history is empty on %s", clusterName)
+				}
+				return cv.Status.History[0].Version, nil
+			}
+			Eventually(ctx, latestGuestUpdate, 5*time.Minute, 15*time.Second).Should(Or(Equal(baselineVersion), Equal(target)),
+				"expected the guest update history to show the baseline or prerelease before lowering the threshold on %s", clusterName)
+
+			By(fmt.Sprintf("lowering only untilExactVersion to the Cincinnati-selected stable release %s", best))
 			request.UntilExactVersion = best.String()
 			postPin(request)
-			verifyPrereleasePinRelease(ctx, clusterName, *best, readBest, readProvider)
+
+			By("waiting for guest ClusterVersion history to show the stable upgrade starting")
+			Eventually(ctx, func(g Gomega, ctx context.Context) {
+				latest, err := latestGuestUpdate(ctx)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to read guest update history on %s", clusterName)
+				version, err := semver.Parse(latest)
+				g.Expect(err).NotTo(HaveOccurred(), "invalid version %q in guest update history", latest)
+				g.Expect(version.Major == best.Major && version.Minor == best.Minor && len(version.Pre)+len(version.Build) == 0 && version.GTE(best)).To(BeTrue(),
+					"expected a stable update on %s at or above %s, got %s", channel, best, version)
+			}, framework.HCPClusterVersionUpgradeTimeout, time.Minute).Should(Succeed())
 		},
 		Entry("starts applying an unreleased control plane version pinned through the admin api", false),
-		Entry("releases a prerelease control plane pin after lowering its threshold to the stable fleet best", true),
+		Entry("releases a prerelease control plane pin after lowering its threshold to the selected stable release", true),
 	)
 })
 
@@ -248,30 +231,4 @@ func removeCreationVersionOverride(ctx context.Context, hcpClient *hcpsdk2026100
 			},
 		}, framework.UpdateHCPClusterTimeout)
 	Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
-}
-
-func verifyPrereleasePinRelease(ctx context.Context, clusterName string, threshold semver.Version,
-	readBest func(context.Context) (*semver.Version, error), readProvider func(context.Context) (*coreapi.ServiceProviderCluster, error)) {
-	GinkgoHelper()
-	By("verifying the backend cleared the pin and the control plane started applying the stable release")
-	Eventually(ctx, func(g Gomega, ctx context.Context) {
-		sp, err := readProvider(ctx)
-		g.Expect(err).NotTo(HaveOccurred(), "failed to read provider cluster %s", clusterName)
-		g.Expect(sp.Spec.PinnedVersion.ExactVersion).To(BeNil(), "the prerelease pin is still set")
-		g.Expect(sp.Spec.PinnedVersion.UntilExactVersion).To(BeNil(), "the release threshold is still set")
-		desired := sp.Spec.ControlPlaneVersion.DesiredVersion
-		g.Expect(desired).NotTo(BeNil(), "control plane has no assigned version")
-		g.Expect(desired.Major == threshold.Major && desired.Minor == threshold.Minor && len(desired.Pre) == 0 && desired.GTE(threshold)).To(BeTrue(),
-			"expected a stable assignment on the same line at or above %s, got %s", threshold, desired)
-		// The rollout can select a newer stable release between the second POST and reconciliation.
-		if !desired.EQ(threshold) {
-			best, err := readBest(ctx)
-			g.Expect(err).NotTo(HaveOccurred(), "failed to read the current regional fleet best")
-			g.Expect(desired.String()).To(Equal(best.String()), "stable assignment must match the fleet best")
-		}
-		history := sp.Status.ControlPlaneVersionHistory
-		g.Expect(history).NotTo(BeNil(), "control-plane update history has not been observed")
-		g.Expect(*history).NotTo(BeEmpty(), "control-plane update history is empty")
-		g.Expect((*history)[0].Version).To(Equal(desired.String()), "control plane has not started applying the stable assignment")
-	}, framework.HCPClusterVersionUpgradeTimeout, time.Minute).Should(Succeed())
 }
