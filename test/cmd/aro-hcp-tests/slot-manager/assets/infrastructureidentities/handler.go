@@ -26,7 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -85,7 +86,7 @@ func (h *Handler) Kind() assets.Kind {
 	return assets.KindInfrastructureIdentities
 }
 
-func (h *Handler) Declared(pool slots.Pool) bool {
+func (h *Handler) Declared(pool catalog.Pool) bool {
 	asset := pool.SlotAssets.InfrastructureIdentities
 	return asset != nil && (asset.UnitsPerSlot == 0 || asset.UnitsPerSlot == 1)
 }
@@ -142,7 +143,7 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitIdentityLeaseWithClients(ctx, request, h.topology, clients, h.cleanupWorkers)
 }
 
-func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	if err := validatePublishRequest(request); err != nil {
 		return err
 	}
@@ -167,12 +168,12 @@ func validatePublishRequest(request assets.LeaseRequest) error {
 	return nil
 }
 
-func resolveBundle(topology Topology, leaseName string) (*slots.ResolvedInfrastructureIdentities, error) {
+func resolveBundle(topology Topology, leaseName string) (*catalog.ResolvedInfrastructureIdentities, error) {
 	if _, err := topology.Bundle(leaseName); err != nil {
 		return nil, err
 	}
-	return &slots.ResolvedInfrastructureIdentities{
-		Allocation:     slots.AllocationLeased,
+	return &catalog.ResolvedInfrastructureIdentities{
+		Allocation:     catalog.AllocationLeased,
 		ResourceGroups: []string{leaseName},
 		Identities:     topology.IdentityInventory(),
 	}, nil

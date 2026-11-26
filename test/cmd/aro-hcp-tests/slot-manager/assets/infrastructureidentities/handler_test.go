@@ -28,44 +28,45 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestHandlerIsOptIn(t *testing.T) {
 	t.Parallel()
 	handler := NewHandler()
-	if handler.Declared(slots.Pool{}) {
+	if handler.Declared(catalog.Pool{}) {
 		t.Fatal("undeclared pools must not activate the handler")
 	}
-	if !handler.Declared(slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{}}}) {
+	if !handler.Declared(catalog.Pool{SlotAssets: catalog.SlotAssets{InfrastructureIdentities: &catalog.LeasedAsset{}}}) {
 		t.Fatal("declared pools must activate the handler")
 	}
-	if handler.Declared(slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{UnitsPerSlot: 2}}}) {
+	if handler.Declared(catalog.Pool{SlotAssets: catalog.SlotAssets{InfrastructureIdentities: &catalog.LeasedAsset{UnitsPerSlot: 2}}}) {
 		t.Fatal("two leased bundles per slot must be rejected before acquisition")
 	}
 	registry, err := assets.NewRegistry(handler)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{UnitsPerSlot: 2}}}
-	if err := registry.ValidateRequirements([]slots.Pool{pool}); err == nil || !strings.Contains(err.Error(), "does not accept demanded asset") {
+	pool := catalog.Pool{SlotAssets: catalog.SlotAssets{InfrastructureIdentities: &catalog.LeasedAsset{UnitsPerSlot: 2}}}
+	if err := registry.ValidateRequirements([]catalog.Pool{pool}); err == nil || !strings.Contains(err.Error(), "does not accept demanded asset") {
 		t.Fatalf("registry accepted unsupported bundle count: %v", err)
 	}
 }
 
 func TestAcquireLeaseResolvesOneBundle(t *testing.T) {
 	t.Parallel()
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{
-		Leases: slots.LeaseSet{Assets: map[slots.AssetKind][]slots.Lease{
-			slots.KindInfrastructureIdentities: {{ResourceType: "bundle-type", ResourceName: "bundle-03"}},
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{
+		Leases: lease.LeaseSet{Assets: map[catalog.AssetKind][]lease.Lease{
+			catalog.KindInfrastructureIdentities: {{ResourceType: "bundle-type", ResourceName: "bundle-03"}},
 		}},
 	}}
 	if err := NewHandler().AcquireLease(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
 	got := request.AcquiredSlotState.Slot.Assets.InfrastructureIdentities
-	if got == nil || got.Allocation != slots.AllocationLeased || !reflect.DeepEqual(got.ResourceGroups, []string{"bundle-03"}) {
+	if got == nil || got.Allocation != catalog.AllocationLeased || !reflect.DeepEqual(got.ResourceGroups, []string{"bundle-03"}) {
 		t.Fatalf("resolved asset = %+v", got)
 	}
 	if len(got.Identities) != 30 {
@@ -76,9 +77,9 @@ func TestAcquireLeaseResolvesOneBundle(t *testing.T) {
 func TestAcquireLeaseRejectsWrongUnitCount(t *testing.T) {
 	t.Parallel()
 	handler := NewHandler()
-	for _, leases := range [][]slots.Lease{nil, {{ResourceName: "a"}, {ResourceName: "b"}}} {
-		request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{
-			Leases: slots.LeaseSet{Assets: map[slots.AssetKind][]slots.Lease{slots.KindInfrastructureIdentities: leases}},
+	for _, leases := range [][]lease.Lease{nil, {{ResourceName: "a"}, {ResourceName: "b"}}} {
+		request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{
+			Leases: lease.LeaseSet{Assets: map[catalog.AssetKind][]lease.Lease{catalog.KindInfrastructureIdentities: leases}},
 		}}
 		if err := handler.AcquireLease(context.Background(), request); err == nil || !strings.Contains(err.Error(), "exactly one leased bundle") {
 			t.Fatalf("expected unit-count error, got %v", err)
@@ -88,12 +89,12 @@ func TestAcquireLeaseRejectsWrongUnitCount(t *testing.T) {
 
 func TestPublishLeaseOwnsBundleExport(t *testing.T) {
 	t.Parallel()
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-		Assets: slots.ResolvedAssets{InfrastructureIdentities: &slots.ResolvedInfrastructureIdentities{
-			Allocation: slots.AllocationLeased, ResourceGroups: []string{"bundle-03"}, Identities: []string{"service-control-plane"},
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+		Assets: catalog.ResolvedAssets{InfrastructureIdentities: &catalog.ResolvedInfrastructureIdentities{
+			Allocation: catalog.AllocationLeased, ResourceGroups: []string{"bundle-03"}, Identities: []string{"service-control-plane"},
 		}},
 	}}}
-	contract := slots.NewRuntimeContractBuilder()
+	contract := lease.NewRuntimeContractBuilder()
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +102,10 @@ func TestPublishLeaseOwnsBundleExport(t *testing.T) {
 		t.Fatal("bundle export ownership must not be reassigned")
 	}
 	sharedDir := t.TempDir()
-	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+	if err := lease.WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatal(err)
 	}
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,24 +165,24 @@ func TestHandlerCleanupWorkersOption(t *testing.T) {
 
 func TestPoolHandlersSkipUnmanagedUnlessSelected(t *testing.T) {
 	t.Parallel()
-	managed := slots.AssetInventory{AssetPool: slots.AssetPool{
-		Name: "managed", Kind: slots.KindInfrastructureIdentities, Provisioning: slots.AssetProvisioningManaged,
-		InfrastructureIdentities: &slots.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
+	managed := catalog.AssetInventory{AssetPool: catalog.AssetPool{
+		Name: "managed", Kind: catalog.KindInfrastructureIdentities, Provisioning: catalog.AssetProvisioningManaged,
+		InfrastructureIdentities: &catalog.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
 	}, SubscriptionName: "infra"}
-	unmanaged := slots.AssetInventory{AssetPool: slots.AssetPool{
-		Name: "unmanaged", Kind: slots.KindInfrastructureIdentities, Provisioning: slots.IdentityProvisioningUnmanaged,
-		InfrastructureIdentities: &slots.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
+	unmanaged := catalog.AssetInventory{AssetPool: catalog.AssetPool{
+		Name: "unmanaged", Kind: catalog.KindInfrastructureIdentities, Provisioning: catalog.IdentityProvisioningUnmanaged,
+		InfrastructureIdentities: &catalog.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
 	}, SubscriptionName: "infra"}
 	stop := errors.New("stop before Azure operation")
 	for _, test := range []struct {
 		name             string
-		inventories      []slots.AssetInventory
+		inventories      []catalog.AssetInventory
 		includeUnmanaged bool
 		want             string
 	}{
-		{"default skips unmanaged", []slots.AssetInventory{unmanaged, managed}, false, "infra"},
-		{"explicit selection includes unmanaged", []slots.AssetInventory{unmanaged}, true, "infra"},
-		{"only unmanaged default", []slots.AssetInventory{unmanaged}, false, ""},
+		{"default skips unmanaged", []catalog.AssetInventory{unmanaged, managed}, false, "infra"},
+		{"explicit selection includes unmanaged", []catalog.AssetInventory{unmanaged}, true, "infra"},
+		{"only unmanaged default", []catalog.AssetInventory{unmanaged}, false, ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			resolved := ""
@@ -224,10 +225,10 @@ func TestLeaseCredentialUsesInfrastructureSubscription(t *testing.T) {
 	}
 	request := assets.LeaseRequest{
 		SelectedClusterProfileDir: profile,
-		AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-			Subscriptions: slots.ResolvedSubscriptions{
-				E2E:            slots.ResolvedSubscription{ID: "customer-subscription"},
-				Infrastructure: slots.ResolvedSubscription{ID: "infra-subscription"},
+		AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+			Subscriptions: catalog.ResolvedSubscriptions{
+				E2E:            catalog.ResolvedSubscription{ID: "customer-subscription"},
+				Infrastructure: catalog.ResolvedSubscription{ID: "infra-subscription"},
 			},
 		}},
 	}

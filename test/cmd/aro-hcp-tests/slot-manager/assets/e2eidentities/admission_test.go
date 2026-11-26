@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
@@ -47,8 +48,8 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 	}
 	request := assets.LeaseRequest{
 		SelectedClusterProfileDir: profile,
-		AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-			Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "customer-subscription"}},
+		AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+			Subscriptions: catalog.ResolvedSubscriptions{E2E: catalog.ResolvedSubscription{ID: "customer-subscription"}},
 		}},
 	}
 	credential, err := azureutil.ClusterProfileCredential(profile)

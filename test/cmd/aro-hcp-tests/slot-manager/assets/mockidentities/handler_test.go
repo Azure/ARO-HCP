@@ -30,7 +30,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -104,8 +105,8 @@ func (store *fakeStore) Roles(_ context.Context, subscription string, bundle lea
 	store.writes += len(bindings(bundle, "msi-role"))
 	return nil
 }
-func testSlot() slots.ExpandedSlot {
-	return slots.ExpandedSlot{ResourceName: "aro-hcp-dev-shard0-slot-00", MockIdentityConfig: &slots.MockIdentitiesAsset{Allocation: slots.AllocationDedicated}, Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "11111111-1111-1111-1111-111111111111"}}, AssetRequirements: []slots.AssetRequirement{{Kind: slots.KindMockIdentities, Allocation: slots.AllocationDedicated, UnitsPerSlot: 1}}}
+func testSlot() catalog.ExpandedSlot {
+	return catalog.ExpandedSlot{ResourceName: "aro-hcp-dev-shard0-slot-00", MockIdentityConfig: &catalog.MockIdentitiesAsset{Allocation: catalog.AllocationDedicated}, Subscriptions: catalog.ResolvedSubscriptions{E2E: catalog.ResolvedSubscription{ID: "11111111-1111-1111-1111-111111111111"}}, AssetRequirements: []catalog.AssetRequirement{{Kind: catalog.KindMockIdentities, Allocation: catalog.AllocationDedicated, UnitsPerSlot: 1}}}
 }
 
 func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
@@ -128,14 +129,14 @@ func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slot}, SelectedClusterProfileDir: profile}
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: slot}, SelectedClusterProfileDir: profile}
 	if err := registry.AcquireLeases(t.Context(), request, nil); err != nil {
 		t.Fatal(err)
 	}
 	if store.reads != 0 || request.AcquiredSlotState.Slot.Assets.MockIdentities != nil {
 		t.Fatal("acquisition performed discovery")
 	}
-	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+	if err := registry.PublishLease(t.Context(), request, lease.NewRuntimeContractBuilder()); err == nil {
 		t.Fatal("published before admission")
 	}
 	for admission := 1; admission <= 2; admission++ {
@@ -146,7 +147,7 @@ func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 			t.Fatalf("expected exactly three Graph and certificate checks and one RBAC check per admission: %+v", store)
 		}
 	}
-	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err != nil {
+	if err := registry.PublishLease(t.Context(), request, lease.NewRuntimeContractBuilder()); err != nil {
 		t.Fatal(err)
 	}
 	if err := handler.ReleaseLease(t.Context(), request); err != nil || store.reads != 14 || store.writes != 0 {
@@ -172,7 +173,7 @@ func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 			if err := registry.AdmitLease(t.Context(), failedRequest); err == nil || store.writes != 0 {
 				t.Fatal("readmission accepted or repaired invalid input")
 			}
-			if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+			if err := registry.PublishLease(t.Context(), request, lease.NewRuntimeContractBuilder()); err == nil {
 				t.Error("published stale bundle after failed readmission")
 			}
 			handler.newStore = originalFactory
@@ -184,7 +185,7 @@ func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 	if err := registry.AdmitLease(t.Context(), request); err == nil || store.writes != 0 {
 		t.Fatal("readmission repaired or accepted missing certificate")
 	}
-	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+	if err := registry.PublishLease(t.Context(), request, lease.NewRuntimeContractBuilder()); err == nil {
 		t.Fatal("published stale bundle after failed readmission")
 	}
 }
@@ -220,7 +221,7 @@ func TestPersistentLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var restored slots.ExpandedSlot
+	var restored catalog.ExpandedSlot
 	if err := yaml.Unmarshal(data, &restored); err != nil {
 		t.Fatal(err)
 	}
@@ -230,15 +231,15 @@ func TestPersistentLifecycle(t *testing.T) {
 	if err := restored.ValidateResolvedAssets(); err != nil {
 		t.Fatal(err)
 	}
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: restored}}
-	if err := NewHandler().PublishLease(ctx, request, slots.NewRuntimeContractBuilder()); err != nil {
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: restored}}
+	if err := NewHandler().PublishLease(ctx, request, lease.NewRuntimeContractBuilder()); err != nil {
 		t.Fatal(err)
 	}
 	if err := NewHandler().ReleaseLease(ctx, request); err != nil || store.writes != 12 {
 		t.Fatal("release changed persistent resources")
 	}
 	request.AcquiredSlotState.Slot.Assets.MockIdentities = nil
-	if err := NewHandler().PublishLease(ctx, request, slots.NewRuntimeContractBuilder()); err == nil {
+	if err := NewHandler().PublishLease(ctx, request, lease.NewRuntimeContractBuilder()); err == nil {
 		t.Fatal("published unresolved bundle")
 	}
 	store.certificates[names[0]] = false
@@ -270,7 +271,7 @@ func TestDeterministicIsolation(t *testing.T) {
 	if reflect.DeepEqual(names, IdentityNames(other)) {
 		t.Fatal("cross-slot name collision")
 	}
-	slot.MockIdentityConfig.Allocation = slots.AllocationLeased
+	slot.MockIdentityConfig.Allocation = catalog.AllocationLeased
 	if _, err := reconcile(context.Background(), nil, slot, false); err == nil {
 		t.Fatal("accepted leased allocation")
 	}
@@ -290,8 +291,8 @@ func TestPublishRejectsMismatchedSlotBundle(t *testing.T) {
 		invalid := *bundle
 		mutate(&invalid)
 		slot.Assets.MockIdentities = &invalid
-		request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slot}}
-		if err := NewHandler().PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil || !strings.Contains(err.Error(), "does not match slot customer subscription") {
+		request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: slot}}
+		if err := NewHandler().PublishLease(t.Context(), request, lease.NewRuntimeContractBuilder()); err == nil || !strings.Contains(err.Error(), "does not match slot customer subscription") {
 			t.Fatalf("expected slot isolation failure, got %v", err)
 		}
 	}

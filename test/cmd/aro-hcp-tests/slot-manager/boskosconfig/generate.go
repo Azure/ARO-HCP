@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package boskosconfig
 
 import (
 	"fmt"
@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 const (
@@ -50,8 +52,8 @@ func BoskosYAMLPath(releaseRepo string) string {
 	return filepath.Join(releaseRepo, "core-services", "prow", "02_config", "_boskos.yaml")
 }
 
-func RewriteGenerateBoskos(releaseRepo string, catalog *Catalog) error {
-	if err := catalog.Validate(); err != nil {
+func RewriteGenerateBoskos(releaseRepo string, slotCatalog *catalog.Catalog) error {
+	if err := slotCatalog.Validate(); err != nil {
 		return err
 	}
 	generateBoskosPath := GenerateBoskosPythonPath(releaseRepo)
@@ -61,11 +63,11 @@ func RewriteGenerateBoskos(releaseRepo string, catalog *Catalog) error {
 	}
 
 	content := string(data)
-	content, err = replaceMarkerBlock(content, BoskosTypesBeginMarker, BoskosTypesEndMarker, RenderBoskosTypesBlock(catalog))
+	content, err = replaceMarkerBlock(content, BoskosTypesBeginMarker, BoskosTypesEndMarker, RenderBoskosTypesBlock(slotCatalog))
 	if err != nil {
 		return err
 	}
-	resources, err := RenderBoskosResourcesBlock(catalog)
+	resources, err := RenderBoskosResourcesBlock(slotCatalog)
 	if err != nil {
 		return err
 	}
@@ -80,29 +82,29 @@ func RewriteGenerateBoskos(releaseRepo string, catalog *Catalog) error {
 	return nil
 }
 
-func RenderBoskosTypesBlock(catalog *Catalog) string {
+func RenderBoskosTypesBlock(slotCatalog *catalog.Catalog) string {
 	lines := []string{BoskosTypesBeginMarker}
-	for _, environmentName := range catalog.EnvironmentNames() {
-		for _, pool := range catalog.Environments[environmentName].Pools {
+	for _, environmentName := range slotCatalog.EnvironmentNames() {
+		for _, pool := range slotCatalog.Environments[environmentName].Pools {
 			lines = append(lines, fmt.Sprintf("    '%s': {},", pool.ResourceType))
 		}
 	}
-	for _, pool := range catalog.AssetPools {
+	for _, pool := range slotCatalog.AssetPools {
 		lines = append(lines, fmt.Sprintf("    '%s': {},", pool.ResourceType))
 	}
 	lines = append(lines, BoskosTypesEndMarker)
 	return strings.Join(lines, "\n")
 }
 
-func RenderBoskosResourcesBlock(catalog *Catalog) (string, error) {
+func RenderBoskosResourcesBlock(slotCatalog *catalog.Catalog) (string, error) {
 	lines := []string{BoskosResourcesBeginMarker}
-	for _, environmentName := range catalog.EnvironmentNames() {
-		for _, pool := range catalog.Environments[environmentName].Pools {
+	for _, environmentName := range slotCatalog.EnvironmentNames() {
+		for _, pool := range slotCatalog.Environments[environmentName].Pools {
 			lines = append(lines, fmt.Sprintf("for i in range(%d):", pool.SlotCount))
 			lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", pool.ResourceType, pool.ResourceType))
 		}
 	}
-	assetInventories, err := catalog.AssetInventories()
+	assetInventories, err := slotCatalog.AssetInventories()
 	if err != nil {
 		return "", fmt.Errorf("invalid asset inventory: %w", err)
 	}
@@ -120,8 +122,8 @@ func RenderBoskosResourcesBlock(catalog *Catalog) (string, error) {
 // the catalog first, then sync the Boskos config; when shrinking a pool the
 // order is reversed. A strict presubmit gate would reject the first half of
 // either change.
-func ValidateBoskosConfig(releaseRepo string, catalog *Catalog) error {
-	expected, err := ExpectedBoskosResources(catalog)
+func ValidateBoskosConfig(releaseRepo string, slotCatalog *catalog.Catalog) error {
+	expected, err := ExpectedBoskosResources(slotCatalog)
 	if err != nil {
 		return err
 	}
@@ -169,13 +171,13 @@ func ValidateBoskosConfig(releaseRepo string, catalog *Catalog) error {
 	return nil
 }
 
-func ExpectedBoskosResources(catalog *Catalog) (map[string][]string, error) {
-	if err := catalog.Validate(); err != nil {
+func ExpectedBoskosResources(slotCatalog *catalog.Catalog) (map[string][]string, error) {
+	if err := slotCatalog.Validate(); err != nil {
 		return nil, err
 	}
 	expected := map[string][]string{}
-	for _, environmentName := range catalog.EnvironmentNames() {
-		slots, err := catalog.ExpandedSlotsForEnvironment(environmentName)
+	for _, environmentName := range slotCatalog.EnvironmentNames() {
+		slots, err := slotCatalog.ExpandedSlotsForEnvironment(environmentName)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +186,7 @@ func ExpectedBoskosResources(catalog *Catalog) (map[string][]string, error) {
 		}
 	}
 
-	assetInventories, err := catalog.AssetInventories()
+	assetInventories, err := slotCatalog.AssetInventories()
 	if err != nil {
 		return nil, err
 	}

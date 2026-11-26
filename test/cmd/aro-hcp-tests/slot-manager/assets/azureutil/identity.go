@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/clusterprofile"
 )
 
 // ParsePrincipalID requires a hyphenated UUID without surrounding whitespace.
@@ -108,7 +108,7 @@ func ClusterProfileCredential(profileDir string) (azcore.TokenCredential, error)
 	if profileDir == "" {
 		return nil, errors.New("selected cluster profile dir is empty")
 	}
-	credential, err := slots.NewClusterProfileCredential(profileDir, nil)
+	credential, err := clusterprofile.NewClusterProfileCredential(profileDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed constructing cluster profile credential: %w", err)
 	}

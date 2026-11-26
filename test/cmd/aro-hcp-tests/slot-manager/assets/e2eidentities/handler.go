@@ -29,7 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/e2e"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -81,7 +82,7 @@ func (h *Handler) Kind() assets.Kind {
 	return assets.KindE2EIdentities
 }
 
-func (h *Handler) Declared(_ slots.Pool) bool {
+func (h *Handler) Declared(_ catalog.Pool) bool {
 	return true
 }
 
@@ -157,7 +158,7 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitIdentityLeaseWithClients(ctx, request, clients, h.cleanupWorkers)
 }
 
-func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
 	return contract.Add(string(h.Kind()), leaseenv.MSIContainers, strings.Join(containers, " "))
 }

@@ -12,17 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package catalog
 
 import (
 	"math"
-	"os"
-	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 const independentCatalog = `version: 2
@@ -299,60 +294,5 @@ func TestAssetPoolDuplicateAndOverflowValidation(t *testing.T) {
 				t.Fatal("invalid inventory was accepted")
 			}
 		})
-	}
-}
-
-func TestBoskosIncludesIndependentInventoryOnce(t *testing.T) {
-	t.Parallel()
-	catalog := loadCatalogFromYAML(t, independentCatalog)
-	expected, err := ExpectedBoskosResources(catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"bundle-00", "bundle-01", "bundle-02", "bundle-03", "bundle-04", "bundle-05", "bundle-06"}
-	if len(expected) != 3 || !reflect.DeepEqual(expected["infra-bundles"], want) {
-		t.Fatalf("incorrect primary and secondary inventory: %v", expected)
-	}
-	if got := RenderBoskosTypesBlock(catalog); strings.Count(got, "'infra-bundles':") != 1 {
-		t.Fatalf("secondary type must occur once across environments: %s", got)
-	}
-	got, err := RenderBoskosResourcesBlock(catalog)
-	if err != nil {
-		t.Fatalf("rendering aggregated generator: %v", err)
-	}
-	if strings.Count(got, "range(7)") != 1 || !strings.Contains(got, "['bundle-{i:0>2}'") {
-		t.Fatalf("incorrect aggregated generator: %s", got)
-	}
-	repo := t.TempDir()
-	config := BoskosConfig{}
-	for kind, names := range expected {
-		config.Resources = append(config.Resources, BoskosResource{Type: kind, Names: names})
-	}
-	write := func() {
-		t.Helper()
-		data, err := yaml.Marshal(config)
-		if err != nil {
-			t.Fatal(err)
-		}
-		path := BoskosYAMLPath(repo)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write()
-	if err := ValidateBoskosConfig(repo, catalog); err != nil {
-		t.Fatalf("valid combined inventory: %v", err)
-	}
-	for i := range config.Resources {
-		if config.Resources[i].Type == "infra-bundles" {
-			config.Resources[i].Names = want[:6]
-		}
-	}
-	write()
-	if err := ValidateBoskosConfig(repo, catalog); err == nil {
-		t.Fatal("under-capacity secondary inventory was accepted")
 	}
 }

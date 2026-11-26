@@ -1,5 +1,25 @@
 # Slot-manager
 
+## Code layout
+
+The `slotmanager` package at this level holds the CLI: `cmd.go` wires the
+subcommands, and each command lives in its own file (`acquire.go`,
+`release.go`, `release_repo.go`, `assets_cmd.go`, `external_subscription.go`).
+Everything else is a subpackage:
+
+| Package | Responsibility |
+|---|---|
+| `catalog` | Catalog model and loading, pool selection, slot expansion, asset requirements and inventories, VM family policy. |
+| `lease` | Lease proxy client, lease journal, acquired-slot state, shared-dir paths, runtime contract env file. |
+| `boskosconfig` | Rendering and validating the generated Boskos config in `openshift/release`. |
+| `clusterprofile` | Credentials and customer-subscription lookup from cluster profile directories. |
+| `assets` | Asset registry and the per-kind handlers (`e2eidentities`, `infrastructureidentities`, `mockidentities`, `azureutil`). |
+| `subscriptions` | Provider registration and RBAC for `reconcile-external-subscription`. |
+| `azureclient` | Shared ARM client options. |
+
+`catalog` depends on no other slot-manager package; `lease`, `boskosconfig`,
+`clusterprofile` and `assets` depend on `catalog`.
+
 ## Dedicated DEV mock identities
 
 DEV and dev-xs slots declare `mock_identities: {allocation: dedicated}`.

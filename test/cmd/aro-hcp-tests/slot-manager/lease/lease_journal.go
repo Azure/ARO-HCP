@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package lease
 
 import (
 	"context"
@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 // LeaseJournal centralizes durable acquisition and best-effort release. Handlers
@@ -33,7 +35,7 @@ type LeaseJournal struct {
 	attempted map[string]bool
 }
 
-func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, assetInventory AssetInventory) (Lease, error) {
+func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind catalog.AssetKind, assetInventory catalog.AssetInventory) (Lease, error) {
 	if j.Timeout <= 0 {
 		return Lease{}, errors.New("independent lease timeout must be positive")
 	}
@@ -58,7 +60,7 @@ func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, assetIn
 	}
 	lease := Lease{ResourceType: assetInventory.AssetPool.ResourceType, ResourceName: name}
 	if j.State.Leases.Assets == nil {
-		j.State.Leases.Assets = map[AssetKind][]Lease{}
+		j.State.Leases.Assets = map[catalog.AssetKind][]Lease{}
 	}
 	j.State.Leases.Assets[kind] = append(j.State.Leases.Assets[kind], lease)
 	// Persist even an unexpected name before resolving it: it is still a lease.
@@ -71,7 +73,7 @@ func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, assetIn
 	return lease, nil
 }
 
-func (j *LeaseJournal) ReleaseAsset(ctx context.Context, kind AssetKind) error {
+func (j *LeaseJournal) ReleaseAsset(ctx context.Context, kind catalog.AssetKind) error {
 	var errs []error
 	leases := j.State.Leases.Assets[kind]
 	for i := range leases {
@@ -90,7 +92,7 @@ func (j *LeaseJournal) ReleaseAll(ctx context.Context) error {
 	}
 	sort.Strings(kinds)
 	for _, kind := range kinds {
-		errs = append(errs, j.ReleaseAsset(ctx, AssetKind(kind)))
+		errs = append(errs, j.ReleaseAsset(ctx, catalog.AssetKind(kind)))
 	}
 	errs = append(errs, j.release(ctx, &j.State.Leases.Primary))
 	return errors.Join(errs...)

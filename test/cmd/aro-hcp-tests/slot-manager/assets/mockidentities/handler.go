@@ -29,7 +29,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/clusterprofile"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
@@ -100,19 +102,19 @@ func checkOwnerGroup(ctx context.Context, credential azcore.TokenCredential, set
 	return owners.Check(ctx, strictOwnerDirectory{Directory: directory, store: &azureStore{graph: client}}, settings.GroupID, settings.IDs)
 }
 
-func (*Handler) Kind() assets.Kind                                       { return slots.KindMockIdentities }
+func (*Handler) Kind() assets.Kind                                       { return catalog.KindMockIdentities }
 func (*Handler) AttachOptions(*pflag.FlagSet)                            {}
-func (*Handler) Declared(pool slots.Pool) bool                           { return pool.SlotAssets.MockIdentities != nil }
+func (*Handler) Declared(pool catalog.Pool) bool                         { return pool.SlotAssets.MockIdentities != nil }
 func (*Handler) ReleaseLease(context.Context, assets.LeaseRequest) error { return nil }
 
-func IdentityNames(slot slots.ExpandedSlot) []string {
+func IdentityNames(slot catalog.ExpandedSlot) []string {
 	identity := uuid.NewSHA1(uuid.NameSpaceURL, []byte(strings.ToLower(slot.Subscriptions.E2E.ID)+"/"+slot.ResourceName)).String()
 	prefix := "aro-hcp-slot-" + identity
 	return []string{prefix + "-msi", prefix + "-backend", prefix + "-cs"}
 }
 
-func validateSlot(slot slots.ExpandedSlot) error {
-	if slot.MockIdentityConfig == nil || slot.MockIdentityConfig.Allocation != slots.AllocationDedicated {
+func validateSlot(slot catalog.ExpandedSlot) error {
+	if slot.MockIdentityConfig == nil || slot.MockIdentityConfig.Allocation != catalog.AllocationDedicated {
 		return fmt.Errorf("mock identities require a dedicated slot declaration")
 	}
 	if _, err := uuid.Parse(slot.Subscriptions.E2E.ID); err != nil || slot.ResourceName == "" {
@@ -123,7 +125,7 @@ func validateSlot(slot slots.ExpandedSlot) error {
 
 // reconcile creates or verifies the slot's identities and their roles on the
 // slot's customer subscription.
-func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+func reconcile(ctx context.Context, store identityStore, slot catalog.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
 	bundle, err := reconcileIdentities(ctx, store, slot, apply)
 	if err != nil {
 		return nil, err
@@ -136,20 +138,20 @@ func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot
 
 // reconcileSubscriptionRoles grants or verifies the bundle's roles on the
 // slot's customer subscription.
-func reconcileSubscriptionRoles(ctx context.Context, store identityStore, slot slots.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, apply bool) error {
+func reconcileSubscriptionRoles(ctx context.Context, store identityStore, slot catalog.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, apply bool) error {
 	return store.Roles(ctx, slot.Subscriptions.E2E.ID, *bundle, apply)
 }
 
 // forEachSlot calls fn for every slot of the pools with the slot's customer
 // subscription ID resolved. It is the walk shared by pool reconciliation and
 // the subscription role reconciliation.
-func forEachSlot(ctx context.Context, resolveSubscriptionID subscriptionIDResolver, environment string, pools []slots.Pool, fn func(slots.Pool, slots.ExpandedSlot) error) error {
+func forEachSlot(ctx context.Context, resolveSubscriptionID subscriptionIDResolver, environment string, pools []catalog.Pool, fn func(catalog.Pool, catalog.ExpandedSlot) error) error {
 	for _, pool := range pools {
 		subscriptionID, err := resolveSubscriptionID(ctx, pool.Subscriptions.E2E)
 		if err != nil {
 			return fmt.Errorf("resolve subscription %q: %w", pool.Subscriptions.E2E, err)
 		}
-		for _, slot := range slots.ExpandSlotsForPool(environment, pool) {
+		for _, slot := range catalog.ExpandSlotsForPool(environment, pool) {
 			slot.Subscriptions.E2E.ID = subscriptionID
 			if err := fn(pool, slot); err != nil {
 				return err
@@ -161,7 +163,7 @@ func forEachSlot(ctx context.Context, resolveSubscriptionID subscriptionIDResolv
 
 // reconcileIdentities creates or verifies only the slot's Entra applications,
 // service principals and certificates. It needs no access to the subscription.
-func reconcileIdentities(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+func reconcileIdentities(ctx context.Context, store identityStore, slot catalog.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
 	if err := validateSlot(slot); err != nil {
 		return nil, err
 	}
@@ -171,7 +173,7 @@ func reconcileIdentities(ctx context.Context, store identityStore, slot slots.Ex
 // resolveBundle is the identity and certificate core shared by lease admission,
 // pool reconciliation and external maintenance. Authorization, roles and owner
 // mutation belong to the caller.
-func resolveBundle(ctx context.Context, store identityStore, slot slots.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
+func resolveBundle(ctx context.Context, store identityStore, slot catalog.ExpandedSlot, apply bool) (*leaseenv.MockIdentityBundlePayload, error) {
 	bundle := &leaseenv.MockIdentityBundlePayload{SlotName: slot.ResourceName, SubscriptionID: slot.Subscriptions.E2E.ID}
 	principals := []*leaseenv.MockPrincipal{&bundle.MSI, &bundle.Backend, &bundle.ClustersService}
 	for index, name := range IdentityNames(slot) {
@@ -192,7 +194,7 @@ func resolveBundle(ctx context.Context, store identityStore, slot slots.Expanded
 
 // reconcileBundleOwners enforces the owner list on every application and
 // service principal of the slot's bundle.
-func reconcileBundleOwners(ctx context.Context, store identityStore, slot slots.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, desired []string, apply bool) error {
+func reconcileBundleOwners(ctx context.Context, store identityStore, slot catalog.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, desired []string, apply bool) error {
 	principals := []leaseenv.MockPrincipal{bundle.MSI, bundle.Backend, bundle.ClustersService}
 	for index, name := range IdentityNames(slot) {
 		if err := store.Owners(ctx, name, principals[index], desired, apply); err != nil {
@@ -202,7 +204,7 @@ func reconcileBundleOwners(ctx context.Context, store identityStore, slot slots.
 	return nil
 }
 
-func ownerRepair(slot slots.ExpandedSlot, err error) error {
+func ownerRepair(slot catalog.ExpandedSlot, err error) error {
 	var subscriptionArg string
 	if id, parseErr := uuid.Parse(slot.Subscriptions.E2E.ID); parseErr == nil && id != uuid.Nil {
 		subscriptionArg = " " + ExternalSubscriptionIDEnv + "=" + id.String()
@@ -217,7 +219,7 @@ func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequ
 	slot := &request.AcquiredSlotState.Slot
 	previous := slot.Assets.MockIdentities
 	slot.Assets.MockIdentities = nil
-	credential, err := slots.NewClusterProfileCredential(request.SelectedClusterProfileDir, nil)
+	credential, err := clusterprofile.NewClusterProfileCredential(request.SelectedClusterProfileDir, nil)
 	if err != nil {
 		return ownerRepair(*slot, err)
 	}
@@ -243,7 +245,7 @@ func (handler *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequ
 	return handler.checkLease(ctx, request)
 }
 
-func (*Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (*Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	if request.AcquiredSlotState == nil {
 		return fmt.Errorf("missing acquired slot state")
 	}
@@ -258,7 +260,7 @@ func (*Handler) PublishLease(_ context.Context, request assets.LeaseRequest, con
 	if err != nil {
 		return err
 	}
-	return contract.Add(string(slots.KindMockIdentities), leaseenv.MockIdentityBundle, string(payload))
+	return contract.Add(string(catalog.KindMockIdentities), leaseenv.MockIdentityBundle, string(payload))
 }
 
 func (handler *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) error {
@@ -272,7 +274,7 @@ func (handler *Handler) ValidatePools(ctx context.Context, request assets.PoolRe
 // subscription to the ID the owner supplied, so the operator never has to read
 // the subscription. Slot identity names are derived from that ID. A wrong ID
 // shows up as missing identities when the owner runs reconcile-external-subscription.
-func (handler *Handler) externalSubscriptionIDs(pools []slots.Pool) (map[string]string, error) {
+func (handler *Handler) externalSubscriptionIDs(pools []catalog.Pool) (map[string]string, error) {
 	names := map[string]bool{}
 	for _, pool := range pools {
 		if pool.IsUnmanaged() {
@@ -300,9 +302,9 @@ func (handler *Handler) externalSubscriptionIDs(pools []slots.Pool) (map[string]
 }
 
 func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, apply bool) error {
-	var eligible []slots.Pool
+	var eligible []catalog.Pool
 	for _, pool := range request.Pools {
-		if handler.Declared(pool) && (pool.SlotAssets.E2EIdentities == nil || pool.SlotAssets.E2EIdentities.Provisioning != slots.IdentityProvisioningUnmanaged || request.IncludeUnmanaged) && len(slots.ExpandSlotsForPool(request.Environment, pool)) > 0 {
+		if handler.Declared(pool) && (pool.SlotAssets.E2EIdentities == nil || pool.SlotAssets.E2EIdentities.Provisioning != catalog.IdentityProvisioningUnmanaged || request.IncludeUnmanaged) && len(catalog.ExpandSlotsForPool(request.Environment, pool)) > 0 {
 			eligible = append(eligible, pool)
 		}
 	}
@@ -335,7 +337,7 @@ func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, a
 	if err := handler.checkOwnerGroup(ctx, credential, ownerList); err != nil {
 		return err
 	}
-	return forEachSlot(ctx, resolveSubscriptionID, request.Environment, eligible, func(pool slots.Pool, slot slots.ExpandedSlot) error {
+	return forEachSlot(ctx, resolveSubscriptionID, request.Environment, eligible, func(pool catalog.Pool, slot catalog.ExpandedSlot) error {
 		bounded, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 		var bundle *leaseenv.MockIdentityBundlePayload

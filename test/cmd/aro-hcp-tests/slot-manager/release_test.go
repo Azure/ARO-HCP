@@ -25,19 +25,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func writeReleaseTestState(t *testing.T, sharedDir string) {
 	t.Helper()
 
-	state := &slots.AcquiredSlotState{
+	state := &lease.AcquiredSlotState{
 		Version:           2,
-		Leases:            slots.LeaseSet{Primary: slots.Lease{ResourceType: "aro-hcp-dev-westus3-slot", ResourceName: "aro-hcp-dev-westus3-slot-00"}},
+		Leases:            lease.LeaseSet{Primary: lease.Lease{ResourceType: "aro-hcp-dev-westus3-slot", ResourceName: "aro-hcp-dev-westus3-slot-00"}},
 		DeployEnvironment: "ci01",
 		RuntimeRegion:     "westus3",
-		Slot: slots.ExpandedSlot{
+		Slot: catalog.ExpandedSlot{
 			Environment:             "dev",
 			SubscriptionName:        "dev-sub",
 			Region:                  "westus3",
@@ -50,14 +51,14 @@ func writeReleaseTestState(t *testing.T, sharedDir string) {
 		LeasedResourceName: "aro-hcp-dev-westus3-slot-00",
 	}
 
-	if err := slots.WriteAcquiredSlotState(sharedDir, state); err != nil {
+	if err := lease.WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	contract := slots.NewRuntimeContractBuilder()
+	contract := lease.NewRuntimeContractBuilder()
 	if err := contract.Add("core", leaseenv.SlotName, state.LeasedResourceName); err != nil {
 		t.Fatal(err)
 	}
-	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+	if err := lease.WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 }
@@ -112,7 +113,7 @@ func TestReleaseRunHappyPath(t *testing.T) {
 		t.Fatalf("unexpected released names: got %v want %v", got, want)
 	}
 
-	stateFile, err := slots.SlotStateFile(sharedDir)
+	stateFile, err := lease.SlotStateFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected state file path to resolve: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestReleaseRunHappyPath(t *testing.T) {
 		t.Fatal("expected state file to be removed after release")
 	}
 
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path to resolve: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestReleaseRejectsUnsupportedStateVersionBeforeNetwork(t *testing.T) {
 	defer server.Close()
 	for _, version := range []string{"", "version: 1\n", "version: 3\n"} {
 		sharedDir := t.TempDir()
-		path, err := slots.SlotStateFile(sharedDir)
+		path, err := lease.SlotStateFile(sharedDir)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,7 +204,7 @@ func TestReleaseRunProxyFailurePropagatesError(t *testing.T) {
 		t.Fatalf("expected proxy error message in error, got %v", err)
 	}
 
-	if _, loadErr := slots.LoadAcquiredSlotState(sharedDir); loadErr != nil {
+	if _, loadErr := lease.LoadAcquiredSlotState(sharedDir); loadErr != nil {
 		t.Fatalf("expected state file to remain after failed release: %v", loadErr)
 	}
 }

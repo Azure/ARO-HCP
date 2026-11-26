@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package catalog
 
 import (
 	"bytes"
@@ -33,9 +33,7 @@ import (
 )
 
 const (
-	DefaultCatalogRelPath    = "test/e2e-config/e2e-slots.yaml"
-	defaultEnvFileName       = "aro-hcp-slot.env"
-	defaultSlotStateFileName = "aro-hcp-slot-state.yaml"
+	DefaultCatalogRelPath = "test/e2e-config/e2e-slots.yaml"
 
 	defaultSlotIndexWidth = 2
 )
@@ -256,7 +254,7 @@ func (c *Catalog) Validate() error {
 		if environment.DeploymentEnvironment.Name == "" {
 			return fmt.Errorf("environment %q must declare deployment_environment.name", environmentName)
 		}
-		if err := validateDeploymentEnvironmentName(environment.DeploymentEnvironment.Name); err != nil {
+		if err := ValidateDeploymentEnvironmentName(environment.DeploymentEnvironment.Name); err != nil {
 			return fmt.Errorf("environment %q: %w", environmentName, err)
 		}
 		if len(environment.Pools) == 0 {
@@ -336,7 +334,7 @@ func (c *Catalog) Validate() error {
 	return c.validateAssetPools(resourceTypes)
 }
 
-func validateDeploymentEnvironmentName(name string) error {
+func ValidateDeploymentEnvironmentName(name string) error {
 	if !inventoryName.MatchString(name) {
 		return fmt.Errorf("invalid deployment environment name %q: must match [A-Za-z0-9][A-Za-z0-9_-]*", name)
 	}
@@ -605,29 +603,6 @@ func (p Pool) InfrastructureSubscriptionName() string {
 
 func (p Pool) EffectiveRegionMode() RegionMode {
 	return p.RegionMode
-}
-
-func SharedStateDir(sharedDir string) (string, error) {
-	if sharedDir == "" {
-		return "", errors.New("SHARED_DIR is empty")
-	}
-	return sharedDir, nil
-}
-
-func EnvFile(sharedDir string) (string, error) {
-	stateDir, err := SharedStateDir(sharedDir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(stateDir, defaultEnvFileName), nil
-}
-
-func SlotStateFile(sharedDir string) (string, error) {
-	stateDir, err := SharedStateDir(sharedDir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(stateDir, defaultSlotStateFileName), nil
 }
 
 func describePool(pool Pool) string {

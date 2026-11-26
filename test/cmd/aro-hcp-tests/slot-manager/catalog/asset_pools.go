@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package catalog
 
 import (
 	"bytes"
@@ -128,15 +128,15 @@ func (p Pool) Requirements() []AssetRequirement {
 }
 
 func (s ExpandedSlot) ValidateResolvedAssets() error {
-	if err := s.validateAssetInvariants(); err != nil {
+	if err := s.ValidateAssetInvariants(); err != nil {
 		return err
 	}
-	return s.validateAssetPublicationReadiness()
+	return s.ValidateAssetPublicationReadiness()
 }
 
-// validateAssetPublicationReadiness requires admission's output. The shared
+// ValidateAssetPublicationReadiness requires admission's output. The shared
 // invariants separately validate every present bundle, including its subscription.
-func (s ExpandedSlot) validateAssetPublicationReadiness() error {
+func (s ExpandedSlot) ValidateAssetPublicationReadiness() error {
 	for _, requirement := range s.AssetRequirements {
 		if requirement.Kind == KindMockIdentities && s.Assets.MockIdentities == nil {
 			return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
@@ -145,9 +145,9 @@ func (s ExpandedSlot) validateAssetPublicationReadiness() error {
 	return nil
 }
 
-// validateAssetInvariants checks declarations and resolved nonmock assets before
+// ValidateAssetInvariants checks declarations and resolved nonmock assets before
 // admission, and validates any existing mock bundle without requiring discovery.
-func (s ExpandedSlot) validateAssetInvariants() error {
+func (s ExpandedSlot) ValidateAssetInvariants() error {
 	for _, assetRequirement := range s.AssetRequirements {
 		switch assetRequirement.Kind {
 		case KindMockIdentities:

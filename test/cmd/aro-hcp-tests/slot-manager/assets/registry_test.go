@@ -23,7 +23,8 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 type fakeHandler struct {
@@ -47,7 +48,7 @@ func (h *fakeHandler) AttachOptions(flags *pflag.FlagSet) {
 	}
 }
 
-func (h *fakeHandler) Declared(slots.Pool) bool {
+func (h *fakeHandler) Declared(catalog.Pool) bool {
 	return h.declared
 }
 
@@ -73,7 +74,7 @@ func (h *fakeHandler) AdmitLease(context.Context, LeaseRequest) error {
 	return h.admitErr
 }
 
-func (h *fakeHandler) PublishLease(_ context.Context, _ LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (h *fakeHandler) PublishLease(_ context.Context, _ LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	*h.calls = append(*h.calls, "publish:"+string(h.kind))
 	return contract.Add(string(h.kind), "EXPORT_"+string(h.kind), "value")
 }
@@ -129,26 +130,26 @@ func TestRegistryAcquireLeasesDiagnostics(t *testing.T) {
 			calls := []string{}
 			registry, err := NewRegistry(
 				&fakeHandler{kind: KindE2EIdentities, calls: &calls},
-				&fakeHandler{kind: slots.KindInfrastructureIdentities, calls: &calls},
+				&fakeHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls},
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-				AssetRequirements: []slots.AssetRequirement{
-					{Kind: KindE2EIdentities, Allocation: slots.AllocationDedicated},
+			request := LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+				AssetRequirements: []catalog.AssetRequirement{
+					{Kind: KindE2EIdentities, Allocation: catalog.AllocationDedicated},
 					{
-						Kind: slots.KindInfrastructureIdentities, Allocation: slots.AllocationLeased,
+						Kind: catalog.KindInfrastructureIdentities, Allocation: catalog.AllocationLeased,
 						AssetPoolName: "bundles", UnitsPerSlot: test.units,
 					},
 				},
 			}}}
-			var assetInventories []slots.AssetInventory
+			var assetInventories []catalog.AssetInventory
 			if test.assetInventory {
-				assetInventories = []slots.AssetInventory{{AssetPool: slots.AssetPool{Name: "bundles", Kind: slots.KindInfrastructureIdentities}}}
+				assetInventories = []catalog.AssetInventory{{AssetPool: catalog.AssetPool{Name: "bundles", Kind: catalog.KindInfrastructureIdentities}}}
 			}
 			if test.journal {
-				request.LeaseJournal = &slots.LeaseJournal{}
+				request.LeaseJournal = &lease.LeaseJournal{}
 			}
 			if err := registry.AcquireLeases(context.Background(), request, assetInventories); err == nil || err.Error() != test.want {
 				t.Fatalf("expected %q, got %v", test.want, err)
@@ -181,9 +182,9 @@ func TestRegistryDistinguishesEmptySelectionFromEmptyDemand(t *testing.T) {
 	if err != nil || len(handlers) != 0 {
 		t.Fatalf("empty demand must select no handlers: %v, %v", handlers, err)
 	}
-	handlers, err = registry.HandlersForRequirements([]slots.AssetRequirement{
-		{Kind: "second", Allocation: slots.AllocationDedicated},
-		{Kind: "first", Allocation: slots.AllocationDedicated},
+	handlers, err = registry.HandlersForRequirements([]catalog.AssetRequirement{
+		{Kind: "second", Allocation: catalog.AllocationDedicated},
+		{Kind: "first", Allocation: catalog.AllocationDedicated},
 	})
 	if err != nil || !reflect.DeepEqual(handlers, []Handler{first, second}) {
 		t.Fatalf("requirement order must not change registration order: %v, %v", handlers, err)
@@ -194,12 +195,12 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		name             string
-		assetRequirement slots.AssetRequirement
+		assetRequirement catalog.AssetRequirement
 		want             string
 	}{
-		{"unknown kind", slots.AssetRequirement{Kind: "unknown", Allocation: slots.AllocationDedicated}, `demanded asset "unknown" has no implemented handler`},
-		{"invalid allocation", slots.AssetRequirement{Kind: "second", Allocation: "invalid"}, `demanded asset "second" has invalid allocation "invalid"`},
-		{"duplicate kind", slots.AssetRequirement{Kind: "first", Allocation: slots.AllocationDedicated}, `duplicate demanded asset "first"`},
+		{"unknown kind", catalog.AssetRequirement{Kind: "unknown", Allocation: catalog.AllocationDedicated}, `demanded asset "unknown" has no implemented handler`},
+		{"invalid allocation", catalog.AssetRequirement{Kind: "second", Allocation: "invalid"}, `demanded asset "second" has invalid allocation "invalid"`},
+		{"duplicate kind", catalog.AssetRequirement{Kind: "first", Allocation: catalog.AllocationDedicated}, `duplicate demanded asset "first"`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			calls := []string{}
@@ -210,9 +211,9 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-				AssetRequirements: []slots.AssetRequirement{
-					{Kind: "first", Allocation: slots.AllocationDedicated},
+			request := LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+				AssetRequirements: []catalog.AssetRequirement{
+					{Kind: "first", Allocation: catalog.AllocationDedicated},
 					test.assetRequirement,
 				},
 			}}}
@@ -224,7 +225,7 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 					return registry.AdmitLease(ctx, request)
 				},
 				func(ctx context.Context, request LeaseRequest) error {
-					return registry.PublishLease(ctx, request, slots.NewRuntimeContractBuilder())
+					return registry.PublishLease(ctx, request, lease.NewRuntimeContractBuilder())
 				},
 			} {
 				if err := operation(t.Context(), request); err == nil || err.Error() != test.want {
@@ -250,7 +251,7 @@ func TestRegistryFiltersKindsInRegistrationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
 	}
-	request := PoolRequest{Pools: []slots.Pool{{}}}
+	request := PoolRequest{Pools: []catalog.Pool{{}}}
 	for _, operation := range []func(context.Context, PoolRequest, ...Kind) error{registry.ApplyPools, registry.ValidatePools} {
 		err = operation(context.Background(), request, "second", "e2e_identities", "second")
 		if err != nil {
@@ -277,8 +278,8 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
 	}
-	request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{ResourceName: "slot-00", AssetRequirements: []slots.AssetRequirement{
-		{Kind: "first", Allocation: slots.AllocationDedicated}, {Kind: "second", Allocation: slots.AllocationDedicated},
+	request := LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{ResourceName: "slot-00", AssetRequirements: []catalog.AssetRequirement{
+		{Kind: "first", Allocation: catalog.AllocationDedicated}, {Kind: "second", Allocation: catalog.AllocationDedicated},
 	}}}}
 	err = registry.AdmitLease(context.Background(), request)
 	if !errors.Is(err, expectedErr) {

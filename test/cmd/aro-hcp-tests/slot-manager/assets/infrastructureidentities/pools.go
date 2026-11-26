@@ -22,11 +22,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type resolvedInventory struct {
-	slots.AssetInventory
+	catalog.AssetInventory
 	SubscriptionID string
 }
 
@@ -49,8 +49,8 @@ func (h *Handler) resolveInventories(ctx context.Context, request assets.PoolReq
 	return credential, inventories, nil
 }
 
-func selectInfrastructureInventories(request assets.PoolRequest) []slots.AssetInventory {
-	selected := make([]slots.AssetInventory, 0, len(request.AssetInventories))
+func selectInfrastructureInventories(request assets.PoolRequest) []catalog.AssetInventory {
+	selected := make([]catalog.AssetInventory, 0, len(request.AssetInventories))
 	for _, inventory := range request.AssetInventories {
 		if !includeInventory(inventory, request.IncludeUnmanaged) {
 			continue
@@ -60,18 +60,18 @@ func selectInfrastructureInventories(request assets.PoolRequest) []slots.AssetIn
 	return selected
 }
 
-func includeInventory(inventory slots.AssetInventory, includeUnmanaged bool) bool {
+func includeInventory(inventory catalog.AssetInventory, includeUnmanaged bool) bool {
 	switch {
-	case inventory.AssetPool.Kind != slots.KindInfrastructureIdentities:
+	case inventory.AssetPool.Kind != catalog.KindInfrastructureIdentities:
 		return false
-	case inventory.AssetPool.Provisioning != slots.IdentityProvisioningUnmanaged:
+	case inventory.AssetPool.Provisioning != catalog.IdentityProvisioningUnmanaged:
 		return true
 	default:
 		return includeUnmanaged
 	}
 }
 
-func validateInventoriesHaveSubscriptions(inventories []slots.AssetInventory) error {
+func validateInventoriesHaveSubscriptions(inventories []catalog.AssetInventory) error {
 	for _, inventory := range inventories {
 		if strings.TrimSpace(inventory.SubscriptionName) != "" {
 			continue
@@ -81,7 +81,7 @@ func validateInventoriesHaveSubscriptions(inventories []slots.AssetInventory) er
 	return nil
 }
 
-func resolveInventorySubscriptions(ctx context.Context, selected []slots.AssetInventory, resolveSubscriptionID subscriptionIDResolverFunc) ([]resolvedInventory, error) {
+func resolveInventorySubscriptions(ctx context.Context, selected []catalog.AssetInventory, resolveSubscriptionID subscriptionIDResolverFunc) ([]resolvedInventory, error) {
 	inventories := make([]resolvedInventory, 0, len(selected))
 	resolvedIDs := map[string]string{}
 	for _, inventory := range selected {
@@ -101,7 +101,7 @@ func resolveInventorySubscriptions(ctx context.Context, selected []slots.AssetIn
 	return inventories, nil
 }
 
-func provisioningRegion(pool slots.AssetPool) (string, error) {
+func provisioningRegion(pool catalog.AssetPool) (string, error) {
 	if pool.InfrastructureIdentities == nil || strings.TrimSpace(pool.InfrastructureIdentities.ProvisioningRegion) == "" {
 		return "", fmt.Errorf("asset pool %q requires infrastructure_identities.provisioning_region", pool.Name)
 	}

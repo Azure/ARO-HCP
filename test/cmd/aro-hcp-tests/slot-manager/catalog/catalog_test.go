@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package catalog
 
 import (
 	"os"
@@ -846,25 +846,5 @@ func TestE2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
 		if assetInventories, err := catalog.AssetInventories(); err != nil || len(assetInventories) != 0 {
 			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", assetInventories, err)
 		}
-	}
-}
-
-func TestSharedStatePaths(t *testing.T) {
-	t.Parallel()
-
-	stateDir, err := SharedStateDir("/tmp/shared")
-	if err != nil {
-		t.Fatalf("expected state dir to resolve: %v", err)
-	}
-	if stateDir != "/tmp/shared" {
-		t.Fatalf("unexpected state dir %q", stateDir)
-	}
-
-	envFile, err := EnvFile("/tmp/shared")
-	if err != nil {
-		t.Fatalf("expected env file to resolve: %v", err)
-	}
-	if envFile != "/tmp/shared/aro-hcp-slot.env" {
-		t.Fatalf("unexpected env file %q", envFile)
 	}
 }

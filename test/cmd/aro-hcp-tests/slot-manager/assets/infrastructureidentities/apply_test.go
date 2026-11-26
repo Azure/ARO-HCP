@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type poolTransport struct {
@@ -120,12 +120,12 @@ func testPoolClients(t *testing.T, transport *poolTransport) *poolClients {
 	return &poolClients{resourceGroups: groups, identities: factory.NewUserAssignedIdentitiesClient()}
 }
 
-func testInventory() slots.AssetInventory {
-	return slots.AssetInventory{
-		AssetPool: slots.AssetPool{
-			Name: "dev-infrastructure-identities", Kind: slots.KindInfrastructureIdentities,
+func testInventory() catalog.AssetInventory {
+	return catalog.AssetInventory{
+		AssetPool: catalog.AssetPool{
+			Name: "dev-infrastructure-identities", Kind: catalog.KindInfrastructureIdentities,
 			ResourceNamePrefix:       "bundle",
-			InfrastructureIdentities: &slots.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
+			InfrastructureIdentities: &catalog.InfrastructureIdentitiesConfig{ProvisioningRegion: "westus3"},
 		},
 		Capacity:         1,
 		SubscriptionName: "infra",
@@ -144,7 +144,7 @@ func TestApplyCreatesExpectedBundleResources(t *testing.T) {
 		}),
 	)
 	err := handler.ApplyPools(context.Background(), assets.PoolRequest{
-		Environment: "dev", AssetInventories: []slots.AssetInventory{testInventory()},
+		Environment: "dev", AssetInventories: []catalog.AssetInventory{testInventory()},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestApplyRequiresProvisioningRegion(t *testing.T) {
 		}),
 	)
 	err := handler.ApplyPools(context.Background(), assets.PoolRequest{
-		Environment: "dev", AssetInventories: []slots.AssetInventory{inventory},
+		Environment: "dev", AssetInventories: []catalog.AssetInventory{inventory},
 	})
 	if err == nil || !strings.Contains(err.Error(), "provisioning_region") {
 		t.Fatalf("expected provisioning region error, got %v", err)
@@ -200,7 +200,7 @@ func TestValidateReportsMissingAndUnexpectedInventory(t *testing.T) {
 			)
 			var out bytes.Buffer
 			err := handler.ValidatePools(context.Background(), assets.PoolRequest{
-				Environment: "dev", AssetInventories: []slots.AssetInventory{testInventory()}, Out: &out,
+				Environment: "dev", AssetInventories: []catalog.AssetInventory{testInventory()}, Out: &out,
 			})
 			if tc.want == "" {
 				if err != nil {

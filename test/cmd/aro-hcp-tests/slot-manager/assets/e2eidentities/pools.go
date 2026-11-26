@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 // subscriptionIDResolverFunc resolves a human-readable Azure subscription name
@@ -36,7 +36,7 @@ type identityPool struct {
 	SubscriptionName        string
 	SubscriptionID          string
 	IdentityContainerPrefix string
-	Slots                   []slots.ExpandedSlot
+	Slots                   []catalog.ExpandedSlot
 }
 
 // resolveIdentityPools resolves pools for the given environment. When
@@ -44,7 +44,7 @@ type identityPool struct {
 // one of the filter values are included, regardless of provisioning policy.
 // Without a filter, pools with unmanaged E2E identity provisioning are skipped
 // (slot_assets.e2e_identities.provisioning).
-func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
+func resolveIdentityPools(ctx context.Context, environment string, catalogPools []catalog.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	filter := sets.New[string]()
 	for _, name := range subscriptionFilter {
 		name = strings.TrimSpace(name)
@@ -76,13 +76,13 @@ func resolveIdentityPools(ctx context.Context, environment string, catalogPools 
 			SubscriptionName:        subscriptionName,
 			SubscriptionID:          subscriptionID,
 			IdentityContainerPrefix: pool.SlotAssets.E2EIdentities.ResourceGroupPrefix,
-			Slots:                   slots.ExpandSlotsForPool(environment, pool),
+			Slots:                   catalog.ExpandSlotsForPool(environment, pool),
 		})
 	}
 	return pools, nil
 }
 
-func includePool(pool slots.Pool, filter sets.Set[string]) bool {
+func includePool(pool catalog.Pool, filter sets.Set[string]) bool {
 	switch {
 	case pool.SlotAssets.E2EIdentities == nil:
 		return false

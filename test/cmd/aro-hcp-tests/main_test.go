@@ -37,7 +37,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -395,10 +396,10 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 // Source the actual handler's published runtime file, including the downstream export boundary.
 func sourceIdentityLease(t *testing.T) string {
 	t.Helper()
-	contract := slots.NewRuntimeContractBuilder()
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+	contract := lease.NewRuntimeContractBuilder()
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
 		IdentityContainerCount: 10,
-		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+		Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
 	}}}
@@ -406,10 +407,10 @@ func sourceIdentityLease(t *testing.T) string {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	if err := slots.WriteRuntimeContract(dir, contract); err != nil {
+	if err := lease.WriteRuntimeContract(dir, contract); err != nil {
 		t.Fatal(err)
 	}
-	envFile, err := slots.EnvFile(dir)
+	envFile, err := lease.EnvFile(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

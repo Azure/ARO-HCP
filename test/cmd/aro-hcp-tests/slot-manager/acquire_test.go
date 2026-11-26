@@ -34,7 +34,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/infrastructureidentities"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -122,14 +123,14 @@ func TestResolveLeasedSlot(t *testing.T) {
 			PoolEnvironment: "dev",
 		},
 	}
-	pool := slots.Pool{
+	pool := catalog.Pool{
 		Name:          "dev",
-		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
+		Subscriptions: catalog.PoolSubscriptions{E2E: "dev-subscription"},
 		Region:        "westus3",
 		ResourceType:  "aro-hcp-dev-westus3-slot",
 		SlotCount:     2,
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
-			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
+		SlotAssets: catalog.SlotAssets{E2EIdentities: &catalog.E2EIdentitiesAsset{
+			Allocation: catalog.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
 		}},
 	}
 
@@ -154,10 +155,10 @@ func TestAcquireRunRejectsUnsupportedInfrastructureBundleCountBeforeLease(t *tes
 		t.Fatal(err)
 	}
 	options := &AcquireOptions{completedAcquireOptions: &completedAcquireOptions{
-		CandidatePools: []slots.Pool{{
+		CandidatePools: []catalog.Pool{{
 			Name: "dev-slot", ResourceType: "aro-hcp-dev-slot",
-			SlotAssets: slots.SlotAssets{
-				InfrastructureIdentities: &slots.LeasedAsset{Allocation: slots.AllocationLeased, AssetPool: "bundles", UnitsPerSlot: 2},
+			SlotAssets: catalog.SlotAssets{
+				InfrastructureIdentities: &catalog.LeasedAsset{Allocation: catalog.AllocationLeased, AssetPool: "bundles", UnitsPerSlot: 2},
 			},
 		}},
 		AssetRegistry:     registry,
@@ -181,14 +182,14 @@ func TestResolveLeasedSlotRejectsResourceOutsideSelectedPool(t *testing.T) {
 			PoolEnvironment: "dev",
 		},
 	}
-	pool := slots.Pool{
+	pool := catalog.Pool{
 		Name:          "dev",
-		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
+		Subscriptions: catalog.PoolSubscriptions{E2E: "dev-subscription"},
 		Region:        "westus3",
 		ResourceType:  "aro-hcp-dev-westus3-slot",
 		SlotCount:     2,
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
-			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
+		SlotAssets: catalog.SlotAssets{E2EIdentities: &catalog.E2EIdentitiesAsset{
+			Allocation: catalog.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
 		}},
 	}
 
@@ -206,7 +207,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 	alternateRegion := "eastus2"
 
 	type testCase struct {
-		regionMode         slots.RegionMode
+		regionMode         catalog.RegionMode
 		allowedLocations   string
 		override           string
 		wantRuntimeRegion  string
@@ -216,82 +217,82 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 
 	cases := []testCase{
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  "",
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  fixedRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:         slots.RegionModeFixed,
+			regionMode:         catalog.RegionModeFixed,
 			allowedLocations:   alternateRegion,
 			override:           "",
 			wantErrorSubstring: "no pool found",
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  fixedRegion,
 			override:          fixedRegion,
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:         slots.RegionModeFixed,
+			regionMode:         catalog.RegionModeFixed,
 			allowedLocations:   fixedRegion,
 			override:           alternateRegion,
 			wantErrorSubstring: "no pool found",
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  "",
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  fixedRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  alternateRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  "",
 			override:          alternateRegion,
 			wantRuntimeRegion: alternateRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  fixedRegion,
 			override:          alternateRegion,
 			wantRuntimeRegion: alternateRegion,
@@ -357,8 +358,8 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 	t.Parallel()
 
 	opts := DefaultAcquireOptions()
-	if opts.LeaseProxyTimeout != slots.DefaultLeaseProxyTimeout {
-		t.Fatalf("expected default lease proxy timeout %s, got %s", slots.DefaultLeaseProxyTimeout, opts.LeaseProxyTimeout)
+	if opts.LeaseProxyTimeout != lease.DefaultLeaseProxyTimeout {
+		t.Fatalf("expected default lease proxy timeout %s, got %s", lease.DefaultLeaseProxyTimeout, opts.LeaseProxyTimeout)
 	}
 	if opts.LeaseWaitInterval != DefaultLeaseWaitInterval {
 		t.Fatalf("expected default lease wait interval %s, got %s", DefaultLeaseWaitInterval, opts.LeaseWaitInterval)
@@ -396,11 +397,11 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadWeightedAcquireTestCatalog(t)
+	slotCatalog := loadWeightedAcquireTestCatalog(t)
 	selection, err := resolveRegionSelection(
-		catalog,
+		slotCatalog,
 		"dev",
-		slots.RegionModeWeighted,
+		catalog.RegionModeWeighted,
 		"canadacentral",
 		"not-valid-and-must-be-ignored",
 		"",
@@ -418,7 +419,7 @@ func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
 		t.Fatalf("expected override path not to use a selection key, got %q", selection.SelectionKeySource)
 	}
 
-	_, err = resolveRegionSelection(catalog, "dev", slots.RegionModeWeighted, "eastus2", "", "")
+	_, err = resolveRegionSelection(slotCatalog, "dev", catalog.RegionModeWeighted, "eastus2", "", "")
 	if err == nil {
 		t.Fatal("expected override outside the catalog regions to fail")
 	}
@@ -430,7 +431,7 @@ func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
 func TestResolveRegionSelectionWeightedDeterministic(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadWeightedAcquireTestCatalog(t)
+	slotCatalog := loadWeightedAcquireTestCatalog(t)
 	tests := []struct {
 		buildID string
 		want    string
@@ -443,9 +444,9 @@ func TestResolveRegionSelectionWeightedDeterministic(t *testing.T) {
 		t.Run(tc.buildID, func(t *testing.T) {
 			t.Parallel()
 			selection, err := resolveRegionSelection(
-				catalog,
+				slotCatalog,
 				"dev",
-				slots.RegionModeWeighted,
+				catalog.RegionModeWeighted,
 				"",
 				"canadacentral=1,westus3=1,centralus=1",
 				tc.buildID,
@@ -535,7 +536,7 @@ func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 			SharedDir:           t.TempDir(),
 			CatalogPath:         catalogPath,
 			LeaseProxyServerURL: "http://lease-proxy.example.com",
-			LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
+			LeaseProxyTimeout:   lease.DefaultLeaseProxyTimeout,
 			MaxWaitForLease:     DefaultMaxWaitForLease,
 			LeaseWaitInterval:   DefaultLeaseWaitInterval,
 		}
@@ -708,7 +709,7 @@ environments:
 		t.Fatalf("expected no release calls, got %v", got)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -719,7 +720,7 @@ environments:
 		t.Fatalf("expected runtime region %q, got %q", "centralus", state.RuntimeRegion)
 	}
 
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path: %v", err)
 	}
@@ -799,7 +800,7 @@ environments:
 		t.Fatalf("expected no release calls, got %v", got)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -872,7 +873,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -955,7 +956,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -966,7 +967,7 @@ environments:
 		t.Fatalf("expected fallback subscription pool, got %q", state.Slot.ResourceType)
 	}
 
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path: %v", err)
 	}
@@ -1041,7 +1042,7 @@ environments:
 	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); err == nil {
 		t.Fatal("expected no acquired slot state to be written on hard failure")
 	}
 }
@@ -1185,7 +1186,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(completed.SharedDir)
+	state, err := lease.LoadAcquiredSlotState(completed.SharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -1433,7 +1434,7 @@ environments:
 		t.Fatalf("expected lease to be released after post-acquire failure: got %v want %v", got, want)
 	}
 
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); err == nil {
 		t.Fatal("expected no acquired slot state to be written on post-acquire failure")
 	}
 }
@@ -1468,7 +1469,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path resolution to succeed: %v", err)
 	}
@@ -1486,12 +1487,12 @@ environments:
 	})
 	calls := []string{}
 	options.AssetRegistry, err = assets.NewRegistry(&lifecycleHandler{
-		kind: slots.KindE2EIdentities, calls: &calls,
+		kind: catalog.KindE2EIdentities, calls: &calls,
 		before: func(phase string, _ assets.LeaseRequest) {
 			if phase != "publish" {
 				return
 			}
-			if _, err := slots.LoadAcquiredSlotState(sharedDir); err != nil {
+			if _, err := lease.LoadAcquiredSlotState(sharedDir); err != nil {
 				t.Fatalf("expected durable journal before publication: %v", err)
 			}
 			if err := os.Mkdir(envFile, 0o755); err != nil {
@@ -1517,12 +1518,12 @@ environments:
 		t.Fatalf("expected journaled rollback after publication failure, got %v", got)
 	}
 
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); !errors.Is(err, os.ErrNotExist) {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected completed rollback to remove journal: %v", err)
 	}
 }
 
-func writeAcquireTestCatalog(t *testing.T, regionMode slots.RegionMode, region string) string {
+func writeAcquireTestCatalog(t *testing.T, regionMode catalog.RegionMode, region string) string {
 	t.Helper()
 
 	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 2
@@ -1567,22 +1568,22 @@ environments:
 `)
 }
 
-func loadWeightedAcquireTestCatalog(t *testing.T) *slots.Catalog {
+func loadWeightedAcquireTestCatalog(t *testing.T) *catalog.Catalog {
 	t.Helper()
 
-	catalog, err := slots.LoadCatalog(writeWeightedAcquireTestCatalog(t))
+	slotCatalog, err := catalog.LoadCatalog(writeWeightedAcquireTestCatalog(t))
 	if err != nil {
 		t.Fatalf("expected weighted catalog to load: %v", err)
 	}
-	return catalog
+	return slotCatalog
 }
 
-func writeAcquireTestCatalogFromYAML(t *testing.T, catalog string) string {
+func writeAcquireTestCatalogFromYAML(t *testing.T, slotCatalog string) string {
 	t.Helper()
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 	return catalogPath
@@ -1632,13 +1633,13 @@ func noopSetupAzureGlobalLogger(string) (io.Closer, error) {
 
 func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	calls := []string{}
-	registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
+	registry, err := assets.NewRegistry(&lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls})
 	if err != nil {
 		return nil, err
 	}
 	raw.AssetRegistry = registry
-	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
-		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
+	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (catalog.ResolvedSubscriptions, error) {
+		return catalog.ResolvedSubscriptions{E2E: catalog.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 	}
 	// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
 	// written. It only needs to satisfy Validate's non-empty requirement.

@@ -22,7 +22,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/boskosconfig"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 func BindReleaseRepoOptions(opts *RawReleaseRepoOptions, cmd *cobra.Command) error {
@@ -49,7 +50,7 @@ type ValidatedReleaseRepoOptions struct {
 
 type completedReleaseRepoOptions struct {
 	ReleaseRepo string
-	Catalog     *slots.Catalog
+	Catalog     *catalog.Catalog
 }
 
 type ReleaseRepoOptions struct {
@@ -66,14 +67,14 @@ func (o *RawReleaseRepoOptions) Validate() (*ValidatedReleaseRepoOptions, error)
 }
 
 func (o *ValidatedReleaseRepoOptions) Complete(_ context.Context) (*ReleaseRepoOptions, error) {
-	catalog, err := slots.LoadCatalog(o.CatalogPath)
+	slotCatalog, err := catalog.LoadCatalog(o.CatalogPath)
 	if err != nil {
 		return nil, err
 	}
 	return &ReleaseRepoOptions{
 		completedReleaseRepoOptions: &completedReleaseRepoOptions{
 			ReleaseRepo: o.ReleaseRepo,
-			Catalog:     catalog,
+			Catalog:     slotCatalog,
 		},
 	}, nil
 }
@@ -109,10 +110,10 @@ func SyncBoskosConfig(ctx context.Context, opts *RawReleaseRepoOptions) error {
 
 func (o *ReleaseRepoOptions) SyncRun(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	if err := slots.RewriteGenerateBoskos(o.ReleaseRepo, o.Catalog); err != nil {
+	if err := boskosconfig.RewriteGenerateBoskos(o.ReleaseRepo, o.Catalog); err != nil {
 		return err
 	}
-	logger.Info("Updated release Boskos generator from the slot catalog", "path", slots.GenerateBoskosPythonPath(o.ReleaseRepo))
+	logger.Info("Updated release Boskos generator from the slot catalog", "path", boskosconfig.GenerateBoskosPythonPath(o.ReleaseRepo))
 	return nil
 }
 
@@ -147,9 +148,9 @@ func ValidateBoskosConfig(ctx context.Context, opts *RawReleaseRepoOptions) erro
 
 func (o *ReleaseRepoOptions) ValidateRun(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	if err := slots.ValidateBoskosConfig(o.ReleaseRepo, o.Catalog); err != nil {
+	if err := boskosconfig.ValidateBoskosConfig(o.ReleaseRepo, o.Catalog); err != nil {
 		return err
 	}
-	logger.Info("Validated Boskos config against the slot catalog", "path", filepath.Base(slots.BoskosYAMLPath(o.ReleaseRepo)))
+	logger.Info("Validated Boskos config against the slot catalog", "path", filepath.Base(boskosconfig.BoskosYAMLPath(o.ReleaseRepo)))
 	return nil
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -33,7 +33,7 @@ func newFakeStore() *fakeStore {
 	return &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}}
 }
 
-func preparedStore(t *testing.T, slot slots.ExpandedSlot) *fakeStore {
+func preparedStore(t *testing.T, slot catalog.ExpandedSlot) *fakeStore {
 	t.Helper()
 	store := newFakeStore()
 	for _, name := range IdentityNames(slot) {
@@ -58,24 +58,24 @@ func poolHandler(store *fakeStore) *Handler {
 	}
 }
 
-func testPool(unmanaged bool) slots.Pool {
-	pool := slots.Pool{
+func testPool(unmanaged bool) catalog.Pool {
+	pool := catalog.Pool{
 		Name:          "test",
 		ResourceType:  "aro-hcp-dev-shard0-slot",
 		SlotCount:     1,
-		Subscriptions: slots.PoolSubscriptions{E2E: "external"},
-		SlotAssets:    slots.SlotAssets{MockIdentities: &slots.MockIdentitiesAsset{Allocation: slots.AllocationDedicated}},
+		Subscriptions: catalog.PoolSubscriptions{E2E: "external"},
+		SlotAssets:    catalog.SlotAssets{MockIdentities: &catalog.MockIdentitiesAsset{Allocation: catalog.AllocationDedicated}},
 	}
 	if unmanaged {
-		pool.SlotAssets.E2EIdentities = &slots.E2EIdentitiesAsset{Provisioning: slots.IdentityProvisioningUnmanaged}
+		pool.SlotAssets.E2EIdentities = &catalog.E2EIdentitiesAsset{Provisioning: catalog.IdentityProvisioningUnmanaged}
 	}
 	return pool
 }
 
 func TestReconcileSubscriptionRolesOnlyGrantsToPreparedIdentities(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(true)}}
-	slot := slots.ExpandSlotsForPool("dev", request.Pools[0])[0]
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(true)}}
+	slot := catalog.ExpandSlotsForPool("dev", request.Pools[0])[0]
 	slot.Subscriptions.E2E.ID = testSlot().Subscriptions.E2E.ID
 
 	store := preparedStore(t, slot)
@@ -113,7 +113,7 @@ func TestReconcileSubscriptionRolesSkipsPoolsWithoutMockIdentities(t *testing.T)
 	pool := testPool(true)
 	pool.SlotAssets.MockIdentities = nil
 	store := newFakeStore()
-	if err := poolHandler(store).ReconcileSubscriptionRoles(context.Background(), assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{pool}}, true); err != nil {
+	if err := poolHandler(store).ReconcileSubscriptionRoles(context.Background(), assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{pool}}, true); err != nil {
 		t.Fatal(err)
 	}
 	if store.roleCalls != 0 || store.reads != 0 {
@@ -125,7 +125,7 @@ func TestReconcileSubscriptionRolesSkipsPoolsWithoutMockIdentities(t *testing.T)
 // operator, who has no rights there, and its roles from the subscription owner.
 func TestUnmanagedPoolPoolCommandsNeverTouchSubscriptionRoles(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(true)}, IncludeUnmanaged: true}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(true)}, IncludeUnmanaged: true}
 	store := newFakeStore()
 	handler := poolHandler(store)
 	if err := handler.ApplyPools(context.Background(), request); err != nil {
@@ -144,7 +144,7 @@ func TestUnmanagedPoolPoolCommandsNeverTouchSubscriptionRoles(t *testing.T) {
 
 func TestManagedPoolPoolCommandsGrantSubscriptionRoles(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(false)}}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(false)}}
 	store := newFakeStore()
 	if err := poolHandler(store).ApplyPools(context.Background(), request); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestManagedPoolPoolCommandsGrantSubscriptionRoles(t *testing.T) {
 // are prepared with the ID the owner gave and never resolve the display name.
 func TestUnmanagedPoolUsesSuppliedSubscriptionIDWithoutResolvingName(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(true)}, IncludeUnmanaged: true}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(true)}, IncludeUnmanaged: true}
 	store := newFakeStore()
 	handler := poolHandler(store)
 	handler.azure = func() (azcore.TokenCredential, subscriptionIDResolver, error) {
@@ -178,7 +178,7 @@ func TestUnmanagedPoolUsesSuppliedSubscriptionIDWithoutResolvingName(t *testing.
 
 func TestUnmanagedPoolRequiresValidSubscriptionID(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(true)}, IncludeUnmanaged: true}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(true)}, IncludeUnmanaged: true}
 	for name, id := range map[string]string{"missing": "", "not a UUID": "external", "nil UUID": uuid.Nil.String()} {
 		handler := poolHandler(newFakeStore())
 		handler.externalSubscriptionID = func() string { return id }
@@ -190,7 +190,7 @@ func TestUnmanagedPoolRequiresValidSubscriptionID(t *testing.T) {
 
 func TestManagedPoolStillResolvesSubscriptionName(t *testing.T) {
 	t.Parallel()
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(false)}}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(false)}}
 	handler := poolHandler(newFakeStore())
 	handler.externalSubscriptionID = func() string { return "ignored" }
 	resolved := 0
@@ -210,7 +210,7 @@ func TestManagedPoolStillResolvesSubscriptionName(t *testing.T) {
 func TestUnmanagedPoolSubscriptionIDSpellingsPrepareTheSameIdentities(t *testing.T) {
 	t.Parallel()
 	canonical := testSlot().Subscriptions.E2E.ID
-	request := assets.PoolRequest{Environment: "dev", Pools: []slots.Pool{testPool(true)}, IncludeUnmanaged: true}
+	request := assets.PoolRequest{Environment: "dev", Pools: []catalog.Pool{testPool(true)}, IncludeUnmanaged: true}
 	for name, id := range map[string]string{
 		"braced":       "{" + canonical + "}",
 		"upper case":   strings.ToUpper(canonical),

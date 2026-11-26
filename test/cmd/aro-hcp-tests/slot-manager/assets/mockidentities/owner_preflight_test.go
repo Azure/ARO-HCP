@@ -23,7 +23,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/owners"
 )
 
@@ -98,14 +98,14 @@ func TestOwnerGroupSupportedObjectTypes(t *testing.T) {
 func TestPoolOwnerSettingsFailBeforeCredentials(t *testing.T) {
 	t.Setenv(OwnerIDsEnv, "null")
 	t.Setenv(OwnersGroupIDEnv, "null")
-	pool := slots.Pool{SlotCount: 1, SlotAssets: slots.SlotAssets{MockIdentities: &slots.MockIdentitiesAsset{Allocation: slots.AllocationDedicated}}}
+	pool := catalog.Pool{SlotCount: 1, SlotAssets: catalog.SlotAssets{MockIdentities: &catalog.MockIdentitiesAsset{Allocation: catalog.AllocationDedicated}}}
 	for _, apply := range []bool{false, true} {
-		if err := NewHandler().pools(t.Context(), assets.PoolRequest{Pools: []slots.Pool{pool}}, apply); err == nil {
+		if err := NewHandler().pools(t.Context(), assets.PoolRequest{Pools: []catalog.Pool{pool}}, apply); err == nil {
 			t.Fatal("invalid settings passed pool preflight")
 		}
 	}
-	pool.SlotAssets.E2EIdentities = &slots.E2EIdentitiesAsset{Provisioning: slots.IdentityProvisioningUnmanaged}
-	if err := NewHandler().pools(t.Context(), assets.PoolRequest{Pools: []slots.Pool{pool}}, true); err != nil {
+	pool.SlotAssets.E2EIdentities = &catalog.E2EIdentitiesAsset{Provisioning: catalog.IdentityProvisioningUnmanaged}
+	if err := NewHandler().pools(t.Context(), assets.PoolRequest{Pools: []catalog.Pool{pool}}, true); err != nil {
 		t.Fatalf("unselected unmanaged pool required credentials: %v", err)
 	}
 }

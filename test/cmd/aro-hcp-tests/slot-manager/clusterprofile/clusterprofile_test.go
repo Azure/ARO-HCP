@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package clusterprofile
 
 import (
 	"context"
@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type subscriptionTestTransport struct {
@@ -137,14 +139,14 @@ func TestResolvePoolSubscriptionsWithProfileCredentials(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || resolved.E2E != (ResolvedSubscription{Name: "customer", ID: "e2e-id"}) {
+			if err != nil || resolved.E2E != (catalog.ResolvedSubscription{Name: "customer", ID: "e2e-id"}) {
 				t.Fatalf("E2E resolution failed: %+v, %v", resolved, err)
 			}
 			if test.infraName == "" {
-				if resolved.Infrastructure != (ResolvedSubscription{}) {
+				if resolved.Infrastructure != (catalog.ResolvedSubscription{}) {
 					t.Fatalf("E2E-only resolution returned infrastructure: %+v", resolved)
 				}
-			} else if resolved.Infrastructure != (ResolvedSubscription{Name: "infra", ID: "infra-id"}) {
+			} else if resolved.Infrastructure != (catalog.ResolvedSubscription{Name: "infra", ID: "infra-id"}) {
 				t.Fatalf("required infrastructure was not resolved: %+v", resolved)
 			}
 		})
@@ -190,7 +192,7 @@ func TestReadRequiredProfileFile(t *testing.T) {
 func TestDeploymentEnvironmentName(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"ci01", "dev-xs", "dev_xs", "INT", "0"} {
-		if err := validateDeploymentEnvironmentName(name); err != nil {
+		if err := catalog.ValidateDeploymentEnvironmentName(name); err != nil {
 			t.Errorf("valid deployment environment %q rejected: %v", name, err)
 		}
 	}

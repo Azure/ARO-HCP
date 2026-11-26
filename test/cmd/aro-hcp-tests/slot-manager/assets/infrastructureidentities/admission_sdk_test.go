@@ -36,7 +36,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 type admissionCredential struct{}
@@ -206,9 +207,9 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) *admitClie
 }
 
 func admittedRequest() assets.LeaseRequest {
-	return assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-		Assets: slots.ResolvedAssets{InfrastructureIdentities: &slots.ResolvedInfrastructureIdentities{
-			Allocation: slots.AllocationLeased, ResourceGroups: []string{"bundle-03"}, Identities: DefaultTopology().IdentityInventory(),
+	return assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+		Assets: catalog.ResolvedAssets{InfrastructureIdentities: &catalog.ResolvedInfrastructureIdentities{
+			Allocation: catalog.AllocationLeased, ResourceGroups: []string{"bundle-03"}, Identities: DefaultTopology().IdentityInventory(),
 		}},
 	}}}
 }
