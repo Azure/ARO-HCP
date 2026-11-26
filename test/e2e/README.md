@@ -305,12 +305,17 @@ Run in debug mode: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyP
 
 ### Testing a control-plane pin to an unreleased build
 
-In a development environment configured to serve the target, set
-`ARO_HCP_TEST_PIN_VERSION` to the exact OpenShift release version and
-`ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT` to the full Kubernetes source Git SHA
-reported by that build's kube-apiserver. The test creates a cluster on the
-stable channel in the same minor release line. It checks the running API
-server before and after applying the pin. With both inputs unset, it skips.
+Both scenarios run in ARO-HCP CI. Before provisioning, they select the highest
+prerelease version by SemVer precedence on the job's configured control-plane
+minor from the out-of-band catalog compiled into the test binary. The backend
+under test must recognize the same entry. When the minor has no eligible
+prerelease, the tests skip. The selected catalog key is sent as `ExactVersion`.
+
+The runner needs `oc` on its PATH and registry credentials for the catalog
+image. It runs `oc adm release info` against the digest-pinned image to read
+the expected Kubernetes commit from its `hyperkube` component. The first
+scenario creates a cluster on the target minor's stable channel and checks
+the guest API server before and after pinning.
 
 ```sh
 ./test/aro-hcp-tests run-test "SRE starts applying an unreleased control plane version pinned through the admin api"
@@ -318,28 +323,36 @@ server before and after applying the pin. With both inputs unset, it skips.
 
 ### Testing release from a prerelease pin onto stable
 
-Set the two build inputs above and `ARO_HCP_TEST_PIN_BASELINE_VERSION` to an
-installable stable X.Y.Z older than the prerelease on the same minor line.
+The test uses the same catalog selection as the first scenario. It selects
+the newest enabled stable baseline in the region on the same minor line that
+precedes the prerelease and has a Kubernetes commit distinguishable from both
+the prerelease and the Cincinnati-selected stable build. If there is no such
+baseline, the release scenario skips before provisioning.
 Before provisioning, the test derives the stable channel from the prerelease
 and selects a release from Cincinnati using the backend's stable z-stream
 offset. If that release is older than the prerelease, the release scenario
 skips. The prerelease-only scenario can still run.
 
-For example, with baseline `4.20.47`, pin `4.20.48-assembly.example-multi`,
+For example, with baseline `4.20.47`, pin `4.20.48-assembly.example`,
 and Cincinnati selection `4.20.48`, the first request holds until `4.20.148`
-and the second lowers the threshold to `4.20.48`. Run in a development region
-that can deploy these builds:
+and the second lowers the threshold to `4.20.48`.
+
+The test reads the `hyperkube` source commit for the Cincinnati-selected
+release from the public multi-arch OpenShift release controller. If the
+guest serves a different commit after release, the test also checks newer
+stable builds on the same Cincinnati channel. The observed commit must be
+distinct from the baseline and prerelease for the guest to prove the transition.
 
 ```sh
 ./test/aro-hcp-tests run-test --timeout=3h "SRE releases a prerelease control plane pin after lowering its threshold to the selected stable release"
 ```
 
-After observing the prerelease kube-apiserver commit, the test removes the
-creation-time exact override and checks that the guest still serves the
-prerelease. It then lowers only `untilExactVersion` and waits for a new guest
-`ClusterVersion` history entry showing a stable update on the same minor line
-at or above that threshold. The backend applies its regional selection, which
-can be newer than the version selected from Cincinnati.
+After observing the prerelease commit on consecutive guest responses, the
+test removes the creation-time override and checks the guest `/version`
+endpoint every 15 seconds for five minutes. Each sample must report the
+prerelease commit. The test then lowers only `untilExactVersion` and waits
+for a guest kube-apiserver to serve one of the eligible stable commits.
+This shows that at least one API server has started serving the stable build.
 
 ## Job attribution tags
 

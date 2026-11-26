@@ -19,8 +19,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -38,10 +43,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
+
+var kubeBuildCommit = regexp.MustCompile("^[0-9a-f]{40}$")
 
 type controlPlaneVersionPinResponse struct {
 	ExactVersion      string `json:"exactVersion"`
@@ -59,18 +67,18 @@ var _ = Describe("SRE", func() {
 		labels.MIContainers(1),
 		labels.StartPriority(60),
 		func(ctx context.Context, autoRelease bool) {
-			target := os.Getenv("ARO_HCP_TEST_PIN_VERSION")
-			expectedCommit := os.Getenv("ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT")
-			baselineVersion := os.Getenv("ARO_HCP_TEST_PIN_BASELINE_VERSION")
-			if autoRelease && baselineVersion == "" {
-				Skip("set ARO_HCP_TEST_PIN_BASELINE_VERSION to exercise automatic release onto stable")
+			if os.Getenv("OPENSHIFT_CI") != "true" {
+				Skip("control-plane version pin scenarios run only in ARO-HCP CI")
 			}
-			if !autoRelease && target == "" && expectedCommit == "" {
-				Skip("set ARO_HCP_TEST_PIN_VERSION and ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT to test an unreleased build")
+			By("selecting a prerelease from the out-of-band catalog for the configured control-plane minor")
+			configuredVersion := framework.DefaultOpenshiftControlPlaneVersionId()
+			minor, err := semver.ParseTolerant(configuredVersion)
+			Expect(err).NotTo(HaveOccurred(), "invalid configured control-plane version %q", configuredVersion)
+			targetVersion, image, found := cpoutofband.LatestPrereleaseForMinor(minor.Major, minor.Minor)
+			if !found {
+				Skip(fmt.Sprintf("no out-of-band prerelease for %d.%d", minor.Major, minor.Minor))
 			}
-			targetVersion, err := semver.Parse(target)
-			Expect(err).NotTo(HaveOccurred(), "ARO_HCP_TEST_PIN_VERSION must be an exact release version")
-			Expect(expectedCommit).To(MatchRegexp("^[0-9a-f]{40}$"), "ARO_HCP_TEST_PIN_KUBE_GIT_COMMIT must be the full Kubernetes source commit of the target build")
+			target := targetVersion.String()
 
 			By("selecting the stable release from Cincinnati for the target minor")
 			channelGroup := string(metadataapi.ChannelGroupStable)
@@ -81,23 +89,62 @@ var _ = Describe("SRE", func() {
 			best, err := semver.Parse(selected.Version)
 			Expect(err).NotTo(HaveOccurred(), "invalid selected version %q from %s", selected.Version, channel)
 			Expect(len(best.Pre)+len(best.Build)).To(BeZero(), "expected a stable X.Y.Z release from %s, got %s", channel, best)
+			const releaseController = "https://multi.ocp.releases.ci.openshift.org"
+			if autoRelease && best.LT(targetVersion) {
+				Skip(fmt.Sprintf("%s selected %s, which is older than prerelease %s", channel, best, target))
+			}
+			By("reading the expected kube-apiserver commit from the pinned release image")
+			expectedCommit, err := privateReleaseKubeCommit(ctx, targetVersion, image)
+			Expect(err).NotTo(HaveOccurred(), "failed to read prerelease metadata for %s", target)
+			tc := framework.NewTestContext()
+			baselineVersion := selected.Version
+			var selectedCommit string
 			if autoRelease {
-				baseline, err := semver.Parse(baselineVersion)
-				Expect(err).NotTo(HaveOccurred(), "invalid exact baseline version %q", baselineVersion)
-				Expect(len(baseline.Pre)+len(baseline.Build)).To(BeZero(), "baseline must be a stable X.Y.Z release")
-				Expect(targetVersion.Pre).NotTo(BeEmpty(), "the pin must name a prerelease")
-				Expect(targetVersion.Build).To(BeEmpty(), "the pin cannot contain build metadata")
-				Expect(baseline.Major == targetVersion.Major && baseline.Minor == targetVersion.Minor && baseline.LT(targetVersion)).To(BeTrue(),
-					"baseline %s must precede prerelease %s on the same minor line", baseline, target)
-				if best.LT(targetVersion) {
-					Skip(fmt.Sprintf("%s selected %s, which is older than prerelease %s", channel, best, target))
+				Eventually(ctx, func(ctx context.Context) error {
+					var err error
+					selectedCommit, err = releaseKubeCommit(ctx, releaseController, best)
+					return err
+				}, time.Minute, 5*time.Second).Should(Succeed(), "failed to read multi-arch release metadata for %s", best)
+				By("selecting an enabled stable baseline in the region with a distinguishable kube-apiserver build")
+				versionsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
+				pager := versionsClient.NewListPager(tc.Location(), nil)
+				var candidates []semver.Version
+				for pager.More() {
+					page, err := pager.NextPage(ctx)
+					Expect(err).NotTo(HaveOccurred(), "failed to list available cluster versions in %s", tc.Location())
+					for _, item := range page.Value {
+						if item == nil || item.Name == nil || item.Properties == nil || item.Properties.Enabled == nil ||
+							!*item.Properties.Enabled || item.Properties.ChannelGroup == nil || *item.Properties.ChannelGroup != channelGroup {
+							continue
+						}
+						v, err := semver.Parse(*item.Name)
+						if err == nil && v.Major == targetVersion.Major && v.Minor == targetVersion.Minor &&
+							len(v.Pre)+len(v.Build) == 0 && v.LT(targetVersion) {
+							candidates = append(candidates, v)
+						}
+					}
+				}
+				slices.SortFunc(candidates, func(a, b semver.Version) int { return b.Compare(a) })
+				baselineVersion = ""
+				for _, v := range candidates {
+					var sha string
+					Eventually(ctx, func(ctx context.Context) error {
+						var err error
+						sha, err = releaseKubeCommit(ctx, releaseController, v)
+						return err
+					}, time.Minute, 5*time.Second).Should(Succeed(), "failed to read stable baseline metadata for %s", v)
+					if sha != expectedCommit && sha != selectedCommit {
+						baselineVersion = v.String()
+						break
+					}
+				}
+				if baselineVersion == "" {
+					Skip(fmt.Sprintf("no earlier enabled stable baseline with a distinguishable kube-apiserver commit for %s in %s", target, tc.Location()))
 				}
 			} else {
 				Expect(selected.Version).NotTo(Equal(target), "the stable baseline and pin target must differ")
-				baselineVersion = selected.Version
 			}
 
-			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				Expect(tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)).To(Succeed(), "failed to assign identity containers")
 			}
@@ -168,7 +215,12 @@ var _ = Describe("SRE", func() {
 			// A single response from the target build proves at least one API server
 			// rolled. The guest ClusterVersion can stay at the baseline during this update.
 			By("waiting for the running kube-apiserver to serve the pinned build")
-			Eventually(ctx, runningCommit, framework.HCPClusterVersionUpgradeTimeout, 30*time.Second).Should(Equal(expectedCommit),
+			pinnedBuild := Eventually(ctx, runningCommit, framework.HCPClusterVersionUpgradeTimeout, 30*time.Second)
+			if autoRelease {
+				// Allow the replicas behind the guest endpoint to settle before starting the hold check.
+				pinnedBuild = pinnedBuild.MustPassRepeatedly(3)
+			}
+			pinnedBuild.Should(Equal(expectedCommit),
 				"cluster %s did not start serving pin %s (baseline commit %s)", clusterName, target, baselineCommit)
 			if !autoRelease {
 				Eventually(ctx, guestRelease, 5*time.Minute, 15*time.Second).Should(Equal(baselineVersion),
@@ -178,35 +230,59 @@ var _ = Describe("SRE", func() {
 			minorVersion := fmt.Sprintf("%d.%d", targetVersion.Major, targetVersion.Minor)
 			removeCreationVersionOverride(ctx, hcpClient, *resourceGroup.Name, clusterName, minorVersion, channelGroup)
 
-			By("checking the guest still serves the prerelease after removing the creation override")
-			Eventually(ctx, runningCommit, 5*time.Minute, 15*time.Second).Should(Equal(expectedCommit),
-				"guest no longer serves the pinned build on %s", clusterName)
-			latestGuestUpdate := func(ctx context.Context) (string, error) {
-				cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-				if err != nil {
-					return "", err
-				}
-				if len(cv.Status.History) == 0 {
-					return "", fmt.Errorf("guest ClusterVersion history is empty on %s", clusterName)
-				}
-				return cv.Status.History[0].Version, nil
-			}
-			Eventually(ctx, latestGuestUpdate, 5*time.Minute, 15*time.Second).Should(Or(Equal(baselineVersion), Equal(target)),
-				"expected the guest update history to show the baseline or prerelease before lowering the threshold on %s", clusterName)
+			By("observing the pinned kube-apiserver build across several one-minute forced-assignment resyncs")
+			Consistently(ctx, runningCommit, 5*time.Minute, 15*time.Second).Should(Equal(expectedCommit),
+				"guest stopped serving the pinned build while the high threshold was in place on %s", clusterName)
 
 			By(fmt.Sprintf("lowering only untilExactVersion to the Cincinnati-selected stable release %s", best))
 			request.UntilExactVersion = best.String()
 			postPin(request)
 
-			By("waiting for guest ClusterVersion history to show the stable upgrade starting")
-			Eventually(ctx, func(g Gomega, ctx context.Context) {
-				latest, err := latestGuestUpdate(ctx)
-				g.Expect(err).NotTo(HaveOccurred(), "failed to read guest update history on %s", clusterName)
-				version, err := semver.Parse(latest)
-				g.Expect(err).NotTo(HaveOccurred(), "invalid version %q in guest update history", latest)
-				g.Expect(version.Major == best.Major && version.Minor == best.Minor && len(version.Pre)+len(version.Build) == 0 && version.GTE(best)).To(BeTrue(),
-					"expected a stable update on %s at or above %s, got %s", channel, best, version)
-			}, framework.HCPClusterVersionUpgradeTimeout, time.Minute).Should(Succeed())
+			By("waiting for a guest kube-apiserver to serve a known stable build")
+			knownCommits := map[string]string{best.String(): selectedCommit}
+			Eventually(ctx, func(ctx context.Context) error {
+				observed, err := runningCommit(ctx)
+				if err != nil {
+					return err
+				}
+				if observed == baselineCommit || observed == expectedCommit {
+					return fmt.Errorf("guest still serves the baseline or prerelease commit %s", observed)
+				}
+				for _, commit := range knownCommits {
+					if commit == observed {
+						return nil
+					}
+				}
+				// A regional rollout may select a newer stable build while the test runs.
+				// Walk back from the channel tip only when the observed commit is unfamiliar.
+				for offset := uint(0); ; offset++ {
+					release, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, offset)
+					if err != nil {
+						return err
+					}
+					version, err := semver.Parse(release.Version)
+					if err != nil {
+						return err
+					}
+					if version.LTE(best) {
+						return fmt.Errorf("guest commit %q did not match a stable build on %s at or above %s", observed, channel, best)
+					}
+					if len(version.Pre)+len(version.Build) != 0 {
+						continue
+					}
+					if _, known := knownCommits[release.Version]; !known {
+						commit, err := releaseKubeCommit(ctx, releaseController, version)
+						if err != nil {
+							return err
+						}
+						knownCommits[release.Version] = commit
+					}
+					if knownCommits[release.Version] == observed {
+						return nil
+					}
+				}
+			}, framework.HCPClusterVersionUpgradeTimeout, 30*time.Second).Should(Succeed(),
+				"guest on %s did not serve an identifiable stable build on %s at or above %s", clusterName, channel, best)
 		},
 		Entry("starts applying an unreleased control plane version pinned through the admin api", false),
 		Entry("releases a prerelease control plane pin after lowering its threshold to the selected stable release", true),
@@ -231,4 +307,79 @@ func removeCreationVersionOverride(ctx context.Context, hcpClient *hcpsdk2026100
 			},
 		}, framework.UpdateHCPClusterTimeout)
 	Expect(err).NotTo(HaveOccurred(), "failed to remove creation-time exact override for cluster %q", clusterName)
+}
+
+func privateReleaseKubeCommit(ctx context.Context, target semver.Version, image string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "oc", "adm", "release", "info", image, "--filter-by-os=linux/amd64", "-o", "json")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("oc adm release info for %s: %w: %s", image, err, strings.TrimSpace(stderr.String()))
+	}
+	embeddedVersion, commit, err := decodeKubeBuild(bytes.NewReader(output))
+	if err != nil {
+		return "", fmt.Errorf("decode release metadata for %s: %w", image, err)
+	}
+	// The catalog key and embedded payload version may differ on the same minor line.
+	embedded, err := semver.Parse(embeddedVersion)
+	if err != nil || embedded.Major != target.Major || embedded.Minor != target.Minor {
+		return "", fmt.Errorf("payload version %q does not match the minor line of pin %s", embeddedVersion, target)
+	}
+	return commit, nil
+}
+
+// HyperShift runs kube-apiserver from the hyperkube component of the release.
+func releaseKubeCommit(ctx context.Context, releaseController string, version semver.Version) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseController+"/releasetag/"+version.String()+"/json", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("release metadata for %s returned %s", version, resp.Status)
+	}
+	release, commit, err := decodeKubeBuild(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("decode release metadata for %s: %w", version, err)
+	}
+	if release != version.String() {
+		return "", fmt.Errorf("requested release %s, got metadata for %q", version, release)
+	}
+	return commit, nil
+}
+
+func decodeKubeBuild(reader io.Reader) (string, string, error) {
+	var info struct {
+		Metadata   struct{ Version string }
+		References struct {
+			Spec struct {
+				Tags []struct {
+					Name        string
+					Annotations map[string]string
+				}
+			}
+		}
+	}
+	if err := json.NewDecoder(reader).Decode(&info); err != nil {
+		return "", "", err
+	}
+	for _, tag := range info.References.Spec.Tags {
+		if tag.Name == "hyperkube" {
+			commit := tag.Annotations["io.openshift.build.commit.id"]
+			if kubeBuildCommit.MatchString(commit) {
+				return info.Metadata.Version, commit, nil
+			}
+			break
+		}
+	}
+	return "", "", fmt.Errorf("release %q has no full hyperkube source commit", info.Metadata.Version)
 }
