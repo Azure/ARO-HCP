@@ -91,10 +91,11 @@ resourceGroups:
     - westus2
   steps:
   - name: deploy
-    action: ARM
+    action: ARMStack
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: detach
     variables:
     - name: grafanaPrincipalId
       input:
