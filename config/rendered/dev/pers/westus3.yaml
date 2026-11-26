@@ -207,9 +207,9 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7
-    registry: quay.io
-    repository: app-sre/aro-hcp-clusters-service
+    digest: sha256:7185a681e28bb17263d8161828a6c290d3fa56aa7c61c5fa530ac40a33a4c418
+    registry: arohcpsvcdev.azurecr.io
+    repository: test-msoriano-cluster-service
   k8s:
     deploymentStrategy:
       rollingUpdate:

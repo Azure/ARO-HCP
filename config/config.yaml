@@ -1695,6 +1695,10 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: test-msoriano-cluster-service
+              digest: sha256:7185a681e28bb17263d8161828a6c290d3fa56aa7c61c5fa530ac40a33a4c418
           # Geneva
           geneva:
             logs:
