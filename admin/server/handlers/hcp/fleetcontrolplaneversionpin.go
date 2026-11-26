@@ -34,7 +34,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// FleetControlPlaneVersionPinHandler updates control-plane version pins in the regional Resources container.
+// FleetControlPlaneVersionPinHandler bulk-sets or clears per-cluster
+// ServiceProviderCluster Spec.PinnedVersion for clusters in a channel
+// (POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin).
+//
+// Use this when an immediate pin of existing clusters is needed. For a
+// progressive channel-wide pin that also covers initial install and minor
+// upgrade through normal rollout assignment, use RolloutVersionPinHandler
+// instead (POST /admin/v1/versionrollouts/{channel}/pinnedversion). The two
+// endpoints complement each other.
+//
 // It validates the entire selection before starting independent ETag writes.
 type FleetControlPlaneVersionPinHandler struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient

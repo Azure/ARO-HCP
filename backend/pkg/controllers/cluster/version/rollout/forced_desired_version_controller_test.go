@@ -229,6 +229,48 @@ func TestForcedClusterDesiredVersionSyncer_Decisions(t *testing.T) {
 	}
 }
 
+// TestForcedClusterDesiredVersionSyncer_ChannelPinReleasesClusterPin documents
+// pin precedence when releasing a per-cluster pin: channel pin >
+// BestExactVersion. An active channel pin that meets the SPC until threshold
+// clears the per-cluster pin and becomes desired, even when BestExactVersion
+// is still below that threshold.
+func TestForcedClusterDesiredVersionSyncer_ChannelPinReleasesClusterPin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const clusterName = "c1"
+
+	cluster := newTestCluster(clusterName, "stable", "4.21")
+	serviceProviderCluster := newTestServiceProviderCluster(clusterName, v("4.21.2"), nil, pin("4.21.2", "4.21.8"))
+	rollout := newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{})
+	rollout.Spec.PinnedVersion = fleetapi.ServiceProviderClusterPinnedVersion{
+		ExactVersion:      v("4.21.8"),
+		UntilExactVersion: v("4.21.9"),
+	}
+
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+	_, lister := newTestRolloutStore(t, rollout)
+
+	syncer := &forcedClusterDesiredVersionSyncer{
+		clock:                        clocktesting.NewFakeClock(statusTestNow),
+		resourcesDBClient:            mockDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		rolloutLister:                lister,
+	}
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+		SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: clusterName,
+	}))
+
+	updated, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, clusterName).
+		Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.True(t, updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*v("4.21.8")),
+		"desired got %v want channel pin 4.21.8 (effective), not BestExactVersion 4.21.6", updated.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.Empty(t, updated.Spec.PinnedVersion, "channel pin at the SPC until threshold must clear the per-cluster pin")
+}
+
 func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 	t.Parallel()
 

@@ -129,6 +129,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
+	// Per-cluster pin: use when a single HCP cluster needs an immediate hold or
+	// rollback (ForcedClusterDesiredVersion applies Spec.PinnedVersion). Prefer
+	// the channel-wide progressive or bulk endpoints under /versionrollouts/
+	// when the whole fleet (or many clusters) should move together.
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/controlplaneversionpin"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPVersionPinHandler(resourcesDBClient).ServeHTTP)),
@@ -147,6 +151,13 @@ func NewAdminAPI(
 	)
 
 	// Fleet version management routes
+	// Progressive channel-wide pin: z-stream rollout advances clusters to the
+	// pinned version through the usual gates; initial install and minor upgrade
+	// honor it as well.
+	middlewareMux.Handle("POST /admin/v1/versionrollouts/{channel}/pinnedversion",
+		errorutils.ReportError(hcp.NewRolloutVersionPinHandler(fleetDBClient).ServeHTTP))
+	// Immediate bulk pin: applies Spec.PinnedVersion to existing clusters in the
+	// channel right away when progressive rollout is not enough.
 	middlewareMux.Handle("POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin",
 		errorutils.ReportError(hcp.NewFleetControlPlaneVersionPinHandler(resourcesDBClient).ServeHTTP))
 

@@ -89,8 +89,14 @@ type rolloutCounts struct {
 // now. It is a pure function.
 //
 //   - Desired[v]: clusters whose resolved desired version is v.
-//   - Achieved[v]: clusters whose earliest active version is v.
-//   - Mismatched[v]: clusters desiring v that have not achieved v (upgrade in flight).
+//   - Achieved[v]: the upgrade has successfully settled on v, or a downgrade
+//     has successfully settled on v. If we are downgrading to a version that
+//     was settled previously but the active downgrade has not completed yet
+//     (e.g. desired=4.20.34 with [Partial 4.20.36, Completed 4.20.34]), that
+//     old completed entry is not achieved until the version shows up as
+//     completed again with no Partial ahead of it.
+//   - Mismatched[v]: clusters desiring v that have not achieved v (upgrade or
+//     downgrade still in flight).
 //   - Successful[v]: achieved clusters that have held v (ServiceProviderClusterActiveVersion.LastTransitionTime)
 //     longer than MinVersionReadyDuration.
 //   - Failed[v]: mismatched clusters whose DesiredVersionLastTransitionTime is older
@@ -105,19 +111,32 @@ func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProvid
 	}
 	for _, serviceProviderCluster := range serviceProviderClusters {
 		desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-		achievedEntry := earliestActiveVersionEntry(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+		activeVersions := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+		achievedEntry := earliestActiveVersionEntry(activeVersions)
+		// Downgrade to a previously settled version that has not completed yet
+		// (desired matches the old completed base, but a Partial is still ahead).
+		rollbackInFlight := desired != nil && achievedEntry != nil && desired.EQ(*achievedEntry.Version) && hasPartialActiveVersion(activeVersions)
 
 		if desired != nil {
 			counts.Desired[desired.String()]++
 		}
-		if achievedEntry != nil {
+		// Count achieved versions. Achieved means the upgrade has successfully
+		// settled, or a downgrade has successfully settled — if we are
+		// downgrading to a version that was settled previously but the active
+		// downgrade has not completed yet, wait until that version shows up as
+		// completed again.
+		if achievedEntry != nil && !rollbackInFlight {
 			achieved := achievedEntry.Version
 			counts.Achieved[achieved.String()]++
 			if !achievedEntry.LastTransitionTime.IsZero() && now.Sub(achievedEntry.LastTransitionTime.Time) > config.MinVersionReadyDuration {
 				counts.Successful[achieved.String()]++
 			}
 		}
-		if desired != nil && (achievedEntry == nil || !achievedEntry.Version.EQ(*desired)) {
+		// Count in-flight upgrades. In-flight means desired is set but not yet
+		// achieved — either because an upgrade is still running, or because a
+		// downgrade to a previously settled version has not shown up as
+		// completed again.
+		if desired != nil && (achievedEntry == nil || !achievedEntry.Version.EQ(*desired) || rollbackInFlight) {
 			counts.Mismatched[desired.String()]++
 			maxDur := config.MaxUpgradeDurationForMinor(minorString(*desired))
 			desiredSince := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime
