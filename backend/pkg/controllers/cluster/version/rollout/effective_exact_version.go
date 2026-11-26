@@ -17,7 +17,7 @@ package rollout
 import (
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 // effectiveExactVersion returns the rollout target without changing the graph's

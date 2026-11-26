@@ -21,7 +21,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 func TestEffectiveExactVersion(t *testing.T) {
