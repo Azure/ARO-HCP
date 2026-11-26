@@ -66,6 +66,13 @@ type Controller struct {
 	readInputs      func(context.Context, string) ([]input, error)
 	readResults     func(context.Context, []input, failurePatternVersion) ([]resultRow, error)
 	submit          func(context.Context, *bytes.Buffer) error
+	readCoverage    func(ctx context.Context, version failurePatternVersion, cutoff time.Time) ([]sourceCoverage, error)
+	readControl     func(context.Context) (failurePatternVersion, bool, error)
+	submitControl   func(context.Context, *bytes.Buffer) error
+
+	// sweepDone receives a non-blocking signal each time the history sweep completes.
+	sweepDone        chan struct{}
+	coverageFallback time.Duration
 
 	// sweepBefore, sweepBuilds and sweepRestUntil are owned by the sweep loop.
 	sweepBefore    string
@@ -92,7 +99,7 @@ func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
 		metrics: newControllerMetrics(), batches: newSubmissionCache(cfg.CIFailurePatterns.GetCacheSize(), cfg.CIFailurePatterns.GetCacheTTL()),
 		now: time.Now, retryDelay: 5 * time.Second, maxRetryDelay: 2 * time.Minute,
 		initializeDelay: 5 * time.Second, sweepPoll: 5 * time.Second,
-		pendingAttempts: map[string]int{},
+		pendingAttempts: map[string]int{}, sweepDone: make(chan struct{}, 1), coverageFallback: coverageFallbackInterval,
 	}
 	c.initialize = c.initializeKusto
 	return c
@@ -141,7 +148,12 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 		}()
 	}
-	workers.Add(2)
+	workers.Add(3)
+	go func() {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		defer workers.Done()
+		c.runCoverage(ctx)
+	}()
 	go func() {
 		defer utilruntime.HandleCrashWithContext(ctx)
 		defer workers.Done()
@@ -330,6 +342,10 @@ func (c *Controller) sweepStep(ctx context.Context) error {
 	} else {
 		c.logger.Info("History sweep complete", "builds", c.sweepBuilds, "rest", sweepRest)
 		c.sweepBefore, c.sweepBuilds, c.sweepRestUntil = "", 0, c.now().Add(sweepRest)
+		select {
+		case c.sweepDone <- struct{}{}:
+		default:
+		}
 	}
 	c.metrics.scans.WithLabelValues("sweep").Inc()
 	c.logger.Info("History sweep page", "builds", len(builds), "sweepBuilds", sweepBuilds, "queueLength", c.queue.Len())

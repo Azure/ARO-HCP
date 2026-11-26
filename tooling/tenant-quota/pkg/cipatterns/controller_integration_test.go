@@ -136,7 +136,7 @@ func TestControllerKustoIntegration(t *testing.T) {
 	ingest(t, "ciTestResults", "ciTestResultsMapping", []map[string]any{repeated, zeroTime, raw("", "rp-upgrade", ""), timed, raw("ambiguous", "rp-provision", "context deadline exceeded"), success})
 	ingest(t, "ciTestNames", "ciTestNamesMapping", []map[string]any{{"testId": "unicode", "name": "name 🧪"}, {"testId": "unicode", "name": "name 🧪"}, {"testId": "alert", "name": alertName}, {"testId": "ambiguous", "name": "one"}, {"testId": "ambiguous", "name": "two"}})
 	require.NoError(t, c.checkSchema(ctx, client, "ciFailurePatterns", resultColumns))
-	require.NoError(t, c.checkMapping(ctx, client))
+	require.NoError(t, c.checkMapping(ctx, client, c.config.CIFailurePatterns.Results, resultColumns))
 	inputs, err := c.loadInputs(ctx, client, build)
 	require.NoError(t, err)
 	require.Len(t, inputs, 4)

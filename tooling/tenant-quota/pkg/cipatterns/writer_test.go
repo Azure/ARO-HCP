@@ -280,17 +280,17 @@ func TestMappingRequiresEveryTypedColumnAndExactPath(t *testing.T) {
 		entries = append(entries, map[string]any{"Column": column, "DataType": kind, "Properties": map[string]string{"Path": "$['" + column + "']"}})
 	}
 	encode := func() string { encoded, err := json.Marshal(entries); require.NoError(t, err); return string(encoded) }
-	require.NoError(t, validateMapping(encode()))
+	require.NoError(t, validateMapping(encode(), resultColumns))
 	entries = append(entries, entries[0])
-	require.ErrorContains(t, validateMapping(encode()), "duplicate mapping")
+	require.ErrorContains(t, validateMapping(encode(), resultColumns), "duplicate mapping")
 	entries = entries[:len(entries)-1]
 	entries[0]["Properties"] = map[string]string{"Path": "$.wrong"}
-	require.ErrorContains(t, validateMapping(encode()), "invalid mapping")
+	require.ErrorContains(t, validateMapping(encode(), resultColumns), "invalid mapping")
 	entries[0]["Properties"] = map[string]string{"Path": "$['" + entries[0]["Column"].(string) + "']"}
 	entries[0]["DataType"] = "bool"
-	require.Error(t, validateMapping(encode()))
+	require.Error(t, validateMapping(encode(), resultColumns))
 	entries = entries[1:]
-	require.Error(t, validateMapping(encode()))
+	require.Error(t, validateMapping(encode(), resultColumns))
 }
 
 func TestCompleteBuildIDReadsPreserveUnicodeAndRejectInvalidPages(t *testing.T) {

@@ -53,6 +53,9 @@ func newTestController(t *testing.T) *Controller {
 	c.readInputs = func(context.Context, string) ([]input, error) { return nil, nil }
 	c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) { return nil, nil }
 	c.submit = func(context.Context, *bytes.Buffer) error { return nil }
+	c.readControl = func(context.Context) (failurePatternVersion, bool, error) { return failurePatternVersion{}, false, nil }
+	c.readCoverage = func(context.Context, failurePatternVersion, time.Time) ([]sourceCoverage, error) { return nil, nil }
+	c.submitControl = func(context.Context, *bytes.Buffer) error { return nil }
 	t.Cleanup(c.queue.ShutDown)
 	return c
 }
