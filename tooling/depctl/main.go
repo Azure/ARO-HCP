@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/plan"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/proposal"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/run"
+	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/toolchain"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/verify"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/version"
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/cli"
@@ -109,6 +110,7 @@ reachable from this binary.`,
 		dependabot.NewCommand,
 		maintenance.NewCommand,
 		evidence.NewCommand,
+		toolchain.NewCommand,
 	}
 	for _, newCommand := range mainCommands {
 		command, err := newCommand(mainGroupID)
