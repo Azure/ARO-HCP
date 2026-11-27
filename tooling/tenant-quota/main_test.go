@@ -62,6 +62,7 @@ func TestCollectorRestartsAfterRecoveredPanic(t *testing.T) {
 		},
 		CIFailurePatterns: config.CIFailurePatternsConfig{
 			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 		Tenants: []config.TenantConfig{{TenantID: "tenant", ClientIDKeyVaultSecretName: "client", ClientSecretKeyVaultSecretName: "secret"}},
 		Prow: config.ProwConfig{
@@ -190,6 +191,9 @@ ciFailurePatterns:
   results:
     table: ciFailurePatterns
     ingestionMapping: ciFailurePatternsMapping
+  control:
+    table: ciFailurePatternControl
+    ingestionMapping: ciFailurePatternControlMapping
 `), 0600))
 	t.Setenv("SECRETS_STORE_PATH", directory)
 	t.Setenv("CONFIG_PATH", configPath)

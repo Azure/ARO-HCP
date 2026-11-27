@@ -1,0 +1,58 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// One row per coverage check the ci-failure-patterns controller chose to record.
+// The row with the greatest coverageCheckedAt names the active
+// (extractorVersion, resultSchemaVersion) pair; consumers read it through
+// ciFailurePatternActive. Heartbeat rows keep that record alive. Retention
+// inherits the ServiceLogs database policy (90 days).
+.create-merge table ciFailurePatternControl (
+    extractorVersion: string,
+    resultSchemaVersion: long,
+    coverageCheckedAt: datetime,
+    rawFailedInputsConsidered: long,
+    rawFailedInputsWithoutResult: long
+)
+with (
+    docstring = "Coverage checks of ciFailurePatterns against raw failed inputs; the newest row names the active extractor version",
+    folder = "CI"
+)
+
+.create-or-alter table ciFailurePatternControl ingestion json mapping "ciFailurePatternControlMapping"
+```
+[
+  {"column":"extractorVersion","path":"$['extractorVersion']","datatype":"string"},
+  {"column":"resultSchemaVersion","path":"$['resultSchemaVersion']","datatype":"long"},
+  {"column":"coverageCheckedAt","path":"$['coverageCheckedAt']","datatype":"datetime"},
+  {"column":"rawFailedInputsConsidered","path":"$['rawFailedInputsConsidered']","datatype":"long"},
+  {"column":"rawFailedInputsWithoutResult","path":"$['rawFailedInputsWithoutResult']","datatype":"long"}
+]
+```
+
+// Consumer entry point: the ciFailurePatterns rows of the (extractorVersion,
+// resultSchemaVersion) pair named by the control row with the greatest
+// coverageCheckedAt, collapsed to one row per resultKey (retry copies differ only
+// in computedAt). Returns no rows while no control row exists. skipvalidation is
+// required because table scripts are deployed independently and ciFailurePatterns
+// may not exist yet.
+.create-or-alter function
+with (docstring = 'Failure pattern results of the active extractor version, one row per resultKey', folder = 'CI', skipvalidation = "true")
+ciFailurePatternActive() {
+    let active = ciFailurePatternControl
+        | top 1 by coverageCheckedAt desc
+        | project extractorVersion, resultSchemaVersion;
+    ciFailurePatterns
+    | join kind=inner active on extractorVersion, resultSchemaVersion
+    | summarize arg_max(computedAt, *) by resultKey
+}

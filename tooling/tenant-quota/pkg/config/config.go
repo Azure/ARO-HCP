@@ -494,6 +494,7 @@ func (t *TenantConfig) IsDirectoryQuotaEnabled() bool {
 // and raw table settings belong to CIJobOutcomes, independently of raw discovery.
 type CIFailurePatternsConfig struct {
 	Results   KustoTableConfig `yaml:"results"`
+	Control   KustoTableConfig `yaml:"control"`
 	Interval  string           `yaml:"interval,omitempty"`
 	Workers   *int             `yaml:"workers,omitempty"`
 	CacheSize *int             `yaml:"cacheSize,omitempty"`
@@ -539,6 +540,8 @@ func (c *CIFailurePatternsConfig) validate(raw CIJobOutcomesConfig) error {
 		"ciJobOutcomes.testResults.table":            raw.TestResults.Table,
 		"ciFailurePatterns.results.table":            c.Results.Table,
 		"ciFailurePatterns.results.ingestionMapping": c.Results.IngestionMapping,
+		"ciFailurePatterns.control.table":            c.Control.Table,
+		"ciFailurePatterns.control.ingestionMapping": c.Control.IngestionMapping,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s is required", name)

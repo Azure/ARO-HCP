@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
@@ -27,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	tenantkusto "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/kusto"
 )
 
@@ -90,13 +92,22 @@ func (c *Controller) initializeKustoWithCredential(ctx context.Context, credenti
 		}},
 		{settings.TestNames.Table, map[string]string{"testId": "string", "name": "string"}},
 		{c.config.CIFailurePatterns.Results.Table, resultColumns},
+		{c.config.CIFailurePatterns.Control.Table, controlColumns},
 	} {
 		if err := c.checkSchema(ctx, client, table.name, table.columns); err != nil {
 			return err
 		}
 	}
-	if err := c.checkMapping(ctx, client); err != nil {
-		return err
+	for _, table := range []struct {
+		settings config.KustoTableConfig
+		columns  map[string]string
+	}{
+		{c.config.CIFailurePatterns.Results, resultColumns},
+		{c.config.CIFailurePatterns.Control, controlColumns},
+	} {
+		if err := c.checkMapping(ctx, client, table.settings, table.columns); err != nil {
+			return err
+		}
 	}
 	ingestionConnection := azkustodata.NewConnectionStringBuilder(settings.IngestionURI)
 	if credential != nil {
@@ -119,6 +130,21 @@ func (c *Controller) initializeKustoWithCredential(ctx context.Context, credenti
 		defer cancel()
 		if err := tenantkusto.IngestJSONLines(ctx, ingestor, c.config.CIFailurePatterns.Results.IngestionMapping, payload); err != nil {
 			return fmt.Errorf("queue failure results: %w", err)
+		}
+		return nil
+	}
+	c.readCoverage = func(ctx context.Context, version failurePatternVersion, cutoff time.Time) ([]sourceCoverage, error) {
+		return c.loadCoverage(ctx, client, version, cutoff)
+	}
+	c.readControl = func(ctx context.Context) (failurePatternVersion, bool, error) {
+		return c.loadNewestControl(ctx, client)
+	}
+	c.submitControl = func(ctx context.Context, payload *bytes.Buffer) error {
+		ctx, cancel := context.WithTimeout(ctx, c.operationTimeout())
+		defer cancel()
+		control := c.config.CIFailurePatterns.Control
+		if err := tenantkusto.IngestJSONLines(ctx, ingestor, control.IngestionMapping, payload, azkustoingest.Table(control.Table)); err != nil {
+			return fmt.Errorf("queue control row: %w", err)
 		}
 		return nil
 	}
@@ -155,10 +181,9 @@ func (c *Controller) checkSchema(ctx context.Context, client *azkustodata.Client
 	return nil
 }
 
-func (c *Controller) checkMapping(ctx context.Context, client *azkustodata.Client) error {
+func (c *Controller) checkMapping(ctx context.Context, client *azkustodata.Client, table config.KustoTableConfig, columns map[string]string) error {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout())
 	defer cancel()
-	table := c.config.CIFailurePatterns.Results
 	statement := kql.New(".show table ").AddTable(table.Table).AddLiteral(" ingestion json mapping ").AddString(table.IngestionMapping)
 	dataset, err := client.Mgmt(ctx, c.config.CIJobOutcomes.Database, statement, azkustodata.ServerTimeout(c.operationTimeout()))
 	if err != nil {
@@ -175,17 +200,17 @@ func (c *Controller) checkMapping(ctx context.Context, client *azkustodata.Clien
 	if err != nil {
 		return err
 	}
-	return validateMapping(mapping)
+	return validateMapping(mapping, columns)
 }
 
-func validateMapping(mapping string) error {
+func validateMapping(mapping string, columns map[string]string) error {
 	entries, err := tenantkusto.ParseMapping(mapping)
 	if err != nil {
 		return fmt.Errorf("decode results mapping: %w", err)
 	}
 	found := map[string]bool{}
 	for _, entry := range entries {
-		kind, required := resultColumns[entry.Column]
+		kind, required := columns[entry.Column]
 		if !required {
 			continue
 		}
@@ -197,7 +222,7 @@ func validateMapping(mapping string) error {
 		}
 		found[entry.Column] = true
 	}
-	for column := range resultColumns {
+	for column := range columns {
 		if !found[column] {
 			return fmt.Errorf("missing mapping for %s; deploy schema first", column)
 		}

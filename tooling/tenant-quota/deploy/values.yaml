@@ -38,6 +38,9 @@ ciFailurePatterns:
   results:
     table: "ciFailurePatterns"
     ingestionMapping: "ciFailurePatternsMapping"
+  control:
+    table: "ciFailurePatternControl"
+    ingestionMapping: "ciFailurePatternControlMapping"
   interval: "5m"
   workers: 4
   cacheSize: 20000

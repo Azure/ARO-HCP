@@ -46,6 +46,7 @@ func minimalValidConfig() Config {
 		},
 		CIFailurePatterns: CIFailurePatternsConfig{
 			Results: KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+			Control: KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 		},
 	}
 }
@@ -64,6 +65,9 @@ ciFailurePatterns:
   results:
     table: ciFailurePatterns
     ingestionMapping: ciFailurePatternsMapping
+  control:
+    table: ciFailurePatternControl
+    ingestionMapping: ciFailurePatternControlMapping
 `
 
 // writeYAML writes content to a temp file and returns the path.
@@ -876,6 +880,8 @@ func TestFailurePatternsIndependentOfDiscovery(t *testing.T) {
 		{"missing database", func(c *Config) { c.CIJobOutcomes.Database = "" }, "ciJobOutcomes.database"},
 		{"missing input", func(c *Config) { c.CIJobOutcomes.TestNames.Table = "" }, "ciJobOutcomes.testNames.table"},
 		{"missing results mapping", func(c *Config) { c.CIFailurePatterns.Results.IngestionMapping = "" }, "ciFailurePatterns.results.ingestionMapping"},
+		{"missing control table", func(c *Config) { c.CIFailurePatterns.Control.Table = "" }, "ciFailurePatterns.control.table"},
+		{"missing control mapping", func(c *Config) { c.CIFailurePatterns.Control.IngestionMapping = "" }, "ciFailurePatterns.control.ingestionMapping"},
 		{"bad endpoint", func(c *Config) { c.CIJobOutcomes.ClusterURI = "localhost" }, "ciJobOutcomes.clusterURI"},
 		{"zero workers", func(c *Config) { n := 0; c.CIFailurePatterns.Workers = &n }, "ciFailurePatterns.workers"},
 		{"negative cache", func(c *Config) { n := -1; c.CIFailurePatterns.CacheSize = &n }, "ciFailurePatterns.cacheSize"},

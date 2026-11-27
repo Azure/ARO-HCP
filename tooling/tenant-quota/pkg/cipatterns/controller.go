@@ -66,6 +66,13 @@ type Controller struct {
 	readInputs      func(context.Context, string) ([]input, error)
 	readResults     func(context.Context, []input, failurePatternVersion) ([]resultRow, error)
 	submit          func(context.Context, *bytes.Buffer) error
+	readCoverage    func(ctx context.Context, version failurePatternVersion, cutoff time.Time) ([]sourceCoverage, error)
+	readControl     func(context.Context) (failurePatternVersion, bool, error)
+	submitControl   func(context.Context, *bytes.Buffer) error
+
+	// sweepDone receives a non-blocking signal each time the history sweep completes.
+	sweepDone        chan struct{}
+	coverageFallback time.Duration
 
 	// sweepBefore, sweepBuilds and sweepRestUntil are owned by the sweep loop.
 	sweepBefore    string
@@ -74,12 +81,6 @@ type Controller struct {
 
 	pendingMu       sync.Mutex
 	pendingAttempts map[string]int
-
-	normalAdmissionMu             sync.Mutex
-	admittedFailurePatternVersion failurePatternVersion
-	normalReconciliationAllowed   bool
-	admittedReconciliations       int
-	admittedReconciliationsDone   chan struct{}
 }
 
 func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
@@ -92,7 +93,7 @@ func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
 		metrics: newControllerMetrics(), batches: newSubmissionCache(cfg.CIFailurePatterns.GetCacheSize(), cfg.CIFailurePatterns.GetCacheTTL()),
 		now: time.Now, retryDelay: 5 * time.Second, maxRetryDelay: 2 * time.Minute,
 		initializeDelay: 5 * time.Second, sweepPoll: 5 * time.Second,
-		pendingAttempts: map[string]int{},
+		pendingAttempts: map[string]int{}, sweepDone: make(chan struct{}, 1), coverageFallback: coverageFallbackInterval,
 	}
 	c.initialize = c.initializeKusto
 	return c
@@ -122,12 +123,8 @@ func (c *Controller) Start(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
-	if err := c.allowNormalReconciliation(compiledFailurePatternVersion()); err != nil {
-		c.logger.Error("Cannot start normal reconciliation", "error", err)
-		return
-	}
 	version := compiledFailurePatternVersion()
-	c.logger.Info("Normal reconciliation admitted",
+	c.logger.Info("Reconciliation started",
 		"extractorVersion", version.extractorVersion, "resultSchemaVersion", version.resultSchemaVersion,
 		"table", c.config.CIFailurePatterns.Results.Table, "workers", c.config.CIFailurePatterns.GetWorkers(),
 		"interval", c.config.CIFailurePatterns.GetInterval(), "producerCommit", buildversion.CommitSHA)
@@ -141,7 +138,12 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 		}()
 	}
-	workers.Add(2)
+	workers.Add(3)
+	go func() {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		defer workers.Done()
+		c.runCoverage(ctx)
+	}()
 	go func() {
 		defer utilruntime.HandleCrashWithContext(ctx)
 		defer workers.Done()
@@ -218,73 +220,9 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	return true
 }
 
-func (c *Controller) normalReconciliationVersion() (failurePatternVersion, bool) {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	return c.admittedFailurePatternVersion, c.normalReconciliationAllowed && c.admittedFailurePatternVersion == compiledFailurePatternVersion()
-}
-
-func (c *Controller) tryAdmitNormalReconciliation() (failurePatternVersion, bool) {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	if !c.normalReconciliationAllowed || c.admittedFailurePatternVersion != compiledFailurePatternVersion() {
-		return failurePatternVersion{}, false
-	}
-	if c.admittedReconciliations == 0 {
-		c.admittedReconciliationsDone = make(chan struct{})
-	}
-	c.admittedReconciliations++
-	return c.admittedFailurePatternVersion, true
-}
-
-func (c *Controller) finishNormalReconciliation() {
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	c.admittedReconciliations--
-	if c.admittedReconciliations == 0 {
-		close(c.admittedReconciliationsDone)
-	}
-}
-
-// pauseNormalReconciliationAndWait prevents new normal work before waiting, without holding the
-// mutex over a network operation. Cancellation never reopens the gate.
-func (c *Controller) pauseNormalReconciliationAndWait(ctx context.Context) error {
-	c.normalAdmissionMu.Lock()
-	c.normalReconciliationAllowed = false
-	if c.admittedReconciliations == 0 {
-		c.normalAdmissionMu.Unlock()
-		return nil
-	}
-	admittedReconciliationsDone := c.admittedReconciliationsDone
-	c.normalAdmissionMu.Unlock()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-admittedReconciliationsDone:
-		return nil
-	}
-}
-
-// allowNormalReconciliation admits only the contract compiled into this process.
-func (c *Controller) allowNormalReconciliation(version failurePatternVersion) error {
-	if version != compiledFailurePatternVersion() {
-		return fmt.Errorf("admission target does not match executable")
-	}
-	c.normalAdmissionMu.Lock()
-	defer c.normalAdmissionMu.Unlock()
-	if c.admittedReconciliations != 0 {
-		return fmt.Errorf("cannot open admission before drain")
-	}
-	c.admittedFailurePatternVersion, c.normalReconciliationAllowed = version, true
-	return nil
-}
-
 // scanHead enqueues the newest builds. It always starts from the newest build, so
 // a recent run never waits for the history sweep to reach it.
 func (c *Controller) scanHead(ctx context.Context) error {
-	if _, allowed := c.normalReconciliationVersion(); !allowed {
-		return nil
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -307,9 +245,6 @@ func (c *Controller) scanHead(ctx context.Context) error {
 // history. It rests for sweepRest after reaching the oldest build. Failed or
 // cancelled steps leave the cursor unchanged.
 func (c *Controller) sweepStep(ctx context.Context) error {
-	if _, allowed := c.normalReconciliationVersion(); !allowed {
-		return nil
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -330,6 +265,10 @@ func (c *Controller) sweepStep(ctx context.Context) error {
 	} else {
 		c.logger.Info("History sweep complete", "builds", c.sweepBuilds, "rest", sweepRest)
 		c.sweepBefore, c.sweepBuilds, c.sweepRestUntil = "", 0, c.now().Add(sweepRest)
+		select {
+		case c.sweepDone <- struct{}{}:
+		default:
+		}
 	}
 	c.metrics.scans.WithLabelValues("sweep").Inc()
 	c.logger.Info("History sweep page", "builds", len(builds), "sweepBuilds", sweepBuilds, "queueLength", c.queue.Len())
@@ -396,14 +335,9 @@ func (c *Controller) forgetPending(build string) {
 }
 
 func (c *Controller) reconcile(ctx context.Context, build string) (time.Duration, error) {
-	version, allowed := c.tryAdmitNormalReconciliation()
-	if !allowed {
-		return c.retryDelay, nil
-	}
-	defer c.finishNormalReconciliation()
 	inputs, err := c.readInputs(ctx, build)
 	if err != nil {
 		return 0, fmt.Errorf("read build %s inputs: %w", build, err)
 	}
-	return c.reconcileInputs(ctx, version, inputs)
+	return c.reconcileInputs(ctx, compiledFailurePatternVersion(), inputs)
 }

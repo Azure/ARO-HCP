@@ -42,6 +42,7 @@ func newTestWriter(t *testing.T) *Writer {
 	t.Helper()
 	cfg := &config.Config{CIFailurePatterns: config.CIFailurePatternsConfig{
 		Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"},
 	}, CIJobOutcomes: config.CIJobOutcomesConfig{
 		ClusterURI:   "http://localhost:8080",
 		IngestionURI: "http://localhost:8081",

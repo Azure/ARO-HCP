@@ -28,9 +28,6 @@ import (
 // reconcileInputs reconciles a fixed set of inputs against the stored results. It
 // never re-enriches inputs and never treats acceptance as visibility.
 func (c *Controller) reconcileInputs(ctx context.Context, version failurePatternVersion, inputs []input) (time.Duration, error) {
-	if version != compiledFailurePatternVersion() {
-		return 0, fmt.Errorf("cannot compute a target other than the executable contract")
-	}
 	if err := validateInputPopulation(inputs); err != nil {
 		return 0, err
 	}

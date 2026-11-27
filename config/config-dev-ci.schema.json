@@ -548,12 +548,13 @@
       "additionalProperties": false,
       "properties": {
         "results": { "$ref": "#/$defs/KustoTableConfig" },
+        "control": { "$ref": "#/$defs/KustoTableConfig", "description": "Table recording coverage checks; the newest row names the active extractor version" },
         "interval": { "type": "string" },
         "workers": { "type": "integer", "minimum": 1 },
         "cacheSize": { "type": "integer", "minimum": 1 },
         "cacheTTL": { "type": "string" }
       },
-      "required": ["results", "interval", "workers", "cacheSize", "cacheTTL"]
+      "required": ["results", "control", "interval", "workers", "cacheSize", "cacheTTL"]
     },
     "CIJobOutcomesConfig": {
       "type": "object",

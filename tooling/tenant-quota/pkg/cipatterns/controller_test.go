@@ -42,7 +42,7 @@ func newTestController(t *testing.T) *Controller {
 	cfg := &config.Config{
 		CIJobOutcomes: config.CIJobOutcomesConfig{ClusterURI: "http://127.0.0.1:8080", IngestionURI: "http://127.0.0.1:8081", Database: "test",
 			Outcomes: config.KustoTableConfig{Table: "ciJobOutcomes"}, TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"}},
-		CIFailurePatterns: config.CIFailurePatternsConfig{Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"}, Interval: "10ms", CacheTTL: "1h"},
+		CIFailurePatterns: config.CIFailurePatternsConfig{Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"}, Control: config.KustoTableConfig{Table: "ciFailurePatternControl", IngestionMapping: "ciFailurePatternControlMapping"}, Interval: "10ms", CacheTTL: "1h"},
 		Tenants:           []config.TenantConfig{{TenantID: "t", ClientIDKeyVaultSecretName: "c", ClientSecretKeyVaultSecretName: "s"}},
 	}
 	require.NoError(t, cfg.Validate())
@@ -53,6 +53,9 @@ func newTestController(t *testing.T) *Controller {
 	c.readInputs = func(context.Context, string) ([]input, error) { return nil, nil }
 	c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) { return nil, nil }
 	c.submit = func(context.Context, *bytes.Buffer) error { return nil }
+	c.readControl = func(context.Context) (failurePatternVersion, bool, error) { return failurePatternVersion{}, false, nil }
+	c.readCoverage = func(context.Context, failurePatternVersion, time.Time) ([]sourceCoverage, error) { return nil, nil }
+	c.submitControl = func(context.Context, *bytes.Buffer) error { return nil }
 	t.Cleanup(c.queue.ShutDown)
 	return c
 }
@@ -167,8 +170,6 @@ func TestNormalReconciliationStartsAfterInitialization(t *testing.T) {
 	go func() { defer close(done); c.Start(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 	<-initializing
-	_, allowed := c.normalReconciliationVersion()
-	require.False(t, allowed)
 	db.mu.Lock()
 	require.Zero(t, db.discoveryReads)
 	require.Zero(t, db.reads)
@@ -179,10 +180,6 @@ func TestNormalReconciliationStartsAfterInitialization(t *testing.T) {
 		defer db.mu.Unlock()
 		return len(db.accepted) == 1
 	}, time.Second, time.Millisecond)
-	version, allowed := c.normalReconciliationVersion()
-	require.True(t, allowed)
-	require.Equal(t, compiledFailurePatternVersion(), version)
-	require.Error(t, c.allowNormalReconciliation(failurePatternVersion{extractorVersion: "wrong", resultSchemaVersion: 1}))
 }
 
 func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
@@ -190,7 +187,6 @@ func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
 	i := sampleInput()
 	db := &fakeDatabase{inputs: []input{i, i}}
 	db.attach(c)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() { defer close(done); c.Start(ctx) }()
@@ -216,7 +212,6 @@ func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
 	// current-context rows and ignoring the obsolete missing-name computation.
 	restarted := newTestController(t)
 	db.attach(restarted)
-	require.NoError(t, restarted.allowNormalReconciliation(compiledFailurePatternVersion()))
 	require.NoError(t, restarted.scanHead(t.Context()))
 	require.Equal(t, 1, restarted.queue.Len(), "discovery includes completed builds")
 	db.mu.Lock()
@@ -335,7 +330,6 @@ func TestQueueRetriesErrorsAndPanicsWithoutRetiringWorker(t *testing.T) {
 			c.queue.ShutDown()
 			c.queue = workqueue.NewTypedRateLimitingQueue(workqueue.NewTypedItemExponentialFailureRateLimiter[string](time.Millisecond, time.Millisecond))
 			t.Cleanup(c.queue.ShutDown)
-			require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 			attempts := 0
 			c.readInputs = func(context.Context, string) ([]input, error) {
 				attempts++
@@ -353,59 +347,32 @@ func TestQueueRetriesErrorsAndPanicsWithoutRetiringWorker(t *testing.T) {
 			require.True(t, c.processNext(t.Context()))
 			require.Equal(t, 2, attempts)
 			require.Zero(t, c.queue.NumRequeues("build"))
-			c.normalAdmissionMu.Lock()
-			require.Zero(t, c.admittedReconciliations)
-			c.normalAdmissionMu.Unlock()
 		})
 	}
 }
 
-func TestAdmissionDrainAndCancellationJoin(t *testing.T) {
+func TestReconcileCancellationAndInitializationRetryJoin(t *testing.T) {
 	previous := utilruntime.ReallyCrash
 	utilruntime.ReallyCrash = false
 	t.Cleanup(func() { utilruntime.ReallyCrash = previous })
 	c := newTestController(t)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	entered := make(chan struct{})
-	release := make(chan struct{})
 	c.readInputs = func(ctx context.Context, _ string) ([]input, error) {
 		close(entered)
-		select {
-		case <-release:
-			return nil, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+		<-ctx.Done()
+		return nil, ctx.Err()
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	workDone := make(chan struct{})
 	go func() { defer close(workDone); _, _ = c.reconcile(ctx, "build") }()
 	<-entered
-	drainDone := make(chan error, 1)
-	go func() { drainDone <- c.pauseNormalReconciliationAndWait(ctx) }()
-	require.Eventually(t, func() bool { _, allowed := c.normalReconciliationVersion(); return !allowed }, time.Second, time.Millisecond)
-	select {
-	case err := <-drainDone:
-		_ = err
-		t.Fatal("drain completed with reconcile in flight")
-	default:
-	}
-	delay, err := c.reconcile(ctx, "another")
-	require.NoError(t, err)
-	require.Positive(t, delay)
 	cancel()
-	<-workDone
 	select {
-	case err := <-drainDone:
-		_ = err
+	case <-workDone:
 	case <-time.After(time.Second):
-		t.Fatal("drain did not cancel")
+		t.Fatal("cancelled reconcile did not return")
 	}
-	c.normalAdmissionMu.Lock()
-	require.Zero(t, c.admittedReconciliations)
-	require.False(t, c.normalReconciliationAllowed)
-	c.normalAdmissionMu.Unlock()
 
 	c2 := newTestController(t)
 	var attempts atomic.Int32
@@ -452,18 +419,13 @@ func TestFatalPanicPolicyIsNotSwallowed(t *testing.T) {
 	utilruntime.ReallyCrash = true
 	t.Cleanup(func() { utilruntime.ReallyCrash = previous })
 	c := newTestController(t)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	c.readInputs = func(context.Context, string) ([]input, error) { panic("fatal policy") }
 	c.queue.Add("build")
 	require.Panics(t, func() { c.processNext(t.Context()) })
-	c.normalAdmissionMu.Lock()
-	require.Zero(t, c.admittedReconciliations)
-	c.normalAdmissionMu.Unlock()
 }
 
 func TestStartCancelsInflightBeforeClosingClients(t *testing.T) {
 	c := newTestController(t)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	entered := make(chan struct{})
 	returned := make(chan struct{})
 	c.readBuildIDs = func(context.Context, string, int) ([]string, error) {
@@ -550,7 +512,6 @@ func TestHeadScanAlwaysReadsNewestPageOnly(t *testing.T) {
 		t.Error("discovery must not read results")
 		return nil, errors.New("results unavailable")
 	}
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	for range 3 {
 		require.NoError(t, c.scanHead(t.Context()))
 		require.Equal(t, newest(want, headPageSize), drainDiscoveredBuildIDs(t, c), "every poll restarts at the newest build")
@@ -563,7 +524,6 @@ func TestHeadScanSeesNewBuildDuringSweep(t *testing.T) {
 	c := newTestController(t)
 	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
 	db.attach(c)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	require.NoError(t, c.sweepStep(t.Context()))
 	drainDiscoveredBuildIDs(t, c)
 	require.NotEmpty(t, c.sweepBefore, "sweep is mid-history")
@@ -589,7 +549,6 @@ func TestSweepWalksNewestToOldestWhenIdleAndRests(t *testing.T) {
 				t.Error("discovery must not read evidence")
 				return nil, errors.New("evidence unavailable")
 			}
-			require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 			var got []string
 			for {
 				require.NoError(t, c.sweepStep(t.Context()))
@@ -613,7 +572,6 @@ func TestSweepWalksNewestToOldestWhenIdleAndRests(t *testing.T) {
 
 			restarted := newTestController(t)
 			db.attach(restarted)
-			require.NoError(t, restarted.allowNormalReconciliation(compiledFailurePatternVersion()))
 			require.NoError(t, restarted.sweepStep(t.Context()))
 			require.Equal(t, newest(want, discoveryPageSize), drainDiscoveredBuildIDs(t, restarted), "restart sweeps immediately from the newest build")
 			require.Zero(t, db.reads)
@@ -626,7 +584,6 @@ func TestSweepBoundsOutstandingWorkIncludingPendingVisibility(t *testing.T) {
 	c := newTestController(t)
 	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
 	db.attach(c)
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 
 	// A full page that is queued blocks the next page.
 	for index := range discoveryPageSize {
@@ -658,7 +615,6 @@ func TestSweepCountsBuildsFailingBeforeFirstSubmission(t *testing.T) {
 	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
 	db.attach(c)
 	c.readInputs = func(context.Context, string) ([]input, error) { return nil, errors.New("kusto unavailable") }
-	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	require.NoError(t, c.sweepStep(t.Context()))
 	require.Equal(t, 1, db.discoveryReads)
 	for range discoveryPageSize {
@@ -672,7 +628,6 @@ func TestDiscoveryFailureAndCancellationPreserveSweepCursor(t *testing.T) {
 	for _, scenario := range []string{"query failure", "cancelled before query", "cancelled during query", "cancelled empty page"} {
 		t.Run(scenario, func(t *testing.T) {
 			c := newTestController(t)
-			require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 			const cursor = "build-0100"
 			c.sweepBefore = cursor
 			ctx, cancel := context.WithCancel(t.Context())
@@ -708,19 +663,6 @@ func TestDiscoveryFailureAndCancellationPreserveSweepCursor(t *testing.T) {
 			require.Empty(t, c.sweepBefore)
 		})
 	}
-}
-
-func TestClosedDiscoveryGateDoesNotQueryOrMoveCursor(t *testing.T) {
-	c := newTestController(t)
-	c.sweepBefore = "build-0100"
-	c.readBuildIDs = func(context.Context, string, int) ([]string, error) {
-		t.Fatal("closed admission must not query discovery")
-		return nil, nil
-	}
-	require.NoError(t, c.scanHead(t.Context()))
-	require.NoError(t, c.sweepStep(t.Context()))
-	require.Equal(t, "build-0100", c.sweepBefore)
-	require.Zero(t, c.queue.Len())
 }
 
 func TestPendingDelayBacksOffAndResets(t *testing.T) {
