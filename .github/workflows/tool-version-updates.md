@@ -1,4 +1,5 @@
 ---
+name: "Updates: CI and Dev Tools"
 on:
   workflow_dispatch:
   schedule: daily

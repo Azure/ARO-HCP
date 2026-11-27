@@ -1,5 +1,5 @@
 ---
-name: gh-aw recompile
+name: "Updates: GitHub Agentic Workflows"
 on:
   workflow_dispatch:
   schedule: daily

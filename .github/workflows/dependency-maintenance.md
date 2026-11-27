@@ -1,5 +1,5 @@
 ---
-name: Dependency maintenance
+name: "Updates: Dependabot PRs"
 on:
   workflow_dispatch:
   schedule: daily
