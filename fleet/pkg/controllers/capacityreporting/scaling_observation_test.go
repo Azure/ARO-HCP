@@ -37,7 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
-	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
@@ -128,8 +127,11 @@ func TestScalingSKULookupFailurePreservesScheduling(t *testing.T) {
 			key := fleetcontrollers.StampKey{StampIdentifier: scaleCeilingTestStampIdentifier}
 			crud := database.Stamps().ManagementClusters(key.StampIdentifier).Scheduling()
 			require.ErrorContains(t, syncer.SyncOnce(ctx, key), "AuthorizationFailed")
-			_, err = crud.Get(ctx, fleetapi.SchedulingResourceName)
-			require.True(t, cosmosstorageutils.IsNotFoundError(err), "SKU failure must not create scheduling")
+			failed, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
+			require.NoError(t, err)
+			require.True(t, meta.IsStatusConditionFalse(failed.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent), "SKU failure publishes failed collection health")
+			require.Empty(t, failed.Status.ScaleCeiling.Capacity)
+			require.Nil(t, failed.Status.ScaleCeiling.LastReportedAt, "failure must not create a successful-collection timestamp")
 			first := metav1.NewTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 			require.NoError(t, syncer.persistMaxCapacity(ctx, key.StampIdentifier, corev1.ResourceList{kuberesources.SwiftNICResourceName: resource.MustParse("9")}, &first))
 			before, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
@@ -138,7 +140,9 @@ func TestScalingSKULookupFailurePreservesScheduling(t *testing.T) {
 			require.ErrorContains(t, syncer.SyncOnce(ctx, key), "AuthorizationFailed")
 			stable, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 			require.NoError(t, err)
-			require.Equal(t, before, stable, "SKU failure preserves every field, including ceiling, conditions, timestamps and ETag")
+			require.Equal(t, before.Status.ScaleCeiling, stable.Status.ScaleCeiling, "SKU failure preserves the last successful ceiling and its timestamp")
+			require.True(t, meta.IsStatusConditionFalse(stable.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent))
+			require.NotEqual(t, before.CosmosETag, stable.CosmosETag, "health failure must be visible even when capacity is retained")
 			lookupFails = false
 			require.NoError(t, syncer.SyncOnce(ctx, key))
 			recovered, err := crud.Get(ctx, fleetapi.SchedulingResourceName)

@@ -16,6 +16,7 @@ package capacityreporting
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +43,7 @@ import (
 const (
 	ManagementClusterScaleCeilingReportingControllerName = "ManagementClusterScaleCeilingReportingController"
 
-	scaleCeilingResyncPeriod = 5 * time.Minute
+	scaleCeilingResyncPeriod = 2 * time.Minute
 )
 
 type scaleCeilingReportingSyncer struct {
@@ -105,32 +106,45 @@ func (s *scaleCeilingReportingSyncer) SyncOnce(ctx context.Context, key fleetcon
 	aksResourceID := managementCluster.Status.AKSResourceID
 	if aksResourceID == nil {
 		logger.V(1).Info("management cluster has no AKS resource ID yet, will retry on next resync")
-		return nil
+		return s.persistScalingCondition(ctx, key.StampIdentifier, metav1.Condition{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionUnknown, Reason: "MissingAKSResourceID", Message: "management cluster has no AKS resource ID"})
 	}
 
 	report, err := GetCapacityReport(ctx, s.readDesireLister, key.StampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("capacity ReadDesire not found, will retry on next resync")
-		return nil
+		return s.persistScalingCondition(ctx, key.StampIdentifier, metav1.Condition{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionUnknown, Reason: "MissingCapacityReadDesire", Message: "capacity ReadDesire is missing"})
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return s.scalingCollectionFailed(ctx, key.StampIdentifier, err)
 	}
 
 	pools, err := agentpools.ListAgentPools(ctx, s.agentPoolClientFactory, aksResourceID)
 	if err != nil {
-		return utils.TrackError(err)
+		return s.scalingCollectionFailed(ctx, key.StampIdentifier, err)
 	}
 
 	skuMetadata, err := s.skuCache.SKUMetadataByVMSize(ctx, aksResourceID.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(err)
+		return s.scalingCollectionFailed(ctx, key.StampIdentifier, err)
 	}
 
+	if err := validateScaleCeilingInputs(report, pools, skuMetadata); err != nil {
+		return s.persistScalingCondition(ctx, key.StampIdentifier, metav1.Condition{
+			Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionUnknown,
+			Reason: "IncompleteScaleCeiling", Message: err.Error(),
+		})
+	}
 	max := computeMaxCapacity(report, pools, skuMetadata)
 
 	now := metav1.Now()
 	return s.persistMaxCapacity(ctx, key.StampIdentifier, max, &now)
+}
+
+func (s *scaleCeilingReportingSyncer) scalingCollectionFailed(ctx context.Context, stampIdentifier string, collectionErr error) error {
+	return errors.Join(utils.TrackError(collectionErr), s.persistScalingCondition(ctx, stampIdentifier, metav1.Condition{
+		Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionFalse,
+		Reason: "CollectionFailed", Message: collectionErr.Error(),
+	}))
 }
 
 func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, stampIdentifier string, max corev1.ResourceList, now *metav1.Time) error {
@@ -151,14 +165,28 @@ func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, st
 	condition.LastTransitionTime = *now
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
 	updated.Status.ScaleCeiling.Capacity = max
-	// Compare before advancing the publication timestamp: an unchanged
-	// computation must not produce another Cosmos event and wake us again.
-	if existing.Status.ScaleCeiling.LastReportedAt != nil && !controllerutils.NeedsUpdate(existing, updated) {
+	updated.Status.ScaleCeiling.LastReportedAt = now
+	if !controllerutils.NeedsUpdate(existing, updated) {
 		return nil
 	}
-	updated.Status.ScaleCeiling.LastReportedAt = now
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+// Failed collections retain the last successful capacity and its timestamp,
+// while publishing health immediately so recent retained values are not trusted.
+func (s *scaleCeilingReportingSyncer) persistScalingCondition(ctx context.Context, stampIdentifier string, condition metav1.Condition) error {
+	existing, err := fleetcosmosstorage.GetOrCreateManagementClusterScheduling(ctx, s.fleetDBClient, stampIdentifier)
+	if err != nil {
+		return err
+	}
+	updated := existing.DeepCopy()
+	meta.SetStatusCondition(&updated.Status.Conditions, condition)
+	if !controllerutils.NeedsUpdate(existing, updated) {
+		return nil
+	}
+	_, err = s.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Scheduling().Replace(ctx, updated, nil)
+	return utils.TrackError(err)
 }

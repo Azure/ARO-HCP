@@ -33,6 +33,12 @@ const (
 	// in the scheduling document is up to date. Set by
 	// ScaleCeilingReportingController after computing max capacity.
 	ConditionTypeScalingDataCurrent = "ScalingDataCurrent"
+
+	// ConditionTypePressure is True when any resource's reserve at the scale
+	// ceiling is below its threshold, False when all reserves are adequate, and
+	// Unknown when the evidence is unusable. Unknown must block an all-True
+	// regional expansion decision; consumers must not omit unknown clusters.
+	ConditionTypePressure = "Pressure"
 )
 
 // ManagementClusterScheduling is a singleton child of ManagementCluster
@@ -54,9 +60,11 @@ type ManagementClusterSchedulingStatus struct {
 	// Conditions is the aggregate set of conditions reported by all
 	// scheduling controllers. Each controller owns its own condition type:
 	// CapacityReportingController sets ConditionTypeCapacityDataCurrent,
-	// ScaleCeilingReportingController sets ConditionTypeScalingDataCurrent.
+	// ScaleCeilingReportingController sets ConditionTypeScalingDataCurrent,
+	// ManagementClusterPressureController sets ConditionTypePressure.
 	//
 	// +optional
+	// Written by: CapacityReportingController, ScaleCeilingReportingController, ManagementClusterPressureController.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// ObservedResources is the observed worker resource state, mirrored
@@ -101,6 +109,17 @@ type ManagementClusterSchedulingStatus struct {
 	// +optional
 	// Written by: PlacementController, CapacityReportingController, PendingCleanupController.
 	PendingAssignedClusters []*azcorearm.ResourceID `json:"pendingAssignedClusters,omitempty"`
+
+	// PendingSwiftNICReservations records the existing per-HCP reservation
+	// (0 for non-SWIFT, 1 for SWIFT SingleReplica, otherwise 3). The map keys are
+	// lowercased ARM resource ID. It is committed with PendingAssignedClusters
+	// so Fleet can evaluate pressure without access to customer documents.
+	// Missing entries in legacy documents are unknown, not zero; the backend
+	// cleanup controller backfills them. Entries cease to apply once observed.
+	//
+	// +optional
+	// Written by: PlacementController, CapacityReportingController, PendingCleanupController.
+	PendingSwiftNICReservations map[string]int64 `json:"pendingSwiftNICReservations,omitempty"`
 }
 
 // ObservedResources reports the observed worker resource state of a
@@ -133,10 +152,9 @@ type ObservedResources struct {
 // ScaleCeiling holds projected capacity limits derived from AKS agent pool
 // configuration and SKU data.
 type ScaleCeiling struct {
-	// LastReportedAt is the computation time of the last published scaling
-	// result. Unchanged capacity and condition state retain this timestamp;
-	// it is not a heartbeat or the time of every successful poll. It advances
-	// when capacity/condition state changes or an absent timestamp is initialized.
+	// LastReportedAt is the last successful scale-ceiling computation time,
+	// including successful polls whose numeric result is unchanged. Failed
+	// computations retain it. Unrelated document writes do not refresh it.
 	// Written by: ScaleCeilingReportingController.
 	//
 	// +optional

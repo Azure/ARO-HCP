@@ -12,6 +12,15 @@ import (
 )
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(ManagementClusterPressureControllerName)] = controllerconfig.ControllerRegistration{
+		Workers: 1,
+		Instantiate: func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			stampInformer, _ := ctx.FleetInformers.Stamps()
+			managementClusterInformer, _ := ctx.FleetInformers.ManagementClusters()
+			schedulingInformer, _ := ctx.FleetInformers.ManagementClusterSchedulings()
+			return NewManagementClusterPressureController(managementClusterInformer, schedulingInformer, stampInformer, ctx.FleetDBClient), nil
+		},
+	}
 	registry[strings.ToLower(EnsureCapacityReadDesireControllerName)] = controllerconfig.ControllerRegistration{
 		Workers: 1,
 		Instantiate: func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
@@ -44,7 +53,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 			return NewManagementClusterScaleCeilingReportingController(
 				managementClusterInformer, stampInformer, ctx.FleetDBClient, readDesireLister, ctx.Region,
 				ctx.AzureCredential, ctx.AzureClientOptions,
-				base.StampWatchingControllerConfig{CooldownPeriod: 10 * time.Minute},
+				base.StampWatchingControllerConfig{CooldownPeriod: scaleCeilingResyncPeriod / 2},
 			), nil
 		},
 	}
