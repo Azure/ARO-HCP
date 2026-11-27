@@ -62,12 +62,17 @@ checking for new image versions and updating configuration files accordingly.`,
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 	rootCmd.AddCommand(cmd.NewPublishCommand())
 
-	validateCmd, err := cmd.NewValidateCommand()
-	if err != nil {
-		logger.Error(err, "failed to create the validate command")
-		os.Exit(1)
+	for _, newCommand := range []func() (*cobra.Command, error){
+		cmd.NewValidateCommand,
+		cmd.NewSummaryCommand,
+	} {
+		subcommand, err := newCommand()
+		if err != nil {
+			logger.Error(err, "failed to create a command")
+			os.Exit(1)
+		}
+		rootCmd.AddCommand(subcommand)
 	}
-	rootCmd.AddCommand(validateCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error(err, "command failed")
