@@ -739,6 +739,12 @@ image-updater:
 
 # Component updater (shared version bumper; Istio wired today — tooling/component-updater/README.md)
 COMPONENT ?=
+# Documentation tests
+test-docs:
+	@echo "Running documentation tests..."
+	@bash ./test/docs/personal-dev-readme-test.sh
+.PHONY: test-docs
+
 SUBSCRIPTION_ID ?=
 component-updater-check:
 	@$(MAKE) -C tooling/component-updater check COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
