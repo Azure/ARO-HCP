@@ -51,6 +51,7 @@ import (
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20270201 "github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // checkOperationResult ensures the result model returned by a runtime.Poller
@@ -79,6 +80,9 @@ func checkOperationResult(expectModel, resultModel any) error {
 		cmpopts.IgnoreFields(hcpsdk20261001.HcpOpenShiftCluster{}, "SystemData"),
 		cmpopts.IgnoreFields(hcpsdk20261001.NodePool{}, "SystemData"),
 		cmpopts.IgnoreFields(hcpsdk20261001.ExternalAuth{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20270201.HcpOpenShiftCluster{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20270201.NodePool{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20270201.ExternalAuth{}, "SystemData"),
 	)
 
 	if len(diff) > 0 {
@@ -140,13 +144,62 @@ func isTransientUpdateError(err error) bool {
 
 // IsAPINotDeployedError returns true if the error indicates the API version
 // has not been rolled out to this region yet.
+// It matches HTTP 404 (generic not-found), the ARM "NoRegisteredProviderFound"
+// error code, and the frontend's HTTP 400 "InvalidResourceType" response for
+// unrecognized API versions.
 func IsAPINotDeployedError(err error) bool {
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
 		return false
 	}
-	return respErr.StatusCode == http.StatusNotFound ||
-		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
+	if respErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+	if strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound") {
+		return true
+	}
+	if respErr.StatusCode == http.StatusBadRequest &&
+		respErr.ErrorCode == coreapi.CloudErrorCodeInvalidResourceType {
+		return true
+	}
+	return false
+}
+
+// IsAPIVersionNotServed returns true only when the error states that the API
+// version is not served.
+//
+// It is stricter than IsAPINotDeployedError. It does not match a bare 404,
+// because a missing resource also returns 404 when the API version is served.
+func IsAPIVersionNotServed(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	if strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound") {
+		return true
+	}
+	return respErr.StatusCode == http.StatusBadRequest && respErr.ErrorCode == coreapi.CloudErrorCodeInvalidResourceType
+}
+
+// classifyAPIVersionProbeError classifies the error from a probe request for a
+// resource that does not exist. It returns true when the service serves the API
+// version. A 404 with a known not-found code counts as served. The function
+// returns all other errors, so that the caller fails and does not skip.
+func classifyAPIVersionProbeError(err error) (bool, error) {
+	if err == nil {
+		return true, nil
+	}
+	if IsAPIVersionNotServed(err) {
+		return false, nil
+	}
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+		switch respErr.ErrorCode {
+		case coreapi.CloudErrorCodeResourceGroupNotFound, coreapi.CloudErrorCodeResourceNotFound, coreapi.CloudErrorCodeNotFound:
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("failed to probe the v20270201 API: %w", err)
 }
 
 type NonConformingClustersError struct {

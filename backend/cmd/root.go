@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -78,6 +79,13 @@ type BackendRootCmdFlags struct {
 	OrphanedMRGCleanupTargetSubscriptionAFECFlags                                                 string
 	OrphanedMRGCleanupExcludedSubscriptionAFECFlags                                               []string
 	OrphanedMRGCleanupRunningMode                                                                 string
+	// AutoNodeKarpenterOperatorImageOverride and
+	// AutoNodeKarpenterProviderAzureImageOverride are a personal-dev-only
+	// stopgap: see the doc comment on clusterautonode.ImageOverrides. Both
+	// default to empty. The operator override uses an HC annotation. The
+	// provider override uses an HCP annotation and supports withdrawal.
+	AutoNodeKarpenterOperatorImageOverride      string
+	AutoNodeKarpenterProviderAzureImageOverride string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -256,6 +264,10 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrphanedMRGCleanupRunningMode, "orphaned-mrg-cleanup-running-mode", f.OrphanedMRGCleanupRunningMode,
 		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
 	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
+	cmd.Flags().StringVar(&f.AutoNodeKarpenterOperatorImageOverride, "auto-node-karpenter-operator-image-override", f.AutoNodeKarpenterOperatorImageOverride,
+		"Personal-dev-only override image for the standalone karpenter-operator, set as a HostedCluster annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
+	cmd.Flags().StringVar(&f.AutoNodeKarpenterProviderAzureImageOverride, "auto-node-karpenter-provider-azure-image-override", f.AutoNodeKarpenterProviderAzureImageOverride,
+		"Personal-dev-only override image for the karpenter-provider-azure operand, set as the HostedControlPlane autoscaling.openshift.io/karpenter-image annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
 
 }
 
@@ -635,6 +647,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ClusterOIDCIssuerBaseURL:                   azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 		InsecureARMPermissionsManagerClientBuilder: insecureARMPermissionsManagerClientBuilder,
 		MockFirstPartyApplicationPrincipalID:       f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		AutoNodeImageOverrides: clusterautonode.ImageOverrides{
+			KarpenterOperatorImage:      f.AutoNodeKarpenterOperatorImageOverride,
+			KarpenterProviderAzureImage: f.AutoNodeKarpenterProviderAzureImageOverride,
+		},
 	}
 
 	return backendOptions, nil

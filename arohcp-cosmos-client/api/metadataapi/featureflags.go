@@ -120,6 +120,11 @@ const (
 	// which stays authoritative.
 	TagClusterBackupScheduleOverride = ExperimentalClusterTagPrefix + "backup-schedule-override"
 
+	// TagClusterAutoNode is the ARM resource tag that enables the AutoNode
+	// feature (dynamic node provisioning via Karpenter) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterAutoNode = ExperimentalClusterTagPrefix + "autonode"
+
 	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
 	// tags. Tags with this prefix are only honored when the
 	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags

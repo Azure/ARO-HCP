@@ -22,6 +22,69 @@ data:
                 endpoint_publishing_strategy_type: [spec, endpointPublishingStrategy, type]
                 dns_management_policy: [spec, endpointPublishingStrategy, loadBalancer, dnsManagementPolicy]
                 load_balancer_scope: [spec, endpointPublishingStrategy, loadBalancer, scope]
+      - groupVersionKind:
+          group: karpenter.sh
+          kind: NodePool
+          version: v1
+        metricNamePrefix: karpenter_nodepool
+        labelsFromPath:
+          name: [metadata, name]
+        metrics:
+        - name: "status_condition_transition_time_seconds"
+          help: "Unix timestamp when the Karpenter NodePool status condition last changed"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              labelsFromPath:
+                condition: [type]
+                status: [status]
+                reason: [reason]
+              valueFrom: [lastTransitionTime]
+        - name: "status_nodes"
+          help: "Current number of nodes managed by the Karpenter NodePool"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, resources, nodes]
+      - groupVersionKind:
+          group: karpenter.sh
+          kind: NodeClaim
+          version: v1
+        metricNamePrefix: karpenter_nodeclaim
+        labelsFromPath:
+          name: [metadata, name]
+        metrics:
+        - name: "status_condition_transition_time_seconds"
+          help: "Unix timestamp when the Karpenter NodeClaim status condition last changed"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              labelsFromPath:
+                condition: [type]
+                status: [status]
+                reason: [reason]
+              valueFrom: [lastTransitionTime]
+      - groupVersionKind:
+          group: karpenter.azure.com
+          kind: AKSNodeClass
+          version: v1beta1
+        metricNamePrefix: karpenter_aksnodeclass
+        labelsFromPath:
+          name: [metadata, name]
+        metrics:
+        - name: "status_condition_transition_time_seconds"
+          help: "Unix timestamp when the Karpenter AKSNodeClass status condition last changed"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              labelsFromPath:
+                condition: [type]
+                status: [status]
+                reason: [reason]
+              valueFrom: [lastTransitionTime]
 kind: ConfigMap
 metadata:
   labels:

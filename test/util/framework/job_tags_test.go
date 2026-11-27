@@ -60,14 +60,15 @@ func TestResourceBuildersJobTags(t *testing.T) {
 	t.Setenv("ARO_HCP_OPENSHIFT_LATEST_Z_STREAM", "false")
 	// Exercise both defaults (used by PATCH callers) and manually built params.
 	resources := []any{
-		NewDefaultClusterParams20240610(), NewDefaultClusterParams20251223(), NewDefaultClusterParams20260630(), NewDefaultClusterParams20260901(), NewDefaultClusterParams20261001(),
-		NewDefaultNodePoolParams20240610(), NewDefaultNodePoolParams20251223(), NewDefaultNodePoolParams20260630(), NewDefaultNodePoolParams20260901(), NewDefaultNodePoolParams20261001(),
+		NewDefaultClusterParams20240610(), NewDefaultClusterParams20251223(), NewDefaultClusterParams20260630(), NewDefaultClusterParams20260901(), NewDefaultClusterParams20261001(), NewDefaultClusterParams20270201(),
+		NewDefaultNodePoolParams20240610(), NewDefaultNodePoolParams20251223(), NewDefaultNodePoolParams20260630(), NewDefaultNodePoolParams20260901(), NewDefaultNodePoolParams20261001(), NewDefaultNodePoolParams20270201(),
 		BuildHCPClusterFromParams20240610(ClusterParams20240610{}, "location"),
 		BuildNodePoolFromParams20240610(NodePoolParams20240610{}, "location"),
 		BuildNodePoolFromParams20251223(NodePoolParams20251223{}, "location"),
 		BuildNodePoolFromParams20260630(NodePoolParams20260630{}, "location"),
 		BuildNodePoolFromParams20260901(NodePoolParams20260901{}, "location"),
 		BuildNodePoolFromParams20261001(NodePoolParams20261001{}, "location"),
+		BuildNodePoolFromParams20270201(NodePoolParams20270201{}, "location"),
 	}
 	for _, build := range []func() (any, error){
 		func() (any, error) {
@@ -81,6 +82,9 @@ func TestResourceBuildersJobTags(t *testing.T) {
 		},
 		func() (any, error) {
 			return BuildHCPClusterFromParams20261001(ClusterParams20261001{}, "location", nil)
+		},
+		func() (any, error) {
+			return BuildHCPClusterFromParams20270201(ClusterParams20270201{}, "location", nil)
 		},
 	} {
 		resource, err := build()

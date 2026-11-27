@@ -58,6 +58,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
+	v20270201 "github.com/Azure/ARO-HCP/internal/azureapi/v20270201"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -113,6 +114,7 @@ func NewFrontend(
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20261001.RegisterVersion(apiRegistry))
+	metadataapi.Must[any](nil, v20270201.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
 		clock:                utilsclock.RealClock{},

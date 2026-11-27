@@ -480,11 +480,15 @@ defaults:
   # Hypershift
   hypershift:
     image:
-      registry: quay.io
-      repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:253aec94d67f93a5a9fe93382d6b187611306e4beaab56199111df81119e53b7 # 18351c33867d956a4d18398ac15a8dd27359e802 (2026-11-13 23:25)
+      # registry: quay.io
+      # repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+      # digest: sha256:22e41393c0b5ed3c36a5a72572ae511b0834081344f367dbd7e5a3ef04c6f7e7 # 1b72ba5ab18b58009ea31ccfde3744009476189a (2026-11-05 19:37)
+      registry: arohcpsvcdev.azurecr.io
+      repository: asampaio/hypershift:aro-hcp-4.22.23-20261124-r3
+      digest: sha256:89492e7317bc324d6e73f87170342177939c5ad1e4659f9ade329d115e16a226
     namespace: hypershift
-    additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
+    # cd tooling/helmtest && UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
+    additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true --enable-standalone-karpenter-operator=true'
     # By default we set it to empty as this tag is only required for msft environments. We override
     # this value in sdp pipelines for msft environments.
     sharedIngressIPTag: ''
@@ -930,13 +934,20 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     backupCadenceProfile: production
-    backupScheduleState: Enabled
+    backupScheduleState: Disabled
     exitOnPanic: true
     logVerbosity: 4
     orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
     orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+    autoNode:
+      # Personal-dev-only image overrides. Keep both defaults empty.
+      # The operator image uses a HostedCluster annotation mirrored to HCP.
+      # The provider image uses the HCP autoscaling.openshift.io/karpenter-image
+      # annotation. Only pers sets these; see clusterautonode.ImageOverrides.
+      karpenterOperatorImageOverride: ""
+      karpenterProviderAzureImageOverride: ""
   # Fleet
   fleet:
     managedIdentityName: fleet
@@ -1188,7 +1199,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7 # f33f327dcf11b614ecb0197b7f304ab0256b995a (2026-11-16 14:49)
+      digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273 # a7acf8c44ea2737f285fc3a2c00056ab7bd1e91b (2026-11-03 09:46)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1717,6 +1728,15 @@ clouds:
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+          # Backend
+          backend:
+            # Personal-dev-only image pins. The backend sets the operator image
+            # on HostedCluster. It sets the provider image directly on HCP with
+            # autoscaling.openshift.io/karpenter-image. Keep these empty outside
+            # pers. See clusterautonode.ImageOverrides for delivery and withdrawal.
+            autoNode:
+              karpenterOperatorImageOverride: "arohcpsvcdev.azurecr.io/asampaio/karpenter-operator:aro-hcp-4.22.23-20261126-r1@sha256:90d6c7118c186c268ba30d522b67843d6993f58673784158d9823173a4d3c5ce"
+              karpenterProviderAzureImageOverride: "arohcpsvcdev.azurecr.io/asampaio/karpenter-provider-azure:aro-hcp-4.22.23-20261124-r3@sha256:9e4d1312e804d59deb7f35ce7cd6d7327a290b72dbf75473b09cf23dd7bb9f1f"
           # Frontend
           frontend:
             audit:
@@ -1950,6 +1970,11 @@ clouds:
           backend:
             backupCadenceProfile: testing
             backupScheduleState: Disabled
+            # Temporary: AutoNode e2e validation on the ci01 stamp; same pins as pers.
+            # Keep these empty outside pers. See clusterautonode.ImageOverrides.
+            autoNode:
+              karpenterOperatorImageOverride: "arohcpsvcdev.azurecr.io/asampaio/karpenter-operator:aro-hcp-4.22.23-20261126-r1@sha256:90d6c7118c186c268ba30d522b67843d6993f58673784158d9823173a4d3c5ce"
+              karpenterProviderAzureImageOverride: "arohcpsvcdev.azurecr.io/asampaio/karpenter-provider-azure:aro-hcp-4.22.23-20261124-r3@sha256:9e4d1312e804d59deb7f35ce7cd6d7327a290b72dbf75473b09cf23dd7bb9f1f"
           # Frontend
           frontend:
             audit:

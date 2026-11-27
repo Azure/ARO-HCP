@@ -69,6 +69,7 @@ Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PA
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Customer should be able to list available HCP OpenShift versions and validate response content
+Customer should create a cluster using v20270201 API and verify cluster health
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.2
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.3
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.4

@@ -121,6 +121,17 @@ data:
           - name: 'azure-file-csi-driver-node-sa'
             namespace: 'openshift-cluster-csi-drivers'
         optional: false
+      autonode:
+        minOpenShiftVersion: 4.22
+        roleDefinitions:
+        {{- range $azureOperatorsMI.autonode.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        k8sServiceAccounts:
+          - name: 'karpenter'
+            namespace: 'kube-system'
+        optional: true
     serviceManagedIdentity:
       roleDefinitions:
       {{- range $azureOperatorsMI.serviceManagedIdentity.roleDefinitions }}

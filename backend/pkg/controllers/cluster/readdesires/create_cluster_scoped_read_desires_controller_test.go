@@ -162,7 +162,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 
 				hostedClusterRD, err := crud.Get(ctx, readDesireNameReadonlyHostedCluster)
 				require.NoError(t, err)
-				assert.Equal(t, hostedClusterTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), hostedClusterRD.Spec.TargetItem)
+				assert.Equal(t, controllerutils.HostedClusterTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), hostedClusterRD.Spec.TargetItem)
 
 				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)

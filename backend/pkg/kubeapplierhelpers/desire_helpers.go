@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -179,6 +180,49 @@ func EnsureApplyDesire(
 	default:
 		return nil
 	}
+}
+
+// ReplaceApplyDesireFromSnapshot replaces snapshot with the spec and tags of
+// desire. It never creates a desire. The write uses the snapshot ETag. Thus the
+// write fails when the stored desire changes after the caller reads and
+// validates the snapshot. A changed or deleted desire is not an error: the
+// ApplyDesire informer requeues the caller, and the caller validates the new
+// state.
+func ReplaceApplyDesireFromSnapshot(
+	ctx context.Context,
+	crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
+	snapshot, desire *kubeapplierapi.ApplyDesire,
+) error {
+	if _, ok := desire.Tags[kubeapplierapi.TagControllerName]; !ok {
+		return utils.TrackError(fmt.Errorf("desire Tags must contain the %q tag key", kubeapplierapi.TagControllerName))
+	}
+	if snapshot.ResourceID == nil || desire.ResourceID == nil ||
+		!strings.EqualFold(snapshot.ResourceID.String(), desire.ResourceID.String()) {
+		return utils.TrackError(fmt.Errorf("snapshot resource ID %v does not match desire resource ID %v", snapshot.ResourceID, desire.ResourceID))
+	}
+
+	if applyDesireSpecEqual(snapshot.Spec, desire.Spec) && reflect.DeepEqual(snapshot.Tags, desire.Tags) {
+		return nil
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	desireName := desire.ResourceID.Name
+	target := desire.Spec.TargetItem
+
+	replacement := snapshot.DeepCopy()
+	replacement.Spec = desire.Spec
+	replacement.Tags = desire.Tags
+	replacement.Status = kubeapplierapi.ApplyDesireStatus{}
+	_, err := crud.Replace(ctx, replacement, nil)
+	switch {
+	case cosmosstorageutils.IsPreconditionFailedError(err), cosmosstorageutils.IsNotFoundError(err):
+		logger.Info("did not write ApplyDesire: it changed or was deleted after validation", "desire", desireName)
+		return nil
+	case err != nil:
+		return utils.TrackError(fmt.Errorf("replace ApplyDesire %s: %w", desireName, err))
+	}
+	logger.Info("replaced ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
+	return nil
 }
 
 // EnsureReadDesire creates desire, or replaces the stored one when its spec or

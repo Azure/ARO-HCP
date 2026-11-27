@@ -50,6 +50,7 @@ const (
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
 	v20261001 = "2026-10-01"
+	v20270201 = "2027-02-01"
 )
 
 // crossVersionTestEntry pairs a subtest name with its runner function.
@@ -91,6 +92,11 @@ func clusterPUTRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PUT/v20261001-create-v20240610-put-v20261001-verify", v20261001, v20240610, "xvrt-put-v20261001v20240610"},
 		{"Cluster/PUT/v20261001-create-v20251223-put-v20261001-verify", v20261001, v20251223, "xvrt-put-v20261001v20251223"},
 		{"Cluster/PUT/v20261001-create-v20260901-put-v20261001-verify", v20261001, v20260901, "xvrt-put-v20261001v20260901"},
+		{"Cluster/PUT/v20270201-create-v20270201-put-v20270201-verify", v20270201, v20270201, "xvrt-put-v20270201same"},
+		{"Cluster/PUT/v20270201-create-v20240610-put-v20270201-verify", v20270201, v20240610, "xvrt-put-v20270201v20240610"},
+		{"Cluster/PUT/v20270201-create-v20251223-put-v20270201-verify", v20270201, v20251223, "xvrt-put-v20270201v20251223"},
+		{"Cluster/PUT/v20270201-create-v20260901-put-v20270201-verify", v20270201, v20260901, "xvrt-put-v20270201v20260901"},
+		{"Cluster/PUT/v20270201-create-v20261001-put-v20270201-verify", v20270201, v20261001, "xvrt-put-v20270201v20261001"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -122,6 +128,11 @@ func clusterPATCHRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PATCH/v20261001-create-v20240610-patch-v20261001-verify", v20261001, v20240610, "xvrt-patch-v20261001v20240610"},
 		{"Cluster/PATCH/v20261001-create-v20251223-patch-v20261001-verify", v20261001, v20251223, "xvrt-patch-v20261001v20251223"},
 		{"Cluster/PATCH/v20261001-create-v20260901-patch-v20261001-verify", v20261001, v20260901, "xvrt-patch-v20261001v20260901"},
+		{"Cluster/PATCH/v20270201-create-v20270201-patch-v20270201-verify", v20270201, v20270201, "xvrt-patch-v20270201same"},
+		{"Cluster/PATCH/v20270201-create-v20240610-patch-v20270201-verify", v20270201, v20240610, "xvrt-patch-v20270201v20240610"},
+		{"Cluster/PATCH/v20270201-create-v20251223-patch-v20270201-verify", v20270201, v20251223, "xvrt-patch-v20270201v20251223"},
+		{"Cluster/PATCH/v20270201-create-v20260901-patch-v20270201-verify", v20270201, v20260901, "xvrt-patch-v20270201v20260901"},
+		{"Cluster/PATCH/v20270201-create-v20261001-patch-v20270201-verify", v20270201, v20261001, "xvrt-patch-v20270201v20261001"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -164,6 +175,16 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 		clusterPUTRoundTripTests(),
 		clusterPATCHRoundTripTests()...,
 	), nodepoolExternalAuthRoundTripTests()...)
+	for _, updateVersion := range []string{v20240610, v20251223, v20260630, v20260901, v20261001, v20270201} {
+		for _, operation := range []string{"PUT", "PATCH"} {
+			tests = append(tests, crossVersionTestEntry{
+				name: "Cluster/AutoNode/" + operation + "/" + updateVersion,
+				fn: func(t *testing.T, ti *integrationutils.IntegrationTestInfo, sub string) {
+					runAutoNodeCrossVersionUpdate(t, ti, sub, updateVersion, operation)
+				},
+			})
+		}
+	}
 	var slots chan struct{}
 	if withMock {
 		slots = make(chan struct{}, maxParallelMockCases)
@@ -503,7 +524,7 @@ func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
-	case v20260901, v20261001:
+	case v20260901, v20261001, v20270201:
 		// v20260901 / v20261001 payload (v20261001 is an identical copy of v20260901)
 		return []byte(fmt.Sprintf(`{
   "identity": {
@@ -726,6 +747,40 @@ func runClusterCrossVersionPATCH(
 		t.Logf("after (%s GET after %s PATCH):\n%s", createVersion, patchVersion, prettyJSON(t, afterMap))
 		t.Errorf("cross-version PATCH data loss: %s PATCH lost %s fields:\n%s", patchVersion, createVersion, diff)
 	}
+}
+
+func runAutoNodeCrossVersionUpdate(t *testing.T, ti *integrationutils.IntegrationTestInfo, subscriptionID, updateVersion, operation string) {
+	t.Helper()
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	const scenarioDir = "artifacts/VersionCompliance/Cluster/autonode-enabled/"
+	subscriptionJSON := metadataapi.Must(artifacts.ReadFile(scenarioDir + "subscription.json"))
+	stable := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, v20270201)
+	require.NoError(t, stable.CreateOrUpdate(ctx, "/subscriptions/"+subscriptionID, subscriptionJSON))
+	require.NoError(t, ti.WaitForFrontendCaches(ctx))
+	const clusterName = "vc-autonode"
+	resourceID := clusterResourceID(clusterName)
+	request := metadataapi.Must(artifacts.ReadFile(scenarioDir + "request.json"))
+	require.NoError(t, stable.CreateOrUpdate(ctx, resourceID, request))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, ti.ResourcesDBClient(), subscriptionID, clusterName))
+	createServiceProviderClusterForTesting(t, ctx, ti, clusterName, "4.22.0")
+	require.NoError(t, ti.WaitForFrontendCaches(ctx))
+	_, before := getResourceResponse(t, ctx, ti, v20270201, resourceID)
+	body, old := getResourceResponse(t, ctx, ti, updateVersion, resourceID)
+	if updateVersion != v20270201 {
+		require.NotContains(t, old["properties"], "autoNode", "older APIs must omit the typed AutoNode field")
+	}
+	updater := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, updateVersion)
+	if operation == "PUT" {
+		require.NoError(t, updater.CreateOrUpdate(ctx, resourceID, body))
+	} else {
+		tags := old["tags"].(map[string]any)
+		tags["updated"] = "true"
+		patch := metadataapi.Must(json.Marshal(map[string]any{"tags": tags}))
+		require.NoError(t, updater.Patch(ctx, resourceID, patch))
+	}
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, ti.ResourcesDBClient(), subscriptionID, clusterName))
+	_, after := getResourceResponse(t, ctx, ti, v20270201, resourceID)
+	require.Equal(t, before["properties"].(map[string]any)["autoNode"], after["properties"].(map[string]any)["autoNode"])
 }
 
 func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {

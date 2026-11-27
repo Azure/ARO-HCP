@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
@@ -74,6 +75,7 @@ type ControllerContext struct {
 	// service principal. It is empty when the backend runs with a real FPA
 	// (HasRealFPA is true).
 	MockFirstPartyApplicationPrincipalID                string
+	AutoNodeImageOverrides                              clusterautonode.ImageOverrides
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string
