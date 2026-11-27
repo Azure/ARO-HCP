@@ -42,7 +42,7 @@ output imagePullerMsiClientId string = imagePullerIdentity.properties.clientId
 //   P O S T G R E S
 //
 
-resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' existing = if (useAzureDB) {
+resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2026-10-01' existing = if (useAzureDB) {
   scope: resourceGroup(regionalResourceGroup)
   name: postgresName
 }
