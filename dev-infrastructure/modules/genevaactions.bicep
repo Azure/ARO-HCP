@@ -59,7 +59,7 @@ module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-acce
   }
 }
 
-resource allowedExtensionsSecret 'Microsoft.KeyVault/vaults/secrets@2021-04-01-preview' = {
+resource allowedExtensionsSecret 'Microsoft.KeyVault/vaults/secrets@2026-02-01' = {
   name: '${genevaKeyVaultName}/AllowedAcisExtensions'
   properties: {
     value: allowedAcisExtensions

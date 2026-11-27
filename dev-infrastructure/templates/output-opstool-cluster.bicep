@@ -50,7 +50,7 @@ resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-1
 resource tenantQuotaUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: 'tenant-quota'
 }
-resource workloadKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource workloadKV 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: workloadKVName
 }
 

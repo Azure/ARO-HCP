@@ -18,7 +18,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault/v2"
 )
 
 func noopResourceGroupExists(_ context.Context, _ string) (bool, error) { return false, nil }

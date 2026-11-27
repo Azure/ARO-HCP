@@ -28,7 +28,7 @@ param kvCertAccessPrincipalId string = ''
 @description('Roles used for EV2 KeyVault access, i.e. geneva log/action access')
 param kvCertAccessRoleId string = ''
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' = {
   location: location
   name: keyVaultName
   tags: {

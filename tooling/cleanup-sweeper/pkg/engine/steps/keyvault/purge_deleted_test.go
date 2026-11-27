@@ -17,7 +17,7 @@ package keyvault
 import (
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault/v2"
 )
 
 func TestPurgeDeletedStepConfig_ExecutionOptions(t *testing.T) {

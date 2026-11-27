@@ -6,7 +6,7 @@ param workloadKVName string
 @description('Enable or disable alerting')
 param alertingEnabled bool = true
 
-resource workloadKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource workloadKV 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: workloadKVName
 }
 

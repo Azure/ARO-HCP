@@ -4,11 +4,11 @@ param keyVaultName string
 @description('Name of the key in the keyvault to be created')
 param keyName string = ''
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
-resource kvKey 'Microsoft.KeyVault/vaults/keys@2021-10-01' = {
+resource kvKey 'Microsoft.KeyVault/vaults/keys@2026-02-01' = {
   parent: keyVault
   name: keyName
   properties: {

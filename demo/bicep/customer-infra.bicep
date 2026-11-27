@@ -74,7 +74,7 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   }
 }
 
-resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
+resource customerKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' = {
   name: customerKeyVaultName
   location: resourceGroup().location
   properties: {
@@ -89,7 +89,7 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
   }
 }
 
-resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2026-02-01' = {
   parent: customerKeyVault
   name: 'etcd-data-kms-encryption-key'
   properties: {

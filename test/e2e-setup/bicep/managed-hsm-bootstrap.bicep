@@ -23,7 +23,7 @@ param enablePurgeProtection bool = false
 @description('Soft-delete retention period in days. Azure Managed HSM requires at least 7 days.')
 param softDeleteRetentionInDays int = 7
 
-resource managedHsm 'Microsoft.KeyVault/managedHSMs@2025-05-01' = {
+resource managedHsm 'Microsoft.KeyVault/managedHSMs@2026-02-01' = {
   name: hsmName
   location: location
   sku: {

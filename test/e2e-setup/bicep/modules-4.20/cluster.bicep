@@ -65,11 +65,11 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
-resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' existing = {
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2026-02-01' existing = {
   parent: keyVault
   name: etcdEncryptionKeyName
 }

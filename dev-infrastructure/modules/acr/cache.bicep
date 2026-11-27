@@ -55,7 +55,7 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
 //   C A C H E   R U L E S
 //
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 

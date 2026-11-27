@@ -328,7 +328,7 @@ param useLeasedInfrastructureIdentities bool = false
 @description('Resource group containing the pre-created service infrastructure identities in the service deployment subscription.')
 param infrastructureIdentityResourceGroup string = ''
 
-resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource serviceKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
 }
@@ -418,7 +418,7 @@ resource existingSvcCluster 'Microsoft.ContainerService/managedClusters@2026-04-
 
 var aksClusterKeyVaultSecretsProviderPrincipalId = existingSvcCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
 
-resource aksKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource aksKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: aksKeyVaultName
 }
 

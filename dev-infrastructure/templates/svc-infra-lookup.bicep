@@ -7,7 +7,7 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('The subscription ID where the service keyvault resource group lives. Defaults to the current subscription. Set when the keyvault is shared across subscriptions.')
 param serviceKeyVaultSubscription string = subscription().subscriptionId
 
-resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource serviceKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
 }

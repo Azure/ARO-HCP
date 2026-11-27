@@ -111,7 +111,7 @@ output swiftVnetMSIId string = empty(swiftVnetIdentityResourceId) ? globalMSI.id
 //   G L O B A L   KV
 //
 
-resource globalKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource globalKV 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: globalKVName
 }
 
@@ -121,7 +121,7 @@ output globalKeyVaultUrl string = globalKV.properties.vaultUri
 //   G E N E V A   A C T I O N S   KV
 //
 
-resource genevaActionsKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource genevaActionsKV 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: genevaActionsKVName
 }
 
