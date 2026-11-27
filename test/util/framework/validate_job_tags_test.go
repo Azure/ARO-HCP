@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func TestValidateResourceJobTags(t *testing.T) {
@@ -73,7 +73,7 @@ func TestValidateHCPJobTagsListsOnlyHCPsAndNodePools(t *testing.T) {
 	clusterID := base + "/cluster"
 	nodePoolID := clusterID + "/nodePools/pool"
 	var requests []string
-	factory, err := hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
+	factory, err := hcpsdk20260901preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{Transport: &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
 			require.Equal(t, http.MethodGet, request.Method, "validation must be read-only")
 			requests = append(requests, request.URL.Path)
@@ -93,7 +93,7 @@ func TestValidateHCPJobTagsListsOnlyHCPsAndNodePools(t *testing.T) {
 		}}, Retry: policy.RetryOptions{MaxRetries: -1}},
 	})
 	require.NoError(t, err)
-	err = validateHCPJobTags20240610(t.Context(), factory, []string{"rg"}, map[string]*string{ProwJobIDTag: to.Ptr("123")})
+	err = validateHCPJobTags20260901(t.Context(), factory, []string{"rg"}, map[string]*string{ProwJobIDTag: to.Ptr("123")})
 	require.ErrorContains(t, err, clusterID+`: missing tag "`+ProwJobIDTag+`"`)
 	require.ErrorContains(t, err, nodePoolID+`: tag "`+ProwJobIDTag+`" is "wrong", expected "123"`)
 	require.Len(t, requests, 4, "all cluster and node-pool pages must be checked")
@@ -103,7 +103,7 @@ func TestValidateHCPJobTagsListFailures(t *testing.T) {
 	for _, nodePools := range []bool{false, true} {
 		for _, status := range []int{http.StatusNotFound, http.StatusForbidden} {
 			t.Run(fmt.Sprintf("nodepools=%t/status=%d", nodePools, status), func(t *testing.T) {
-				factory, err := hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
+				factory, err := hcpsdk20260901preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
 					ClientOptions: azcore.ClientOptions{Transport: &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
 						if nodePools && !strings.HasSuffix(request.URL.Path, "/nodePools") {
 							return jobIDResponse(`{"value":[{"name":"cluster","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}}]}`)
@@ -114,7 +114,7 @@ func TestValidateHCPJobTagsListFailures(t *testing.T) {
 					}}, Retry: policy.RetryOptions{MaxRetries: -1}},
 				})
 				require.NoError(t, err)
-				err = validateHCPJobTags20240610(t.Context(), factory, []string{"rg"}, map[string]*string{ProwJobIDTag: to.Ptr("123")})
+				err = validateHCPJobTags20260901(t.Context(), factory, []string{"rg"}, map[string]*string{ProwJobIDTag: to.Ptr("123")})
 				if status == http.StatusNotFound {
 					require.NoError(t, err, "resources already deleted by the test are skipped")
 				} else {
@@ -155,7 +155,7 @@ func TestJobTagValidationCleanupChild(t *testing.T) {
 	}
 	t.Setenv(JobNameEnvvar, "job")
 	t.Setenv(JobIDEnvvar, "123")
-	factory, err := hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
+	factory, err := hcpsdk20260901preview.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{Transport: &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
 			if strings.HasSuffix(request.URL.Path, "/nodePools") {
 				return jobIDResponse(`{"value":[]}`)
@@ -164,7 +164,7 @@ func TestJobTagValidationCleanupChild(t *testing.T) {
 		}}},
 	})
 	require.NoError(t, err)
-	tc := &perItOrDescribeTestContext{knownResourceGroups: []string{"rg"}, clientFactory20240610: factory}
+	tc := &perItOrDescribeTestContext{knownResourceGroups: []string{"rg"}, clientFactory20260901: factory}
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.Describe("job-tag validation", func() {
 		ginkgo.It("fails without blocking subsequent cleanup nodes", func(ctx context.Context) {

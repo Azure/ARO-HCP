@@ -26,7 +26,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func (tc *perItOrDescribeTestContext) validateCreatedHCPJobTags(ctx context.Context) {
@@ -44,16 +44,16 @@ func (tc *perItOrDescribeTestContext) validateCreatedHCPJobTags(ctx context.Cont
 	defer func() {
 		tc.RecordTestStep("Validate HCP resource job tags", startedAt, time.Now())
 	}()
-	factory, err := tc.Get20240610ClientFactory(ctx)
+	factory, err := tc.Get20260901ClientFactory(ctx)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to get HCP clients for job-tag validation")
-	err = validateHCPJobTags20240610(ctx, factory, resourceGroups, expected)
+	err = validateHCPJobTags20260901(ctx, factory, resourceGroups, expected)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "test-created HCP resources must carry the configured job tags; add them explicitly with framework.WithJobTags or the Bicep jobTags parameter")
 }
 
 // Validate only Microsoft.RedHatOpenShift tracked resources. External auths are
 // proxy resources without tags. Listing through the HCP SDK also works directly
 // against the RP in development, where ARM's generic inventory lacks HCPs.
-func validateHCPJobTags20240610(ctx context.Context, factory *hcpsdk20240610preview.ClientFactory, resourceGroups []string, expected map[string]*string) error {
+func validateHCPJobTags20260901(ctx context.Context, factory *hcpsdk20260901preview.ClientFactory, resourceGroups []string, expected map[string]*string) error {
 	var errs []error
 	for _, resourceGroup := range resourceGroups {
 		clusters := factory.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(resourceGroup, nil)

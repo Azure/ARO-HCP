@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -64,7 +64,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private nodepool scaling test")
 
 			By("creating cluster parameters with private API visibility")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
@@ -84,7 +84,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -98,7 +98,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private nodepool scaling verification")
 
 			By("creating the HCP cluster with private KAS")
-			err = tc.CreateHCPClusterFromParam20251223(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -108,13 +108,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create private HCP cluster %q", customerClusterName)
 
 			By("verifying cluster API visibility is Private via ARM GET")
-			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
 			Expect(cluster.Properties.API).ToNot(BeNil(), "cluster %q Properties.API was nil", customerClusterName)
 			Expect(cluster.Properties.API.Visibility).ToNot(BeNil(), "cluster %q Properties.API.Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20251223preview.VisibilityPrivate),
+			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260901preview.VisibilityPrivate),
 				"cluster %q API visibility should be Private", customerClusterName)
 			Expect(cluster.Properties.API.URL).ToNot(BeNil(), "cluster %q Properties.API.URL was nil", customerClusterName)
 			apiURL := *cluster.Properties.API.URL
@@ -153,12 +153,12 @@ var _ = Describe("Customer", func() {
 
 			By("creating the initial node pool with 1 replica")
 			initialReplicas := int32(1)
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = initialReplicas
 
-			err = tc.CreateNodePoolFromParam20251223(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,
@@ -173,9 +173,9 @@ var _ = Describe("Customer", func() {
 			// The API hostname in the kubeconfig resolves (via public DNS) to the
 			// private IP of the internal load balancer, so kubectl on the VM
 			// connects through the private KAS endpoint without any host override.
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -242,13 +242,14 @@ var _ = Describe("Customer", func() {
 
 			By("scaling up the nodepool from 1 to 2 replicas")
 			scaledUpReplicas := int32(2)
-			update := hcpsdk20251223preview.NodePoolUpdate{
-				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(scaledUpReplicas),
 				},
 			}
-			scaleUpResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			scaleUpResp, err := framework.UpdateNodePoolAndWait20260901(ctx,
+				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -312,16 +313,14 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("KAS→kubelet path verified for newly added node after scale-up")
 
 			By("scaling down the nodepool from 2 to 1 replica")
-			update = hcpsdk20251223preview.NodePoolUpdate{
-				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
+			update = hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
-			// Scale-down for private clusters takes longer than the standard
-			// NodePoolScalingTimeout because the v20251223preview ARM LRO for
-			// node deletion exceeds 20 minutes in this topology.
-			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			// Allow extra time for ARM to complete node deletion in this private topology.
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20260901(ctx,
+				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,

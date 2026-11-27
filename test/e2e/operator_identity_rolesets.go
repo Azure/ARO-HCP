@@ -36,7 +36,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			By("listing HCP Operator Identity Role Sets")
-			roleSetsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOperatorIdentityRoleSetsClient()
+			roleSetsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOperatorIdentityRoleSetsClient()
 			roleSetsPager := roleSetsClient.NewListPager(tc.Location(), nil)
 
 			roleSets, err := roleSetsPager.NextPage(ctx)
@@ -99,7 +99,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			By("listing HCP Operator Identity Role Sets to get a valid version")
-			roleSetsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOperatorIdentityRoleSetsClient()
+			roleSetsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOperatorIdentityRoleSetsClient()
 			roleSetsPager := roleSetsClient.NewListPager(tc.Location(), nil)
 
 			roleSets, err := roleSetsPager.NextPage(ctx)
