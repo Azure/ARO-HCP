@@ -73,6 +73,7 @@ func NewCommand(group string) (*cobra.Command, error) {
 	plan.Flags().StringVar(&raw.root, "root", ".", "repository checkout root")
 	plan.Flags().StringVar(&raw.repo, "repo", toolchain.Repository, "GitHub repository")
 	command.AddCommand(plan)
+	RegisterPreparation(command)
 	return command, nil
 }
 
