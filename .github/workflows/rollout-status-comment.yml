@@ -1,4 +1,4 @@
-name: "Rollout Status Comment"
+name: "Rollout: Post Status Comment"
 # Post a link to the rollout status page once a PR is merged, so the author and
 # reviewers can track the change through the release pipeline without hand-building
 # the URL.

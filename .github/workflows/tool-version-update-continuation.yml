@@ -1,4 +1,4 @@
-name: Continue agentic maintenance
+name: "Deps & Tools: Continue After Merge"
 on:
   pull_request_target:
     types: [closed]

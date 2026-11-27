@@ -1,4 +1,4 @@
-name: Agentic workflow failure alert
+name: "Deps & Tools: Alert on Failures"
 on:
   workflow_run:
     workflows:
