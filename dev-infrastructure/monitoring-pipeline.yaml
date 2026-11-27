@@ -55,13 +55,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-  # Previous empty-ring stack name for public/int/westus3.
-  - name: remove-ring-stack
+  # Previous ringless stack name for public/int/westus3.
+  - name: remove-ringless-stack
     action: ARMStack
     operation: delete
     deploymentLevel: ResourceGroup
     deploymentStackNameForDelete:
-      value: lqkbvpbbzei47mhnbn3okrzxxl5v6ppa7wek5io6bjspy-usw3-
+      value: lqkbvpbbzei47mhnbn3okrzxxl5v6ppa7wek5io6bjspy-usw3
     actionOnUnmanage: detach
     identityFrom:
       resourceGroup: global
@@ -97,7 +97,7 @@ resourceGroups:
     - resourceGroup: regional
       step: remove-region-only-stack
     - resourceGroup: regional
-      step: remove-ring-stack
+      step: remove-ringless-stack
     variables:
     - name: azureMonitoringWorkspaceId
       input:
