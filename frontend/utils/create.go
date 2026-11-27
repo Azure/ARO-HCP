@@ -55,7 +55,7 @@ func main() {
 
 	supported := strings.Join(registry.ListVersions().SortedList(), ", ")
 	apiVersion := flag.String("api-version", string(defaultAPIVersion), "ARM API version ("+supported+")")
-	objectType := flag.String("type", "cluster", "resource to generate (cluster or node_pool)")
+	objectType := flag.String("type", "cluster", "resource to generate (cluster, node_pool, or external_auth)")
 	flag.Parse()
 
 	version, ok := registry.Lookup(*apiVersion)
@@ -77,8 +77,10 @@ func writeRequest(objectType string, version coreapi.Version) error {
 		resource, err = clusterRequest(version)
 	case "node_pool":
 		resource, err = nodePoolRequest(version)
+	case "external_auth":
+		resource, err = externalAuthRequest(version)
 	default:
-		return fmt.Errorf("unsupported resource type %q (choose cluster or node_pool)", objectType)
+		return fmt.Errorf("unsupported resource type %q (choose cluster, node_pool, or external_auth)", objectType)
 	}
 	if err != nil {
 		return err
@@ -175,6 +177,41 @@ func nodePoolRequest(version coreapi.Version) (coreapi.VersionedNodePool, error)
 		return nil, err
 	}
 	request := version.NewNodePool(nodePool)
+	request.ClearReadOnlyFields()
+	return request, nil
+}
+
+func externalAuthRequest(version coreapi.Version) (coreapi.VersionedExternalAuth, error) {
+	const clientID = "11111111-1111-1111-1111-111111111111"
+	sample := &v20261001.ExternalAuth{}
+	sample.Properties = &generated.ExternalAuthProperties{
+		Issuer: &generated.TokenIssuerProfile{
+			URL:       ptr.To("https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0"),
+			Audiences: []*string{ptr.To(clientID)},
+		},
+		Claim: &generated.ExternalAuthClaimProfile{
+			Mappings: &generated.TokenClaimMappingsProfile{
+				Username: &generated.UsernameClaimProfile{
+					Claim:        ptr.To("sub"),
+					PrefixPolicy: ptr.To(generated.UsernameClaimPrefixPolicyPrefix),
+					Prefix:       ptr.To("entra-"),
+				},
+			},
+		},
+		Clients: []*generated.ExternalAuthClientProfile{{
+			ClientID: ptr.To(clientID),
+			Type:     ptr.To(generated.ExternalAuthClientTypeConfidential),
+			Component: &generated.ExternalAuthClientComponentProfile{
+				Name:                ptr.To(coreapi.ExternalAuthConsoleClientComponentName),
+				AuthClientNamespace: ptr.To(coreapi.ExternalAuthConsoleClientComponentNamespace),
+			},
+		}},
+	}
+	externalAuth, err := sample.ConvertToInternal(nil)
+	if err != nil {
+		return nil, err
+	}
+	request := version.NewExternalAuth(externalAuth)
 	request.ClearReadOnlyFields()
 	return request, nil
 }
