@@ -5,6 +5,7 @@ A tool that automatically fetches the latest container image digests from regist
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Bundle Partition](#bundle-partition)
 - [Supported Registries](#supported-registries)
 - [How It Works](#how-it-works)
 - [Key Features](#key-features)
@@ -59,6 +60,37 @@ make update
 # Save output to file
 ./image-updater update --config config.yaml --tags --output-file results.md --output-format markdown
 ```
+
+## Bundle Partition
+
+The configuration partitions the component groups into bundles. Every group must
+belong to exactly one bundle, and every component must carry a group, so a new
+image cannot silently drop out of an update.
+
+```yaml
+bundles:
+  control-plane:
+  - cs
+  - hypershift-stack
+  observability:
+  - prom-stack
+  - obs-agents
+  add-ons:
+  - platform-utils
+  - velero
+  - aro-ci-images
+```
+
+Validate the configuration and its bundle coverage before changing either:
+
+```bash
+make validate
+# or
+./image-updater validate --config config.yaml
+```
+
+The repository `make verify` target runs the same check, so a component whose
+group belongs to no bundle fails CI.
 
 ## Supported Registries
 

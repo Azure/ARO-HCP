@@ -62,6 +62,13 @@ checking for new image versions and updating configuration files accordingly.`,
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 	rootCmd.AddCommand(cmd.NewPublishCommand())
 
+	validateCmd, err := cmd.NewValidateCommand()
+	if err != nil {
+		logger.Error(err, "failed to create the validate command")
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(validateCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error(err, "command failed")
 		os.Exit(1)

@@ -1,3 +1,17 @@
+# Bundles partition the component groups into the pull requests the release
+# command publishes. Every group must belong to exactly one bundle, and every
+# component must carry a group; image-updater validate enforces both.
+bundles:
+  control-plane:
+  - cs
+  - hypershift-stack
+  observability:
+  - prom-stack
+  - obs-agents
+  add-ons:
+  - platform-utils
+  - velero
+  - aro-ci-images
 images:
   # Hypershift image
   hypershift:
