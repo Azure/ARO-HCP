@@ -2308,6 +2308,14 @@ not customer API writes or observed autoscaler readiness. A malformed nested
 autoscaling object fails that manifest before its desired ID is recorded, so the
 existing stale sweep can remove its previous intent; other manifests still process.
 
+During manifest processing, also sets `spec.monitoring.metricsForwarding.mode`
+to `Forward` and `spec.monitoring.metricsForwarding.metricsSet` to `Telemetry`
+on all HostedCluster resources. This enables forwarding of the minimal Telemetry
+control-plane metrics set (e.g. kube-apiserver, etcd) from the management cluster
+into the hosted cluster's own monitoring stack, so customers (and ACM federating
+from guest Prometheus) get visibility into their control plane without manual
+intervention, without inheriting the HyperShift Operator's SRE metrics set.
+
 On cluster deletion, stops fetching manifests and runs the [removal chain](../../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go). First drops NodePool and supporting configuration ApplyDesires to stop reconciliation while leaving their Kubernetes objects for HostedCluster or namespace cleanup. Then explicitly requests deletion, waiting for kube-applier confirmation at each stage: ManagedCluster → ingress manifests in the shared policy namespace → HostedCluster → PodNetworkInstance → PodNetwork → cluster namespaces. A pending deletion or error blocks subsequent stages. HyperShift owns NodePool cleanup during HostedCluster deletion; if the HostedCluster is absent, remaining NodePools depend on namespace deletion and their finalizers. Dropping a NodePool document alone is not evidence that machines were removed.
 
 Creates owned ReadDesires for ManagedCluster, SWIFT resources and the cluster namespaces during live reconciliation; dedicated cluster/node-pool controllers provide HostedCluster and NodePool observations. [Explicit removal](../../backend/pkg/kubeapplierhelpers/desire_deletion.go) live-reads the ApplyDesire, changes it to Delete and clears its SSA payload/conditions, then waits specifically for `SuccessfullyDeleted=True` before purging its document; `Successful` alone is insufficient. It subsequently deletes the same-name ReadDesire without a separate ownership check. During live stale cleanup, a pending item does not block other stale removals. A failed paired ReadDesire deletion after ApplyDesire purge has no independent live-path orphan sweep.
