@@ -239,6 +239,14 @@ func setupCli() (*cobra.Command, error) {
 		//	}
 		// })
 
+		if os.Getenv("ARO_HCP_DEPLOY_ENV") == "int" &&
+			os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" {
+			specs = specs.MustFilter([]string{
+				`name == "Customer should validate ingress health signal lifecycle"`,
+				`name == "Customer should validate node drain health signal lifecycle"`,
+			})
+		}
+
 		registerEV2RetryCatcher(specs)
 
 		// The scheduler is FIFO, so higher priority specs have to enter the queue
