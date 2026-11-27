@@ -91,7 +91,7 @@ func waitForIngressHealthy(ctx context.Context, configClient configv1client.Conf
 }
 
 func setupClusterWithNodePool(ctx context.Context, clusterName, nodePoolName, rgPrefix string) (kubernetes.Interface, configv1client.ConfigV1Interface) {
-	const nodePoolReplicas = 2
+	const nodePoolReplicas = 1
 
 	tc := framework.NewTestContext()
 
