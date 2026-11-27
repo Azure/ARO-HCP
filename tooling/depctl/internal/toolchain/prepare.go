@@ -29,12 +29,12 @@ func PrepareManifests(ctx context.Context, root, target string) error {
 	if !version.IsValid(want) || version.Lang(want) == want || strings.Count(target, ".") != 2 || strings.ContainsAny(target, "-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
 		return fmt.Errorf("invalid Go patch %q", target)
 	}
-	actual, err := compilerCommandOutput(ctx, root, "env", "GOVERSION")
+	actual, err := installedCompilerRelease(ctx, root)
 	if err != nil {
-		return err
+		return fmt.Errorf("identify preparation compiler: %w", err)
 	}
-	if strings.TrimSpace(string(actual)) != want {
-		return fmt.Errorf("preparation needs %s, found %s", want, strings.TrimSpace(string(actual)))
+	if actual != want {
+		return fmt.Errorf("preparation needs %s, found %s", want, actual)
 	}
 	updates, err := compilerManifests(root)
 	if err != nil {
@@ -140,6 +140,16 @@ func validateCompilerPins(root, target string) error {
 		return fmt.Errorf("%s does not declare target Go %s", name, target)
 	}
 	return nil
+}
+
+// InstalledCompilerRelease reads the Go release without the toolchain's build metadata.
+func installedCompilerRelease(ctx context.Context, root string) (string, error) {
+	output, err := compilerCommandOutput(ctx, root, "env", "GOVERSION")
+	if err != nil {
+		return "", fmt.Errorf("read installed Go release: %w", err)
+	}
+	release, _, _ := strings.Cut(strings.TrimSpace(string(output)), " ")
+	return release, nil
 }
 
 // CompilerCommandOutput runs the installed compiler without auto-selecting or downloading another version.

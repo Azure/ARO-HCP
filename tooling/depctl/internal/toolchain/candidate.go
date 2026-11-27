@@ -122,12 +122,12 @@ func ValidateCandidate(ctx context.Context, root, target string, output io.Write
 	if err := requireCleanCandidate(ctx, repo); err != nil {
 		return err
 	}
-	actual, err := compilerCommandOutput(ctx, root, "env", "GOVERSION")
+	actual, err := installedCompilerRelease(ctx, root)
 	if err != nil {
-		return err
+		return fmt.Errorf("identify validation compiler: %w", err)
 	}
-	if strings.TrimSpace(string(actual)) != "go"+target {
-		return fmt.Errorf("validation requires installed Go %s, found %s", target, strings.TrimSpace(string(actual)))
+	if actual != "go"+target {
+		return fmt.Errorf("validation requires installed Go %s, found %s", target, actual)
 	}
 	if err := validateCompilerPins(root, target); err != nil {
 		return fmt.Errorf("validate candidate compiler pins: %w", err)

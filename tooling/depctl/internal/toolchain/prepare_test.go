@@ -16,13 +16,23 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/testkit"
 )
 
+func TestInstalledCompilerReleaseWithBuildMetadata(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go"), []byte("#!/bin/sh\nprintf '%s\\n' 'go1.26.10 (Red Hat) X:strictfipsruntime'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if got, err := installedCompilerRelease(t.Context(), root); err != nil || got != "go1.26.10" {
+		t.Fatalf("installed compiler release = %q, %v; want go1.26.10", got, err)
+	}
+}
+
 func TestPrepareManifests(t *testing.T) {
 	ctx := context.Background()
-	actual, err := compilerCommandOutput(ctx, t.TempDir(), "env", "GOVERSION")
+	compiler, err := installedCompilerRelease(ctx, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	compiler := strings.TrimSpace(string(actual))
 	target := strings.TrimPrefix(compiler, "go")
 	minimum := strings.TrimPrefix(version.Lang(compiler), "go") + ".0"
 	root := t.TempDir()
