@@ -5,11 +5,11 @@ digraph rollout_catalog_lifecycle {
   archive [label="Cincinnati graph-data archive\nread-only GET; 1m deadline\nvalidate complete bounded gzip/tar + channel YAML", fillcolor="#fff0da", color="#b27624"];
   discovery [label="ControlPlaneVersionCincinnatiSeeding\nimmediate discovery after cache sync\nthen 5m + jitter; queued 5m resync\nminor >= backend floor 4.20"];
   requested [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly parent\nrequested + pinned channels; no floor gate"];
-  rollout [label="Fleet ControlPlaneVersionRollout\ncreate only when absent\nSpec.Version; existing best/status preserved", fillcolor="#e4f2e5", color="#4c8053"];
-  references [label="Cached Cluster + provider inventory\nrequested / exact override / desired / active / pin\nINCLUDING deleting clusters\nunique parent IDs per minor + channel", fillcolor="#e4f2e5", color="#4c8053"];
+  rollout [label="Fleet ControlPlaneVersionRollout\ncreate only when absent\nSpec.Version on creation; no channel pin restored", fillcolor="#e4f2e5", color="#4c8053"];
+  references [label="Cached Cluster + provider inventory\nrequested / exact override / desired / active / provider pin\nINCLUDING deleting clusters\nunique parent IDs per minor + channel", fillcolor="#e4f2e5", color="#4c8053"];
   collector [label="ControlPlaneVersionStatusCollector\nold + new reference watches; 5m resync\nincomplete scan: error, retain ALL old status"];
   status [label="Status.ReferencingClusterCount\nnil = unobserved; zero = published no references\nwritten with five separate-purpose upgrade maps", fillcolor="#e4f2e5", color="#4c8053"];
-  retirement [label="ControlPlaneVersionRolloutRetirement\nALL: nonzero profile + below backend floor\n+ observed reference count exactly zero\nrollout watch; 5m resync"];
+  retirement [label="ControlPlaneVersionRolloutRetirement\nALL: nonzero profile + floor comparison false\n+ observed reference count exactly zero\nchannel pin does not block retirement\nrollout watch; 5m resync"];
   deletion [label="Fleet DeleteWithETag(cached rollout ETag)\nlive read then If-Match soft-delete replacement\nmissing / already deleted: success", fillcolor="#e4f2e5", color="#4c8053"];
   conflict [label="412: evaluated rollout changed\nno retirement of newer document", fillcolor="#fbe8e5", color="#a64f43"];
   absent [label="Rollout absent from active catalog\nTTL cleanup later; no external cluster deletion", fillcolor="#e4f2e5", color="#4c8053"];
@@ -20,7 +20,7 @@ digraph rollout_catalog_lifecycle {
   references -> collector [label="all references; cached non-atomic inventory"];
   collector -> status [label="one ETag replacement if changed"];
   status -> retirement [label="published zero; nil never qualifies"];
-  rollout -> retirement [label="Spec.Version below floor"];
+  rollout -> retirement [label="below floor or version parse failure"];
   retirement -> deletion [label="only evaluated rollout version"];
   deletion -> absent [label="conditional replacement succeeds"];
   deletion -> conflict [label="stale ETag / race"];

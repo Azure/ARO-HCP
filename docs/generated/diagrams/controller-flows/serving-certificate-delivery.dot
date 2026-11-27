@@ -13,7 +13,7 @@ digraph serving_certificate_delivery {
   dns [label="DNS allocation / backfill: persisted base domain\n+ customer DNS prefix\nBOTH nonempty", fillcolor="#e4f2e5", color="#4c8053"];
   desired [label="Provider Spec.DesiredHostedCluster\ningress defaultCertificate / API named certificate\nintent only; not a live apply acknowledgement", fillcolor="#e4f2e5", color="#4c8053"];
   mirror [label="ReadDesireKubernetesController\nmirror SecretSync / HostedCluster observations"];
-  completion [label="OperationClusterCreate\ningress SecretCreated + IngressDefaultCertificateSynced\nplus other existing create gates\nno new dedicated KAS-delivery predicate"];
+  completion [label="OperationClusterCreate\ningress SecretSync: successful observation\n+ nonzero lastSuccessfulSyncTime\nAND IngressDefaultCertificateSynced = True\nplus other existing create gates\nno new dedicated KAS-delivery predicate"];
   deletion [label="Cluster deletion\nplacement still required\ndedicated controllers delete known desire documents\nnamespace teardown deletes Kubernetes objects", fillcolor="#eee7fb", color="#7b59a4"];
   vault -> observe [label="read existence / operation"];
   observe -> gates [label="per-certificate AzureReference"];
