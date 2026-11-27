@@ -169,11 +169,10 @@ resourceGroups:
         step: auditLogsEventHub
         name: alertEventsEventHubId
   - name: maestroMqttDataConnection
-    action: ARMStack
+    action: ARM
     template: templates/maestro-mqtt-data-connection.bicep
     parameters: configurations/maestro-mqtt-data-connection.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
@@ -197,11 +196,10 @@ resourceGroups:
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: auditLogsEventHub
-    action: ARMStack
+    action: ARM
     template: templates/audit-logs-eventhub.bicep
     parameters: configurations/audit-logs-eventhub.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     variables:
     - name: kustoPrincipalId
       input:
@@ -225,11 +223,10 @@ resourceGroups:
     - resourceGroup: global
       step: ocp-acr-replication
   - name: infra
-    action: ARMStack
+    action: ARM
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     # errorContainsAny is widened beyond "Internal error" because on a
     # first-time region rollout this can also fail with the ARM RP
     # propagation-lag variants seen elsewhere in this repo (e.g. shortly after
@@ -267,11 +264,10 @@ resourceGroups:
     - resourceGroup: regional
       step: rpRegistration
   - name: maestroMqttDiagnostics
-    action: ARMStack
+    action: ARM
     template: templates/maestro-mqtt-diagnostics.bicep
     parameters: configurations/maestro-mqtt-diagnostics.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
     dependsOn:
     - resourceGroup: regional
       step: infra
