@@ -17,6 +17,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"sort"
@@ -185,6 +186,14 @@ func LoadStrict(configPath string) (*Config, error) {
 	var cfg Config
 	if err := decoder.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	var extra yaml.Node
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+		}
+		return nil, fmt.Errorf("failed to parse config file %s: multiple YAML documents are not supported", configPath)
 	}
 
 	if err := cfg.validateImages(); err != nil {

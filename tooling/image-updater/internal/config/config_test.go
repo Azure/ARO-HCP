@@ -1085,3 +1085,34 @@ func TestLoadStrict(t *testing.T) {
 		t.Fatalf("LoadStrict error %v does not reject the unknown field", err)
 	}
 }
+
+// TestLoadStrictRejectsMultipleDocuments checks that a second YAML document is rejected.
+func TestLoadStrictRejectsMultipleDocuments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	content := `images:
+  clusters-service:
+    group: cs
+    source:
+      image: quay.io/test/clusters-service
+    targets:
+    - jsonPath: image.digest
+      filePath: config.yaml
+---
+images:
+  hypershift:
+    group: hypershift-stack
+    source:
+      image: quay.io/test/hypershift
+    targets:
+    - jsonPath: image.digest
+      filePath: config.yaml
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := LoadStrict(path)
+	if err == nil || !strings.Contains(err.Error(), "multiple YAML documents are not supported") {
+		t.Fatalf("LoadStrict error %v does not reject the second document", err)
+	}
+}
