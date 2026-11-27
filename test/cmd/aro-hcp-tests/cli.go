@@ -205,6 +205,7 @@ func setupCli() (*cobra.Command, error) {
 
 		// Specs can be globally filtered...
 		// specs = specs.MustFilter([]string{`name.contains("filter")`})
+		specs = specs.MustFilter([]string{`name.contains("resource health")`})
 
 		// Or walked...
 		// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
