@@ -71,10 +71,8 @@ func BindSummaryOptions(opts *RawSummaryOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.JobURL, "job-url", "", "Prow job URL to link from the summary")
 	cmd.Flags().BoolVar(&opts.Prebuilt, "prebuilt", false, "Whether the run used the prebuilt templatize")
 
-	for _, name := range []string{"updates", "revision"} {
-		if err := cmd.MarkFlagRequired(name); err != nil {
-			return err
-		}
+	if err := cmd.MarkFlagRequired("updates"); err != nil {
+		return err
 	}
 
 	return nil
@@ -92,19 +90,14 @@ type ValidatedSummaryOptions struct {
 
 // Validate checks the input before any artifact is read.
 func (o *RawSummaryOptions) Validate(_ context.Context) (*ValidatedSummaryOptions, error) {
-	for _, flag := range []struct {
-		name  string
-		value string
-	}{
-		{"--updates", o.UpdatesPath},
-		{"--revision", o.Revision},
-	} {
-		if strings.TrimSpace(flag.value) == "" {
-			return nil, fmt.Errorf("%s is required", flag.name)
-		}
+	if strings.TrimSpace(o.UpdatesPath) == "" {
+		return nil, fmt.Errorf("--updates is required")
 	}
 	if strings.TrimSpace(o.OutputPath) == "" && strings.TrimSpace(o.JSONPath) == "" && strings.TrimSpace(o.BodyPath) == "" {
 		return nil, fmt.Errorf("one of --output, --json-output or --body-output is required")
+	}
+	if (strings.TrimSpace(o.OutputPath) != "" || strings.TrimSpace(o.JSONPath) != "") && strings.TrimSpace(o.Revision) == "" {
+		return nil, fmt.Errorf("--revision is required with --output or --json-output")
 	}
 
 	return &ValidatedSummaryOptions{validatedSummaryOptions: &validatedSummaryOptions{RawSummaryOptions: o}}, nil

@@ -82,6 +82,7 @@ func TestSummaryValidate(t *testing.T) {
 			mutate: func(o *RawSummaryOptions) {
 				o.ReceiptPath = ""
 				o.OutputPath = ""
+				o.Revision = ""
 			},
 		},
 		{
@@ -94,9 +95,19 @@ func TestSummaryValidate(t *testing.T) {
 			wantErr: "one of --output, --json-output or --body-output is required",
 		},
 		{
-			name:    "revision is required",
-			mutate:  func(o *RawSummaryOptions) { o.Revision = "  " },
-			wantErr: "--revision is required",
+			name: "revision is optional for a body-only run",
+			mutate: func(o *RawSummaryOptions) {
+				o.Revision = ""
+				o.OutputPath = ""
+			},
+		},
+		{
+			name: "revision is required for the report",
+			mutate: func(o *RawSummaryOptions) {
+				o.Revision = ""
+				o.BodyPath = ""
+			},
+			wantErr: "--revision is required with --output or --json-output",
 		},
 	}
 
@@ -265,7 +276,6 @@ func TestSummaryBodyWithoutReceipt(t *testing.T) {
 	raw := &RawSummaryOptions{
 		UpdatesPath: writeSummaryFixture(t, "updates.json", testUpdatesJSON),
 		BodyPath:    filepath.Join(t.TempDir(), "body.md"),
-		Revision:    "0123456789abcdef",
 	}
 
 	validated, err := raw.Validate(context.Background())

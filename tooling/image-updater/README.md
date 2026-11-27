@@ -118,8 +118,8 @@ shows the revision, the templatize source, the changed components with their
 old and new digests, and the pull request.
 
 The receipt is optional: generate the body before publishing with
-`--updates` and `--body-output` only, then pass `--receipt` after `publish` so
-the page links the pull request. Without a receipt, `--pull-request-url` still
+`--updates` and `--body-output` only (no revision is needed), then pass
+`--receipt` after `publish` so the page links the pull request. Without a receipt, `--pull-request-url` still
 links an existing pull request, and `--job-url` links the run that produced the
 card. The markdown body lists only changed components; the HTML and JSON
 artifacts keep the complete result set.
