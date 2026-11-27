@@ -127,8 +127,44 @@ images:
 			wantErr: `image "clusters-service": group is required`,
 		},
 		{
-			name:    "no bundles",
-			content: strings.Replace(validBundlesConfig, "bundles:", "images2:", 1),
+			name: "unknown field in an image entry",
+			content: strings.Replace(validBundlesConfig,
+				"    group: hypershift-stack\n",
+				"    group: hypershift-stack\n    typo: true\n", 1),
+			wantErr: `field typo not found in type config.ImageConfig`,
+		},
+		{
+			name: "group with surrounding whitespace",
+			content: strings.Replace(validBundlesConfig,
+				"    group: cs\n",
+				"    group: \"cs \"\n", 1),
+			wantErr: `image "clusters-service": group "cs " has surrounding whitespace`,
+		},
+		{
+			name: "bundle name with a comma",
+			content: strings.Replace(validBundlesConfig,
+				"  add-ons:\n",
+				"  \"add-ons,extra\":\n", 1),
+			wantErr: `bundle "add-ons,extra" contains a comma`,
+		},
+		{
+			name: "bundle group with a comma",
+			content: strings.Replace(validBundlesConfig,
+				"  - platform-utils\nimages:",
+				"  - \"platform-utils,extra\"\nimages:", 1),
+			wantErr: `bundle "add-ons": group "platform-utils,extra" contains a comma`,
+		},
+		{
+			name: "no bundles",
+			content: `images:
+  clusters-service:
+    group: cs
+    source:
+      image: quay.io/test/clusters-service
+    targets:
+    - jsonPath: image.digest
+      filePath: config.yaml
+`,
 			wantErr: "no bundles configured",
 		},
 	}

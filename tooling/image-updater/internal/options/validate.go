@@ -74,7 +74,7 @@ type CompletedValidateOptions struct {
 
 // Complete loads the configuration and checks the bundle partition.
 func (v *ValidatedValidateOptions) Complete(_ context.Context) (*CompletedValidateOptions, error) {
-	cfg, err := config.Load(v.ConfigPath)
+	cfg, err := config.LoadStrict(v.ConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}

@@ -1058,3 +1058,30 @@ func TestSource_ParseImageReference(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadStrict checks that unknown fields are rejected only by the strict decoder.
+func TestLoadStrict(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	content := `images:
+  clusters-service:
+    group: cs
+    typo: true
+    source:
+      image: quay.io/test/clusters-service
+    targets:
+    - jsonPath: image.digest
+      filePath: config.yaml
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	if _, err := Load(path); err != nil {
+		t.Fatalf("Load returned an error: %v", err)
+	}
+
+	_, err := LoadStrict(path)
+	if err == nil || !strings.Contains(err.Error(), "field typo not found") {
+		t.Fatalf("LoadStrict error %v does not reject the unknown field", err)
+	}
+}

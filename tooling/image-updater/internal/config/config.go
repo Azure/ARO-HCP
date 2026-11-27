@@ -15,6 +15,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -163,17 +164,63 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 	}
 
-	// Validate each image configuration
-	for name, imageConfig := range cfg.Images {
-		if imageConfig.Group == "" {
-			return nil, fmt.Errorf("image %q: group is required", name)
-		}
-		if err := imageConfig.Source.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
-		}
+	if err := cfg.validateImages(); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil
+}
+
+// LoadStrict reads and parses the configuration file, rejecting unknown fields
+// so a mistyped or misindented entry cannot be ignored silently.
+func LoadStrict(configPath string) (*Config, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+	}
+
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	var cfg Config
+	if err := decoder.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	if err := cfg.validateImages(); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+// validateImages checks each image entry.
+func (c *Config) validateImages() error {
+	for name, imageConfig := range c.Images {
+		if imageConfig.Group == "" {
+			return fmt.Errorf("image %q: group is required", name)
+		}
+		if err := validateName("group", imageConfig.Group); err != nil {
+			return fmt.Errorf("image %q: %w", name, err)
+		}
+		if err := imageConfig.Source.Validate(); err != nil {
+			return fmt.Errorf("invalid configuration for image %q: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// validateName rejects names that update flags cannot select, because
+// --groups trims the argument and splits it on commas.
+func validateName(kind, name string) error {
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("%s %q has surrounding whitespace", kind, name)
+	}
+	if strings.Contains(name, ",") {
+		return fmt.Errorf("%s %q contains a comma", kind, name)
+	}
+	return nil
 }
 
 // FilterByComponent returns a new Config containing only the specified component
@@ -273,11 +320,17 @@ func (c *Config) ValidateBundles() error {
 		if strings.TrimSpace(bundle) == "" {
 			return fmt.Errorf("bundle name must not be empty")
 		}
+		if err := validateName("bundle", bundle); err != nil {
+			return err
+		}
 		groups := c.Bundles[bundle]
 		if len(groups) == 0 {
 			return fmt.Errorf("bundle %q has no groups", bundle)
 		}
 		for _, group := range groups {
+			if err := validateName("group", group); err != nil {
+				return fmt.Errorf("bundle %q: %w", bundle, err)
+			}
 			if previous, ok := groupBundle[group]; ok {
 				return fmt.Errorf("group %q is in bundles %q and %q", group, previous, bundle)
 			}
