@@ -216,7 +216,10 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		"configDiff", configDiff,
 	)
 
-	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster)
+	// The version ID is immutable and only resolved on the create path, so the
+	// out-of-band best exact version is not needed here (clusterServiceCluster
+	// is non-nil on every update dispatch).
+	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}

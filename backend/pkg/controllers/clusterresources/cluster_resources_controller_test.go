@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +39,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	"github.com/openshift/hypershift/api/hypershift/v1beta1"
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
@@ -113,6 +115,16 @@ func newSPC(mcResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster 
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+		},
+		Spec: coreapi.ServiceProviderClusterSpec{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+				DesiredVersion: func() *semver.Version { v := semver.MustParse("4.19.15"); return &v }(),
+			},
+			DesiredHostedCluster: &hsv1beta1.HostedCluster{
+				Spec: hsv1beta1.HostedClusterSpec{
+					Release: hsv1beta1.Release{Image: "quay.io/openshift-release-dev/ocp-release@sha256:testimage"},
+				},
+			},
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
@@ -1239,7 +1251,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
@@ -1247,7 +1259,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
 			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"processClusterResources should succeed")
 
 			desire, err := npCRUD.Get(ctx, "nodepool")
@@ -1267,31 +1279,31 @@ func TestEnsureHostedClusterAnnotations(t *testing.T) {
 			name:             "sets mhc node startup timeout annotation to 10m",
 			inputAnnotations: nil,
 			expectedAnnotations: map[string]string{
-				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+				hsv1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
 			},
 		},
 		{
 			name: "preserves other annotations when setting mhc node startup timeout annotation",
 			inputAnnotations: map[string]string{
-				"other-annotation":                          "other-value",
-				v1beta1.ClusterSizeOverrideAnnotation:       "e2e_minimal",
-				v1beta1.ControlPlaneOperatorImageAnnotation: "quay.io/example/cpo:test",
+				"other-annotation":                            "other-value",
+				hsv1beta1.ClusterSizeOverrideAnnotation:       "e2e_minimal",
+				hsv1beta1.ControlPlaneOperatorImageAnnotation: "quay.io/example/cpo:test",
 			},
 			expectedAnnotations: map[string]string{
-				"other-annotation":                                     "other-value",
-				v1beta1.ClusterSizeOverrideAnnotation:                  "e2e_minimal",
-				v1beta1.ControlPlaneOperatorImageAnnotation:            "quay.io/example/cpo:test",
-				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+				"other-annotation":                                       "other-value",
+				hsv1beta1.ClusterSizeOverrideAnnotation:                  "e2e_minimal",
+				hsv1beta1.ControlPlaneOperatorImageAnnotation:            "quay.io/example/cpo:test",
+				hsv1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
 			},
 		},
 		{
 			name: "overwrites existing mhc node startup timeout annotation with 10m",
 			inputAnnotations: map[string]string{
-				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "20m",
+				hsv1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "20m",
 				"other-annotation": "other-value",
 			},
 			expectedAnnotations: map[string]string{
-				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+				hsv1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
 				"other-annotation": "other-value",
 			},
 		},
@@ -1349,4 +1361,476 @@ func TestEnsureHostedClusterAutoscaling(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found, "expected spec.autoscaling.kubeClientBurst to be present")
 	assert.Equal(t, int64(defaultKubeClientBurst), burst, "kubeClientBurst should be pinned to fleet default")
+}
+
+func TestHostedClusterOverlayNotReadyDoesNotDelete(t *testing.T) {
+	t.Parallel()
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	// Seed an existing HostedCluster ApplyDesire that was previously created
+	// and is still desired — it must survive even when overlay is not ready.
+	existingDesireName := DesireNameHostedCluster
+	existingResourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		testSubscriptionID, testResourceGroupName, testClusterName, existingDesireName,
+	)
+	existingDesire := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(existingResourceIDStr)),
+			PartitionKey: strings.ToLower(testManagementClusterResourceID.String()),
+		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: testManagementClusterResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters",
+				Name: testClusterName, Namespace: "ns",
+			},
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: []byte(`{}`)},
+			},
+		},
+	}
+
+	mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	mockClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
+
+	crud, err := mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	require.NoError(t, err)
+	_, err = crud.Create(ctx, existingDesire, nil)
+	require.NoError(t, err)
+
+	// Also seed a stale desire that should still be reaped.
+	staleName := "configmaps.ns.stale"
+	staleResourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		testSubscriptionID, testResourceGroupName, testClusterName, staleName,
+	)
+	staleDesire := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(staleResourceIDStr)),
+			PartitionKey: strings.ToLower(testManagementClusterResourceID.String()),
+		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: testManagementClusterResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group: "", Version: "v1", Resource: "configmaps",
+				Name: staleName, Namespace: "ns",
+			},
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: []byte(`{}`)},
+			},
+		},
+	}
+	_, err = crud.Create(ctx, staleDesire, nil)
+	require.NoError(t, err)
+
+	// SPC with overlay not ready: DesiredHostedCluster.Spec.Release.Image nil -> overlay returns ready=false.
+	spc := newSPC(testManagementClusterResourceID)
+	// Use empty release image to trigger not-ready path.
+	spc.Spec.DesiredHostedCluster.Spec.Release.Image = ""
+
+	cluster := newCluster()
+
+	// CS still reports HostedCluster as desired.
+	resources := buildClusterResources(map[string]string{
+		"hosted": `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ns"}}`,
+	})
+
+	ctrl := gomock.NewController(t)
+	csClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+	csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil)
+
+	syncer := &clusterResourcesController{
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+		clustersServiceClient:        csClient,
+		kubeApplierDBClients:         mockClients,
+		applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{
+			Clients: mockClients,
+			Lister: &fleetlistertesting.SliceManagementClusterLister{
+				ManagementClusters: []*fleetapi.ManagementCluster{
+					{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}},
+				},
+			},
+		},
+		readDesireLister: &kubeapplierlistertesting.DBReadDesireLister{
+			Clients: mockClients,
+			Lister: &fleetlistertesting.SliceManagementClusterLister{
+				ManagementClusters: []*fleetapi.ManagementCluster{
+					{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}},
+				},
+			},
+		},
+		resourcesCache: lru.New(resourcesCacheCapacity),
+		clock:          utilsclock.RealClock{},
+	}
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err, "SyncOnce should succeed even when HostedCluster overlay is not ready")
+
+	// HostedCluster must NOT have been marked for deletion — it was still desired.
+	preserved, err := crud.Get(ctx, existingDesireName)
+	require.NoError(t, err, "HostedCluster ApplyDesire should still exist")
+	assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, preserved.Spec.Type,
+		"HostedCluster still desired but not processable must not be marked for deletion")
+	assert.NotNil(t, preserved.Spec.ServerSideApply, "HostedCluster ServerSideApply must not be cleared")
+
+	// Stale desire should still have been marked for deletion.
+	stale, err := crud.Get(ctx, staleName)
+	require.NoError(t, err, "stale desire should still exist (marked for deletion, not purged yet)")
+	assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, stale.Spec.Type,
+		"stale desires should still be reaped even when HostedCluster is not ready")
+}
+
+func TestSyncOnceOverlaysHostedClusterVersion(t *testing.T) {
+	t.Parallel()
+	releaseImage := "quay.io/openshift-release-dev/ocp-release@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	controlPlaneImage := "quay.io/openshift-release-dev/ocp-release-priv@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	decodeHostedClusterContent := func(t *testing.T, desire *kubeapplierapi.ApplyDesire) map[string]any {
+		t.Helper()
+		require.NotNil(t, desire.Spec.ServerSideApply, "ApplyDesire must have ServerSideApply")
+		require.NotNil(t, desire.Spec.ServerSideApply.KubeContent, "ApplyDesire must have KubeContent")
+		var obj map[string]any
+		require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &obj))
+		return obj
+	}
+
+	newSyncer := func(spc *coreapi.ServiceProviderCluster, resources map[string]string) (*clusterResourcesController, cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		cluster := newCluster()
+		mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+		mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+		mockClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
+		crud, err := mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		csClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(buildClusterResources(resources), nil)
+
+		syncer := &clusterResourcesController{
+			clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+			serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+			clustersServiceClient:        csClient,
+			kubeApplierDBClients:         mockClients,
+			applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{
+				Clients: mockClients,
+				Lister: &fleetlistertesting.SliceManagementClusterLister{
+					ManagementClusters: []*fleetapi.ManagementCluster{
+						{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}},
+					},
+				},
+			},
+			readDesireLister: &kubeapplierlistertesting.DBReadDesireLister{
+				Clients: mockClients,
+				Lister: &fleetlistertesting.SliceManagementClusterLister{
+					ManagementClusters: []*fleetapi.ManagementCluster{
+						{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}},
+					},
+				},
+			},
+			resourcesCache: lru.New(resourcesCacheCapacity),
+			clock:          utilsclock.RealClock{},
+		}
+		// Create requires ctx but we reuse the same test ctx for SyncOnce
+		_ = ctx
+		return syncer, crud
+	}
+
+	baseHostedClusterJSON := `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ns"},"spec":{"release":{"image":"quay.io/openshift-release-dev/ocp-release@sha256:old"}}}`
+
+	t.Run("in-band SyncOnce writes release image and ForceUpgradeTo and clears controlPlaneRelease", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		spc := newSPC(testManagementClusterResourceID)
+		spc.Spec.DesiredHostedCluster.Spec.Release.Image = releaseImage
+		spc.Spec.DesiredHostedCluster.Spec.ControlPlaneRelease = nil
+
+		syncer, crud := newSyncer(spc, map[string]string{"hosted": baseHostedClusterJSON})
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+		desire, err := crud.Get(ctx, DesireNameHostedCluster)
+		require.NoError(t, err)
+		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type)
+		obj := decodeHostedClusterContent(t, desire)
+		img, _, _ := unstructured.NestedString(obj, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+		_, hasCP, _ := unstructured.NestedString(obj, "spec", "controlPlaneRelease", "image")
+		assert.False(t, hasCP, "in-band SyncOnce must not set controlPlaneRelease")
+		ann, _, _ := unstructured.NestedString(obj, "metadata", "annotations", hsv1beta1.ForceUpgradeToAnnotation)
+		assert.Equal(t, releaseImage, ann)
+	})
+
+	t.Run("out-of-band SyncOnce writes both release and controlPlaneRelease and ForceUpgradeTo to control-plane image", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		spc := newSPC(testManagementClusterResourceID)
+		spc.Spec.DesiredHostedCluster.Spec.Release.Image = releaseImage
+		spc.Spec.DesiredHostedCluster.Spec.ControlPlaneRelease = &hsv1beta1.Release{Image: controlPlaneImage}
+		spc.Spec.DesiredHostedCluster.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: controlPlaneImage})
+
+		syncer, crud := newSyncer(spc, map[string]string{"hosted": baseHostedClusterJSON})
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+		desire, err := crud.Get(ctx, DesireNameHostedCluster)
+		require.NoError(t, err)
+		obj := decodeHostedClusterContent(t, desire)
+		img, _, _ := unstructured.NestedString(obj, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+		cpImg, _, _ := unstructured.NestedString(obj, "spec", "controlPlaneRelease", "image")
+		assert.Equal(t, controlPlaneImage, cpImg)
+		ann, _, _ := unstructured.NestedString(obj, "metadata", "annotations", hsv1beta1.ForceUpgradeToAnnotation)
+		assert.Equal(t, controlPlaneImage, ann)
+	})
+
+	t.Run("recovery to in-band via SyncOnce clears previous out-of-band controlPlaneRelease", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		// CS still returns HostedCluster with stale out-of-band state; SPC has moved to in-band
+		hostedWithCP := `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ns","annotations":{"hypershift.openshift.io/force-upgrade-to":"` + controlPlaneImage + `"}},"spec":{"release":{"image":"quay.io/openshift-release-dev/ocp-release@sha256:old"},"controlPlaneRelease":{"image":"` + controlPlaneImage + `"}}}`
+
+		spc := newSPC(testManagementClusterResourceID)
+		spc.Spec.DesiredHostedCluster.Spec.Release.Image = releaseImage
+		spc.Spec.DesiredHostedCluster.Spec.ControlPlaneRelease = nil
+
+		syncer, crud := newSyncer(spc, map[string]string{"hosted": hostedWithCP})
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+		desire, err := crud.Get(ctx, DesireNameHostedCluster)
+		require.NoError(t, err)
+		obj := decodeHostedClusterContent(t, desire)
+		_, hasCP, _ := unstructured.NestedString(obj, "spec", "controlPlaneRelease", "image")
+		assert.False(t, hasCP, "recovery SyncOnce must clear controlPlaneRelease")
+		img, _, _ := unstructured.NestedString(obj, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+		ann, _, _ := unstructured.NestedString(obj, "metadata", "annotations", hsv1beta1.ForceUpgradeToAnnotation)
+		assert.Equal(t, releaseImage, ann)
+	})
+}
+
+func TestOverlayDesiredHostedClusterVersion(t *testing.T) {
+	releaseImage := "quay.io/openshift-release-dev/ocp-release@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	controlPlaneImage := "quay.io/openshift-release-dev/ocp-release-priv@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	newSPC := func(desired *hsv1beta1.HostedCluster) *coreapi.ServiceProviderCluster {
+		v := semver.MustParse("4.19.15")
+		return &coreapi.ServiceProviderCluster{
+			Spec: coreapi.ServiceProviderClusterSpec{
+				DesiredHostedCluster: desired,
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+					DesiredVersion: &v,
+				},
+			},
+		}
+	}
+
+	newHostedCluster := func() *unstructured.Unstructured {
+		return &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "hypershift.openshift.io/v1beta1",
+				"kind":       "HostedCluster",
+				"metadata": map[string]interface{}{
+					"name":      "test-cluster",
+					"namespace": "test-ns",
+				},
+				"spec": map[string]interface{}{
+					"release": map[string]interface{}{
+						"image": "quay.io/openshift-release-dev/ocp-release@sha256:old",
+					},
+				},
+			},
+		}
+	}
+
+	c := &clusterResourcesController{}
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+	t.Run("not ready when DesiredHostedCluster is nil", func(t *testing.T) {
+		hc := newHostedCluster()
+		origImg, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(nil))
+		require.NoError(t, err)
+		assert.False(t, ready, "nil DesiredHostedCluster must be not-ready")
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, origImg, img, "not-ready must not mutate release image")
+	})
+
+	t.Run("not ready when DesiredHostedCluster has empty release image", func(t *testing.T) {
+		hc := newHostedCluster()
+		origImg, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		desired := &hsv1beta1.HostedCluster{
+			Spec: hsv1beta1.HostedClusterSpec{
+				Release: hsv1beta1.Release{Image: ""},
+			},
+		}
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.False(t, ready, "empty release image must be not-ready")
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, origImg, img, "not-ready must not mutate release image")
+	})
+
+	t.Run("not ready when DesiredVersion is nil", func(t *testing.T) {
+		hc := newHostedCluster()
+		origImg, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		desired := &hsv1beta1.HostedCluster{
+			Spec: hsv1beta1.HostedClusterSpec{
+				Release: hsv1beta1.Release{Image: releaseImage},
+			},
+		}
+		spc := newSPC(desired)
+		spc.Spec.ControlPlaneVersion.DesiredVersion = nil
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, spc)
+		require.NoError(t, err)
+		assert.False(t, ready, "nil DesiredVersion must be not-ready")
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, origImg, img, "not-ready must not mutate release image")
+	})
+
+	t.Run("not ready when release image empty even with ControlPlaneRelease set", func(t *testing.T) {
+		hc := newHostedCluster()
+		origImg, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		desired := &hsv1beta1.HostedCluster{
+			Spec: hsv1beta1.HostedClusterSpec{
+				Release:             hsv1beta1.Release{Image: ""},
+				ControlPlaneRelease: &hsv1beta1.Release{Image: controlPlaneImage},
+			},
+		}
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.False(t, ready, "empty release image must be not-ready even with ControlPlaneRelease")
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, origImg, img, "not-ready must not mutate release image")
+	})
+
+	t.Run("sets release image and force-upgrade-to in-band", func(t *testing.T) {
+		hc := newHostedCluster()
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+		desired.Spec.ControlPlaneRelease = nil
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+		_, hasCP, _ := unstructured.NestedString(hc.Object, "spec", "controlPlaneRelease", "image")
+		assert.False(t, hasCP, "in-band must not set controlPlaneRelease")
+		assert.Equal(t, releaseImage, hc.GetAnnotations()[hsv1beta1.ForceUpgradeToAnnotation],
+			"in-band must force-upgrade to releaseImage")
+	})
+
+	t.Run("sets controlPlaneRelease and force-upgrade-to out-of-band", func(t *testing.T) {
+		hc := newHostedCluster()
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+		desired.Spec.ControlPlaneRelease = &hsv1beta1.Release{Image: controlPlaneImage}
+		desired.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: controlPlaneImage})
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+		cpImg, _, _ := unstructured.NestedString(hc.Object, "spec", "controlPlaneRelease", "image")
+		assert.Equal(t, controlPlaneImage, cpImg)
+		assert.Equal(t, controlPlaneImage, hc.GetAnnotations()[hsv1beta1.ForceUpgradeToAnnotation],
+			"out-of-band must force-upgrade to controlPlaneRelease")
+	})
+
+	t.Run("preserves unrelated annotations", func(t *testing.T) {
+		hc := newHostedCluster()
+		hc.SetAnnotations(map[string]string{"example.com/keep": "yes"})
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+		assert.Equal(t, "yes", hc.GetAnnotations()["example.com/keep"])
+		assert.Equal(t, releaseImage, hc.GetAnnotations()[hsv1beta1.ForceUpgradeToAnnotation])
+	})
+
+	t.Run("clears previous out-of-band state on recovery to in-band", func(t *testing.T) {
+		hc := newHostedCluster()
+		hc.Object["spec"].(map[string]interface{})["controlPlaneRelease"] = map[string]interface{}{
+			"image": controlPlaneImage,
+		}
+		hc.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: controlPlaneImage})
+
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+		desired.Spec.ControlPlaneRelease = nil
+		desired.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: releaseImage})
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+
+		_, hasCP, _ := unstructured.NestedString(hc.Object, "spec", "controlPlaneRelease", "image")
+		assert.False(t, hasCP, "recovery must clear controlPlaneRelease")
+		assert.Equal(t, releaseImage, hc.GetAnnotations()[hsv1beta1.ForceUpgradeToAnnotation],
+			"recovery must force-upgrade to new releaseImage")
+		assert.Equal(t, releaseImage, func() string {
+			s, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+			return s
+		}())
+	})
+
+	t.Run("treats empty ControlPlaneRelease image as in-band", func(t *testing.T) {
+		hc := newHostedCluster()
+		hc.Object["spec"].(map[string]interface{})["controlPlaneRelease"] = map[string]interface{}{
+			"image": controlPlaneImage,
+		}
+		hc.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: controlPlaneImage})
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+		desired.Spec.ControlPlaneRelease = &hsv1beta1.Release{Image: ""}
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+		_, hasCP, _ := unstructured.NestedString(hc.Object, "spec", "controlPlaneRelease", "image")
+		assert.False(t, hasCP, "empty ControlPlaneRelease must be treated as in-band and cleared")
+		assert.Equal(t, releaseImage, hc.GetAnnotations()[hsv1beta1.ForceUpgradeToAnnotation])
+		img, _, _ := unstructured.NestedString(hc.Object, "spec", "release", "image")
+		assert.Equal(t, releaseImage, img)
+	})
+
+	t.Run("logs when not ready", func(t *testing.T) {
+		hc := newHostedCluster()
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(nil))
+		require.NoError(t, err)
+		assert.False(t, ready)
+		// Log assertion is best-effort; the method must not error.
+	})
+
+	t.Run("round-trips through JSON", func(t *testing.T) {
+		hc := newHostedCluster()
+		desired := &hsv1beta1.HostedCluster{}
+		desired.Spec.Release.Image = releaseImage
+		desired.Spec.ControlPlaneRelease = &hsv1beta1.Release{Image: controlPlaneImage}
+		desired.SetAnnotations(map[string]string{hsv1beta1.ForceUpgradeToAnnotation: controlPlaneImage})
+
+		ready, err := c.overlayDesiredHostedClusterVersion(ctx, hc, newSPC(desired))
+		require.NoError(t, err)
+		assert.True(t, ready)
+
+		raw, err := json.Marshal(hc.Object)
+		require.NoError(t, err)
+		var restored map[string]interface{}
+		require.NoError(t, json.Unmarshal(raw, &restored))
+		hc2 := &unstructured.Unstructured{Object: restored}
+		assert.Equal(t, releaseImage, func() string { s, _, _ := unstructured.NestedString(hc2.Object, "spec", "release", "image"); return s }())
+		assert.Equal(t, controlPlaneImage, func() string {
+			s, _, _ := unstructured.NestedString(hc2.Object, "spec", "controlPlaneRelease", "image")
+			return s
+		}())
+	})
 }
