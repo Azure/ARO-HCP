@@ -1,7 +1,7 @@
-name: "CodeQL Analysis Retry"
+name: "Security: Retry CodeQL"
 on:
   workflow_run:
-    workflows: ["CodeQL Analysis"]
+    workflows: ["Security: CodeQL Analysis"]
     types:
     - completed
 jobs:

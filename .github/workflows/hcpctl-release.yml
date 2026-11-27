@@ -1,4 +1,4 @@
-name: "hcpctl Latest Build"
+name: "Build: hcpctl"
 on:
   schedule:
   # Check hourly; the "skip if unchanged" step below keeps this a no-op

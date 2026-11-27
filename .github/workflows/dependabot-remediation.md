@@ -1,4 +1,5 @@
 ---
+name: "Deps & Tools: Security Fixes"
 # Autonomous, go.work-aware Dependabot remediation for Azure/ARO-HCP.
 # Reads open Dependabot alerts, groups them by package/cascade family, runs the
 # `make all-tidy` workspace ritual, and opens one dependency-only PR per group.

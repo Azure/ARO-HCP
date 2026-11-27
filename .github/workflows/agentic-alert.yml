@@ -1,11 +1,11 @@
-name: Agentic workflow failure alert
+name: "Deps & Tools: Alert on Failures"
 on:
   workflow_run:
     workflows:
-    - "Agentic CI and development tool updates"
-    - "gh-aw recompile"
-    - "Dependency maintenance"
-    - "Agentic Dependabot remediation for ARO-HCP"
+    - "Deps & Tools: CI and Dev Tools"
+    - "Deps & Tools: GitHub Agentic Workflows"
+    - "Deps & Tools: Dependabot PRs"
+    - "Deps & Tools: Security Fixes"
     types:
     - completed
 permissions: {}
