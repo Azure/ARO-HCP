@@ -28,10 +28,13 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/cpoutofband"
+	cpoutofbandhelpers "github.com/Azure/ARO-HCP/internal/cpoutofband/helpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,6 +53,7 @@ type triggerControlPlaneUpgradeSyncer struct {
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        corelisters.ActiveOperationLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -70,6 +74,7 @@ func NewTriggerControlPlaneUpgradeController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	rolloutLister fleetlisters.ControlPlaneVersionRolloutLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
@@ -79,6 +84,7 @@ func NewTriggerControlPlaneUpgradeController(
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		rolloutLister:                rolloutLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -158,7 +164,22 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	effectiveDesiredVersion := desiredVersion
+	if cpoutofband.IsOutOfBandControlPlaneVersion(desiredVersion.String()) {
+		// Z-only pin within same Major/Minor (X.Y) stays out of band via HostedCluster controlPlaneRelease. Don't tell CS.
+		if desiredVersion.Major == actualLatestVersion.Major && desiredVersion.Minor == actualLatestVersion.Minor {
+			return nil
+		}
+		// Major/Minor change while pinned (X or Y, e.g. 4.19.99 -> 4.20.99 or 4.19.99 -> 5.0.99):
+		// tell CS the recognized version for the new Y-stream so the upgrade still flows through.
+		substitute, err := cpoutofbandhelpers.RecognizedVersionForOutOfBandPin(ctx, c.rolloutLister, existingCluster, *desiredVersion)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		effectiveDesiredVersion = substitute
+	}
+
+	return c.createUpgradePolicyIfNeeded(ctx, effectiveDesiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.

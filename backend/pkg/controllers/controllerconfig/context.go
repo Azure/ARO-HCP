@@ -73,6 +73,7 @@ type ControllerContext struct {
 	AsyncOperationNotificationClient                    *http.Client
 
 	OrphanedMRGCleanupConfig *OrphanedMRGCleanupConfig
+	OCPImagesACRHostname     string
 
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers

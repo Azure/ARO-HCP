@@ -332,10 +332,12 @@ func registerClusterClusterServiceCreateController() controllerconfig.Controller
 
 func instantiateClusterClusterServiceCreateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	_, rolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
 	return clustercreation.NewClusterClusterServiceCreateController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.ClustersServiceClient,
 		managementClusterLister,
+		rolloutLister,
 		controllerContext.BackendInformers,
 		controllerContext.HasRealFPA,
 	), nil
@@ -458,6 +460,7 @@ func instantiateTriggerControlPlaneUpgradeController(controllerContext controlle
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	_, rolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
 	return clusterversion.NewTriggerControlPlaneUpgradeController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
@@ -465,6 +468,7 @@ func instantiateTriggerControlPlaneUpgradeController(controllerContext controlle
 		controllerContext.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
+		rolloutLister,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
 	), nil
@@ -1322,6 +1326,14 @@ func instantiateControlPlaneVersionRolloutRetirementController(controllerContext
 	), nil
 }
 
+func registerHostedClusterReleaseImagesManagementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateHostedClusterReleaseImagesManagementController, true)}
+}
+
+func instantiateHostedClusterReleaseImagesManagementController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterhostedcluster.NewHostedClusterReleaseImagesManagementController(ctx.ResourcesDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.UnionKubeApplierInformers, ctx.OCPImagesACRHostname), nil
+}
+
 func registerDNSClaimCleanupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{Workers: 1, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSClaimCleanupController, false)}
 }
@@ -1344,6 +1356,7 @@ func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (c
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterhostedcluster.HostedClusterReleaseImagesManagementControllerName)] = registerHostedClusterReleaseImagesManagementController()
 	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
 	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
 	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()

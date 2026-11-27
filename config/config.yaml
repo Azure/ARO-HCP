@@ -475,7 +475,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:814a77010213e83ec938cb95659362dfca96ad3c880d69f699e1daeff2529806 # 7880cde58491473785ae0f865718a953782e2dc0 (2026-11-09 20:38)
+      digest: sha256:a584287663476cc4b4b207f983aac28d92a81e2bd258f3e6c174f2ba9cbebf17 # 60aa9391359897dbf1d82f2906aea9152f93df80 (2026-11-27 01:22)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1181,7 +1181,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273 # a7acf8c44ea2737f285fc3a2c00056ab7bd1e91b (2026-11-03 09:46)
+      digest: sha256:c0453dbde99bd9e80b5aa1608983dae8d373bbe83aa93b9246e1cd1c4118b2b5 # c9de55db646f1ee99d8a210c5e27939cad41ba9c (2026-11-27 10:10)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
