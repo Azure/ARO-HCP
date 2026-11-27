@@ -19,31 +19,14 @@ source "$(dirname "$0")/az-login.sh"
 # Prow sets PULL_BASE_SHA to the exact base-branch commit used for a
 # presubmit merge. That commit is already in the local clone, so no fetch
 # is needed. Periodic and rehearsal runs fetch main explicitly.
-IS_REHEARSAL=false
-if [[ "${JOB_NAME:-}" == rehearse-* ]]; then
-  IS_REHEARSAL=true
-fi
-
-if [[ "${IS_REHEARSAL}" == "true" || "${JOB_TYPE:-}" == "periodic" ]]; then
-  if [[ "${IS_REHEARSAL}" == "true" ]]; then
-    echo "Rehearsal detected (JOB_NAME=${JOB_NAME:-unset}), fetching main ..."
-  else
-    echo "Periodic job detected (JOB_NAME=${JOB_NAME:-unset}), fetching main ..."
-  fi
-  git fetch https://github.com/Azure/ARO-HCP.git main
-  git checkout -f FETCH_HEAD
-else
-  if [[ -z "${PULL_BASE_SHA:-}" ]]; then
-    echo "ERROR: PULL_BASE_SHA is not set for this non-periodic, non-rehearsal job. Cannot determine base commit."
-    exit 1
-  fi
-  if ! git cat-file -e "${PULL_BASE_SHA}" 2>/dev/null; then
-    echo "ERROR: PULL_BASE_SHA=${PULL_BASE_SHA} not found in git history."
-    exit 1
-  fi
-  echo "Using Prow merge base ${PULL_BASE_SHA}"
-  git checkout -f "${PULL_BASE_SHA}"
-fi
+#
+# TEMPORARY: pin baseline to main immediately before #7894 (component image
+# digest bump) so inplace-upgrade provisions from that revision instead of
+# tip-of-main / PULL_BASE_SHA.
+BASELINE_SHA="6dcc32ab0a771cb5088b345998eea1bceedb2ea7"
+echo "TEMPORARY: forcing baseline checkout to ${BASELINE_SHA} (pre-#7894)"
+git fetch https://github.com/Azure/ARO-HCP.git "${BASELINE_SHA}"
+git checkout -f "${BASELINE_SHA}"
 echo "Checked out base at $(git rev-parse --short HEAD)"
 
 # The images-push-postsubmit job runs the aro-hcp-images-push step on every
