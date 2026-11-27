@@ -21,10 +21,10 @@ require (
 	github.com/prometheus/client_model v0.6.3
 	github.com/stretchr/testify v1.12.1
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.37.1
-	k8s.io/apimachinery v0.37.1
-	k8s.io/client-go v0.37.1
-	k8s.io/component-base v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/component-base v0.37.2
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	sigs.k8s.io/randfill v1.0.0
 )
