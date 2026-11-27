@@ -1,0 +1,19 @@
+# TODO(ARO-29001): replace these approvers with the security team.
+#
+# This file gates changes to committed agent configuration on a named
+# reviewer set. The approvers below are copied verbatim from the root OWNERS,
+# so today this grants exactly the approval the root already granted -- it is
+# a placeholder, not a security review.
+#
+# no_parent_owners is set now rather than later: with the root list copied in
+# it changes nothing today, and it means narrowing this to the security team
+# is a matter of deleting names rather than remembering to add the option.
+approvers:
+- deads2k
+- stevekuznetsov
+- geoberle
+- service-lifecycle-global-approvers
+options:
+  no_parent_owners: true
+labels:
+- area/ci

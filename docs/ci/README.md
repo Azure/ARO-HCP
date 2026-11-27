@@ -31,6 +31,7 @@ E2E environments are acquired as slots from `slot-manager`, whose [design docume
 
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from a PR and how to narrow the tests that run.
 - [In-Place Upgrade Presubmit](inplace-upgrade-presubmit.md) and [HyperShift v2 Checks](hypershift-v2-presubmit.md) describe two specialised presubmits, and [CAPZ E2E Jobs](capz-e2e.md) describes the jobs that run Cluster API Provider Azure against ARO HCP environments.
+- [Supply-Chain Presubmit](supply-chain-presubmit.md) explains the `make verify-supply-chain` check that blocks committed agent and editor configuration, including its threat model and what it deliberately leaves to human review.
 - [CI Operations](operations.md) covers inspecting runs, post-job observability artifacts, changing CI configuration and troubleshooting, and keeps a small appendix of job families.
 - [Service Cluster Consolidation](system-pool-only.md) documents the single-node-pool mode that CI and personal DEV service clusters use.
 - [CI Daily Digest Instructions](periodic-analysis-instructions.md) are the instructions the scheduled digest agent reads; they are not a human guide.
