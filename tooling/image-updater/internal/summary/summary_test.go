@@ -31,7 +31,7 @@ func testReport() Report {
 		JobURL:            "https://prow.ci.openshift.org/view/gs/example/run",
 		UpdatedComponents: 1,
 		Updates: []Update{
-			{Name: "hypershift", OldDigest: "sha256:1111", NewDigest: "sha256:2222", Tag: "v1", Status: "updated"},
+			{Name: "hypershift", OldDigest: "sha256:1111", NewDigest: "sha256:2222", Tag: "v1", Date: "2026-11-27 09:12", Status: "updated"},
 			{Name: "thanos", OldDigest: "sha256:3333", NewDigest: "sha256:3333", Status: "unchanged"},
 		},
 		PullRequest: PullRequest{Number: 42, URL: "https://github.com/Azure/ARO-HCP/pull/42", HeadSHA: "abc123"},
@@ -55,6 +55,7 @@ func TestRenderHTML(t *testing.T) {
 		`href="https://prow.ci.openshift.org/view/gs/example/run"`,
 		"#42",
 		"<td>hypershift</td>",
+		"<td>2026-11-27 09:12</td>",
 		"<td>unchanged</td>",
 	} {
 		if !strings.Contains(page, want) {

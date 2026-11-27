@@ -90,11 +90,11 @@ a{color:#4493f8}
 {{- end}}
 <table>
 <thead>
-<tr><th>Component</th><th>Old digest</th><th>New digest</th><th>Tag</th><th>Status</th></tr>
+<tr><th>Component</th><th>Old digest</th><th>New digest</th><th>Tag</th><th>Date</th><th>Status</th></tr>
 </thead>
 <tbody>
 {{- range .Updates}}
-<tr><td>{{.Name}}</td><td class="digest"><code>{{short .OldDigest}}</code></td><td class="digest"><code>{{short .NewDigest}}</code></td><td>{{.Tag}}</td><td>{{.Status}}</td></tr>
+<tr><td>{{.Name}}</td><td class="digest"><code>{{short .OldDigest}}</code></td><td class="digest"><code>{{short .NewDigest}}</code></td><td>{{.Tag}}</td><td>{{.Date}}</td><td>{{.Status}}</td></tr>
 {{- end}}
 </tbody>
 </table>
