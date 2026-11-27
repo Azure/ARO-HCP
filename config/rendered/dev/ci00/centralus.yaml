@@ -207,7 +207,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7
+    digest: sha256:c0453dbde99bd9e80b5aa1608983dae8d373bbe83aa93b9246e1cd1c4118b2b5
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -509,7 +509,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:253aec94d67f93a5a9fe93382d6b187611306e4beaab56199111df81119e53b7
+    digest: sha256:a584287663476cc4b4b207f983aac28d92a81e2bd258f3e6c174f2ba9cbebf17
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
