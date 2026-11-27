@@ -2,10 +2,10 @@ name: Agentic workflow failure alert
 on:
   workflow_run:
     workflows:
-    - "Updates: CI and Dev Tools"
-    - "Updates: GitHub Agentic Workflows"
-    - "Updates: Dependabot PRs"
-    - "Updates: Dependabot Security Fixes"
+    - "Deps & Tools: CI and Dev Tools"
+    - "Deps & Tools: GitHub Agentic Workflows"
+    - "Deps & Tools: Dependabot PRs"
+    - "Deps & Tools: Security Fixes"
     types:
     - completed
 permissions: {}

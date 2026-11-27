@@ -1,5 +1,5 @@
 ---
-name: "Updates: Dependabot PRs"
+name: "Deps & Tools: Dependabot PRs"
 on:
   workflow_dispatch:
   schedule: daily

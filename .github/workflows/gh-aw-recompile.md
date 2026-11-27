@@ -1,5 +1,5 @@
 ---
-name: "Updates: GitHub Agentic Workflows"
+name: "Deps & Tools: GitHub Agentic Workflows"
 on:
   workflow_dispatch:
   schedule: daily
