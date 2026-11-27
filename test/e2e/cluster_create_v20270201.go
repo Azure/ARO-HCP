@@ -48,7 +48,14 @@ var _ = Describe("Customer", func() {
 			By("probing v20270201 API availability before creating any Azure resources")
 			probePager := tc.Get20270201ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
 			_, probeErr := probePager.NextPage(ctx)
-			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20270201 API availability")
+			served, classifyErr := framework.ClassifyListBySubscriptionProbeError(probeErr)
+			Expect(classifyErr).NotTo(HaveOccurred(), "failed to probe whether the v20270201 API is served")
+			if !served {
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("v20270201 API not yet served; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20270201 API still not served as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
