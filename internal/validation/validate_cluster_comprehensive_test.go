@@ -1252,6 +1252,39 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
+		{
+			name: "valid cluster create - autoscaling grace period, provision time, and pod priority are zero",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 0
+				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
+				c.CustomerProperties.Autoscaling.PodPriorityThreshold = 0
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid cluster create - MaxPodGracePeriodSeconds is negative",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = -1
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds"},
+			},
+		},
+		{
+			name: "invalid cluster create - MaxNodeProvisionTimeSeconds is negative",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = -1
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds"},
+			},
+		},
 		// Managed resource group name validation tests
 		{
 			name: "invalid cluster - managed resource group name is missing",
