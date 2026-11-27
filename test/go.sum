@@ -154,6 +154,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armpr
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups v0.1.0/go.mod h1:2E6zmRYul50Rju64xaJNI6UXwbszw9nxEIfGV4AjhFQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 h1:+1fJwTilk/X7inNqwREnYEOgFCdg8ut7GULxARDbu34=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0/go.mod h1:EGwSLlGqrrfYQhtCi9JcIkPQKl9WxsL6ZPJd+63Vy1A=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcehealth/armresourcehealth v1.4.0 h1:B2or1ckEGU7gjjxG52B69Nc/wuDcj2Qu71AxHD1YoDQ=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcehealth/armresourcehealth v1.4.0/go.mod h1:B+z4+0MIkYThjE/LwlLoHrB+kdD2SY5tE9SAWYvLqhU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 h1:67nFqWXpo0x5Nz0XEb1yI7s8D+EHy8NsTinYw9sZnLk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0/go.mod h1:fewgRjNVE84QVVh798sIMFb7gPXPp7NmnekGnboSnXk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 h1:bcgO/crpp7wqI0Froi/I4C2fme7Vk/WLusbV399Do8I=
