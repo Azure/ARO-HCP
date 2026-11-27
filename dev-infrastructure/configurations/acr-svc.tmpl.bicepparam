@@ -37,10 +37,17 @@ param purgeJobs = [
       'kube-applier:.*'
       'mgmt-agent:.*'
       'test-.*:.*'
-      'ci-op-.*/.*:.*'
     ]
     purgeAfter: '7d'
     imagesToKeep: 3
+  }
+]
+
+param repositoryDeleteJobs = [
+  {
+    name: 'ci-repositories-delete'
+    repositoryPattern: '^ci-op-[a-z0-9]+/pipeline$'
+    deleteAfterDays: 30
   }
 ]
 
