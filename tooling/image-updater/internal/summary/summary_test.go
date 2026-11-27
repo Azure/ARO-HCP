@@ -25,7 +25,6 @@ import (
 func testReport() Report {
 	return Report{
 		Revision:          "0123456789abcdef",
-		BaseCommit:        "fedcba9876543210",
 		Branch:            "main",
 		TemplatizeSource:  "prebuilt from the image",
 		GeneratedAt:       "2026-11-27T12:00:00Z",

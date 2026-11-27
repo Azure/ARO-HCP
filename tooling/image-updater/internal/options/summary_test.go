@@ -55,7 +55,6 @@ func validSummaryOptions(t *testing.T) *RawSummaryOptions {
 		OutputPath:  filepath.Join(t.TempDir(), "summary.html"),
 		BodyPath:    filepath.Join(t.TempDir(), "body.md"),
 		Revision:    "0123456789abcdef",
-		BaseCommit:  "fedcba9876543210",
 		Branch:      "main",
 		Prebuilt:    true,
 	}

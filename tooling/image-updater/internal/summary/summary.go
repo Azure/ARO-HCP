@@ -44,7 +44,6 @@ type PullRequest struct {
 // Report is the complete evidence of one image-updater run.
 type Report struct {
 	Revision          string      `json:"revision"`
-	BaseCommit        string      `json:"base_commit"`
 	Branch            string      `json:"branch"`
 	TemplatizeSource  string      `json:"templatize_source"`
 	GeneratedAt       string      `json:"generated_at"`
@@ -78,7 +77,7 @@ a{color:#4493f8}
 </head>
 <body>
 <h2>Image updater summary</h2>
-<p class="meta">Branch <code>{{.Branch}}</code> at <code>{{.Revision}}</code>, prepared from <code>{{.BaseCommit}}</code>.</p>
+<p class="meta">Branch <code>{{.Branch}}</code> at <code>{{.Revision}}</code>.</p>
 <p class="meta">Templatize: {{.TemplatizeSource}}. Generated at {{.GeneratedAt}}.</p>
 {{- if .JobURL}}
 <p class="meta">Run: <a href="{{.JobURL}}">job log</a>.</p>

@@ -38,7 +38,6 @@ type RawSummaryOptions struct {
 	JSONPath       string
 	BodyPath       string
 	Revision       string
-	BaseCommit     string
 	Branch         string
 	PullRequestURL string
 	JobURL         string
@@ -65,7 +64,6 @@ func BindSummaryOptions(opts *RawSummaryOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.JSONPath, "json-output", "", "Path to write the JSON summary")
 	cmd.Flags().StringVar(&opts.BodyPath, "body-output", "", "Path to write the pull request body in markdown")
 	cmd.Flags().StringVar(&opts.Revision, "revision", "", "Revision the run checked out")
-	cmd.Flags().StringVar(&opts.BaseCommit, "base-commit", "", "Commit the run prepared its changes from")
 	cmd.Flags().StringVar(&opts.Branch, "branch", "", "Branch the run published to")
 	cmd.Flags().StringVar(&opts.PullRequestURL, "pull-request-url", "", "Pull request URL to show when no publish receipt exists yet")
 	cmd.Flags().StringVar(&opts.JobURL, "job-url", "", "Prow job URL to link from the summary")
@@ -141,7 +139,6 @@ func (v *ValidatedSummaryOptions) Complete(_ context.Context) (*CompletedSummary
 	return &CompletedSummaryOptions{completedSummaryOptions: &completedSummaryOptions{
 		Report: summary.Report{
 			Revision:          v.Revision,
-			BaseCommit:        v.BaseCommit,
 			Branch:            v.Branch,
 			TemplatizeSource:  templatizeSource,
 			GeneratedAt:       time.Now().UTC().Format(time.RFC3339),

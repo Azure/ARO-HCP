@@ -104,7 +104,6 @@ did instead of leaving only transient log lines.
   --updates /tmp/image-updater-output.json \
   --receipt /tmp/image-updater-publish.out \
   --revision "$(git rev-parse HEAD)" \
-  --base-commit main \
   --branch main \
   --prebuilt \
   --output "${ARTIFACT_DIR}/image-updater-summary.html" \
