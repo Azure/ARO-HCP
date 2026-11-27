@@ -523,7 +523,7 @@ func exerciseFailedOperationTiming(tc *perItOrDescribeTestContext) {
 
 	// Transport failures are retried, so a short deadline keeps the scenario deterministic.
 	shortTimeout := 200 * time.Millisecond
-	_, err = UpdateHCPCluster20261001(context.Background(), tc.clientFactory20261001.NewHcpOpenShiftClustersClient(), "rg", "cluster", hcpsdk20261001.HcpOpenShiftCluster{}, shortTimeout)
+	_, err = UpdateHCPCluster20261001(context.Background(), tc.clientFactory20261001.NewHcpOpenShiftClustersClient(), "rg", "cluster", hcpsdk20261001.HcpOpenShiftClusterUpdate{}, shortTimeout)
 	gomega.Expect(err).To(gomega.HaveOccurred(), "the cluster update must fail when the transport refuses every request")
 	_, err = UpdateNodePoolAndWait20240610(context.Background(), tc.clientFactory20240610.NewNodePoolsClient(), "rg", "cluster", "pool", hcpsdk20240610preview.NodePoolUpdate{}, shortTimeout)
 	gomega.Expect(err).To(gomega.HaveOccurred(), "the node pool update must fail when the transport refuses every request")

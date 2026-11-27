@@ -16,7 +16,9 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
@@ -34,12 +37,12 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// Helper to convert ManagedServiceIdentity to AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
-func toIdentityUpdate(identity *hcpsdk20240610preview.ManagedServiceIdentity) *hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
+// Helper to convert ManagedServiceIdentity to ManagedServiceIdentityUpdate
+func toIdentityUpdate(identity *hcpsdk20240610preview.ManagedServiceIdentity) *hcpsdk20240610preview.ManagedServiceIdentityUpdate {
 	if identity == nil {
 		return nil
 	}
-	return &hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
+	return &hcpsdk20240610preview.ManagedServiceIdentityUpdate{
 		Type:                   identity.Type,
 		UserAssignedIdentities: identity.UserAssignedIdentities,
 	}
@@ -107,19 +110,23 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
-				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-					Name: &newName,
-				}
-				_, err = framework.UpdateHCPCluster20240610(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					clusterName,
-					update,
-					framework.UpdateHCPClusterTimeout,
-				)
+				resourceID := fmt.Sprintf("%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s", *resourceGroup.ID, clusterName)
+				// https://github.com/Azure/ARO-HCP/pull/6698 switched this test from the
+				// unversioned SDK to the versioned SDK, whose explicit PATCH model now
+				// excludes the read-only name field.
+				// Send raw JSON so this negative test can still verify that the API rejects renaming.
+				err = tc.PatchHCPResourceRaw(ctx, resourceID, "2024-06-10-preview", map[string]any{"name": newName})
 				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
-				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
+				var responseError *azcore.ResponseError
+				Expect(errors.As(err, &responseError)).To(BeTrue(), "rename rejection should be an Azure response error")
+				Expect(responseError.StatusCode).To(Equal(http.StatusBadRequest), "rename should be rejected with HTTP 400")
+				// Local tests bypass ARM, so the frontend reports its own name-validation error.
+				if framework.IsDevelopmentEnvironment() {
+					Expect(responseError.ErrorCode).To(Equal("InvalidRequestContent"), "frontend should reject invalid PATCH content")
+					Expect(strings.ToLower(err.Error())).To(ContainSubstring("name must match resourceid path"), "frontend should reject the mismatching resource name")
+				} else {
+					Expect(responseError.ErrorCode).To(Equal("MismatchingResourceName"), "ARM should reject the mismatching resource name")
+				}
 			},
 		)
 	})

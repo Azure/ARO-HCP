@@ -84,7 +84,7 @@ func TestUpdateHelpersPreserveOmittedTags(t *testing.T) {
 			update: func(t *testing.T, options *azcorearm.ClientOptions, tags map[string]*string) error {
 				client, err := hcpsdk20261001.NewHcpOpenShiftClustersClient(fakeSubscriptionID, &azfake.TokenCredential{}, options)
 				require.NoError(t, err)
-				_, err = UpdateHCPCluster20261001(t.Context(), client, "rg", "cluster", hcpsdk20261001.HcpOpenShiftCluster{Tags: tags}, 10*time.Minute)
+				_, err = UpdateHCPCluster20261001(t.Context(), client, "rg", "cluster", hcpsdk20261001.HcpOpenShiftClusterUpdate{Tags: tags}, 10*time.Minute)
 				return err
 			},
 		},

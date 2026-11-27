@@ -532,7 +532,7 @@ func (client *HcpOpenShiftClustersClient) revokeCredentialsCreateRequest(ctx con
 //   - properties - The resource properties to be updated.
 //   - options - HcpOpenShiftClustersClientBeginUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginUpdate
 //     method.
-func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftCluster, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*runtime.Poller[HcpOpenShiftClustersClientUpdateResponse], error) {
+func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterUpdate, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*runtime.Poller[HcpOpenShiftClustersClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
 		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, properties, options)
 		if err != nil {
@@ -551,7 +551,7 @@ func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resou
 
 // Update - Update a HcpOpenShiftCluster
 // If the operation fails it returns an *azcore.ResponseError type.
-func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftCluster, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*http.Response, error) {
+func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterUpdate, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
 	ctx, endSpan := runtime.StartSpan(ctx, "HcpOpenShiftClustersClient.BeginUpdate", client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
@@ -570,7 +570,7 @@ func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGr
 }
 
 // updateCreateRequest creates the Update request.
-func (client *HcpOpenShiftClustersClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftCluster, _ *HcpOpenShiftClustersClientBeginUpdateOptions) (*policy.Request, error) {
+func (client *HcpOpenShiftClustersClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterUpdate, _ *HcpOpenShiftClustersClientBeginUpdateOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter subscriptionID cannot be empty")

@@ -185,7 +185,7 @@ var _ = Describe("Customer", func() {
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
 					Replicas: ptr.To(int32(updateReplicas)),
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
@@ -339,7 +339,7 @@ var _ = Describe("Customer", func() {
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(toVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
@@ -479,7 +479,7 @@ var _ = Describe("Customer", func() {
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
@@ -618,7 +618,7 @@ var _ = Describe("Customer", func() {
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDowngradeTarget),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
@@ -758,7 +758,7 @@ var _ = Describe("Customer", func() {
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDowngradeTarget),
 						ChannelGroup: to.Ptr(channelGroup),
 					},

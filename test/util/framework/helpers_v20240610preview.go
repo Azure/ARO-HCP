@@ -36,6 +36,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -1502,4 +1503,36 @@ func resumeInFlightExternalAuthCreate20240610(
 			}
 			return hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse(resp), state, nil
 		})
+}
+
+// PatchHCPResourceRaw sends a PATCH body that may contain fields deliberately
+// excluded from SDK update models, for negative API tests.
+func (tc *perItOrDescribeTestContext) PatchHCPResourceRaw(ctx context.Context, resourceID, apiVersion string, body any) error {
+	credential, err := tc.AzureCredential()
+	if err != nil {
+		return err
+	}
+	client, err := azcorearm.NewClient("arohcp-e2e", "v0.0.0", credential, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
+	if err != nil {
+		return err
+	}
+	request, err := runtime.NewRequest(ctx, http.MethodPatch, runtime.JoinPaths(client.Endpoint(), resourceID))
+	if err != nil {
+		return err
+	}
+	query := request.Raw().URL.Query()
+	query.Set("api-version", apiVersion)
+	request.Raw().URL.RawQuery = query.Encode()
+	if err := runtime.MarshalAsJSON(request, body); err != nil {
+		return err
+	}
+	response, err := client.Pipeline().Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if !runtime.HasStatusCode(response, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
+		return runtime.NewResponseError(response)
+	}
+	return nil
 }

@@ -16,8 +16,9 @@ package azureapi_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
@@ -27,9 +28,6 @@ import (
 // TestTypeSpecDefaultsConsistency verifies that default values declared in the
 // generated OpenAPI spec (from TypeSpec) match the canonical Go constants
 // defined in coreapi's defaults.go and metadataapi's enums.go.
-//
-// Several fields lack "default" annotations in the OpenAPI spec due to a
-// TypeSpec bug (typespec-azure#1586). These are skipped with a comment.
 func TestTypeSpecDefaultsConsistency(t *testing.T) {
 	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/stable/2026-10-01/openapi.json"
 	specData, err := os.ReadFile(specPath)
@@ -76,9 +74,15 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 		{"OutboundType", "PlatformProfile", "outboundType", string(metadataapi.OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(metadataapi.DiskStorageAccountTypePremium_LRS)},
 		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(metadataapi.ClusterImageRegistryStateEnabled)},
+		{"ClusterChannelGroup", "VersionProfile", "channelGroup", coreapi.DefaultClusterVersionChannelGroup},
+		{"NodePoolChannelGroup", "NodePoolVersionProfile", "channelGroup", coreapi.DefaultNodePoolVersionChannelGroup},
+		{"UsernameClaimPrefixPolicy", "UsernameClaimProfile", "prefixPolicy", string(metadataapi.UsernameClaimPrefixPolicyNone)},
 		// Numeric defaults
 		{"HostPrefix", "NetworkProfile", "hostPrefix", coreapi.DefaultClusterNetworkHostPrefix},
 		{"OSDiskSizeGiB", "OsDiskProfile", "sizeGiB", coreapi.DefaultNodePoolOSDiskSizeGiB},
+		{"MaxPodGracePeriodSeconds", "ClusterAutoscalingProfile", "maxPodGracePeriodSeconds", coreapi.DefaultClusterMaxPodGracePeriodSeconds},
+		{"MaxNodeProvisionTimeSeconds", "ClusterAutoscalingProfile", "maxNodeProvisionTimeSeconds", coreapi.DefaultClusterMaxNodeProvisionTimeSeconds},
+		{"PodPriorityThreshold", "ClusterAutoscalingProfile", "podPriorityThreshold", coreapi.DefaultClusterPodPriorityThreshold},
 		// Boolean defaults
 		{"AutoRepair", "NodePoolProperties", "autoRepair", true},
 	}
@@ -121,25 +125,79 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 			}
 		})
 	}
+}
 
-	// Fields that SHOULD have TypeSpec defaults but don't due to
-	// typespec-azure#1586. This list documents the gap explicitly.
-	missingAnnotations := []struct {
-		definition string
-		property   string
-	}{
-		{"VersionProfile", "channelGroup"},
-		{"ClusterAutoscalingProfile", "maxPodGracePeriodSeconds"},
-		{"ClusterAutoscalingProfile", "maxNodeProvisionTimeSeconds"},
-		{"ClusterAutoscalingProfile", "podPriorityThreshold"},
-	}
-	for _, m := range missingAnnotations {
-		t.Run(fmt.Sprintf("Missing_%s_%s", m.definition, m.property), func(t *testing.T) {
-			_, ok := getDefault(m.definition, m.property)
-			if ok {
-				t.Errorf("TypeSpec bug may be fixed: %s.%s now has a default annotation — "+
-					"add a consistency check above and remove this entry", m.definition, m.property)
-			}
-		})
+// TestPatchSchemasExcludeDefaults follows references from each PATCH body so
+// defaults cannot silently reappear in nested models shared with PUT requests.
+func TestPatchSchemasExcludeDefaults(t *testing.T) {
+	const specDir = "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters"
+	for _, status := range []string{"preview", "stable"} {
+		specPaths, err := filepath.Glob(filepath.Join(specDir, status, "*", "openapi.json"))
+		if err != nil || len(specPaths) == 0 {
+			t.Fatalf("finding %s API specs: paths=%v, err=%v", status, specPaths, err)
+		}
+		for _, specPath := range specPaths {
+			t.Run(filepath.Base(filepath.Dir(specPath)), func(t *testing.T) {
+				data, err := os.ReadFile(specPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var spec struct {
+					Definitions map[string]any `json:"definitions"`
+					Paths       map[string]map[string]struct {
+						Parameters []struct {
+							In     string `json:"in"`
+							Schema any    `json:"schema"`
+						} `json:"parameters"`
+					} `json:"paths"`
+				}
+				if err := json.Unmarshal(data, &spec); err != nil {
+					t.Fatal(err)
+				}
+				patchBodies := 0
+				for path, operations := range spec.Paths {
+					operation, ok := operations["patch"]
+					if !ok {
+						continue
+					}
+					for _, parameter := range operation.Parameters {
+						if parameter.In != "body" {
+							continue
+						}
+						patchBodies++
+						seen := map[string]bool{}
+						var check func(any, string)
+						check = func(value any, location string) {
+							switch value := value.(type) {
+							case map[string]any:
+								if defaultValue, ok := value["default"]; ok {
+									t.Errorf("PATCH %s schema %s contains default %v", path, location, defaultValue)
+								}
+								if ref, ok := value["$ref"].(string); ok && strings.HasPrefix(ref, "#/definitions/") && !seen[ref] {
+									seen[ref] = true
+									definition, ok := spec.Definitions[strings.TrimPrefix(ref, "#/definitions/")]
+									if !ok {
+										t.Fatalf("unresolved schema reference %s", ref)
+									}
+									check(definition, ref)
+								}
+								for key, child := range value {
+									check(child, location+"/"+key)
+								}
+							case []any:
+								for _, child := range value {
+									check(child, location)
+								}
+							}
+						}
+						check(parameter.Schema, "body")
+					}
+				}
+				// Avoid passing without inspecting any PATCH request bodies.
+				if patchBodies == 0 {
+					t.Error("no PATCH request bodies checked")
+				}
+			})
+		}
 	}
 }

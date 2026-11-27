@@ -33,7 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/timing"
@@ -157,16 +157,19 @@ var _ = Describe("Customer", func() {
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
 			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
-			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+			// TypeSpec marks version.id as read/create-only in the 2024 API (idNoUpdate).
+			// Lifecycle.Update is added in 2025-12-23-preview, so use the 2026-09 SDK
+			// whose explicit PATCH model includes ID to request the upgrade.
+			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 				Tags: framework.TagsForPatch(clusterParams.Tags, upgradeTags),
-				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-					Version: &hcpsdk20240610preview.VersionProfile{
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20260901preview.VersionProfileUpdate{
 						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
+			_, err = framework.UpdateHCPCluster20260901(ctx, tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(), *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
