@@ -56,7 +56,7 @@ func (r rawPreparation) Validate(validateOnly bool) (validatedPreparation, error
 	if r.root == "" || !patchInput.MatchString(r.target) || (!validateOnly && !baseInput.MatchString(r.base)) {
 		return validatedPreparation{}, fmt.Errorf("provide a checkout root, stable Go patch and, for prepare, a full base SHA")
 	}
-	return validatedPreparation{root: r.root, base: r.base, target: r.target}, nil
+	return validatedPreparation(r), nil
 }
 
 // Complete resolves the checkout and output stream used by the operation.
