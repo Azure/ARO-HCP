@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/image-updater
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/ARO-HCP/tooling/github v0.0.0
