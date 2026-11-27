@@ -12,7 +12,6 @@ bundles:
   - platform-utils
   - velero
   - aro-ci-images
-
 images:
   # Hypershift image
   hypershift:
