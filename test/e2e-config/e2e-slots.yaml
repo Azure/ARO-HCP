@@ -623,6 +623,14 @@ environments:
         - standardDSv5Family
         - standardDASv5Family
         - StandardDsv6Family
+        # East Asia has a 10 vCPU DSv3 limit, below the 16 vCPUs a two-node
+        # default pool needs, while DSv5 has 1,000 vCPUs.
+        regions:
+          eastasia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
