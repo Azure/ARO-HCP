@@ -47,15 +47,15 @@ func TestRenderHTML(t *testing.T) {
 
 	page := out.String()
 	for _, want := range []string{
-		"<code>main</code>",
+		"main at",
 		"<code>0123456789abcdef</code>",
 		"prebuilt from the image",
-		"Components changed: 1.",
+		"components changed: 1",
 		`href="https://github.com/Azure/ARO-HCP/pull/42"`,
 		`href="https://prow.ci.openshift.org/view/gs/example/run"`,
 		"#42",
-		"<td>hypershift</td>",
-		"<td>2026-11-27 09:12</td>",
+		"<td class=\"name\">hypershift</td>",
+		"<td class=\"date\">2026-11-27 09:12</td>",
 		"<td>unchanged</td>",
 	} {
 		if !strings.Contains(page, want) {

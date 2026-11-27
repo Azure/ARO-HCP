@@ -60,41 +60,32 @@ const htmlTemplate = `<!DOCTYPE html>
 <title>Image updater summary</title>
 <style>
 :root{color-scheme:light dark}
-body{font-family:system-ui,sans-serif;margin:2rem;max-width:60rem;color:#1f2328;background:#fff}
-table{border-collapse:collapse;margin:1rem 0}
-th,td{border:1px solid #d1d9e0;padding:0.25rem 0.6rem;text-align:left}
-th{background:#f6f8fa}
-td.digest{white-space:nowrap}
-code{font-family:ui-monospace,monospace}
+body{box-sizing:border-box;margin:0;padding:0 10px 2px;max-width:64rem;font-family:system-ui,sans-serif;font-size:11px;line-height:1.25;color:#1f2328;background:#fff}
+.meta{margin:4px 0 2px;color:#59636e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table{border-collapse:collapse;margin:2px 0 0;width:100%}
+th,td{padding:0 8px;text-align:left;border-bottom:1px solid #d1d9e0;white-space:nowrap}
+td.name{white-space:normal}
+thead th{background:#f6f8fa;font-weight:600}
+code{font-family:ui-monospace,monospace;font-size:11px;line-height:1.2}
 a{color:#0969da}
 @media (prefers-color-scheme: dark){
 body{color:#e6edf3;background:#0d1117}
+.meta{color:#9198a1}
 th,td{border-color:#3d444d}
-th{background:#161b22}
+thead th{background:#151b23}
 a{color:#4493f8}
 }
 </style>
 </head>
 <body>
-<h2>Image updater summary</h2>
-<p class="meta">Branch <code>{{.Branch}}</code> at <code>{{.Revision}}</code>.</p>
-<p class="meta">Templatize: {{.TemplatizeSource}}. Generated at {{.GeneratedAt}}.</p>
-{{- if .JobURL}}
-<p class="meta">Run: <a href="{{.JobURL}}">job log</a>.</p>
-{{- end}}
-<p class="meta">Components changed: {{.UpdatedComponents}}.</p>
-{{- if .PullRequest.URL}}
-<p class="meta">Pull request: <a href="{{.PullRequest.URL}}">#{{.PullRequest.Number}}</a> at <code>{{.PullRequest.HeadSHA}}</code>.</p>
-{{- else}}
-<p class="meta">No pull request was published.</p>
-{{- end}}
+<p class="meta">{{.Branch}} at <code>{{short .Revision}}</code> · {{.TemplatizeSource}} · components changed: {{.UpdatedComponents}} · generated {{.GeneratedAt}}{{if .PullRequest.URL}} · <a href="{{.PullRequest.URL}}">pull request #{{.PullRequest.Number}}</a> at <code>{{short .PullRequest.HeadSHA}}</code>{{end}}{{if .JobURL}} · <a href="{{.JobURL}}">job log</a>{{end}}</p>
 <table>
 <thead>
-<tr><th>Component</th><th>Old digest</th><th>New digest</th><th>Tag</th><th>Date</th><th>Status</th></tr>
+<tr><th>Component</th><th>Old digest</th><th>New digest</th><th class="tag">Tag</th><th class="date">Date</th><th>Status</th></tr>
 </thead>
 <tbody>
 {{- range .Updates}}
-<tr><td>{{.Name}}</td><td class="digest"><code>{{short .OldDigest}}</code></td><td class="digest"><code>{{short .NewDigest}}</code></td><td>{{.Tag}}</td><td>{{.Date}}</td><td>{{.Status}}</td></tr>
+<tr><td class="name">{{.Name}}</td><td class="digest"><code>{{short .OldDigest}}</code></td><td class="digest"><code>{{short .NewDigest}}</code></td><td class="tag">{{.Tag}}</td><td class="date">{{.Date}}</td><td>{{.Status}}</td></tr>
 {{- end}}
 </tbody>
 </table>

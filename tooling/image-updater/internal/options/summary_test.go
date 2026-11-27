@@ -222,7 +222,7 @@ func TestSummaryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read the HTML summary: %v", err)
 	}
-	for _, want := range []string{"0123456789abcdef", "Components changed: 1.", "pull/42"} {
+	for _, want := range []string{"0123456789abcdef", "components changed: 1", "pull/42"} {
 		if !strings.Contains(string(page), want) {
 			t.Fatalf("HTML summary does not contain %q", want)
 		}
