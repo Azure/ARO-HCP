@@ -124,7 +124,7 @@ verify-tool-automation: $(JQ)
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
-	go test -C tooling/depctl -timeout 600s . ./cmd/maintenance ./cmd/dependabot/... ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi ./internal/repository ./internal/consumers
+	go test -C tooling/depctl -timeout 600s . ./cmd/maintenance ./cmd/dependabot/... ./cmd/toolchain ./internal/toolchain ./internal/dependabot/... ./internal/policy ./internal/orchestration ./internal/forge/ghapi ./internal/repository ./internal/consumers
 	@set -e; directory=$$(mktemp -d); trap 'rm -rf "$$directory"' EXIT; \
 		CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOWORK=off $(MAKE) -C tooling/depctl build BINARY="$$directory/depctl-darwin-arm64"; \
 		$(MAKE) -C tooling/depctl build BINARY="$$directory/depctl"
