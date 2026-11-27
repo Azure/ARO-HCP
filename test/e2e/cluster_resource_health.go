@@ -98,13 +98,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for the resource health test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20261001()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -114,20 +114,21 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(ctx,
+			err = tc.CreateHCPClusterFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("creating a single node node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20261001()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(nodePoolReplicas)
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -137,14 +138,14 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q", customerNodePoolName)
 
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			// The node health signal is derived from kube-state-metrics on the
 			// worker, so confirm the node actually joined and went Ready first.
 			// Without this a Resource Health timeout below is indistinguishable
 			// from a node pool that never came up.
 			By("verifying the node pool node is ready and schedulable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(ctx,
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20261001(ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -158,7 +159,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify the node pool has %d ready node", nodePoolReplicas)
 
 			By("resolving the cluster ARM resource ID")
-			clusterResp, err := framework.GetHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, customerClusterName)
+			clusterResp, err := framework.GetHCPCluster20261001(ctx, hcpClient, *resourceGroup.Name, customerClusterName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", customerClusterName)
 			Expect(clusterResp.ID).NotTo(BeNil(), "HCP cluster %q response ID was nil", customerClusterName)
 			resourceID := *clusterResp.ID
