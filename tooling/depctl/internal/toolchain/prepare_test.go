@@ -66,4 +66,39 @@ func TestPrepareManifests(t *testing.T) {
 			t.Fatalf("%s compiler edit differs: %s", name, text)
 		}
 	}
+	if err := validateCompilerPins(root, target); err != nil {
+		t.Fatalf("prepared pins rejected: %v", err)
+	}
+	for _, stale := range []string{"go.work", "application/go.mod", "image-sync/oc-mirror/acrauth/go.mod", "api/Makefile"} {
+		t.Run("stale "+stale, func(t *testing.T) {
+			path := filepath.Join(root, stale)
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := os.WriteFile(path, content, 0600); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(content), target, "1.0.0")), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateCompilerPins(root, target); err == nil || !strings.Contains(err.Error(), stale) {
+				t.Fatalf("expected stale compiler pin in %s, got %v", stale, err)
+			}
+		})
+	}
+}
+
+func TestAllowedCandidatePathAzureModels(t *testing.T) {
+	for path, want := range map[string]bool{
+		"internal/azureapi/v20261001/generated/models.go": true,
+		"internal/azureapi/readonly_test.go":              false,
+		"internal/azureapi/v20261001/go.mod":              false,
+	} {
+		if got := allowedCandidatePath(path); got != want {
+			t.Errorf("allowedCandidatePath(%q) = %t, want %t", path, got, want)
+		}
+	}
 }

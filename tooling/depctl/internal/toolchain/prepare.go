@@ -5,7 +5,6 @@ package toolchain
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"go/version"
 	"os"
@@ -13,12 +12,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 )
 
+const standaloneModule = "image-sync/oc-mirror/acrauth"
+
 type compilerManifest struct {
-	Go        string
-	Toolchain string
-	Use       []struct{ DiskPath string }
+	kind, path, goVersion, toolchain string
 }
 
 // PrepareManifests adjusts workspace and standalone application module pins with the target compiler.
@@ -35,40 +36,16 @@ func PrepareManifests(ctx context.Context, root, target string) error {
 	if strings.TrimSpace(string(actual)) != want {
 		return fmt.Errorf("preparation needs %s, found %s", want, strings.TrimSpace(string(actual)))
 	}
-	workspace, err := inspectManifest(ctx, root, "work", "go.work")
+	updates, err := compilerManifests(root)
 	if err != nil {
 		return err
 	}
-	if version.Lang("go"+workspace.Go) != version.Lang(want) || version.Compare("go"+workspace.Go, want) > 0 {
+	workspace := updates[0].goVersion
+	if version.Lang("go"+workspace) != version.Lang(want) || version.Compare("go"+workspace, want) > 0 {
 		return fmt.Errorf("target %s is not an upgrade on the workspace's Go release line", target)
 	}
-	type update struct {
-		kind, path string
-		manifest   compilerManifest
-	}
-	updates := []update{{"work", "go.work", workspace}}
-	seen := make(map[string]bool, len(workspace.Use)+1)
-	paths := make([]string, 0, len(workspace.Use)+1)
-	for _, use := range workspace.Use {
-		paths = append(paths, filepath.Join(use.DiskPath, "go.mod"))
-	}
-	paths = append(paths, "image-sync/oc-mirror/acrauth/go.mod")
-	for _, name := range paths {
-		if !filepath.IsLocal(name) || strings.HasPrefix(name, ".bingo/") || strings.HasPrefix(name, "test/sdk/") || strings.HasPrefix(name, "vendor/") {
-			return fmt.Errorf("workspace module is outside editable application scope: %s", name)
-		}
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		manifest, err := inspectManifest(ctx, root, "mod", name)
-		if err != nil {
-			return err
-		}
-		updates = append(updates, update{"mod", name, manifest})
-	}
 	for _, item := range updates {
-		if version.Compare("go"+item.manifest.Go, want) > 0 || version.Compare(item.manifest.Toolchain, want) > 0 {
+		if version.Compare("go"+item.goVersion, want) > 0 || version.Compare(item.toolchain, want) > 0 {
 			return fmt.Errorf("refusing to downgrade %s to %s", item.path, target)
 		}
 	}
@@ -78,7 +55,7 @@ func PrepareManifests(ctx context.Context, root, target string) error {
 	}
 	for _, item := range updates {
 		args := []string{item.kind, "edit", "-go=" + target}
-		if item.manifest.Toolchain != "" {
+		if item.toolchain != "" && item.toolchain != "default" {
 			args = append(args, "-toolchain="+want)
 		}
 		if _, err := compilerCommandOutput(ctx, root, append(args, item.path)...); err != nil {
@@ -93,20 +70,76 @@ func PrepareManifests(ctx context.Context, root, target string) error {
 	return nil
 }
 
-// InspectManifest delegates workspace and module parsing to the Go command.
-func inspectManifest(ctx context.Context, root, kind, name string) (compilerManifest, error) {
-	var manifest compilerManifest
-	output, err := compilerCommandOutput(ctx, root, kind, "edit", "-json", name)
+// CompilerManifests reads the same declarations for preparation and validation without Go command normalization.
+func compilerManifests(root string) ([]compilerManifest, error) {
+	data, err := os.ReadFile(filepath.Join(root, "go.work"))
 	if err != nil {
-		return manifest, err
+		return nil, fmt.Errorf("read go.work: %w", err)
 	}
-	if err := json.Unmarshal(output, &manifest); err != nil {
-		return manifest, fmt.Errorf("decode %s: %w", name, err)
+	workspace, err := modfile.ParseWork("go.work", data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parse go.work: %w", err)
 	}
-	if !version.IsValid("go" + manifest.Go) {
-		return manifest, fmt.Errorf("invalid Go directive in %s", name)
+	if workspace.Go == nil {
+		return nil, fmt.Errorf("missing Go directive in go.work")
 	}
-	return manifest, nil
+	manifests := []compilerManifest{{kind: "work", path: "go.work", goVersion: workspace.Go.Version}}
+	if workspace.Toolchain != nil {
+		manifests[0].toolchain = workspace.Toolchain.Name
+	}
+	paths := make([]string, 0, len(workspace.Use)+1)
+	for _, use := range workspace.Use {
+		paths = append(paths, filepath.Join(use.Path, "go.mod"))
+	}
+	paths = append(paths, filepath.Join(standaloneModule, "go.mod"))
+	seen := make(map[string]bool, len(paths))
+	for _, name := range paths {
+		if !filepath.IsLocal(name) || strings.HasPrefix(name, ".bingo/") || strings.HasPrefix(name, "test/sdk/") || strings.HasPrefix(name, "vendor/") {
+			return nil, fmt.Errorf("workspace module is outside editable application scope: %s", name)
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		data, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", name, err)
+		}
+		module, err := modfile.Parse(name, data, nil)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", name, err)
+		}
+		if module.Go == nil {
+			return nil, fmt.Errorf("missing Go directive in %s", name)
+		}
+		pin := compilerManifest{kind: "mod", path: name, goVersion: module.Go.Version}
+		if module.Toolchain != nil {
+			pin.toolchain = module.Toolchain.Name
+		}
+		manifests = append(manifests, pin)
+	}
+	return manifests, nil
+}
+
+// ValidateCompilerPins rejects any scoped declaration that does not match the installed target patch.
+func validateCompilerPins(root, target string) error {
+	manifests, err := compilerManifests(root)
+	if err != nil {
+		return err
+	}
+	for _, item := range manifests {
+		if item.goVersion != target || item.toolchain != "" && item.toolchain != "default" && item.toolchain != "go"+target {
+			return fmt.Errorf("%s does not declare target Go %s", item.path, target)
+		}
+	}
+	edits, err := prepareConfigPins(root, target)
+	if err != nil {
+		return err
+	}
+	for name := range edits {
+		return fmt.Errorf("%s does not declare target Go %s", name, target)
+	}
+	return nil
 }
 
 // CompilerCommandOutput runs the installed compiler without auto-selecting or downloading another version.
@@ -141,6 +174,9 @@ func prepareConfigPins(root, target string) (map[string][]byte, error) {
 		start, end := matches[0][4], matches[0][5]
 		if version.Compare("go"+string(data[start:end]), "go"+target) > 0 {
 			return nil, fmt.Errorf("refusing to downgrade compiler pin in %s", name)
+		}
+		if string(data[start:end]) == target {
+			continue
 		}
 		files[name] = []byte(string(data[:start]) + target + string(data[end:]))
 	}

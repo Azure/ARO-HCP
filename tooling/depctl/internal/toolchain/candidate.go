@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/repository"
@@ -104,8 +105,11 @@ func allowedCandidatePath(path string) bool {
 	if strings.HasPrefix(path, ".bingo/") {
 		return false
 	}
-	return strings.HasSuffix(path, "/go.mod") || strings.HasSuffix(path, "/go.sum") ||
-		strings.HasPrefix(path, "internal/azureapi/") || strings.HasPrefix(path, "test/sdk/")
+	if versionPath, ok := strings.CutPrefix(path, "internal/azureapi/"); ok {
+		versionName, generatedPath, versioned := strings.Cut(versionPath, "/")
+		return versioned && versionName != "" && strings.HasPrefix(generatedPath, "generated/")
+	}
+	return strings.HasSuffix(path, "/go.mod") || strings.HasSuffix(path, "/go.sum") || strings.HasPrefix(path, "test/sdk/")
 }
 
 // ValidateCandidate runs the regular repository gates with the exact target compiler and a clean candidate commit.
@@ -123,6 +127,12 @@ func ValidateCandidate(ctx context.Context, root, target string, output io.Write
 	}
 	if strings.TrimSpace(string(actual)) != "go"+target {
 		return fmt.Errorf("validation requires installed Go %s, found %s", target, strings.TrimSpace(string(actual)))
+	}
+	if err := validateCompilerPins(root, target); err != nil {
+		return fmt.Errorf("validate candidate compiler pins: %w", err)
+	}
+	if _, err := compilerCommandOutput(ctx, filepath.Join(root, standaloneModule), "build", "-mod=vendor", "-o", os.DevNull, "./..."); err != nil {
+		return fmt.Errorf("compile standalone acrauth module: %w", err)
 	}
 	for _, args := range [][]string{{"test-compile"}, {"lint"}, {"verify-yamlfmt"}, {"verify-vendor"}, {"-C", "config", "detect-change"}} {
 		if err := runCandidateStep(ctx, root, output, "make", args...); err != nil {
