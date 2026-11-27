@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/inspect"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/stackscopes"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/validate"
 )
 
@@ -38,6 +39,7 @@ func NewCommand() (*cobra.Command, error) {
 		run.NewCommand,
 		inspect.NewCommand,
 		validate.NewCommand,
+		stackscopes.NewCommand,
 	}
 	for _, newCmd := range commands {
 		c, err := newCmd()
