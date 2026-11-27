@@ -17,13 +17,21 @@ import (
 )
 
 func TestInstalledCompilerReleaseWithBuildMetadata(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go"), []byte("#!/bin/sh\nprintf '%s\\n' 'go1.26.10 (Red Hat) X:strictfipsruntime'\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if got, err := installedCompilerRelease(t.Context(), root); err != nil || got != "go1.26.10" {
-		t.Fatalf("installed compiler release = %q, %v; want go1.26.10", got, err)
+	for _, test := range []struct{ name, reported, want string }{
+		{"distribution metadata", "go1.26.10 (Red Hat) X:strictfipsruntime", "go1.26.10"},
+		{"experiment suffix", "go1.26.11-X:nodwarf5", "go1.26.11"},
+		{"prerelease unchanged", "go1.27rc1-X:nodwarf5", "go1.27rc1"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "go"), []byte("#!/bin/sh\nprintf '%s\\n' '"+test.reported+"'\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+			if got, err := installedCompilerRelease(t.Context(), root); err != nil || got != test.want {
+				t.Fatalf("installed compiler release = %q, %v; want %s", got, err, test.want)
+			}
+		})
 	}
 }
 

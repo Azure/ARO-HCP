@@ -149,6 +149,7 @@ func installedCompilerRelease(ctx context.Context, root string) (string, error) 
 		return "", fmt.Errorf("read installed Go release: %w", err)
 	}
 	release, _, _ := strings.Cut(strings.TrimSpace(string(output)), " ")
+	release, _, _ = strings.Cut(release, "-X:")
 	return release, nil
 }
 
