@@ -28,7 +28,9 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -218,6 +220,70 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	mc := got.GetManagementCluster()
 	if mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
 		t.Errorf("GetForCluster a1: management = %v, want %q", mc, testMgmtA)
+	}
+}
+
+// TestKubeApplierInformers_ManagementClusterScopedApplyDesire guards the
+// change-feed type filter. The storage lister already covers management-
+// cluster-scoped desires, but if the informer's resource-type list omits
+// ManagementClusterScopedApplyDesireResourceType the change feed drops them and
+// operations such as NamespaceDeletion's FinalizeNamespace never run.
+func TestKubeApplierInformers_ManagementClusterScopedApplyDesire(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	const (
+		stamp = "1"
+		name  = "namespacedeletion-example-finalize"
+	)
+	managementCluster, err := fleetapihelpers.ToManagementClusterResourceID(stamp)
+	if err != nil {
+		t.Fatalf("ToManagementClusterResourceID: %v", err)
+	}
+
+	// Start empty so the object can only arrive through the change feed; the
+	// initial list path uses the lister, which already knows the type. The
+	// relist is pushed past the test's lifetime so a periodic relist cannot
+	// mask a change-feed type filter that drops the object.
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	relistDuration := time.Hour
+	info := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
+	startAndSync(t, ctx, info)
+
+	_, lister := info.ApplyDesires()
+
+	crud, err := mock.ApplyDesiresForManagementCluster(stamp)
+	if err != nil {
+		t.Fatalf("ApplyDesiresForManagementCluster: %v", err)
+	}
+	desire := newApplyDesire(t,
+		kubeapplierapihelpers.ToManagementClusterScopedApplyDesireResourceIDString(stamp, name),
+		managementCluster)
+	if _, err := crud.Create(ctx, desire, nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got, err := lister.GetForManagementCluster(ctx, stamp, name)
+		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			t.Fatalf("GetForManagementCluster: %v", err)
+		}
+		if got != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("management-cluster-scoped ApplyDesire never reached the informer; the change feed dropped it")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	byManagementCluster, err := lister.ListForManagementCluster(ctx, managementCluster)
+	if err != nil {
+		t.Fatalf("ListForManagementCluster: %v", err)
+	}
+	if len(byManagementCluster) != 1 {
+		t.Errorf("ListForManagementCluster len = %d, want 1", len(byManagementCluster))
 	}
 }
 

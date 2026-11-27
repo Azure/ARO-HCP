@@ -17,6 +17,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"sigs.k8s.io/yaml"
 
@@ -171,4 +173,35 @@ func TestArobitWatsonMDSDSocketConfiguration(t *testing.T) {
 			require.NotContains(t, output, "MDSD_OPTION")
 		})
 	}
+}
+
+func TestKubeApplierClusterRoleCanUnblockHostedCluster(t *testing.T) {
+	raw, err := os.ReadFile("../../kube-applier/zz_fixture_TestHelmTemplate_dev_westus3_mgmt_1_kube_applier.yaml")
+	require.NoError(t, err)
+
+	for _, document := range strings.Split(string(raw), "\n---") {
+		if !strings.Contains(document, "kind: ClusterRole") {
+			continue
+		}
+		var role rbacv1.ClusterRole
+		require.NoError(t, yaml.Unmarshal([]byte(document), &role))
+		if role.Name != "kube-applier" {
+			continue
+		}
+
+		var deploymentRules []rbacv1.PolicyRule
+		for _, rule := range role.Rules {
+			if (slices.Contains(rule.APIGroups, "apps") || slices.Contains(rule.APIGroups, "*")) &&
+				(slices.Contains(rule.Resources, "deployments") || slices.Contains(rule.Resources, "*")) {
+				deploymentRules = append(deploymentRules, rule)
+			}
+		}
+		require.ElementsMatch(t, []rbacv1.PolicyRule{
+			{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"list"}},
+			{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, ResourceNames: []string{"capi-provider", "cluster-api"}, Verbs: []string{"update"}},
+		}, deploymentRules)
+		return
+	}
+
+	t.Fatal("kube-applier ClusterRole not found in the rendered fixture")
 }

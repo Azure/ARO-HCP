@@ -21,7 +21,8 @@ const (
 	//
 	// For an ApplyDesire it is retained for backwards compatibility and mirrors
 	// whichever operation-specific condition applies — ConditionTypeSuccessfullyApplied
-	// for Type=ServerSideApply, ConditionTypeSuccessfullyDeleted for Type=Delete.
+	// for Type=ServerSideApply, ConditionTypeSuccessfullyDeleted for Type=Delete,
+	// and ConditionTypeHostedClusterUnblocked for Type=UnblockHostedCluster.
 	// For Type=ServerSideApply, readers should prefer the operation-specific condition
 	// and fall back to this one
 	// only when the operation-specific condition is absent (e.g. a document last
@@ -41,6 +42,18 @@ const (
 	// (the target is gone). While finalizers are running it stays False with reason
 	// ConditionReasonWaitingForDeletion.
 	ConditionTypeSuccessfullyDeleted = "SuccessfullyDeleted"
+
+	// ConditionTypeNamespaceFinalized is true when the controller most-recently
+	// observed that an ApplyDesire with Type=FinalizeNamespace achieved its
+	// desired effect (the namespace is gone). While an execution precondition
+	// does not hold it stays False with reason
+	// ConditionReasonFinalizePreconditionFailed, which is non-terminal: the
+	// target is re-observed and retried.
+	ConditionTypeNamespaceFinalized = "NamespaceFinalized"
+
+	// ConditionTypeHostedClusterUnblocked is true once an already deleting
+	// HostedCluster is absent after scoped finalizer cleanup.
+	ConditionTypeHostedClusterUnblocked = "HostedClusterUnblocked"
 
 	// ConditionTypeDegraded reports controller-level health for the *Desire.
 	// True means the controller failed in a way unrelated to the kube-apiserver
@@ -63,6 +76,26 @@ const (
 	// target item still exists in the cluster, either because finalizers are running or
 	// the delete call has just been issued.
 	ConditionReasonWaitingForDeletion = "WaitingForDeletion"
+
+	// ConditionReasonFinalizePreconditionFailed is set on an ApplyDesire with
+	// Type=FinalizeNamespace when a precondition re-checked against the live API
+	// immediately before the mutation did not hold — the pinned UID no longer
+	// matches, the namespace is not Terminating, the dwell has not elapsed, or
+	// spec.finalizers holds something other than the single "kubernetes" entry.
+	//
+	// It is deliberately not a success and deliberately not terminal: the
+	// controller re-observes and retries, and never overwrites a newer
+	// namespace to force progress.
+	ConditionReasonFinalizePreconditionFailed = "FinalizePreconditionFailed"
+
+	// ConditionReasonWaitingForControlPlaneNamespace means all known
+	// control-plane finalizer layers are clear and kube-applier is waiting for
+	// the namespace controller to remove the control-plane namespace.
+	ConditionReasonWaitingForControlPlaneNamespace = "WaitingForControlPlaneNamespace"
+
+	// ConditionReasonRecreatedDuringCleanup means a live object no longer has
+	// the identity derived from the pinned request and must not be modified.
+	ConditionReasonRecreatedDuringCleanup = "RecreatedDuringCleanup"
 
 	// ConditionReasonNoErrors is the success reason matching the existing controller
 	// convention (see backend's controllerutils.ReportSyncError).

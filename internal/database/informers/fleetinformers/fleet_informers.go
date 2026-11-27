@@ -35,6 +35,7 @@ const (
 	ManagementClusterSchedulingRelistDuration = 2 * time.Minute
 	ControlPlaneVersionRolloutRelistDuration  = 2 * time.Minute
 	HCPResourceRequirementsRelistDuration     = 2 * time.Minute
+	NamespaceDeletionRelistDuration           = 2 * time.Minute
 )
 
 func NewDNSClaimInformer(lister cosmosstorageutils.GlobalLister[fleetapi.DNSClaim], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
@@ -196,6 +197,34 @@ func NewHCPResourceRequirementsInformerWithRelistDuration(lister cosmosstorageut
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
 			ObjectDescription: "HCPResourceRequirements",
+		},
+	)
+}
+
+// NewNamespaceDeletionInformer creates an unstarted SharedIndexInformer for
+// stuck cluster cleanups with the default relist duration.
+func NewNamespaceDeletionInformer(lister cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewNamespaceDeletionInformerWithRelistDuration(lister, cosmosClient, NamespaceDeletionRelistDuration)
+}
+
+// NewNamespaceDeletionInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for stuck cluster cleanups with a configurable relist duration.
+func NewNamespaceDeletionInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterNamespaceDeletionResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "NamespaceDeletions"},
+		&fleetapi.NamespaceDeletion{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "NamespaceDeletion",
 		},
 	)
 }

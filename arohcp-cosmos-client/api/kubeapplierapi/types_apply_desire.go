@@ -37,13 +37,30 @@ const (
 	// from the management cluster.
 	// +k8s:unionMember
 	ApplyDesireTypeDelete ApplyDesireType = "Delete"
+
+	// ApplyDesireTypeFinalizeNamespace indicates the desire is a clearing of the
+	// built-in "kubernetes" finalizer from .spec.targetItem, which must be a
+	// Namespace that is already Terminating.
+	//
+	// This is deliberately a distinct type rather than a flag on Delete. It is
+	// not a deletion: a DELETE on a Terminating namespace succeeds and changes
+	// nothing, so clearing spec.finalizers via the /finalize subresource is the
+	// only operation that unwedges one. Keeping it separate makes it impossible
+	// to confuse with an ordinary deletion in logs, metrics and review.
+	// +k8s:unionMember
+	ApplyDesireTypeFinalizeNamespace ApplyDesireType = "FinalizeNamespace"
+
+	// ApplyDesireTypeUnblockHostedCluster drains known CAPI, HyperShift
+	// control-plane, NodePool, and HostedCluster finalizer layers from an
+	// already deleting cluster. It retires the control-plane namespace before
+	// continuing into the HostedCluster namespace.
+	// +k8s:unionMember
+	ApplyDesireTypeUnblockHostedCluster ApplyDesireType = "UnblockHostedCluster"
 )
 
-// ApplyDesire holds a single intent to either server-side-apply a Kubernetes
-// object or delete one from the management cluster's apiserver. The
-// .spec.type field discriminates between the two operations.
-//
-// Each ApplyDesire targets exactly one kube object — there is no list form.
+// ApplyDesire holds a single management-cluster intent. The .spec.type field
+// discriminates between apply, delete, namespace finalization, and the
+// narrowly scoped stuck HostedCluster and control-plane finalizer cleanup.
 //
 // Deleting an ApplyDesire from Cosmos has no effect on the kube object that
 // was applied or deleted. To stop reconciliation, remove the desire document.
@@ -76,6 +93,13 @@ type ApplyDesire struct {
 //     contains the KubeContent to apply.
 //   - Type=Delete: the ServerSideApply field must be nil. The controller
 //     deletes .spec.targetItem and waits for finalizers.
+//   - Type=FinalizeNamespace: the FinalizeNamespace field must be non-nil and
+//     ServerSideApply must be nil. The controller clears the "kubernetes"
+//     finalizer from an already-Terminating namespace.
+//   - Type=UnblockHostedCluster: the UnblockHostedCluster field must be
+//     non-nil. It identifies the already-Terminating HostedCluster and
+//     control-plane namespaces and the exact HostedCluster UID whose teardown
+//     may be unblocked.
 //
 // +k8s:discriminator=Type
 type ApplyDesireSpec struct {
@@ -87,7 +111,7 @@ type ApplyDesireSpec struct {
 	// Example: "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"
 	ManagementCluster *azcorearm.ResourceID `json:"managementCluster"`
 
-	// Type discriminates the operation: ServerSideApply or Delete.
+	// Type discriminates the operation.
 	// +k8s:union
 	Type ApplyDesireType `json:"type"`
 
@@ -101,9 +125,75 @@ type ApplyDesireSpec struct {
 	TargetItem ResourceReference `json:"targetItem"`
 
 	// ServerSideApply holds the configuration for the ServerSideApply variant.
-	// Must be non-nil when Type=ServerSideApply; must be nil when Type=Delete.
+	// Must be non-nil when Type=ServerSideApply; must be nil otherwise.
 	// +k8s:unionMember=ServerSideApply
 	ServerSideApply *ServerSideApplyConfig `json:"serverSideApply,omitempty"`
+
+	// FinalizeNamespace holds the configuration for the FinalizeNamespace
+	// variant. Must be non-nil when Type=FinalizeNamespace; must be nil
+	// otherwise.
+	// +k8s:unionMember=FinalizeNamespace
+	FinalizeNamespace *FinalizeNamespaceConfig `json:"finalizeNamespace,omitempty"`
+
+	// UnblockHostedCluster holds the identity and age preconditions for the
+	// narrowly scoped finalizer cleanup operation.
+	// +k8s:unionMember=UnblockHostedCluster
+	UnblockHostedCluster *UnblockHostedClusterConfig `json:"unblockHostedCluster,omitempty"`
+}
+
+type UnblockHostedClusterConfig struct {
+	NamespaceUID             string          `json:"namespaceUID"`
+	HostedClusterName        string          `json:"hostedClusterName"`
+	HostedClusterUID         string          `json:"hostedClusterUID"`
+	ControlPlaneNamespaceUID string          `json:"controlPlaneNamespaceUID"`
+	MinimumDwell             metav1.Duration `json:"minimumDwell"`
+	// The backend refreshes this authorization only after rechecking Cosmos
+	// ownership and Azure managed-resource-group absence. A stale desire cannot
+	// continue patching finalizers indefinitely after its owner has stopped.
+	AuthorizationExpiresAt metav1.Time `json:"authorizationExpiresAt"`
+}
+
+// FinalizeNamespaceConfig holds fields specific to the FinalizeNamespace
+// variant of ApplyDesire.
+//
+// These fields are execution preconditions rather than parameters. A ReadDesire
+// observation is not a guaranteed fresh snapshot at the instant a mutation
+// runs, so the decision the backend made from one is re-checked here against
+// the live API immediately before acting.
+type FinalizeNamespaceConfig struct {
+	// The backend refreshes this after each live Cosmos ownership check.
+	// An old desire cannot finalize a namespace indefinitely after its owner stops.
+	AuthorizationExpiresAt metav1.Time `json:"authorizationExpiresAt"`
+
+	// UID is the namespace UID the backend pinned when it bound this request.
+	// The controller refuses to act if the live namespace no longer has this
+	// UID, which is what prevents a request from acting on a namespace that was
+	// deleted and recreated under the same name.
+	UID string `json:"uid"`
+
+	// MinimumDwell is how long the namespace must already have been Terminating
+	// before its finalizer may be cleared.
+	//
+	// It travels on the desire and is re-checked here precisely so that a
+	// request cannot shorten its own safety margin — only the operator
+	// deploying the backend can. Clearing the finalizer early would cut an
+	// in-flight HyperShift deprovision off mid-flight and strand the Azure
+	// resources, manufacturing the orphan this capability exists to clean up.
+	MinimumDwell metav1.Duration `json:"minimumDwell"`
+
+	// HostedClusterNamespace and HostedClusterName identify both namespaces in
+	// the cleanup relationship. The target role is derived from targetItem.name:
+	// the control-plane namespace requires HostedControlPlane absence. The
+	// HostedCluster namespace requires both HostedCluster and control-plane namespace absence.
+	//
+	// A HostedCluster may still be releasing Azure resources after its
+	// deletionTimestamp is set. A ReadDesire observation is not guaranteed
+	// fresh at mutation time, so the live parent object for the derived target
+	// namespace must be absent before finalization.
+	//
+	HostedClusterNamespace string `json:"hostedClusterNamespace"`
+
+	HostedClusterName string `json:"hostedClusterName"`
 }
 
 // ServerSideApplyConfig holds fields specific to the ServerSideApply variant

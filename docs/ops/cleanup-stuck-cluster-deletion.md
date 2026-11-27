@@ -378,6 +378,8 @@ kubectl get manifestwork -n local-cluster | grep -F "${CLUSTER_ID}"
 
 Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster.
 
+For recordless clusters, the `NamespaceDeletion` admin API clears supported CAPI and HyperShift finalizers and requires the control-plane namespace to be gone before continuing to NodePools and the HostedCluster. It targets the HostedCluster namespace and completes once both namespaces are absent. AzureMachine and ManifestWork finalizers require separate investigation.
+
 > **Azure resource safety**: Before clearing an `AzureMachine` finalizer, verify that its Azure VM, NIC, disks, and other managed-resource-group dependencies are gone. Clearing the finalizer only removes Kubernetes bookkeeping; it does not delete Azure resources and can leave a costly resource leak. If access is blocked by a deny assignment, coordinate the Azure deletion with the subscription owner first.
 
 > **Note**: If Phase 1 Step 4 shows the `ManagedCluster` in `Detaching` state or `ManagedClusterAddon` resources with held finalizers, clear those **first** (step 0 below). The destruct chain stops at the `hypershift-managed-cluster-destructor` step when addon pre-delete hooks fail (commonly due to klusterlet auth loss during Detaching), and the CP namespace teardown is never even attempted.

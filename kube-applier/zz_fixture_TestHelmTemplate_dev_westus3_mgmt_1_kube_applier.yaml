@@ -66,6 +66,37 @@ rules:
   - update
   - patch
   - delete
+# Required by ApplyDesire Type=FinalizeNamespace, which clears the built-in
+# "kubernetes" finalizer from a namespace already stuck Terminating. A DELETE on
+# such a namespace succeeds and changes nothing, so the /finalize subresource is
+# the only operation that unwedges one.
+#
+# Note that this grant is cluster-wide: nothing in RBAC scopes it to the
+# namespaces the cleanup targets. The entire restriction lives in the desire's
+# execution preconditions (pinned UID, dwell, sole "kubernetes" finalizer, no
+# live HostedCluster). That is the same trust model as the delete verb above.
+- apiGroups:
+  - ''
+  resources:
+  - namespaces/finalize
+  verbs:
+  - update
+# UnblockHostedCluster lists Deployments to check for component finalizers.
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  resourceNames:
+  - capi-provider
+  - cluster-api
+  verbs:
+  - update
 - apiGroups:
   - ''
   resources:
@@ -134,6 +165,29 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  verbs:
+  - list
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - managedclusteraddons
+  verbs:
+  - list
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  - machinesets
+  - machinedeployments
+  - clusters
+  verbs:
+  - get
+  - list
+  - update
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
