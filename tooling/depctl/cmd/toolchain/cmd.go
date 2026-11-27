@@ -84,7 +84,7 @@ func (r RawOptions) Validate() (validatedOptions, error) {
 	if r.repo != toolchain.Repository {
 		return validatedOptions{}, fmt.Errorf("--repo must be %s", toolchain.Repository)
 	}
-	return validatedOptions{root: r.root, repo: r.repo}, nil
+	return validatedOptions(r), nil
 }
 
 // Complete resolves the checkout and binds the release client and JSON stream.

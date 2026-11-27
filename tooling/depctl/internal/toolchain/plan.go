@@ -16,14 +16,14 @@ package toolchain
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"go/version"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/internal/repository"
 )
@@ -32,7 +32,7 @@ import (
 const Repository = "Azure/ARO-HCP"
 
 // ErrBlocked distinguishes a verified blocker from unavailable evidence.
-var ErrBlocked = errors.New("Go toolchain upgrade blocked")
+var ErrBlocked = errors.New("go toolchain upgrade blocked")
 
 // Plan binds an official stable patch to the exact base and its readiness evidence.
 type Plan struct {
@@ -94,7 +94,7 @@ func populatePlan(ctx context.Context, root string, client *http.Client, plan *P
 		return fmt.Errorf("open checkout files: %w", err)
 	}
 	defer checkout.Close()
-	workspace, err := readWorkspaceVersion(ctx, root, checkout)
+	workspace, err := readWorkspaceVersion(checkout)
 	if err != nil {
 		return err
 	}
@@ -132,8 +132,8 @@ type workspaceVersion struct {
 	Toolchain string
 }
 
-// ReadWorkspaceVersion delegates Go workspace parsing to the installed compiler without downloading tools.
-func readWorkspaceVersion(ctx context.Context, root string, checkout *os.Root) (workspaceVersion, error) {
+// ReadWorkspaceVersion reads the declared Go and toolchain versions without normalizing them to the running compiler.
+func readWorkspaceVersion(checkout *os.Root) (workspaceVersion, error) {
 	var result workspaceVersion
 	info, err := checkout.Lstat("go.work")
 	if err != nil {
@@ -142,15 +142,19 @@ func readWorkspaceVersion(ctx context.Context, root string, checkout *os.Root) (
 	if !info.Mode().IsRegular() {
 		return result, fmt.Errorf("go.work must be a regular file")
 	}
-	cmd := exec.CommandContext(ctx, "go", "work", "edit", "-json", "go.work")
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
-	data, err := cmd.Output()
+	data, err := checkout.ReadFile("go.work")
 	if err != nil {
-		return result, fmt.Errorf("read workspace compiler directives: %w", err)
+		return result, fmt.Errorf("read go.work: %w", err)
 	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return result, fmt.Errorf("decode workspace compiler directives: %w", err)
+	file, err := modfile.ParseWork("go.work", data, nil)
+	if err != nil {
+		return result, fmt.Errorf("parse workspace compiler directives: %w", err)
+	}
+	if file.Go != nil {
+		result.Go = file.Go.Version
+	}
+	if file.Toolchain != nil {
+		result.Toolchain = file.Toolchain.Name
 	}
 	return result, nil
 }

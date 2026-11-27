@@ -143,7 +143,7 @@ func liveProwCompilers(ctx context.Context, localRoot, target string) (map[compi
 	names := make(map[string]struct{})
 	prefix := strings.TrimSuffix(mainReleaseConfig, ".yaml")
 	for _, item := range items {
-		if item.Name != mainReleaseConfig && !(strings.HasPrefix(item.Name, prefix+"__") && strings.HasSuffix(item.Name, ".yaml")) {
+		if item.Name != mainReleaseConfig && (!strings.HasPrefix(item.Name, prefix+"__") || !strings.HasSuffix(item.Name, ".yaml")) {
 			continue
 		}
 		_, duplicate := names[item.Name]

@@ -15,7 +15,6 @@
 package toolchain
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,7 +40,7 @@ func TestReadWorkspaceVersion(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer checkout.Close()
-			got, err := readWorkspaceVersion(context.Background(), root, checkout)
+			got, err := readWorkspaceVersion(checkout)
 			if (err != nil) != test.wantError || got.Go != test.workspace || got.Toolchain != test.toolchain {
 				t.Fatalf("readWorkspaceVersion = %+v, %v", got, err)
 			}
