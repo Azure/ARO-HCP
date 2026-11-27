@@ -159,6 +159,15 @@ The command is idempotent — re-running with the same secret name overwrites th
 > [!TIP]
 > Clean up your plaintext secret file after use.
 
+## Removing a Secret
+
+Deleting an entry from `encryptedsecrets.yaml` only stops the `SecretSync` step from writing it. The copy already in each global Key Vault stays there until it is deleted. To remove a secret:
+
+1. Delete its entry from every vault in `encryptedsecrets.yaml`, and its validator from [`tooling/secret-sync/decrypt_integration_test.go`](../tooling/secret-sync/decrypt_integration_test.go).
+2. Add its name to `RETIRED_KEY_VAULT_SECRETS` (comma-separated) on the `housekeeping` step in [`global-pipeline.yaml`](../dev-infrastructure/global-pipeline.yaml). During each environment's next Global rollout, [`global-housekeeping.sh`](../dev-infrastructure/scripts/global-housekeeping.sh) deletes the secret from that environment's global Key Vault. Names that are already gone are skipped, so they can stay in the list.
+
+Key Vault soft-deletes the secret: it can be recovered until the vault's retention period ends, and `SecretSync` cannot write a secret with the same name until it is recovered or purged.
+
 ## Rotate the Public Key
 
 If the Key Vault's RSA key needs rotation, [download the new public key](#2-get-the-public-key-first-time-only-per-vault) and [re-register all secrets](#4-register-the-secret).

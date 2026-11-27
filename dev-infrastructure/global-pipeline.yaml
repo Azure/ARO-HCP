@@ -257,6 +257,11 @@ resourceGroups:
     variables:
     - name: GLOBAL_RESOURCE_GROUP
       configRef: global.rg
+    - name: GLOBAL_KEY_VAULT
+      configRef: global.keyVault.name
+    # secrets removed from data/encryptedsecrets.yaml whose vault copies housekeeping deletes (comma-separated)
+    - name: RETIRED_KEY_VAULT_SECRETS
+      value: quay-io-bearer
     shellIdentity:
       input:
         resourceGroup: singleton
