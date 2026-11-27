@@ -381,6 +381,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			ID("").
 			ChannelGroup(""),
 		).
+		Labels(map[string]string{}).
 		Replicas(0).
 		AutoRepair(false)
 }
@@ -529,7 +530,7 @@ func TestBuildCSNodePool(t *testing.T) {
 	}
 }
 
-func TestBuildCSNodePoolClearsLabelsOnUpdate(t *testing.T) {
+func TestBuildCSNodePoolSendsEmptyLabels(t *testing.T) {
 	nodePool := getHCPNodePoolResource()
 	nodePool.Properties.Labels = nil // Empty labels are omitted when the node pool is stored in Cosmos.
 
@@ -543,11 +544,7 @@ func TestBuildCSNodePoolClearsLabelsOnUpdate(t *testing.T) {
 		require.NoError(t, arohcpv1alpha1.MarshalNodePool(csNodePool, &body))
 		var payload map[string]json.RawMessage
 		require.NoError(t, json.Unmarshal(body.Bytes(), &payload))
-		if updating {
-			assert.JSONEq(t, `{}`, string(payload["labels"]))
-		} else {
-			assert.NotContains(t, payload, "labels")
-		}
+		assert.JSONEq(t, `{}`, string(payload["labels"]))
 	}
 }
 

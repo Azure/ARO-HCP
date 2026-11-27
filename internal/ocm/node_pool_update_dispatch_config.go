@@ -196,6 +196,10 @@ func nodePoolUpdateDispatchConfigFromRP(nodePool *coreapi.NodePool) *nodePoolUpd
 		Taints:                  NodePoolUpdateDispatchConfigTaintsFromRP(nodePool.Properties.Taints),
 		NodeDrainTimeoutMinutes: nodePool.Properties.NodeDrainTimeoutMinutes,
 	}
+	if config.Labels == nil {
+		// Cluster Service needs an explicit empty map when no labels are desired.
+		config.Labels = map[string]string{}
+	}
 
 	if nodePool.Properties.AutoScaling != nil {
 		config.AutoScaling = &nodePoolUpdateDispatchConfigAutoScaling{

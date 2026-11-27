@@ -718,10 +718,6 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating b
 	}
 
 	nodePoolUpdateDispatchConfigFromRP(nodePool).applyToCSBuilder(nodePoolBuilder)
-	if updating && len(nodePool.Properties.Labels) == 0 {
-		// Empty labels are omitted from Cosmos, but CS needs an explicit empty map to clear them.
-		nodePoolBuilder.Labels(map[string]string{})
-	}
 
 	return nodePoolBuilder, nil
 }

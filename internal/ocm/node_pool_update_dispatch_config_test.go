@@ -29,6 +29,29 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
+func TestNodePoolUpdateDispatchConfigFromRPEmptyLabels(t *testing.T) {
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{Replicas: 1},
+	}
+
+	config := nodePoolUpdateDispatchConfigFromRP(nodePool)
+	require.NotNil(t, config.Labels)
+	assert.Empty(t, config.Labels)
+	assert.Nil(t, nodePool.Properties.Labels)
+
+	csNodePool, err := arohcpv1alpha1.NewNodePool().Replicas(1).Build()
+	require.NoError(t, err)
+	desired, actual, err := NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePool)
+	require.NoError(t, err)
+	assert.Equal(t, desired, actual, "unlabeled node pools should not cause a dispatch diff")
+
+	csNodePool, err = arohcpv1alpha1.NewNodePool().Replicas(1).Labels(map[string]string{"old": "label"}).Build()
+	require.NoError(t, err)
+	_, actual, err = NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePool)
+	require.NoError(t, err)
+	assert.NotEqual(t, desired, actual, "existing labels should trigger a clearing update")
+}
+
 func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 	baseProperties := coreapi.NodePoolProperties{
 		Labels:   map[string]string{"env": "prod"},
