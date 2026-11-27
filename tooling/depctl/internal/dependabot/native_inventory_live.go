@@ -73,7 +73,7 @@ type nativeInventorySourceEvidence struct {
 	err    error
 }
 
-// Inventory observes native PR evidence without writes and pins the base for candidate preparation.
+// Inventory observes complete native sources, owned replacements and current-head closure requests without writes.
 func (p *NativePublisher) Inventory(ctx context.Context) (map[string]any, error) {
 	base, err := p.mainSHA(ctx)
 	if err != nil {
@@ -133,6 +133,13 @@ func (p *NativePublisher) Inventory(ctx context.Context) (map[string]any, error)
 			}
 		}
 		group.NextAction = decision
+	}
+	latest, err := p.mainSHA(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("recheck inventory base: %w", err)
+	}
+	if latest != base {
+		return nil, nativeReject("main changed during inventory")
 	}
 	return map[string]any{"repository": p.repository, "base_sha": base, "groups": groups, "replacements": replacements}, nil
 }

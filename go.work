@@ -16,6 +16,7 @@ use (
 	./hack/verify-gomega-cmpdiff
 	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
+	./hack/writtenby
 	./internal
 	./kube-applier
 	./mgmt-agent

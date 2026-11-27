@@ -32,7 +32,7 @@ type ExternalAuth struct {
 	ProxyResource
 	// Written by: Frontend PUT/PATCH ExternalAuth, OperationExternalAuth* controllers
 	Properties ExternalAuthProperties `json:"properties"`
-	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers, ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers
+	// Written by: ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers, Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers
 	ServiceProviderProperties ExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: ExternalAuthDegradedAggregator
 	Status ExternalAuthStatus `json:"status"`
@@ -91,7 +91,7 @@ var _ CosmosPersistable = &ExternalAuth{}
 // ExternalAuthProperties represents the property bag of a
 // ExternalAuth resource.
 type ExternalAuthProperties struct {
-	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthDelete, OperationExternalAuthUpdate
 	ProvisioningState ProvisioningState `json:"provisioningState"`
 	// Written by: Frontend PUT/PATCH ExternalAuth
 	Issuer TokenIssuerProfile `json:"issuer"`
@@ -102,9 +102,9 @@ type ExternalAuthProperties struct {
 }
 
 type ExternalAuthServiceProviderProperties struct {
-	// Written by: Frontend PUT ExternalAuth (Create), ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer
+	// Written by: ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer, Frontend PUT ExternalAuth (Create)
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
-	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthDelete, OperationExternalAuthUpdate
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// DeletionTimestamp is the timestamp at which the ExternalAuth deletion was requested.
 	// The timestamp is in UTC.
@@ -127,7 +127,7 @@ type ExternalAuthServiceProviderProperties struct {
 	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
 	// DeleteOperationCompletionDeadline is reset to 30 minutes from each accepted deletion attempt.
 	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
-	// Written by: Frontend DELETE ExternalAuth, Frontend DELETE Cluster/Subscription (cascade)
+	// Written by: Frontend DELETE Cluster/Subscription (cascade), Frontend DELETE ExternalAuth
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 

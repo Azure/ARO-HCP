@@ -469,28 +469,13 @@ func TestNativeInventoryObservesClosure(t *testing.T) {
 	}
 }
 
-func TestNativeInventoryKeepsPinnedBaseWhenMainAdvances(t *testing.T) {
-	f := newNativeInventoryTestFixture(t)
-	f.moveMain = true
-	inventory, err := f.publisher().Inventory(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := inventory["base_sha"]; got != nativeInventoryTestSHA(0) {
-		t.Fatalf("inventory base = %v; want original base", got)
-	}
-	groups := inventory["groups"].([]*nativeInventoryGroupRecord)
-	if len(groups) != 1 || groups[0].NextAction.Action != "prepare_replacement" {
-		t.Fatalf("inventory groups = %+v; want a replacement candidate", groups)
-	}
-}
-
-// TestNativeInventoryFailsClosed rejects incomplete creator inventory and unavailable evidence.
+// TestNativeInventoryFailsClosed rejects incomplete creator inventory, unavailable evidence and base races.
 func TestNativeInventoryFailsClosed(t *testing.T) {
 	tests := []struct {
 		name, want string
 		setup      func(*nativeInventoryTestFixture)
 	}{
+		{name: "main moves", want: "main changed during inventory", setup: func(f *nativeInventoryTestFixture) { f.moveMain = true }},
 		{name: "duplicate creator inventory", want: "foreign, duplicate or incomplete creator inventory", setup: func(f *nativeInventoryTestFixture) { f.sources = append(f.sources, f.sources[0]) }},
 		{name: "wrong creator", want: "foreign, duplicate or incomplete creator inventory", setup: func(f *nativeInventoryTestFixture) {
 			f.sources[0].(map[string]any)["user"] = map[string]any{"login": "unrelated"}

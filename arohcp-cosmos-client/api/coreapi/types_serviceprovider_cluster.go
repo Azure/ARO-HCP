@@ -131,7 +131,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation
+	// Written by: DataPlaneOIDCFederation, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchMSIIdentitiesInfo, FetchManagedIdentitiesInfo, IdentityRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
@@ -140,7 +140,7 @@ type ServiceProviderClusterSpec struct {
 	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
 	// which the pin is cleared and normal rollout selection resumes. An empty
 	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
-	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	// Written by: Admin API FleetControlPlaneVersionPinHandler (set/clear), Admin API HCPVersionPinHandler (set/clear), Forced Cluster Desired Version Assignment (clear)
 	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
@@ -148,7 +148,7 @@ type ServiceProviderClusterSpec struct {
 type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
-	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	// Written by: Forced Cluster Desired Version Assignment, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion, Z-stream Progressive Desired Version Rollout
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
 
 	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
@@ -158,7 +158,7 @@ type ServiceProviderClusterSpecVersion struct {
 	// InitialNormalClusterDesiredVersion without changing the desired version.
 	// TODO: align DesiredVersion with its transition time into a better structure
 	// (mirroring ServiceProviderClusterActiveVersion), instead of two loosely-coupled fields.
-	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	// Written by: Forced Cluster Desired Version Assignment, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion, Z-stream Progressive Desired Version Rollout
 	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
 }
 
@@ -167,12 +167,12 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterPinnedVersion struct {
 	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
 	// its previous version.
-	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	// Written by: Admin API FleetControlPlaneVersionPinHandler (set/clear), Admin API HCPVersionPinHandler (set/clear), Forced Cluster Desired Version Assignment (clear)
 	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
 
 	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
 	// released and normal upgrade selection may continue.
-	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	// Written by: Admin API FleetControlPlaneVersionPinHandler (set/clear), Admin API HCPVersionPinHandler (set/clear), Forced Cluster Desired Version Assignment (clear)
 	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
@@ -380,7 +380,7 @@ type ServiceProviderClusterStatus struct {
 	// EnsuredIdentity when those Azure FederatedIdentityCredential resources are ensured.
 	// It clears EnsuredIdentity when a desired FIC that was not already on AzureResources
 	// fails CreateOrUpdate. It removes the assignment after a successful deconfigure.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	// Written by: DataPlaneOIDCFederation, DataPlaneOIDCFederationIntent
 	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
 
 	// MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup tracks the
@@ -398,7 +398,7 @@ type ServiceProviderClusterStatus struct {
 	// reports SuccessfullyApplied for the new spec that excludes it.
 	// Cluster deletion is a no-op: the assignment is scoped to the managed resource
 	// group, so Azure deletes it in cascade when that resource group is removed.
-	// Written by: MockFPARoleAssignmentsIntent, MockFPARoleAssignments
+	// Written by: MockFPARoleAssignments, MockFPARoleAssignmentsIntent
 	MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*MockFPARoleAssignmentStatus `json:"mockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
@@ -470,7 +470,7 @@ type DataplaneOIDCFederationAssignmentStatus struct {
 	// clears it when TargetIdentity changes. Federation for this assignment is
 	// complete when EnsuredIdentity is non-nil, equals TargetIdentity, and
 	// DeconfigureTimestamp is nil.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	// Written by: DataPlaneOIDCFederation, DataPlaneOIDCFederationIntent
 	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
 	// DeconfigureTimestamp is when deconfigure of this operator's FederatedIdentityCredential resources on this
 	// identity was requested. Nil means deconfigure has not been requested.
@@ -486,11 +486,11 @@ type DataplaneOIDCFederationAssignmentStatus struct {
 	// before CreateOrUpdate so a crash cannot lose the tracked set.
 	// DataPlaneOIDCFederationIntent clears this when TargetIdentity changes
 	// because the identity was recreated and child FICs are already gone.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	// Written by: DataPlaneOIDCFederation, DataPlaneOIDCFederationIntent
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
 	// AzureResources contains this operator's FederatedIdentityCredential resource
 	// IDs confirmed to exist in Azure.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	// Written by: DataPlaneOIDCFederation, DataPlaneOIDCFederationIntent
 	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
 }
 
@@ -701,10 +701,10 @@ type DenyAssignmentReference struct {
 // TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
 type TLSCertificate struct {
 	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
-	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	// Written by: IngressTLSCertificate, KubeAPIServerTLSCertificate
 	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
 	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
-	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	// Written by: IngressTLSCertificate, KubeAPIServerTLSCertificate
 	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
 }
 
@@ -712,10 +712,10 @@ type TLSCertificate struct {
 // +k8s:deepcopy-gen=true
 type AzureTLSCertificateReference struct {
 	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
-	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	// Written by: IngressTLSCertificate, KubeAPIServerTLSCertificate
 	KeyVaultURL string `json:"keyVaultURL,omitempty"`
 	// CertificateName is the name of the certificate created in that vault.
-	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	// Written by: IngressTLSCertificate, KubeAPIServerTLSCertificate
 	CertificateName string `json:"certificateName"`
 }
 

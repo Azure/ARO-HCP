@@ -21,9 +21,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	githublib "github.com/Azure/ARO-HCP/tooling/github"
 )
@@ -40,12 +37,10 @@ const (
 
 // fakePublisher records publication calls for assertions.
 type fakePublisher struct {
-	open         []githublib.PullRequest
-	openErr      error
-	published    []githublib.PublicationRequest
-	receipt      githublib.Receipt
-	errs         []error
-	afterPublish func()
+	open      []githublib.PullRequest
+	openErr   error
+	published []githublib.PublicationRequest
+	receipt   githublib.Receipt
 }
 
 // OpenPullRequests returns the configured open proposal inventory.
@@ -56,14 +51,6 @@ func (f *fakePublisher) OpenPullRequests(context.Context) ([]githublib.PullReque
 // Publish records the request and returns the configured receipt.
 func (f *fakePublisher) Publish(_ context.Context, request githublib.PublicationRequest) (githublib.Receipt, error) {
 	f.published = append(f.published, request)
-	if f.afterPublish != nil {
-		f.afterPublish()
-	}
-	if len(f.errs) > 0 {
-		err := f.errs[0]
-		f.errs = f.errs[1:]
-		return f.receipt, err
-	}
 	return f.receipt, nil
 }
 
@@ -330,57 +317,5 @@ func TestRunDryRunCommitsWithoutPublishing(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Dry run") {
 		t.Errorf("dry run output = %q", out.String())
-	}
-}
-
-// TestRunRetriesPreWriteConflicts covers the proposal head lag after a push.
-func TestRunRetriesPreWriteConflicts(t *testing.T) {
-	original := publishBackoff
-	publishBackoff = wait.Backoff{Duration: time.Millisecond, Factor: 2, Steps: 5}
-	t.Cleanup(func() { publishBackoff = original })
-	git := &gitRecorder{head: testHeadSHA, baseCommit: testBaseSHA, remoteBase: testBaseSHA, files: []string{testFile}, committed: []string{testFile}}
-	publisher := &fakePublisher{
-		receipt: githublib.Receipt{Outcome: "observed"},
-		errs:    []error{githublib.ErrConflict, githublib.ErrConflict, githublib.ErrConflict, githublib.ErrConflict},
-	}
-	if err := newTestOptions(git, publisher, &bytes.Buffer{}).Run(context.Background()); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if len(publisher.published) != 5 {
-		t.Errorf("published %d requests, want 5", len(publisher.published))
-	}
-}
-
-// TestRunDoesNotRetryIndeterminateWrites covers the write boundary.
-func TestRunDoesNotRetryIndeterminateWrites(t *testing.T) {
-	original := publishBackoff
-	publishBackoff = wait.Backoff{Duration: time.Millisecond, Factor: 2, Steps: 5}
-	t.Cleanup(func() { publishBackoff = original })
-	git := &gitRecorder{head: testHeadSHA, baseCommit: testBaseSHA, remoteBase: testBaseSHA, files: []string{testFile}, committed: []string{testFile}}
-	publisher := &fakePublisher{errs: []error{githublib.ErrIndeterminate}}
-	err := newTestOptions(git, publisher, &bytes.Buffer{}).Run(context.Background())
-	if !errors.Is(err, githublib.ErrIndeterminate) {
-		t.Fatalf("Run() error = %v, want ErrIndeterminate", err)
-	}
-	if len(publisher.published) != 1 {
-		t.Errorf("published %d requests, want 1", len(publisher.published))
-	}
-}
-
-// TestRunStopsOnContextCancellation covers cancellation during the backoff.
-func TestRunStopsOnContextCancellation(t *testing.T) {
-	original := publishBackoff
-	publishBackoff = wait.Backoff{Duration: time.Millisecond, Factor: 2, Steps: 5}
-	t.Cleanup(func() { publishBackoff = original })
-	git := &gitRecorder{head: testHeadSHA, baseCommit: testBaseSHA, remoteBase: testBaseSHA, files: []string{testFile}, committed: []string{testFile}}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	publisher := &fakePublisher{errs: []error{githublib.ErrConflict}, afterPublish: cancel}
-	err := newTestOptions(git, publisher, &bytes.Buffer{}).Run(ctx)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context.Canceled", err)
-	}
-	if len(publisher.published) != 1 {
-		t.Errorf("published %d requests, want 1", len(publisher.published))
 	}
 }

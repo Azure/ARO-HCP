@@ -35,9 +35,9 @@ type NodePool struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	TrackedResource
-	// Written by: Frontend PUT/PATCH NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	// Written by: Frontend PUT/PATCH NodePool, OperationNodePoolCreate, OperationNodePoolDelete, OperationNodePoolUpdate
 	Properties NodePoolProperties `json:"properties,omitempty"`
-	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePool* controllers, NodePoolClusterServiceCreate, NodePoolDeletion* controllers
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, NodePoolClusterServiceCreate, NodePoolDeletion* controllers, OperationNodePool* controllers
 	ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *ManagedServiceIdentity           `json:"identity,omitempty"`
 	// Written by: NodePoolDegradedAggregator, NodePoolRequirementsValidAggregator
@@ -90,7 +90,7 @@ var _ CosmosPersistable = &NodePool{}
 // NodePoolProperties represents the property bag of a
 // NodePool resource.
 type NodePoolProperties struct {
-	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolDelete, OperationNodePoolUpdate
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: Frontend PUT/PATCH NodePool
 	Version NodePoolVersionProfile `json:"version,omitempty"`
@@ -113,7 +113,7 @@ type NodePoolProperties struct {
 type NodePoolServiceProviderProperties struct {
 	// Written by: Frontend PUT NodePool (Create), NodePoolClusterServiceCreate, NodePoolDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
-	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolDelete, OperationNodePoolUpdate
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested.
 	// The timestamp is in UTC.
@@ -150,7 +150,7 @@ type NodePoolServiceProviderProperties struct {
 	// DeleteOperationCompletionDeadline is reset from each accepted deletion attempt,
 	// using DeleteOperationCompletionTimeout or the default 50-minute budget.
 	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
-	// Written by: Frontend DELETE NodePool, Frontend DELETE Cluster/Subscription (cascade)
+	// Written by: Frontend DELETE Cluster/Subscription (cascade), Frontend DELETE NodePool
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
