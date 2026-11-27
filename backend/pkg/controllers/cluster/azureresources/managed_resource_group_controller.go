@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -48,6 +50,9 @@ const ManagedResourceGroupControllerName = "EnsureManagedResourceGroup"
 // treating the in-progress state as an error.
 const managedResourceGroupProvisioningRequeueInterval = 10 * time.Second
 
+// Recheck Azure at this cadence while the cluster is being deleted.
+const managedResourceGroupDeletionRequeueInterval = 30 * time.Second
+
 // managedResourceGroupSyncer ensures the cluster's managed resource group (MRG)
 // exists in Azure and reflects its state onto
 // ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.
@@ -69,9 +74,8 @@ type managedResourceGroupSyncer struct {
 	azureFPAClientBuilder        azureclient.FirstPartyApplicationClientBuilder
 
 	// enqueueAfter lets the syncer schedule a delayed re-processing of a cluster key
-	// (bypassing the workqueue's rate limiter) when Azure reports the managed resource
-	// group is still provisioning. It is wired from the controller in
-	// NewManagedResourceGroupController.
+	// (bypassing the workqueue's rate limiter) during provisioning and deletion.
+	// It is wired from the controller in NewManagedResourceGroupController.
 	enqueueAfter controllerutils.AfterEnqueuer
 }
 
@@ -112,8 +116,8 @@ func NewManagedResourceGroupController(
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 
-	// The syncer schedules its own fast requeue (via EnqueueAfter) when Azure reports the
-	// managed resource group is still provisioning, rather than relying on error-based
+	// The syncer schedules its own requeues (via EnqueueAfter) while Azure is still
+	// provisioning or deleting the resource group, rather than relying on error-based
 	// rate-limited requeue. genericWatchingController implements AfterEnqueuer; assert it here
 	// so a wiring regression fails loudly at startup.
 	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
@@ -171,7 +175,7 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return c.deleteManagedResourceGroup(ctx, cluster, existingServiceProviderCluster)
+		return c.deleteManagedResourceGroup(ctx, key, cluster, existingServiceProviderCluster)
 	}
 	return c.reconcileManagedResourceGroup(ctx, key, cluster, existingServiceProviderCluster)
 }
@@ -216,7 +220,7 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 	if existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.PendingAzureResource == nil {
 		replacement := existingServiceProviderCluster.DeepCopy()
 		replacement.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = managedResourceGroupID
-		existingServiceProviderCluster, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+		existingServiceProviderCluster, _, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -341,7 +345,7 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 	reference := &replacement.Status.AzureResources.ManagedResourceGroup
 	reference.PendingAzureResource = nil
 	reference.AzureResource = managedResourceGroupID
-	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	_, _, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 	return utils.TrackError(err)
 }
 
@@ -350,7 +354,8 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 // gate can decide when it is safe to remove the ServiceProviderCluster document.
 //
 // NeedsWork guarantees a reference is still set when we reach here, so we derive the
-// managed resource group ID from that reference, query Azure and:
+// managed resource group ID from that reference, query Azure once the persisted
+// earliest recheck time has elapsed, and:
 //
 //   - not found: clear both references so the deletion gate opens.
 //   - other error: return the error so the gate stays closed until we can positively
@@ -362,10 +367,15 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 //     AzureResource (ownership is already established on this path), then leave the reference
 //     in place so the gate stays closed. If Cluster Service deletion has completed and left the
 //     group orphaned, begin deleting it; otherwise Cluster Service owns the resource group's
-//     deletion. TODO: begin deletion.
-func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+//     deletion. Persist the next recheck time and enqueue a delayed poll.
+func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	logger := utils.LoggerFromContext(ctx)
-
+	if recheck := existingServiceProviderCluster.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName]; recheck != nil {
+		if delay := time.Until(recheck.Time); delay > 0 {
+			c.enqueueAfter.EnqueueAfter(key, delay)
+			return nil
+		}
+	}
 	// A reference is guaranteed set here (see NeedsWork). Prefer the confirmed
 	// AzureResource, falling back to the PendingAzureResource marker.
 	currentReference := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup
@@ -410,7 +420,8 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		// AzureResource no-op while the cluster is deleting, and the deletion gate treats
 		// pending and confirmed references identically.
 		if currentReference.AzureResource == nil {
-			if err := c.promoteManagedResourceGroupReferenceToConfirmed(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID); err != nil {
+			existingServiceProviderCluster, err = c.promoteManagedResourceGroupReferenceToConfirmed(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID)
+			if err != nil {
 				return utils.TrackError(err)
 			}
 		}
@@ -419,6 +430,7 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 			return utils.TrackError(fmt.Errorf("managed resource group %q has no provisioning state", managedResourceGroupID.Name))
 		}
 		provisioningState := *getResponse.Properties.ProvisioningState
+		deleting := provisioningState == string(armresources.ProvisioningStateDeleting)
 
 		// If Cluster Service deletion has completed and the managed resource group
 		// is still not in a deleting state, it has been orphaned and therefore we
@@ -426,7 +438,7 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		if cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 			cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 			(cluster.ServiceProviderProperties.ClusterServiceID == nil || cluster.ServiceProviderProperties.ClusterServiceID.String() == "") &&
-			provisioningState != string(armresources.ProvisioningStateDeleting) {
+			!deleting {
 			logger.Info("deleting orphaned managed resource group", "managedResourceGroup", managedResourceGroupID.Name,
 				"managedBy", getResponse.ManagedBy, "provisioningState", provisioningState)
 			_, err := rgClient.BeginDelete(ctx, managedResourceGroupID.Name, nil)
@@ -443,6 +455,25 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 			// on the next sync(s) the reference will be cleared once the MRG no longer exists.
 		}
 
+		// Cluster Service may not have started Azure deletion yet; bound GETs while waiting.
+		delay := wait.Jitter(managedResourceGroupDeletionRequeueInterval, 0.5)
+		// metav1.Time is stored at second precision; round up to preserve the minimum delay.
+		recheck := metav1.NewTime(time.Now().Add(delay).Truncate(time.Second).Add(time.Second))
+		replacement := existingServiceProviderCluster.DeepCopy()
+		if replacement.Spec.EarliestRecheckTimesByController == nil {
+			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		}
+		replacement.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName] = &recheck
+		_, persisted, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if !persisted {
+			// A concurrent Cosmos write will re-enqueue the cluster with fresh state.
+			return nil
+		}
+		c.enqueueAfter.EnqueueAfter(key, time.Until(recheck.Time))
+
 		// TODO: The above logic is only to remove orphaned managed resource groups
 		// while Cluster Service is still responsible for processing the deletion.
 		// Changes here are still required to move the responsibility of deleting the
@@ -458,13 +489,13 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 // on the deletion path to record ownership for a resource group whose creation was confirmed
 // in Azure but never persisted as confirmed. persistIfChanged makes this a no-op write when
 // the reference is already confirmed.
-func (c *managedResourceGroupSyncer) promoteManagedResourceGroupReferenceToConfirmed(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) error {
+func (c *managedResourceGroupSyncer) promoteManagedResourceGroupReferenceToConfirmed(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) (*coreapi.ServiceProviderCluster, error) {
 	replacement := existingServiceProviderCluster.DeepCopy()
 	reference := &replacement.Status.AzureResources.ManagedResourceGroup
 	reference.PendingAzureResource = nil
 	reference.AzureResource = managedResourceGroupID
-	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-	return utils.TrackError(err)
+	updated, _, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	return updated, utils.TrackError(err)
 }
 
 // clearManagedResourceGroupReferences clears both the pending and confirmed managed
@@ -476,18 +507,19 @@ func (c *managedResourceGroupSyncer) clearManagedResourceGroupReferences(ctx con
 	reference := &replacement.Status.AzureResources.ManagedResourceGroup
 	reference.PendingAzureResource = nil
 	reference.AzureResource = nil
-	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	delete(replacement.Spec.EarliestRecheckTimesByController, ManagedResourceGroupControllerName)
+	_, _, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 	return err
 }
 
 // persistIfChanged replaces the ServiceProviderCluster when replacement differs
-// from existing and returns the object to use for any subsequent write (the freshly
-// persisted document on success, or existing when nothing changed). A Cosmos
-// precondition conflict is treated as success (another writer updated the document
-// first; we'll be re-enqueued and retry).
-func (c *managedResourceGroupSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.Cluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
+// from existing and returns the object to use for any subsequent write. The bool
+// reports whether Replace succeeded; it is false when nothing changed or a Cosmos
+// precondition conflict occurred (another writer updated the document first; we'll
+// be re-enqueued and retry).
+func (c *managedResourceGroupSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.Cluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, bool, error) {
 	if !controllerutil.NeedsUpdate(existing, replacement) {
-		return existing, nil
+		return existing, false, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -498,12 +530,12 @@ func (c *managedResourceGroupSyncer) persistIfChanged(ctx context.Context, clust
 
 	updated, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		return existing, nil
+		return existing, false, nil
 	}
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		return nil, false, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
-	return updated, nil
+	return updated, true, nil
 }
 
 // isNotFound reports whether err indicates the managed resource group does not

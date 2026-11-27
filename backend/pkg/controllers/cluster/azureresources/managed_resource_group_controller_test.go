@@ -425,6 +425,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			getErr:           nil,
 			expectAzure:      mrgID,
 			expectPending:    nil,
+			expectRequeue:    true,
 		},
 		{
 			// The resource group exists but is owned by ANOTHER cluster (a foreign /
@@ -526,7 +527,13 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			if tc.expectRequeue {
 				require.Len(t, enqueuer.enqueuedKeys, 1, "expected exactly one requeue to be scheduled")
 				assert.Equal(t, key, enqueuer.enqueuedKeys[0], "requeue should use the cluster key")
-				assert.Equal(t, managedResourceGroupProvisioningRequeueInterval, enqueuer.enqueuedDurations[0], "requeue delay should be the provisioning interval")
+				if tc.deleting {
+					assert.Positive(t, enqueuer.enqueuedDurations[0])
+					assert.LessOrEqual(t, enqueuer.enqueuedDurations[0], managedResourceGroupDeletionRequeueInterval*3/2+time.Second)
+					require.NotNil(t, updated.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName])
+				} else {
+					assert.Equal(t, managedResourceGroupProvisioningRequeueInterval, enqueuer.enqueuedDurations[0], "requeue delay should be the provisioning interval")
+				}
 			} else {
 				assert.Empty(t, enqueuer.enqueuedKeys, "no requeue should be scheduled")
 			}
@@ -624,6 +631,7 @@ func TestManagedResourceGroupSyncerSyncOnceEmptyManagedResourceGroupName(t *test
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -666,6 +674,7 @@ func TestManagedResourceGroupSyncerSyncOnceSkipsAzureWhenAlreadyReflected(t *tes
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -718,6 +727,7 @@ func TestManagedResourceGroupSyncerSyncOnceDeletingKeepsGateClosedOnGetError(t *
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -823,6 +833,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 		clusterServiceID                *metadataapi.InternalID
 		getResponse                     armresources.ResourceGroupsClientGetResponse
 		expectBeginDelete               bool
+		expectRequeue                   bool
 		beginDeleteErr                  error
 		expectErr                       bool
 		expectErrContains               string
@@ -833,6 +844,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 			clusterServiceID:                nil,
 			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
 			expectBeginDelete:               true,
+			expectRequeue:                   true,
 		},
 		{
 			name:                            "CS finished and MRG already Deleting does not call BeginDelete",
@@ -840,6 +852,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 			clusterServiceID:                nil,
 			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Deleting"),
 			expectBeginDelete:               false,
+			expectRequeue:                   true,
 		},
 		{
 			name:                            "CS not finished yet (ClusterServiceID set) does not delete",
@@ -847,6 +860,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 			clusterServiceID:                csClusterID,
 			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
 			expectBeginDelete:               false,
+			expectRequeue:                   true,
 		},
 		{
 			name:                            "ClusterServiceDeletionTimestamp not set does not delete",
@@ -854,6 +868,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 			clusterServiceID:                nil,
 			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
 			expectBeginDelete:               false,
+			expectRequeue:                   true,
 		},
 		{
 			name:                            "CS finished but BeginDelete fails returns error",
@@ -948,12 +963,14 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 				Return(mockRGClient, nil).
 				Times(1)
 
+			enqueuer := &fakeAfterEnqueuer{}
 			syncer := &managedResourceGroupSyncer{
 				resourcesDBClient:            mockResourcesDB,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 				azureFPAClientBuilder:        fpaClientBuilder,
+				enqueueAfter:                 enqueuer,
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -978,8 +995,94 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 			gotReference := updated.Status.AzureResources.ManagedResourceGroup
 			assertResourceIDEqual(t, mrgID, gotReference.AzureResource, "AzureResource")
 			assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
+			if tc.expectRequeue {
+				require.Len(t, enqueuer.enqueuedDurations, 1)
+				assert.Positive(t, enqueuer.enqueuedDurations[0])
+				assert.LessOrEqual(t, enqueuer.enqueuedDurations[0], managedResourceGroupDeletionRequeueInterval*3/2+time.Second)
+				require.NotNil(t, updated.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName])
+			} else {
+				assert.Empty(t, enqueuer.enqueuedDurations)
+				assert.NotContains(t, updated.Spec.EarliestRecheckTimesByController, ManagedResourceGroupControllerName)
+			}
 		})
 	}
+}
+
+func TestManagedResourceGroupDeletionRecheckThrottlesAzureGet(t *testing.T) {
+	t.Parallel()
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(true)
+	mrgID := testManagedResourceGroupID(t)
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+	spcClient := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+
+	ctrl := gomock.NewController(t)
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	gomock.InOrder(
+		mockRGClient.EXPECT().Get(gomock.Any(), mrgID.Name, nil).DoAndReturn(func(context.Context, string, *armresources.ResourceGroupsClientGetOptions) (armresources.ResourceGroupsClientGetResponse, error) {
+			current, err := spcClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			otherRecheck := metav1.NewTime(time.Now().Add(time.Hour))
+			current.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"other-controller": &otherRecheck}
+			_, err = spcClient.Replace(ctx, current, nil)
+			require.NoError(t, err)
+			return resourceGroupPresentResponseWithState(cluster.ID.String(), "Succeeded"), nil
+		}),
+		mockRGClient.EXPECT().Get(gomock.Any(), mrgID.Name, nil).Return(resourceGroupPresentResponseWithState(cluster.ID.String(), "Succeeded"), nil),
+		mockRGClient.EXPECT().Get(gomock.Any(), mrgID.Name, nil).Return(armresources.ResourceGroupsClientGetResponse{}, &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "ResourceGroupNotFound"}),
+	)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().ResourceGroupsClient(testTenantID, testSubscriptionID).Return(mockRGClient, nil).Times(3)
+	enqueuer := &fakeAfterEnqueuer{}
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 enqueuer,
+	}
+	key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+
+	// A 412 leaves the recheck unset; the competing write supplies the next informer event.
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	updated, err := spcClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.NotContains(t, updated.Spec.EarliestRecheckTimesByController, ManagedResourceGroupControllerName)
+	assert.Contains(t, updated.Spec.EarliestRecheckTimesByController, "other-controller")
+	assert.Empty(t, enqueuer.enqueuedDurations)
+
+	started := time.Now()
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	finished := time.Now()
+	updated, err = spcClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	recheck := updated.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName]
+	require.NotNil(t, recheck)
+	assert.Contains(t, updated.Spec.EarliestRecheckTimesByController, "other-controller")
+	require.Len(t, enqueuer.enqueuedDurations, 1)
+	assert.Positive(t, enqueuer.enqueuedDurations[0])
+	assert.LessOrEqual(t, enqueuer.enqueuedDurations[0], managedResourceGroupDeletionRequeueInterval*3/2+time.Second)
+	assert.False(t, recheck.Time.Before(started.Add(managedResourceGroupDeletionRequeueInterval)))
+	assert.False(t, recheck.After(finished.Add(managedResourceGroupDeletionRequeueInterval*3/2+time.Second)))
+
+	// A Cosmos update during the wait must schedule the same deadline without another Azure GET.
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	require.Len(t, enqueuer.enqueuedDurations, 2)
+	assert.Positive(t, enqueuer.enqueuedDurations[1])
+	assert.LessOrEqual(t, enqueuer.enqueuedDurations[1], enqueuer.enqueuedDurations[0])
+
+	expired := metav1.NewTime(time.Now().Add(-time.Second))
+	updated.Spec.EarliestRecheckTimesByController[ManagedResourceGroupControllerName] = &expired
+	_, err = spcClient.Replace(ctx, updated, nil)
+	require.NoError(t, err)
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	updated, err = spcClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, updated.Status.AzureResources.ManagedResourceGroup.AzureResource)
+	assert.NotContains(t, updated.Spec.EarliestRecheckTimesByController, ManagedResourceGroupControllerName)
 }
 
 func TestManagedResourceGroupSyncerOrphanedMRGDeletion_BeginDelete404(t *testing.T) {
@@ -1029,6 +1132,7 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion_BeginDelete404(t *testing
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -1087,6 +1191,7 @@ func TestManagedResourceGroupSyncerDeletionPromotesPendingOwnedMRG(t *testing.T)
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -1144,6 +1249,7 @@ func TestManagedResourceGroupSyncerDeletionDoesNotPromoteForeignPendingMRG(t *te
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -1200,6 +1306,7 @@ func TestManagedResourceGroupSyncerDeletionDoesNotPromoteUnclaimedPendingMRG(t *
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:        fpaClientBuilder,
+		enqueueAfter:                 &fakeAfterEnqueuer{},
 	}
 
 	key := controllerutils.HCPClusterKey{
