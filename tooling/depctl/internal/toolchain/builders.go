@@ -264,6 +264,9 @@ func prowCompilerRoots(content []byte, localRoot, target string) ([]compilerImag
 
 // ProbeBuilders records immutable digest evidence and requires the exact patch on each platform.
 func probeBuilders(ctx context.Context, target string, images map[compilerImage][]string, command compilerCommand) ([]builderEvidence, error) {
+	if len(images) == 0 {
+		return nil, blockedf("no Prow compiler build roots found")
+	}
 	var reasons []string
 	keys := slices.SortedFunc(maps.Keys(images), func(a, b compilerImage) int {
 		if order := strings.Compare(a.reference, b.reference); order != 0 {

@@ -115,7 +115,7 @@ func populatePlan(ctx context.Context, root string, client *http.Client, plan *P
 		return fmt.Errorf("inspect existing upgrades: %w", err)
 	}
 	if len(plan.OverlappingPRs) != 0 {
-		return blockedf("waiting for existing compiler upgrade PR #%d", plan.OverlappingPRs[0].Number)
+		return blockedf("possible compiler configuration overlap with PR #%d", plan.OverlappingPRs[0].Number)
 	}
 	builders, configs, err := builderReadiness(ctx, checkout, plan.Target)
 	plan.Builders = append(plan.Builders, builders...)

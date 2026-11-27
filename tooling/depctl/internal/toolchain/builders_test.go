@@ -23,6 +23,14 @@ import (
 	"time"
 )
 
+// TestProbeBuildersBlocksEmptyInventory prevents readiness without any compiler evidence.
+func TestProbeBuildersBlocksEmptyInventory(t *testing.T) {
+	_, err := probeBuilders(t.Context(), "1.26.7", nil, nil)
+	if !errors.Is(err, ErrBlocked) {
+		t.Fatalf("empty builder inventory must block readiness, got %v", err)
+	}
+}
+
 // TestPublishedBuilder verifies that execution uses only the correct immutable image and platform.
 func TestPublishedBuilder(t *testing.T) {
 	const image = "registry.example.org/ci/build:tag"

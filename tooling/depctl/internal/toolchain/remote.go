@@ -32,7 +32,7 @@ import (
 	githublib "github.com/Azure/ARO-HCP/tooling/github"
 )
 
-// Upgrade identifies an existing compiler upgrade that prevents a duplicate proposal.
+// Upgrade identifies an open pull request with possible compiler configuration overlap.
 type Upgrade struct {
 	Number int    `json:"number"`
 	URL    string `json:"url"`
@@ -61,8 +61,8 @@ func readGitHub(ctx context.Context, endpoint string, result any, pages bool) er
 	return nil
 }
 
-// DefaultHead resolves the live default branch to an immutable commit.
-func defaultHead(ctx context.Context, repo string, read func(context.Context, string, any, bool) error) (string, error) {
+// DefaultBranch reads the repository's current default branch name.
+func defaultBranch(ctx context.Context, repo string, read func(context.Context, string, any, bool) error) (string, error) {
 	var metadata gh.Repository
 	if err := read(ctx, "repos/"+repo, &metadata, false); err != nil {
 		return "", fmt.Errorf("resolve GitHub default branch: %w", err)
@@ -70,8 +70,17 @@ func defaultHead(ctx context.Context, repo string, read func(context.Context, st
 	if metadata.GetDefaultBranch() == "" {
 		return "", fmt.Errorf("missing default branch for %s", repo)
 	}
+	return metadata.GetDefaultBranch(), nil
+}
+
+// DefaultHead resolves the live default branch to an immutable commit.
+func defaultHead(ctx context.Context, repo string, read func(context.Context, string, any, bool) error) (string, error) {
+	branch, err := defaultBranch(ctx, repo, read)
+	if err != nil {
+		return "", fmt.Errorf("resolve default branch for %s: %w", repo, err)
+	}
 	var commit gh.RepositoryCommit
-	if err := read(ctx, "repos/"+repo+"/commits/"+url.PathEscape(metadata.GetDefaultBranch()), &commit, false); err != nil {
+	if err := read(ctx, "repos/"+repo+"/commits/"+url.PathEscape(branch), &commit, false); err != nil {
 		return "", fmt.Errorf("resolve default branch revision: %w", err)
 	}
 	if !repository.IsCommit(commit.GetSHA()) {
@@ -129,17 +138,21 @@ func openUpgrades(ctx context.Context, repo string) ([]Upgrade, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure GitHub PR inventory: %w", err)
 	}
-	return findOpenUpgrade(ctx, repo, client.OpenPullRequests, readGitHub)
+	branch, err := defaultBranch(ctx, repo, readGitHub)
+	if err != nil {
+		return nil, fmt.Errorf("scope the PR inventory to the default branch: %w", err)
+	}
+	return findOpenUpgrade(ctx, repo, branch, client.OpenPullRequests, readGitHub)
 }
 
-// findOpenUpgrade screens the complete inventory and stops on confirmed overlap or incomplete evidence.
-func findOpenUpgrade(ctx context.Context, repo string, list func(context.Context) ([]githublib.PullRequest, error), read func(context.Context, string, any, bool) error) ([]Upgrade, error) {
+// FindOpenUpgrade screens open PRs targeting the default branch for possible compiler overlap.
+func findOpenUpgrade(ctx context.Context, repo, branch string, list func(context.Context) ([]githublib.PullRequest, error), read func(context.Context, string, any, bool) error) ([]Upgrade, error) {
 	pulls, err := list(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list open upgrade candidates: %w", err)
 	}
 	for _, pull := range pulls {
-		overlaps, err := upgradePull(ctx, repo, pull, read)
+		overlaps, err := upgradePull(ctx, repo, branch, pull, read)
 		if err != nil {
 			return nil, fmt.Errorf("inspect open PR #%d: %w", pull.Number, err)
 		}
@@ -151,7 +164,7 @@ func findOpenUpgrade(ctx context.Context, repo string, list func(context.Context
 }
 
 // UpgradePull checks revision-bound changed-file evidence for possible compiler overlap.
-func upgradePull(ctx context.Context, repo string, pull githublib.PullRequest, read func(context.Context, string, any, bool) error) (bool, error) {
+func upgradePull(ctx context.Context, repo, branch string, pull githublib.PullRequest, read func(context.Context, string, any, bool) error) (bool, error) {
 	endpoint := fmt.Sprintf("repos/%s/pulls/%d", repo, pull.Number)
 	var detail gh.PullRequest
 	if err := read(ctx, endpoint, &detail, false); err != nil {
@@ -159,8 +172,11 @@ func upgradePull(ctx context.Context, repo string, pull githublib.PullRequest, r
 	}
 	base, head := detail.GetBase().GetSHA(), detail.GetHead().GetSHA()
 	if detail.GetNumber() != pull.Number || detail.GetState() != "open" || detail.GetBase().GetRepo().GetFullName() != repo ||
-		!repository.IsCommit(base) || !repository.IsCommit(head) || head != pull.HeadSHA {
+		detail.GetBase().GetRef() == "" || !repository.IsCommit(base) || !repository.IsCommit(head) || head != pull.HeadSHA {
 		return false, fmt.Errorf("PR identity or revisions do not match the open inventory")
+	}
+	if detail.GetBase().GetRef() != branch {
+		return false, nil
 	}
 	var pages [][]gh.CommitFile
 	if err := read(ctx, endpoint+"/files?per_page=100", &pages, true); err != nil {
@@ -206,7 +222,8 @@ func upgradePull(ctx context.Context, repo string, pull githublib.PullRequest, r
 		return false, fmt.Errorf("recheck PR revisions: %w", err)
 	}
 	if current.GetNumber() != pull.Number || current.GetState() != "open" || current.GetBase().GetRepo().GetFullName() != repo ||
-		current.GetBase().GetSHA() != base || current.GetHead().GetSHA() != head || current.ChangedFiles == nil || current.GetChangedFiles() != len(seen) {
+		current.GetBase().GetRef() != branch || current.GetBase().GetSHA() != base || current.GetHead().GetSHA() != head ||
+		current.ChangedFiles == nil || current.GetChangedFiles() != len(seen) {
 		return false, fmt.Errorf("PR changed while inspecting compiler inputs")
 	}
 	return false, nil

@@ -29,14 +29,18 @@ import (
 // TestFindOpenUpgrade requires complete revision-bound evidence even for human PRs.
 func TestFindOpenUpgrade(t *testing.T) {
 	const name = "tooling/depctl/go.mod"
+	const defaultRef = "main"
+	const compilerPatch = "@@ -1 +1 @@\n-go 1.26.0\n+go 1.26.7"
 	base, head := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	inventoryError := errors.New("inventory incomplete")
 	for _, test := range []struct {
 		name, path, patch, fileList, wantError string
+		baseRef                                string
 		inventoryError                         error
 		wantUpgrade                            bool
 	}{
-		{name: "human compiler update", patch: "@@ -1 +1 @@\n-go 1.26.0\n+go 1.26.7", wantUpgrade: true},
+		{name: "human compiler update", patch: compilerPatch, wantUpgrade: true},
+		{name: "compiler backport", patch: compilerPatch, baseRef: "release-branch"},
 		{name: "human dependency update", patch: "@@ -1 +1 @@\n-require example.org/lib v1.2.3\n+require example.org/lib v1.2.4"},
 		{name: "config change without patch", path: devcontainerPath, wantUpgrade: true},
 		{name: "missing manifest patch", wantUpgrade: true},
@@ -63,9 +67,15 @@ func TestFindOpenUpgrade(t *testing.T) {
 					fileList = fmt.Sprintf(`[[{"filename":%q,"status":"modified","patch":%q,"additions":1,"deletions":1}]]`, filename, test.patch)
 				}
 			}
+			ref := test.baseRef
+			if ref == "" {
+				ref = defaultRef
+			}
 			responses := map[string]string{
-				endpoint:                         fmt.Sprintf(`{"number":17,"state":"open","changed_files":1,"base":{"sha":%q,"repo":{"full_name":%q}},"head":{"sha":%q}}`, base, Repository, head),
-				endpoint + "/files?per_page=100": fileList,
+				endpoint: fmt.Sprintf(`{"number":17,"state":"open","changed_files":1,"base":{"ref":%q,"sha":%q,"repo":{"full_name":%q}},"head":{"sha":%q}}`, ref, base, Repository, head),
+			}
+			if ref == defaultRef {
+				responses[endpoint+"/files?per_page=100"] = fileList
 			}
 			read := func(_ context.Context, endpoint string, result any, _ bool) error {
 				raw, ok := responses[endpoint]
@@ -74,7 +84,7 @@ func TestFindOpenUpgrade(t *testing.T) {
 				}
 				return json.Unmarshal([]byte(raw), result)
 			}
-			upgrades, err := findOpenUpgrade(context.Background(), Repository, list, read)
+			upgrades, err := findOpenUpgrade(context.Background(), Repository, defaultRef, list, read)
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) || upgrades != nil {
 					t.Fatalf("upgrades = %v, err = %v; want error containing %q", upgrades, err, test.wantError)
