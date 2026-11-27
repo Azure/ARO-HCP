@@ -240,6 +240,8 @@ resourceGroups:
       - "InternalServerError"
       - "Internal server error"
       - "500 Internal Server Error"
+      - "RequestTimeout"
+      - "exceeded maximum alloted time"
       maximumRetryCount: 4
       durationBetweenRetries: 2m
     variables:
