@@ -26,6 +26,14 @@
   queryType: must-gather-internal
   database: ServiceLogs
   templatePath: templates/builtin/oc-adm-inspect/namespaces.kql.gotmpl
+- name: ocAdmInspectPodNodeNames
+  queryType: must-gather-internal
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/pod_node_names.kql.gotmpl
+- name: ocAdmInspectNodes
+  queryType: oc-adm-inspect-resource
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/nodes.kql.gotmpl
 - name: systemdLogs
   queryType: systemd-logs
   database: ServiceLogs
