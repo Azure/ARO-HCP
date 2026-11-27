@@ -159,6 +159,18 @@ clouds:
         alerting:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true
+        imageUpdaterMonitor:
+          image:
+            registry: "arohcpsvcdev.azurecr.io"
+            repository: "image-updater-monitor"
+            digest: sha256:f4d68d80d8b44c955631201759ff4916e125e1d0f1819c15b6cc9099105ed0f0 # source tree b32a2645c53d15de8044d33b2a56f17bed7c61cc (2026-11-26)
+          prow:
+            baseURL: "https://prow.ci.openshift.org"
+            jobRegex: "^periodic-ci-Azure-ARO-HCP-main-image-updater-"
+            interval: "5m"
+          # GCS bucket holding Prow run artifacts, read to classify failure
+          # reasons on the consecutive-failures metric.
+          resultsBucket: "test-platform-results-public"
         tenantQuota:
           exitOnPanic: false
           image:

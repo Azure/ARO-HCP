@@ -13186,6 +13186,177 @@
           - operator: '>'
             value: 0
         unsupported: ""
+- source: tooling/image-updater/alerting.bicep
+  group: image-updater-alerts
+  alert: ImageUpdaterConsecutiveFailures
+  occurrence: 1
+  input: max without (prometheus_replica) (image_updater_consecutive_failures) >= 3
+  plan:
+    expression: max without (prometheus_replica) (image_updater_consecutive_failures) >= 3
+    conditions:
+      - expression: max without (prometheus_replica) (image_updater_consecutive_failures) >= 3
+        path: root
+        queries:
+          - expression: max without (prometheus_replica) (image_updater_consecutive_failures)
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+- source: tooling/image-updater/alerting.bicep
+  group: image-updater-alerts
+  alert: ImageUpdaterMonitorBlind
+  occurrence: 1
+  input: max without (prometheus_replica) (image_updater_jobs_matched) == 0 and on() (max without (prometheus_replica) (image_updater_scrape_success) == 1)
+  plan:
+    expression: max without (prometheus_replica) (image_updater_jobs_matched) == 0 and on () (max without (prometheus_replica) (image_updater_scrape_success) == 1)
+    conditions:
+      - expression: max without (prometheus_replica) (image_updater_jobs_matched) == 0
+        path: root/and:left
+        queries:
+          - expression: max without (prometheus_replica) (image_updater_jobs_matched)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: max without (prometheus_replica) (image_updater_scrape_success) == 1
+        path: root/and:right
+        queries:
+          - expression: max without (prometheus_replica) (image_updater_scrape_success)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+- source: tooling/image-updater/alerting.bicep
+  group: image-updater-alerts
+  alert: ImageUpdaterRunDurationExceeded
+  occurrence: 1
+  input: max without (prometheus_replica) (image_updater_last_run_duration_seconds) > 3600
+  plan:
+    expression: max without (prometheus_replica) (image_updater_last_run_duration_seconds) > 3600
+    conditions:
+      - expression: max without (prometheus_replica) (image_updater_last_run_duration_seconds) > 3600
+        path: root
+        queries:
+          - expression: max without (prometheus_replica) (image_updater_last_run_duration_seconds)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 3600
+        unsupported: ""
+- source: tooling/image-updater/alerting.bicep
+  group: image-updater-alerts
+  alert: ImageUpdaterRunStalled
+  occurrence: 1
+  input: ((time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 32400) and on() ((day_of_week() >= 2 and day_of_week() <= 5) or (day_of_week() == 1 and hour() >= 9))) or ((time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 208800) and on() (day_of_week() == 1 and hour() < 9))
+  plan:
+    expression: ((time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 32400) and on () ((day_of_week() >= 2 and day_of_week() <= 5) or (day_of_week() == 1 and hour() >= 9))) or ((time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 208800) and on () (day_of_week() == 1 and hour() < 9))
+    conditions:
+      - expression: time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 32400
+        path: root/or:left/and:left
+        queries:
+          - expression: time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 32400
+        unsupported: ""
+      - expression: day_of_week() >= 2
+        path: root/or:left/and:right/or:left/and:left
+        queries:
+          - expression: day_of_week()
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: day_of_week() <= 5
+        path: root/or:left/and:right/or:left/and:right
+        queries:
+          - expression: day_of_week()
+            role: signal
+        thresholds:
+          - operator: <=
+            value: 5
+        unsupported: ""
+      - expression: day_of_week() == 1
+        path: root/or:left/and:right/or:right/and:left
+        queries:
+          - expression: day_of_week()
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+      - expression: hour() >= 9
+        path: root/or:left/and:right/or:right/and:right
+        queries:
+          - expression: hour()
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 9
+        unsupported: ""
+      - expression: time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds) > 208800
+        path: root/or:right/and:left
+        queries:
+          - expression: time() - max without (prometheus_replica) (image_updater_last_run_timestamp_seconds)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 208800
+        unsupported: ""
+      - expression: day_of_week() == 1
+        path: root/or:right/and:right/and:left
+        queries:
+          - expression: day_of_week()
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+      - expression: hour() < 9
+        path: root/or:right/and:right/and:right
+        queries:
+          - expression: hour()
+            role: signal
+        thresholds:
+          - operator: <
+            value: 9
+        unsupported: ""
+- source: tooling/image-updater/alerting.bicep
+  group: image-updater-alerts
+  alert: ImageUpdaterScrapeFailed
+  occurrence: 1
+  input: absent_over_time(image_updater_scrape_success[15m]) == 1 or max without (prometheus_replica) (image_updater_scrape_success) == 0 or (time() - max without (prometheus_replica) (image_updater_last_scrape_timestamp_seconds) > 900)
+  plan:
+    expression: absent_over_time(image_updater_scrape_success[15m]) == 1 or max without (prometheus_replica) (image_updater_scrape_success) == 0 or (time() - max without (prometheus_replica) (image_updater_last_scrape_timestamp_seconds) > 900)
+    conditions:
+      - expression: absent_over_time(image_updater_scrape_success[15m]) == 1
+        path: root/or:left/or:left
+        queries: []
+        thresholds: []
+        unsupported: absence construct has no numeric pre-absence signal without rewriting internal semantics
+      - expression: max without (prometheus_replica) (image_updater_scrape_success) == 0
+        path: root/or:left/or:right
+        queries:
+          - expression: max without (prometheus_replica) (image_updater_scrape_success)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: time() - max without (prometheus_replica) (image_updater_last_scrape_timestamp_seconds) > 900
+        path: root/or:right
+        queries:
+          - expression: time() - max without (prometheus_replica) (image_updater_last_scrape_timestamp_seconds)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 900
+        unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: e2e-expired-resource-group-alerts
   alert: E2EExpiredResourceGroupStale

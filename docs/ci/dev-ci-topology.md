@@ -19,6 +19,7 @@ The unattended entrypoint is rooted at `Microsoft.Azure.ARO.HCP.DevCI.Unprivileg
 - `Gateway`: the shared Istio gateway and DNS wiring for `opstool`.
 - `CertManager`: `cert-manager` and the shared DNS-01 `ClusterIssuer`.
 - `CIHealth`: the CIHealth runtime at `cihealth.tools.hcpsvc.osadev.cloud`.
+- `ImageUpdater`: the image-updater monitor exporter for Prow job health (see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)).
 - `BatchAnalysis`: the storage account that receives Tide-batch analysis output, with access for the analysis bot.
 
 [`topology-dev-ci.yaml`](../../topology-dev-ci.yaml) is the authoritative list; this one can lag behind it. In short, `dev-ci` owns the persistent CI support layer, not the runtime behaviour of any individual job.
