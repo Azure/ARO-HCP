@@ -336,7 +336,7 @@ func mustBuildCSClusterFromRP(t *testing.T, cluster *coreapi.Cluster) *arohcpv1a
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, err := ocm.BuildCSCluster(cluster.ID, "", cluster, nil, oldClusterServiceCluster, &coreapi.ServiceProviderCluster{})
+	clusterBuilder, err := ocm.BuildCSCluster(cluster.ID, "", cluster, nil, oldClusterServiceCluster, &coreapi.ServiceProviderCluster{}, nil)
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()

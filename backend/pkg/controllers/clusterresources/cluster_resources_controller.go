@@ -210,7 +210,8 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -220,14 +221,14 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, spc *coreapi.ServiceProviderCluster) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), spc); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -262,7 +263,8 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string, spc *coreapi.ServiceProviderCluster) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if err != nil {
@@ -385,6 +387,24 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
 					continue
 				}
+				ready, err := c.overlayDesiredHostedClusterVersion(ctx, &unstructuredObj, spc)
+				if err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to overlay desired HostedCluster version for %s: %w", resourceKey, err)))
+					continue
+				}
+				if !ready {
+					logger.Info("HostedCluster not ready for overlay because of missing ServiceProviderCluster DesiredHostedCluster prerequisites, skipping HostedCluster ApplyDesire createOrUpdate")
+					// DesiredHostedCluster not yet populated with the needed requiremens to overlay the HostedCluster version.
+					// CS still wants this HostedCluster, we just can't produce
+					// a correct ApplyDesire yet. Mark it as desired so
+					// deleteStaleApplyDesires does not reap the existing
+					// ApplyDesire, but skip the update.
+					pendingID := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+						key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.desireName,
+					)
+					desiredResourceIDs[strings.ToLower(pendingID)] = true
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -457,6 +477,51 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 	}
 
 	return errors.Join(errs...)
+}
+
+// overlayDesiredHostedClusterVersion unconditionally overlays the HostedCluster
+// version fields from SPC.Spec.DesiredHostedCluster. It returns ready=false
+// when DesiredHostedCluster has not yet been populated or when it's been populated but
+// the expected release image is not set. This is because we shouldn't apply whatever CS tells us until we can
+// apply the overlay correctly, for which we require the release image to be set.
+func (c *clusterResourcesController) overlayDesiredHostedClusterVersion(ctx context.Context, hostedCluster *unstructured.Unstructured, spc *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+	desiredHostedCluster := spc.Spec.DesiredHostedCluster
+	if desiredHostedCluster == nil {
+		logger.Info("ServiceProviderCluster DesiredHostedCluster is nil, skipping HostedCluster overlay")
+		return false, nil
+	}
+	if len(desiredHostedCluster.Spec.Release.Image) == 0 {
+		logger.Info("ServiceProviderCluster DesiredHostedCluster release image is empty, skipping HostedCluster overlay")
+		return false, nil
+	}
+
+	if spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
+		logger.Info("ServiceProviderCluster DesiredVersion is nil, skipping HostedCluster overlay")
+		return false, nil
+	}
+
+	if err := unstructured.SetNestedField(hostedCluster.Object, desiredHostedCluster.Spec.Release.Image, "spec", "release", "image"); err != nil {
+		return false, utils.TrackError(fmt.Errorf("setting spec.release.image: %w", err))
+	}
+
+	annotations := hostedCluster.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	if desiredHostedCluster.Spec.ControlPlaneRelease != nil && len(desiredHostedCluster.Spec.ControlPlaneRelease.Image) != 0 {
+		if err := unstructured.SetNestedField(hostedCluster.Object, desiredHostedCluster.Spec.ControlPlaneRelease.Image, "spec", "controlPlaneRelease", "image"); err != nil {
+			return false, utils.TrackError(fmt.Errorf("setting spec.controlPlaneRelease.image: %w", err))
+		}
+		annotations[v1beta1.ForceUpgradeToAnnotation] = desiredHostedCluster.Spec.ControlPlaneRelease.Image
+	} else {
+		unstructured.RemoveNestedField(hostedCluster.Object, "spec", "controlPlaneRelease")
+		annotations[v1beta1.ForceUpgradeToAnnotation] = desiredHostedCluster.Spec.Release.Image
+	}
+
+	hostedCluster.SetAnnotations(annotations)
+	return true, nil
 }
 
 // ensureHostedClusterAnnotations sets backend-managed annotations on a HostedCluster.
