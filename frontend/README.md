@@ -31,10 +31,13 @@ The [pipeline.yaml](pipeline.yaml) file in this directory contains the pipeline 
 
 ## Available endpoints
 
-> Note: If you need a test cluster.json file or node_pool.json for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)
-> `go run utils/create.go -type cluster`
-> or
-> `go run utils/create.go -type node_pool`
+Generate the sample request bodies for the API version used in the examples below from the `frontend/` directory.
+
+```bash
+go run utils/create.go -type cluster -api-version 2024-06-10-preview
+go run utils/create.go -type node_pool -api-version 2024-06-10-preview
+```
+
 > Any Create/Get/Delete cluster calls below will expect a running CS in order to function for now
 
 
@@ -114,6 +117,12 @@ curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-00000000000
 External Auth operations:
 
 Create external auth
+```bash
+go run utils/create.go -type external_auth -api-version 2024-06-10-preview
+```
+
+In `external_auth.json`, replace the sample tenant ID in the issuer URL and set both the audience and the console client ID to your Entra application ID.
+
 ```bash
 curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" --json @external_auth.json
