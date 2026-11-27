@@ -1,5 +1,6 @@
 entrypoints:
 - identifier: 'Microsoft.Azure.ARO.HCP.Global'
+  safeFly: true
   metadata:
     name: Global
     scopeDoc: high-level-architecture.md
