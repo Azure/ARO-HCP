@@ -17,7 +17,7 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.512
 	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b
 	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/stretchr/testify v1.12.1
 	gotest.tools v2.2.0+incompatible
