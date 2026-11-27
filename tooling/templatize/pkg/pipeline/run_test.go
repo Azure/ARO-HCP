@@ -1313,7 +1313,7 @@ func TestShouldRetryError(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := shouldRetryError(testr.New(t), tc.step, tc.err)
+			result := shouldRetryError(tc.step, tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

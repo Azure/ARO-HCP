@@ -938,7 +938,8 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 			}, state)
 			attemptCancel()
 			runCount++
-			if shouldRetryError(logger, step, stepRunErr) {
+			if shouldRetryError(step, stepRunErr) {
+				logger.Info("Retrying step", "step", step.StepName(), "error", stepErrorForReporting(step, stepRunErr, subscriptionID).Error())
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
@@ -952,6 +953,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 	}
 	if stepRunErr != nil {
+		stepRunErr = stepErrorForReporting(step, stepRunErr, subscriptionID)
 		if node.Stamp.IsSet() {
 			return details, runCount, fmt.Errorf("stamp %s: %w", node.Stamp, stepRunErr)
 		}
@@ -1004,17 +1006,25 @@ func shouldExecuteStep(step types.Step, runCount int) bool {
 	return runCount < step.AutomatedRetries().MaximumRetryCount
 }
 
-func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
+func shouldRetryError(step types.Step, err error) bool {
 	if step.AutomatedRetries() == nil || err == nil {
 		return false
 	}
 	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
 		if strings.Contains(err.Error(), retry) {
-			logger.Info("Retrying step", "step", step.StepName(), "error", err.Error())
 			return true
 		}
 	}
 	return false
+}
+
+// Render ARM errors only after retry matching, which must see the original error text. Both step
+// logs (including JUnit) and callers of the runner can publish the final error.
+func stepErrorForReporting(step types.Step, err error, subscriptionID string) error {
+	if _, ok := step.(*types.ARMStep); ok {
+		return redactSubscriptionError(err, []string{subscriptionID})
+	}
+	return err
 }
 
 // logFailedARMOperations reports the operation errors that explain ARM's generic DeploymentFailed.
