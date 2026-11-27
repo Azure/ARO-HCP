@@ -60,32 +60,44 @@ const htmlTemplate = `<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Image updater summary</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:2rem;color:#111;max-width:60rem}
+:root{color-scheme:light dark}
+body{font-family:system-ui,sans-serif;margin:2rem;max-width:60rem;color:#1f2328;background:#fff}
 table{border-collapse:collapse;margin:1rem 0}
-th,td{border:1px solid #ccc;padding:0.25rem 0.6rem;text-align:left}
-th{background:#f3f3f3}
-.muted{color:#666}
+th,td{border:1px solid #d1d9e0;padding:0.25rem 0.6rem;text-align:left}
+th{background:#f6f8fa}
+td.digest{white-space:nowrap}
 code{font-family:ui-monospace,monospace}
+a{color:#0969da}
+@media (prefers-color-scheme: dark){
+body{color:#e6edf3;background:#0d1117}
+th,td{border-color:#3d444d}
+th{background:#161b22}
+a{color:#4493f8}
+}
 </style>
 </head>
 <body>
-<h1>Image updater summary</h1>
-<p>Branch <code>{{.Branch}}</code> at <code>{{.Revision}}</code>, prepared from <code>{{.BaseCommit}}</code>.</p>
-<p>Templatize: {{.TemplatizeSource}}. Generated at {{.GeneratedAt}}.</p>
+<h2>Image updater summary</h2>
+<p class="meta">Branch <code>{{.Branch}}</code> at <code>{{.Revision}}</code>, prepared from <code>{{.BaseCommit}}</code>.</p>
+<p class="meta">Templatize: {{.TemplatizeSource}}. Generated at {{.GeneratedAt}}.</p>
 {{- if .JobURL}}
-<p>Run: <a href="{{.JobURL}}">job log</a>.</p>
+<p class="meta">Run: <a href="{{.JobURL}}">job log</a>.</p>
 {{- end}}
-<p>Components changed: {{.UpdatedComponents}}.</p>
+<p class="meta">Components changed: {{.UpdatedComponents}}.</p>
 {{- if .PullRequest.URL}}
-<p>Pull request: <a href="{{.PullRequest.URL}}">#{{.PullRequest.Number}}</a> at <code>{{.PullRequest.HeadSHA}}</code>.</p>
+<p class="meta">Pull request: <a href="{{.PullRequest.URL}}">#{{.PullRequest.Number}}</a> at <code>{{.PullRequest.HeadSHA}}</code>.</p>
 {{- else}}
-<p>No pull request was published.</p>
+<p class="meta">No pull request was published.</p>
 {{- end}}
 <table>
+<thead>
 <tr><th>Component</th><th>Old digest</th><th>New digest</th><th>Tag</th><th>Status</th></tr>
+</thead>
+<tbody>
 {{- range .Updates}}
-<tr><td>{{.Name}}</td><td><code>{{short .OldDigest}}</code></td><td><code>{{short .NewDigest}}</code></td><td>{{.Tag}}</td><td>{{.Status}}</td></tr>
+<tr><td>{{.Name}}</td><td class="digest"><code>{{short .OldDigest}}</code></td><td class="digest"><code>{{short .NewDigest}}</code></td><td>{{.Tag}}</td><td>{{.Status}}</td></tr>
 {{- end}}
+</tbody>
 </table>
 </body>
 </html>
