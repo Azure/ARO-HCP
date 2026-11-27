@@ -114,7 +114,7 @@
   },
   "resources": {
     "etcdEncryptionKey": {
-      "apiVersion": "2024-12-01-preview",
+      "apiVersion": "2026-02-01",
       "existing": true,
       "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('etcdEncryptionKeyName'))]",
       "type": "Microsoft.KeyVault/vaults/keys"
@@ -171,7 +171,7 @@
       "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
     },
     "keyVault": {
-      "apiVersion": "2024-12-01-preview",
+      "apiVersion": "2026-02-01",
       "existing": true,
       "name": "[parameters('keyVaultName')]",
       "type": "Microsoft.KeyVault/vaults"
