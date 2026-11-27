@@ -1,4 +1,4 @@
-.PHONY: build update update-repositories clean test test-verbose test-coverage help
+.PHONY: build update update-repositories validate clean test test-verbose test-coverage help
 
 export AZURE_TOKEN_CREDENTIALS ?= dev
 
@@ -27,6 +27,9 @@ update: build
 update-repositories: build
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --repositories $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS)
 
+validate: build
+	@./$(BINARY_NAME) validate --config $(CONFIG_FILE)
+
 test:
 	@go test ./...
 
@@ -44,6 +47,7 @@ help:
 	@echo "  build              - Build the image-updater binary"
 	@echo "  update             - Build and run the updater (tags/digests mode)"
 	@echo "  update-repositories - Check and update repository versions"
+	@echo "  validate           - Validate the configuration and its bundle partition"
 	@echo "  test               - Run tests"
 	@echo "  test-verbose       - Run tests with verbose output"
 	@echo "  test-coverage      - Run tests with coverage"

@@ -33,7 +33,8 @@ const (
 
 // Config represents the image updater configuration
 type Config struct {
-	Images map[string]ImageConfig `yaml:"images"`
+	Bundles map[string][]string    `yaml:"bundles,omitempty"`
+	Images  map[string]ImageConfig `yaml:"images"`
 }
 
 // ImageConfig defines a single image's source and target configuration
@@ -252,6 +253,54 @@ func (c *Config) Groups() []string {
 	groups := groupSet.List()
 	sort.Strings(groups)
 	return groups
+}
+
+// ValidateBundles checks that the bundles partition every component group, so a
+// group belongs to exactly one bundle and every bundle names known groups.
+func (c *Config) ValidateBundles() error {
+	if len(c.Bundles) == 0 {
+		return fmt.Errorf("no bundles configured")
+	}
+
+	bundleNames := make([]string, 0, len(c.Bundles))
+	for name := range c.Bundles {
+		bundleNames = append(bundleNames, name)
+	}
+	sort.Strings(bundleNames)
+
+	groupBundle := make(map[string]string, len(c.Bundles))
+	for _, bundle := range bundleNames {
+		if strings.TrimSpace(bundle) == "" {
+			return fmt.Errorf("bundle name must not be empty")
+		}
+		groups := c.Bundles[bundle]
+		if len(groups) == 0 {
+			return fmt.Errorf("bundle %q has no groups", bundle)
+		}
+		for _, group := range groups {
+			if previous, ok := groupBundle[group]; ok {
+				return fmt.Errorf("group %q is in bundles %q and %q", group, previous, bundle)
+			}
+			groupBundle[group] = bundle
+		}
+	}
+
+	knownGroups := sets.NewString(c.Groups()...)
+	bundledGroups := sets.NewString()
+	for group := range groupBundle {
+		bundledGroups.Insert(group)
+	}
+	for _, group := range bundledGroups.List() {
+		if !knownGroups.Has(group) {
+			return fmt.Errorf("bundle %q references unknown group %q", groupBundle[group], group)
+		}
+	}
+
+	if missing := knownGroups.Difference(bundledGroups); missing.Len() > 0 {
+		return fmt.Errorf("groups not in any bundle: %s", strings.Join(missing.List(), ", "))
+	}
+
+	return nil
 }
 
 // FilterExcludingComponents returns a new Config excluding the specified components

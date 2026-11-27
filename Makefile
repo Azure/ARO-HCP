@@ -133,8 +133,12 @@ verify-agentic-maintenance:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation verify-agentic-maintenance
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation verify-agentic-maintenance verify-image-updater-bundles
 .PHONY: verify
+
+verify-image-updater-bundles:
+	go -C tooling/image-updater run . validate --config config.yaml
+.PHONY: verify-image-updater-bundles
 
 verify-schema:
 	go run ./hack/verify-schema-additional-properties config/config.schema.json
