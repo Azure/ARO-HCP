@@ -130,6 +130,16 @@ func setupCli() (*cobra.Command, error) {
 		if err != nil {
 			panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 		}
+		// DO NOT MERGE: only the explicitly selected Stage suite is a one-cluster run.
+		// Leave DEV presubmits and every other environment's suite unchanged.
+		if framework.StageCanaryEnabled() {
+			specs = specs.MustFilter([]string{fmt.Sprintf("name == %q", framework.StageCanarySpecName)})
+			if len(specs) != 1 {
+				return fmt.Errorf("Stage canary must select exactly one test, got %d", len(specs))
+			}
+		} else {
+			specs = specs.MustFilter([]string{fmt.Sprintf("name != %q", framework.StageCanarySpecName)})
+		}
 
 		// Count only the specs the upgrade/in-place suite actually schedules.
 		// ExpectFailure specs are quarantined out of that suite (see registerSuites),
