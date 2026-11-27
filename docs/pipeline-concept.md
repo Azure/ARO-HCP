@@ -284,6 +284,8 @@ Steps can be configured to automatically retry on failure by adding an `automate
 
 Both `cluster-create` steps also retry `waiting for deployment aks-cluster-create: context deadline exceeded`, the timeout emitted when their 30-minute deployment wait expires. The reconciler waits for an existing ARM deployment to finish before observing resources or submitting another deployment. Stage fail-fast rendering retains this error match but limits the policy to one retry after one minute; the pipeline's configured retry count and delay are unchanged.
 
+Both steps also retry `OverconstrainedZonalAllocationRequest` and `ZonalAllocationFailed`, transient Azure capacity failures for their zone-pinned node pools. In the recorded failure, `OverconstrainedZonalAllocationRequest` appears in the failing operation's `statusMessage` and the nested `DeploymentFailed` body; `ZonalAllocationFailed` is the broader Compute allocation code matched for the same failure class. Both are exact ARM error-code identifiers rather than generic phrases, so a match means ARM reported that code for an operation in the deployment. `errorContainsAny` ORs substrings and cannot also require `DeploymentFailed`; the bare code is the form that survives the JSON escaping in both carriers, so a false match only costs the step's retries. Stage fail-fast rendering retains these matches but pins the policy to one retry after one minute instead of the retry budget configured here (see [Retrying via EV2's automatedRetry](ci/ev2-retry-catcher.md#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp)); `honorRetryBudgetWhenFailingFast: true` keeps the configured budget in fail-fast stages.
+
 ### Step execution context
 
 All steps share a common execution context:

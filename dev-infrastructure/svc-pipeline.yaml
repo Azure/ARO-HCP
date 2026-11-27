@@ -572,6 +572,17 @@ resourceGroups:
       - "conflicting operation in progress"
       - "ServiceUnavailable"
       - "waiting for deployment aks-cluster-create: context deadline exceeded"
+      # Transient zonal capacity shortage (ARO-29935): Azure intermittently
+      # cannot allocate the zone + ephemeral OS disk + accelerated networking +
+      # VM size combination of the zone-pinned pools; retry while capacity frees
+      # up. In the recorded failure, OverconstrainedZonalAllocationRequest appears
+      # in the operation statusMessage and the nested DeploymentFailed details;
+      # ZonalAllocationFailed is the broader Compute allocation code matched for
+      # the same failure class. errorContainsAny ORs substrings, so the bare
+      # code is the match that survives the JSON escaping in both carriers
+      # (see docs/pipeline-concept.md).
+      - "OverconstrainedZonalAllocationRequest"
+      - "ZonalAllocationFailed"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Configure resources that depend on the service cluster.
