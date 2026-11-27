@@ -260,6 +260,10 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"identities":               identities,
 		"rbacScope":                rbacScope,
 		"clusterName":              clusterName,
+		// In development environments the data-plane operators use minimal custom roles that the RP
+		// assigns on the managed resource group, so they get no roles on the customer resources,
+		// unless the caller explicitly asks for them.
+		"assignDataPlaneCustomerScopedRoles": !IsDevelopmentEnvironment() || cfg.parameters["assignDataPlaneCustomerScopedRoles"] == true,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,

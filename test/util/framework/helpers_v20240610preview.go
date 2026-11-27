@@ -75,6 +75,9 @@ type ClusterParams20240610 struct {
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
 	Tags                          map[string]*string
+	// AssignDataPlaneCustomerScopedRoles forces the data-plane customer-scoped role assignments,
+	// even in development environments where they are skipped by default.
+	AssignDataPlaneCustomerScopedRoles bool
 }
 
 type NodePoolParams20240610 struct {
@@ -330,10 +333,11 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"nsgName":      clusterParams.NsgName,
-			"vnetName":     clusterParams.VnetName,
-			"subnetName":   clusterParams.SubnetName,
-			"keyVaultName": clusterParams.KeyVaultName,
+			"nsgName":                            clusterParams.NsgName,
+			"vnetName":                           clusterParams.VnetName,
+			"subnetName":                         clusterParams.SubnetName,
+			"keyVaultName":                       clusterParams.KeyVaultName,
+			"assignDataPlaneCustomerScopedRoles": clusterParams.AssignDataPlaneCustomerScopedRoles,
 		}),
 	)
 

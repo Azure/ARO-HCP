@@ -1381,6 +1381,27 @@ func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.
 	return coreapi.MarshalJSON(versionedInterface.NewOpenShiftVersion(openShiftVersion))
 }
 
+// operatorRoleDefinitions converts the configured role definitions of an operator identity to the API model.
+// Role definition IDs are resolved for the subscription of the request, because the dev role definition
+// config set uses per-subscription custom roles for some data-plane operators.
+func operatorRoleDefinitions(configured []*azure.ClusterScopedIdentityRoleDefinition, subscriptionID string) ([]coreapi.RoleDefinition, error) {
+	roleDefinitions := make([]coreapi.RoleDefinition, 0, len(configured))
+	for _, rd := range configured {
+		if rd == nil {
+			continue
+		}
+		roleDefinitionResourceID, err := rd.ResourceIDForSubscription(subscriptionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve role definition %q: %w", rd.DescriptiveName, err)
+		}
+		roleDefinitions = append(roleDefinitions, coreapi.RoleDefinition{
+			Name:       rd.DescriptiveName,
+			ResourceID: roleDefinitionResourceID.String(),
+		})
+	}
+	return roleDefinitions, nil
+}
+
 func marshalClusterScopedIdentitiesConfig(resourceID *azcorearm.ResourceID, version *semver.Version, config *azure.ClusterScopedIdentitiesConfig, versionedInterface coreapi.Version) ([]byte, error) {
 	operatorIdentityRoleSet := &coreapi.OperatorIdentityRoleSet{
 		ProxyResource: coreapi.ProxyResource{
@@ -1404,14 +1425,9 @@ func marshalClusterScopedIdentitiesConfig(resourceID *azcorearm.ResourceID, vers
 				required = coreapi.OperatorIdentityRequiredOnEnablement
 			}
 
-			roleDefinitions := make([]coreapi.RoleDefinition, 0, len(operator.RoleDefinitions))
-			for _, rd := range operator.RoleDefinitions {
-				if rd != nil && rd.ResourceID != nil {
-					roleDefinitions = append(roleDefinitions, coreapi.RoleDefinition{
-						Name:       rd.DescriptiveName,
-						ResourceID: rd.ResourceID.String(),
-					})
-				}
+			roleDefinitions, err := operatorRoleDefinitions(operator.RoleDefinitions, resourceID.SubscriptionID)
+			if err != nil {
+				return nil, err
 			}
 
 			operatorIdentityRoleSet.Properties.ControlPlaneOperators = append(
@@ -1433,14 +1449,9 @@ func marshalClusterScopedIdentitiesConfig(resourceID *azcorearm.ResourceID, vers
 				required = coreapi.OperatorIdentityRequiredOnEnablement
 			}
 
-			roleDefinitions := make([]coreapi.RoleDefinition, 0, len(operator.RoleDefinitions))
-			for _, rd := range operator.RoleDefinitions {
-				if rd != nil && rd.ResourceID != nil {
-					roleDefinitions = append(roleDefinitions, coreapi.RoleDefinition{
-						Name:       rd.DescriptiveName,
-						ResourceID: rd.ResourceID.String(),
-					})
-				}
+			roleDefinitions, err := operatorRoleDefinitions(operator.RoleDefinitions, resourceID.SubscriptionID)
+			if err != nil {
+				return nil, err
 			}
 
 			operatorIdentityRoleSet.Properties.DataPlaneOperators = append(

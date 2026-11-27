@@ -1152,7 +1152,7 @@ func TestRoleActionsForOperator(t *testing.T) {
 					RoleDefinitionsCachedReader: mockCachedReader,
 				},
 			}
-			result, err := v.roleActionsForOperator(context.Background(), tt.operatorName)
+			result, err := v.roleActionsForOperator(context.Background(), tt.operatorName, testSubscriptionID)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1299,7 +1299,7 @@ func TestRoleDataActionsForOperator(t *testing.T) {
 					RoleDefinitionsCachedReader: mockCachedReader,
 				},
 			}
-			result, err := v.roleDataActionsForOperator(context.Background(), tt.operatorName)
+			result, err := v.roleDataActionsForOperator(context.Background(), tt.operatorName, testSubscriptionID)
 
 			if tt.wantErr {
 				assert.Error(t, err)

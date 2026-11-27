@@ -151,8 +151,11 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	)
 }
 
-func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOperator(ctx context.Context, operatorName string) ([]string, error) {
-	roleDefinitionsResourceIDs := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs()
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOperator(ctx context.Context, operatorName, subscriptionID string) ([]string, error) {
+	roleDefinitionsResourceIDs, err := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs(subscriptionID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to resolve role definitions for operator identity %q: %w", operatorName, err))
+	}
 	if len(roleDefinitionsResourceIDs) == 0 {
 		return nil, utils.TrackError(fmt.Errorf("no role definitions configured for operator identity %q", operatorName))
 	}
@@ -163,8 +166,11 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOpera
 	return azurehelpers.UnionActions(roleDefinitions)
 }
 
-func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleDataActionsForOperator(ctx context.Context, operatorName string) ([]string, error) {
-	roleDefinitionsResourceIDs := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs()
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleDataActionsForOperator(ctx context.Context, operatorName, subscriptionID string) ([]string, error) {
+	roleDefinitionsResourceIDs, err := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs(subscriptionID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to resolve role definitions for operator identity %q: %w", operatorName, err))
+	}
 	if len(roleDefinitionsResourceIDs) == 0 {
 		return nil, nil
 	}
@@ -201,12 +207,12 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) accessTokenForIdent
 }
 
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, cluster *coreapi.Cluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*identityResourceMissingPermissions, error) {
-	roleActions, err := v.roleActionsForOperator(ctx, operatorName)
+	roleActions, err := v.roleActionsForOperator(ctx, operatorName, cluster.ID.SubscriptionID)
 	if err != nil {
 		return nil, err
 	}
 
-	roleDataActions, err := v.roleDataActionsForOperator(ctx, operatorName)
+	roleDataActions, err := v.roleDataActionsForOperator(ctx, operatorName, cluster.ID.SubscriptionID)
 	if err != nil {
 		return nil, err
 	}

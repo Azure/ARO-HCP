@@ -380,3 +380,75 @@ func TestMarshalClusterScopedIdentitiesConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestMarshalClusterScopedIdentitiesConfigDataPlaneRoleDefinitionIDs verifies the data-plane role
+// definition IDs returned by the operator identity role sets API. In the dev config set, the disk
+// CSI, file CSI and image registry operators use per-subscription custom roles, so their IDs depend on
+// the subscription in the request. The public config set always returns the built-in roles.
+func TestMarshalClusterScopedIdentitiesConfigDataPlaneRoleDefinitionIDs(t *testing.T) {
+	tests := []struct {
+		name                     string
+		roleDefinitionConfigName azure.RoleDefinitionConfigSetName
+		expected                 map[string]string
+	}{
+		{
+			name:                     "dev config uses per-subscription custom roles",
+			roleDefinitionConfigName: azure.RoleDefinitionConfigSetNameDev,
+			// Calculated for coreapitesting.TestSubscriptionID.
+			expected: map[string]string{
+				"disk-csi-driver": "/providers/Microsoft.Authorization/roleDefinitions/5907dcbb-f5f4-547f-84e2-a854a5d7e3a9",
+				"file-csi-driver": "/providers/Microsoft.Authorization/roleDefinitions/54f2f0e6-36cd-5318-9501-adc566aed026",
+				"image-registry":  "/providers/Microsoft.Authorization/roleDefinitions/a18cae55-6b07-5669-bc62-3d4560308db9",
+			},
+		},
+		{
+			name:                     "public config uses built-in roles",
+			roleDefinitionConfigName: azure.RoleDefinitionConfigSetNamePublic,
+			expected: map[string]string{
+				"disk-csi-driver": "/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748",
+				"file-csi-driver": "/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e",
+				"image-registry":  "/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			version, err := semver.ParseTolerant("4.20.0")
+			require.NoError(t, err)
+
+			resourceID, err := azcorearm.ParseResourceID("/subscriptions/" + coreapitesting.TestSubscriptionID + "/providers/" + coreapi.ProviderNamespace +
+				"/locations/" + coreapitesting.TestLocation + "/" + coreapi.OperatorIdentityRoleSetResourceTypeName + "/4.20")
+			require.NoError(t, err)
+
+			apiRegistry := coreapi.NewAPIRegistry()
+			metadataapi.Must[any](nil, v20240610preview.RegisterVersion(apiRegistry))
+			versionedInterface, ok := apiRegistry.Lookup(coreapitesting.TestAPIVersion)
+			require.True(t, ok, "API version should be registered")
+
+			data, err := marshalClusterScopedIdentitiesConfig(resourceID, &version, azure.NewClusterScopedIdentitiesConfig(tt.roleDefinitionConfigName), versionedInterface)
+			require.NoError(t, err)
+
+			var roleSet struct {
+				Properties struct {
+					DataPlaneOperators []struct {
+						Name            string `json:"name"`
+						RoleDefinitions []struct {
+							ResourceID string `json:"resourceId"`
+						} `json:"roleDefinitions"`
+					} `json:"dataPlaneOperators"`
+				} `json:"properties"`
+			}
+			require.NoError(t, json.Unmarshal(data, &roleSet))
+
+			actual := map[string]string{}
+			for _, operator := range roleSet.Properties.DataPlaneOperators {
+				require.Len(t, operator.RoleDefinitions, 1, "data plane operator %q", operator.Name)
+				actual[operator.Name] = operator.RoleDefinitions[0].ResourceID
+			}
+			for operator, expectedID := range tt.expected {
+				assert.Equal(t, expectedID, actual[operator], "data plane operator %q", operator)
+			}
+		})
+	}
+}
