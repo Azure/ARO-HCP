@@ -26,27 +26,28 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/pflag"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 // Kind identifies an asset category shared by catalog declarations and handlers.
-type Kind = slots.AssetKind
+type Kind = catalog.AssetKind
 
 // KindE2EIdentities identifies reusable E2E managed identity containers.
-const KindE2EIdentities = slots.KindE2EIdentities
+const KindE2EIdentities = catalog.KindE2EIdentities
 
 // KindInfrastructureIdentities identifies reusable infrastructure identity bundles.
-const KindInfrastructureIdentities = slots.KindInfrastructureIdentities
+const KindInfrastructureIdentities = catalog.KindInfrastructureIdentities
 
 // PoolRequest supplies catalog data and options for pool provisioning or validation.
 // The registry scopes pools and inventories to each handler without changing capacity.
 type PoolRequest struct {
 	// AssetInventories contains independent asset pools with whole-catalog capacities.
-	AssetInventories []slots.AssetInventory
+	AssetInventories []catalog.AssetInventory
 	// Environment selects the deployment environment.
 	Environment string
 	// Pools contains the primary slot pools to process.
-	Pools []slots.Pool
+	Pools []catalog.Pool
 	// IncludeUnmanaged includes catalog pools marked for unmanaged provisioning.
 	IncludeUnmanaged bool
 	// Out receives validation reports.
@@ -57,9 +58,9 @@ type PoolRequest struct {
 // acquisition, admission, publication, and release.
 type LeaseRequest struct {
 	// LeaseJournal records acquisitions and returns; it is required for leased assets.
-	LeaseJournal *slots.LeaseJournal
+	LeaseJournal *lease.LeaseJournal
 	// AcquiredSlotState holds the slot, resolved assets, and recorded leases.
-	AcquiredSlotState *slots.AcquiredSlotState
+	AcquiredSlotState *lease.AcquiredSlotState
 	// SelectedClusterProfileDir locates the selected cluster's subscription credentials.
 	SelectedClusterProfileDir string
 }
@@ -76,7 +77,7 @@ type Handler interface {
 	AttachOptions(flags *pflag.FlagSet)
 	// Declared reports whether the handler applies to the pool.
 	// Required assets always apply; opt-in assets depend on the pool's declaration.
-	Declared(pool slots.Pool) bool
+	Declared(pool catalog.Pool) bool
 	// AcquireLease resolves assets after the registry acquires any required leases.
 	AcquireLease(ctx context.Context, request LeaseRequest) error
 	// ReleaseLease performs kind-specific release before the registry's journal fallback.
@@ -88,7 +89,7 @@ type Handler interface {
 	// AdmitLease establishes readiness for exclusive reuse before publication.
 	AdmitLease(ctx context.Context, request LeaseRequest) error
 	// PublishLease adds the assets' runtime exports after admission or an explicit opt-out.
-	PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error
+	PublishLease(ctx context.Context, request LeaseRequest, contract *lease.RuntimeContractBuilder) error
 }
 
 // Registry selects asset handlers and coordinates their lifecycle in registration order.
@@ -183,7 +184,7 @@ func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selec
 // AcquireLeases validates demands against assetInventories, acquires required
 // independent asset leases, and resolves all demanded assets through their handlers.
 // It persists state; the caller must release partial acquisitions on failure.
-func (r *Registry) AcquireLeases(ctx context.Context, request LeaseRequest, assetInventories []slots.AssetInventory) error {
+func (r *Registry) AcquireLeases(ctx context.Context, request LeaseRequest, assetInventories []catalog.AssetInventory) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
 	}
@@ -196,10 +197,10 @@ func (r *Registry) AcquireLeases(ctx context.Context, request LeaseRequest, asse
 	}
 	for _, handler := range handlers {
 		for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
-			if assetRequirement.Kind != handler.Kind() || assetRequirement.Allocation != slots.AllocationLeased {
+			if assetRequirement.Kind != handler.Kind() || assetRequirement.Allocation != catalog.AllocationLeased {
 				continue
 			}
-			assetInventory, found := slots.AssetInventoryForRequirement(assetInventories, assetRequirement)
+			assetInventory, found := catalog.AssetInventoryForRequirement(assetInventories, assetRequirement)
 			if !found {
 				return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
 			}
@@ -241,7 +242,7 @@ func (r *Registry) ReleaseLease(ctx context.Context, request LeaseRequest) error
 
 // ValidateRequirements checks that every pool demand has a registered handler
 // that accepts the pool's declaration.
-func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
+func (r *Registry) ValidateRequirements(pools []catalog.Pool) error {
 	for _, pool := range pools {
 		for _, assetRequirement := range pool.Requirements() {
 			handler, found := r.GetHandler(assetRequirement.Kind)
@@ -294,7 +295,7 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest, disable
 
 // PublishLease adds demanded assets' runtime exports to contract.
 // The caller must first admit the lease, except for explicitly disabled asset kinds.
-func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")
 	}
@@ -319,10 +320,10 @@ func (r *Registry) validatePoolRequest(request PoolRequest) error {
 	}
 	for _, pool := range request.Pools {
 		for _, assetRequirement := range pool.Requirements() {
-			if assetRequirement.Allocation != slots.AllocationLeased {
+			if assetRequirement.Allocation != catalog.AllocationLeased {
 				continue
 			}
-			assetInventory, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement)
+			assetInventory, found := catalog.AssetInventoryForRequirement(request.AssetInventories, assetRequirement)
 			if !found || assetInventory.Capacity <= 0 {
 				return fmt.Errorf("unresolved inventory for demanded asset pool %q", assetRequirement.AssetPoolName)
 			}
@@ -333,13 +334,13 @@ func (r *Registry) validatePoolRequest(request PoolRequest) error {
 
 // HandlersForRequirements validates demand before selecting handlers in registration
 // order. Unlike an empty CLI filter, empty demand selects no handlers.
-func (r *Registry) HandlersForRequirements(assetRequirements []slots.AssetRequirement) ([]Handler, error) {
+func (r *Registry) HandlersForRequirements(assetRequirements []catalog.AssetRequirement) ([]Handler, error) {
 	demanded := map[Kind]bool{}
 	for _, assetRequirement := range assetRequirements {
 		if _, found := r.GetHandler(assetRequirement.Kind); !found {
 			return nil, fmt.Errorf("demanded asset %q has no implemented handler", assetRequirement.Kind)
 		}
-		if assetRequirement.Allocation != slots.AllocationDedicated && assetRequirement.Allocation != slots.AllocationLeased {
+		if assetRequirement.Allocation != catalog.AllocationDedicated && assetRequirement.Allocation != catalog.AllocationLeased {
 			return nil, fmt.Errorf("demanded asset %q has invalid allocation %q", assetRequirement.Kind, assetRequirement.Allocation)
 		}
 		if demanded[assetRequirement.Kind] {
@@ -393,7 +394,7 @@ func (r *Registry) FilterHandlers(selectedKinds []Kind) ([]Handler, error) {
 
 func (request PoolRequest) forHandler(handler Handler) PoolRequest {
 	scopedRequest := request
-	scopedRequest.Pools = make([]slots.Pool, 0, len(request.Pools))
+	scopedRequest.Pools = make([]catalog.Pool, 0, len(request.Pools))
 	for _, pool := range request.Pools {
 		if handler.Declared(pool) {
 			scopedRequest.Pools = append(scopedRequest.Pools, pool)
@@ -403,16 +404,16 @@ func (request PoolRequest) forHandler(handler Handler) PoolRequest {
 	return scopedRequest
 }
 
-func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []slots.Pool, kind Kind) []slots.AssetInventory {
+func assetInventoriesForPools(assetInventories []catalog.AssetInventory, pools []catalog.Pool, kind Kind) []catalog.AssetInventory {
 	references := map[string]bool{}
 	for _, pool := range pools {
 		for _, assetRequirement := range pool.Requirements() {
-			if assetRequirement.Kind == kind && assetRequirement.Allocation == slots.AllocationLeased {
+			if assetRequirement.Kind == kind && assetRequirement.Allocation == catalog.AllocationLeased {
 				references[assetRequirement.AssetPoolName] = true
 			}
 		}
 	}
-	var selected []slots.AssetInventory
+	var selected []catalog.AssetInventory
 	for _, assetInventory := range assetInventories {
 		if assetInventory.AssetPool.Kind == kind && references[assetInventory.AssetPool.Name] {
 			selected = append(selected, assetInventory)
@@ -421,12 +422,12 @@ func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []s
 	return selected
 }
 
-func (request LeaseRequest) validateAcquisition(assetInventories []slots.AssetInventory) error {
+func (request LeaseRequest) validateAcquisition(assetInventories []catalog.AssetInventory) error {
 	for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
-		if assetRequirement.Allocation != slots.AllocationLeased {
+		if assetRequirement.Allocation != catalog.AllocationLeased {
 			continue
 		}
-		if _, found := slots.AssetInventoryForRequirement(assetInventories, assetRequirement); !found {
+		if _, found := catalog.AssetInventoryForRequirement(assetInventories, assetRequirement); !found {
 			return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
 		}
 		if request.LeaseJournal == nil {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package clusterprofile
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 // VerifyCustomerSubscriptionName checks that slotSubscriptionName matches
@@ -106,7 +107,7 @@ func ResolvePoolSubscriptions(
 	deployEnvironment string,
 	e2eSubscriptionName string,
 	infrastructureSubscriptionName string,
-) (ResolvedSubscriptions, error) {
+) (catalog.ResolvedSubscriptions, error) {
 	return resolvePoolSubscriptions(ctx, clusterProfileDir, deployEnvironment, e2eSubscriptionName, infrastructureSubscriptionName, nil, azureclient.ARMClientOptions())
 }
 
@@ -115,20 +116,20 @@ func resolvePoolSubscriptions(
 	clusterProfileDir, deployEnvironment, e2eSubscriptionName, infrastructureSubscriptionName string,
 	credentialOptions *azidentity.ClientSecretCredentialOptions,
 	clientOptions *azcorearm.ClientOptions,
-) (ResolvedSubscriptions, error) {
-	if err := validateDeploymentEnvironmentName(deployEnvironment); err != nil {
-		return ResolvedSubscriptions{}, err
+) (catalog.ResolvedSubscriptions, error) {
+	if err := catalog.ValidateDeploymentEnvironmentName(deployEnvironment); err != nil {
+		return catalog.ResolvedSubscriptions{}, err
 	}
 	if strings.TrimSpace(e2eSubscriptionName) == "" {
-		return ResolvedSubscriptions{}, errors.New("E2E subscription name is empty")
+		return catalog.ResolvedSubscriptions{}, errors.New("E2E subscription name is empty")
 	}
 	credential, err := NewClusterProfileCredential(clusterProfileDir, credentialOptions)
 	if err != nil {
-		return ResolvedSubscriptions{}, err
+		return catalog.ResolvedSubscriptions{}, err
 	}
 	clientFactory, err := armsubscriptions.NewClientFactory(credential, clientOptions)
 	if err != nil {
-		return ResolvedSubscriptions{}, fmt.Errorf("failed creating subscriptions client factory: %w", err)
+		return catalog.ResolvedSubscriptions{}, fmt.Errorf("failed creating subscriptions client factory: %w", err)
 	}
 
 	subscriptionIDs := map[string]string{}
@@ -136,7 +137,7 @@ func resolvePoolSubscriptions(
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return ResolvedSubscriptions{}, fmt.Errorf("failed listing subscriptions: %w", err)
+			return catalog.ResolvedSubscriptions{}, fmt.Errorf("failed listing subscriptions: %w", err)
 		}
 		selected := make([]*armsubscriptions.Subscription, 0, len(page.Value))
 		for _, subscription := range page.Value {
@@ -149,31 +150,31 @@ func resolvePoolSubscriptions(
 			}
 		}
 		if err := addSubscriptionIDs(subscriptionIDs, selected); err != nil {
-			return ResolvedSubscriptions{}, err
+			return catalog.ResolvedSubscriptions{}, err
 		}
 	}
 
 	e2eSubscriptionID := strings.TrimSpace(subscriptionIDs[e2eSubscriptionName])
 	if e2eSubscriptionID == "" {
-		return ResolvedSubscriptions{}, fmt.Errorf("subscription with name %q was not visible to cluster profile %q", e2eSubscriptionName, clusterProfileDir)
+		return catalog.ResolvedSubscriptions{}, fmt.Errorf("subscription with name %q was not visible to cluster profile %q", e2eSubscriptionName, clusterProfileDir)
 	}
-	resolved := ResolvedSubscriptions{
-		E2E: ResolvedSubscription{Name: e2eSubscriptionName, ID: e2eSubscriptionID},
+	resolved := catalog.ResolvedSubscriptions{
+		E2E: catalog.ResolvedSubscription{Name: e2eSubscriptionName, ID: e2eSubscriptionID},
 	}
 	if infrastructureSubscriptionName == "" {
 		return resolved, nil
 	}
 	infrastructureSubscriptionID := strings.TrimSpace(subscriptionIDs[infrastructureSubscriptionName])
 	if infrastructureSubscriptionID == "" {
-		return ResolvedSubscriptions{}, fmt.Errorf("subscription with name %q was not visible to cluster profile %q", infrastructureSubscriptionName, clusterProfileDir)
+		return catalog.ResolvedSubscriptions{}, fmt.Errorf("subscription with name %q was not visible to cluster profile %q", infrastructureSubscriptionName, clusterProfileDir)
 	}
 
 	boundInfrastructureSubscriptionID, err := ReadRequiredProfileFile(clusterProfileDir, fmt.Sprintf("infra-%s-subscription-id", deployEnvironment))
 	if err != nil {
-		return ResolvedSubscriptions{}, err
+		return catalog.ResolvedSubscriptions{}, err
 	}
 	if !strings.EqualFold(boundInfrastructureSubscriptionID, infrastructureSubscriptionID) {
-		return ResolvedSubscriptions{}, fmt.Errorf(
+		return catalog.ResolvedSubscriptions{}, fmt.Errorf(
 			"pool infrastructure subscription %q resolved to %q, but cluster profile %q binds deploy environment %q to %q",
 			infrastructureSubscriptionName,
 			infrastructureSubscriptionID,
@@ -183,7 +184,7 @@ func resolvePoolSubscriptions(
 		)
 	}
 
-	resolved.Infrastructure = ResolvedSubscription{
+	resolved.Infrastructure = catalog.ResolvedSubscription{
 		Name: infrastructureSubscriptionName,
 		ID:   infrastructureSubscriptionID,
 	}

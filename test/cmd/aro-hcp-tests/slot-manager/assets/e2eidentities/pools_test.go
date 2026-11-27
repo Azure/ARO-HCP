@@ -21,16 +21,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 func loadIdentityPools(ctx context.Context, catalogPath, environment string, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
-	catalog, err := slots.LoadCatalog(catalogPath)
+	slotCatalog, err := catalog.LoadCatalog(catalogPath)
 	if err != nil {
 		return nil, err
 	}
 
-	environmentConfig, found := catalog.Environments[environment]
+	environmentConfig, found := slotCatalog.Environments[environment]
 	if !found {
 		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
@@ -52,7 +52,7 @@ func TestLoadIdentityPools(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -81,7 +81,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-b
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestLoadIdentityPoolsSkipsUnmanagedByDefault(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -153,7 +153,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-b
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -179,7 +179,7 @@ func TestLoadIdentityPoolsIncludesUnmanagedWhenFiltered(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -208,7 +208,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-b
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -234,7 +234,7 @@ func TestLoadIdentityPoolsIgnoresEmptyFilterEntries(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -263,7 +263,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-b
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -292,7 +292,7 @@ func TestLoadIdentityPoolsResolutionFailure(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -309,7 +309,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-a
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -326,7 +326,7 @@ func TestLoadIdentityPoolsDeduplicatesResolution(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci00}
@@ -354,7 +354,7 @@ environments:
             resource_group_prefix: aro-hcp-msi-container-dev-b
             resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 

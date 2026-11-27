@@ -32,9 +32,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/acquire"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/infrastructureidentities"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -114,34 +116,6 @@ func TestAcquireAdmissionTimeoutFlagAndEnvironment(t *testing.T) {
 	}
 }
 
-func TestResolveLeasedSlot(t *testing.T) {
-	t.Parallel()
-
-	opts := &AcquireOptions{
-		completedAcquireOptions: &completedAcquireOptions{
-			PoolEnvironment: "dev",
-		},
-	}
-	pool := slots.Pool{
-		Name:          "dev",
-		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
-		Region:        "westus3",
-		ResourceType:  "aro-hcp-dev-westus3-slot",
-		SlotCount:     2,
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
-			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
-		}},
-	}
-
-	slot, err := opts.ResolveLeasedSlot(pool, "aro-hcp-dev-westus3-slot-01")
-	if err != nil {
-		t.Fatalf("expected leased slot resolution to succeed: %v", err)
-	}
-	if slot.SlotIndex != 1 {
-		t.Fatalf("expected slot index 1, got %d", slot.SlotIndex)
-	}
-}
-
 func TestAcquireRunRejectsUnsupportedInfrastructureBundleCountBeforeLease(t *testing.T) {
 	t.Parallel()
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -154,15 +128,17 @@ func TestAcquireRunRejectsUnsupportedInfrastructureBundleCountBeforeLease(t *tes
 		t.Fatal(err)
 	}
 	options := &AcquireOptions{completedAcquireOptions: &completedAcquireOptions{
-		CandidatePools: []slots.Pool{{
+		Plan: &acquire.Plan{CandidatePools: []catalog.Pool{{
 			Name: "dev-slot", ResourceType: "aro-hcp-dev-slot",
-			SlotAssets: slots.SlotAssets{
-				InfrastructureIdentities: &slots.LeasedAsset{Allocation: slots.AllocationLeased, AssetPool: "bundles", UnitsPerSlot: 2},
+			SlotAssets: catalog.SlotAssets{
+				InfrastructureIdentities: &catalog.LeasedAsset{Allocation: catalog.AllocationLeased, AssetPool: "bundles", UnitsPerSlot: 2},
 			},
-		}},
-		AssetRegistry:     registry,
-		LeaseProxyURL:     server.URL,
-		LeaseProxyTimeout: time.Second,
+		}}},
+		RunConfig: acquire.RunConfig{
+			AssetRegistry:     registry,
+			LeaseProxyURL:     server.URL,
+			LeaseProxyTimeout: time.Second,
+		},
 	}}
 	err = options.Run(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "does not accept demanded asset") {
@@ -173,40 +149,12 @@ func TestAcquireRunRejectsUnsupportedInfrastructureBundleCountBeforeLease(t *tes
 	}
 }
 
-func TestResolveLeasedSlotRejectsResourceOutsideSelectedPool(t *testing.T) {
-	t.Parallel()
-
-	opts := &AcquireOptions{
-		completedAcquireOptions: &completedAcquireOptions{
-			PoolEnvironment: "dev",
-		},
-	}
-	pool := slots.Pool{
-		Name:          "dev",
-		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
-		Region:        "westus3",
-		ResourceType:  "aro-hcp-dev-westus3-slot",
-		SlotCount:     2,
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
-			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
-		}},
-	}
-
-	_, err := opts.ResolveLeasedSlot(pool, "aro-hcp-prod-uksouth-slot-00")
-	if err == nil {
-		t.Fatal("expected leased slot resolution to fail for a resource outside the selected pool")
-	}
-	if !strings.Contains(err.Error(), "not part of selected pool") {
-		t.Fatalf("expected selected pool mismatch error, got %v", err)
-	}
-}
-
 func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 	fixedRegion := "westus3"
 	alternateRegion := "eastus2"
 
 	type testCase struct {
-		regionMode         slots.RegionMode
+		regionMode         catalog.RegionMode
 		allowedLocations   string
 		override           string
 		wantRuntimeRegion  string
@@ -216,82 +164,82 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 
 	cases := []testCase{
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  "",
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  fixedRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:         slots.RegionModeFixed,
+			regionMode:         catalog.RegionModeFixed,
 			allowedLocations:   alternateRegion,
 			override:           "",
 			wantErrorSubstring: "no pool found",
 		},
 		{
-			regionMode:        slots.RegionModeFixed,
+			regionMode:        catalog.RegionModeFixed,
 			allowedLocations:  fixedRegion,
 			override:          fixedRegion,
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:         slots.RegionModeFixed,
+			regionMode:         catalog.RegionModeFixed,
 			allowedLocations:   fixedRegion,
 			override:           alternateRegion,
 			wantErrorSubstring: "no pool found",
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  "",
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  fixedRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  alternateRegion,
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
 			override:          "",
 			wantRuntimeRegion: fixedRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  "",
 			override:          alternateRegion,
 			wantRuntimeRegion: alternateRegion,
 			wantPoolRegion:    fixedRegion,
 		},
 		{
-			regionMode:        slots.RegionModeRuntimeSelected,
+			regionMode:        catalog.RegionModeRuntimeSelected,
 			allowedLocations:  fixedRegion,
 			override:          alternateRegion,
 			wantRuntimeRegion: alternateRegion,
@@ -343,7 +291,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			if got := len(completed.CandidatePools); got != 1 {
 				t.Fatalf("expected exactly one candidate pool, got %d", got)
 			}
-			if got := completed.runtimeRegionForPool(completed.CandidatePools[0]); got != tc.wantRuntimeRegion {
+			if got := completed.RuntimeRegionForPool(completed.CandidatePools[0]); got != tc.wantRuntimeRegion {
 				t.Fatalf("expected runtime region %q, got %q", tc.wantRuntimeRegion, got)
 			}
 			if completed.CandidatePools[0].Region != tc.wantPoolRegion {
@@ -357,8 +305,8 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 	t.Parallel()
 
 	opts := DefaultAcquireOptions()
-	if opts.LeaseProxyTimeout != slots.DefaultLeaseProxyTimeout {
-		t.Fatalf("expected default lease proxy timeout %s, got %s", slots.DefaultLeaseProxyTimeout, opts.LeaseProxyTimeout)
+	if opts.LeaseProxyTimeout != lease.DefaultLeaseProxyTimeout {
+		t.Fatalf("expected default lease proxy timeout %s, got %s", lease.DefaultLeaseProxyTimeout, opts.LeaseProxyTimeout)
 	}
 	if opts.LeaseWaitInterval != DefaultLeaseWaitInterval {
 		t.Fatalf("expected default lease wait interval %s, got %s", DefaultLeaseWaitInterval, opts.LeaseWaitInterval)
@@ -393,136 +341,6 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 	}
 }
 
-func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
-	t.Parallel()
-
-	catalog := loadWeightedAcquireTestCatalog(t)
-	selection, err := resolveRegionSelection(
-		catalog,
-		"dev",
-		slots.RegionModeWeighted,
-		"canadacentral",
-		"not-valid-and-must-be-ignored",
-		"",
-	)
-	if err != nil {
-		t.Fatalf("expected valid override to bypass weighted inputs: %v", err)
-	}
-	if selection.RuntimeRegion != "canadacentral" {
-		t.Fatalf("expected override region %q, got %q", "canadacentral", selection.RuntimeRegion)
-	}
-	if len(selection.NormalizedWeights) != 0 {
-		t.Fatalf("expected override path to ignore weights, got %v", selection.NormalizedWeights)
-	}
-	if selection.SelectionKeySource != "" {
-		t.Fatalf("expected override path not to use a selection key, got %q", selection.SelectionKeySource)
-	}
-
-	_, err = resolveRegionSelection(catalog, "dev", slots.RegionModeWeighted, "eastus2", "", "")
-	if err == nil {
-		t.Fatal("expected override outside the catalog regions to fail")
-	}
-	if !strings.Contains(err.Error(), "is not allowed") {
-		t.Fatalf("expected invalid override error, got %v", err)
-	}
-}
-
-func TestResolveRegionSelectionWeightedDeterministic(t *testing.T) {
-	t.Parallel()
-
-	catalog := loadWeightedAcquireTestCatalog(t)
-	tests := []struct {
-		buildID string
-		want    string
-	}{
-		{buildID: "3", want: "westus3"},
-		{buildID: "1", want: "centralus"},
-		{buildID: "0", want: "canadacentral"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.buildID, func(t *testing.T) {
-			t.Parallel()
-			selection, err := resolveRegionSelection(
-				catalog,
-				"dev",
-				slots.RegionModeWeighted,
-				"",
-				"canadacentral=1,westus3=1,centralus=1",
-				tc.buildID,
-			)
-			if err != nil {
-				t.Fatalf("expected weighted selection to succeed: %v", err)
-			}
-			if selection.RuntimeRegion != tc.want {
-				t.Fatalf("expected build ID %q to select %q, got %q", tc.buildID, tc.want, selection.RuntimeRegion)
-			}
-			if got, want := selection.NormalizedWeights, []string{"westus3=1", "centralus=1", "canadacentral=1"}; !equalStrings(got, want) {
-				t.Fatalf("unexpected normalized weights: got %v want %v", got, want)
-			}
-			if selection.SelectionKeySource != "BUILD_ID" {
-				t.Fatalf("expected BUILD_ID selection source, got %q", selection.SelectionKeySource)
-			}
-		})
-	}
-}
-
-func TestParseLocationWeights(t *testing.T) {
-	t.Parallel()
-
-	regions := []string{"westus3", "centralus", "canadacentral"}
-	tests := []struct {
-		name      string
-		raw       string
-		want      []locationWeight
-		wantTotal uint64
-		wantError string
-	}{
-		{
-			name:      "catalog order and zero weight",
-			raw:       "canadacentral=0, westus3=2\ncentralus=1",
-			want:      []locationWeight{{Location: "westus3", Weight: 2}, {Location: "centralus", Weight: 1}, {Location: "canadacentral", Weight: 0}},
-			wantTotal: 3,
-		},
-		{name: "empty", wantError: "must not be empty"},
-		{name: "leading separator", raw: ",westus3=1,centralus=1,canadacentral=1", wantError: "location=weight format"},
-		{name: "trailing separator", raw: "westus3=1,centralus=1,canadacentral=1,", wantError: "location=weight format"},
-		{name: "repeated separator", raw: "westus3=1,,centralus=1,canadacentral=1", wantError: "location=weight format"},
-		{name: "repeated newline separator", raw: "westus3=1\n\ncentralus=1\ncanadacentral=1", wantError: "location=weight format"},
-		{name: "missing", raw: "westus3=1,centralus=1", wantError: "missing weight"},
-		{name: "unknown", raw: "westus3=1,centralus=1,eastus2=1", wantError: "unknown location"},
-		{name: "duplicate", raw: "westus3=1,centralus=1,canadacentral=1,westus3=2", wantError: "more than once"},
-		{name: "negative", raw: "westus3=-1,centralus=1,canadacentral=1", wantError: "non-negative integer"},
-		{name: "non-integer", raw: "westus3=1.5,centralus=1,canadacentral=1", wantError: "non-negative integer"},
-		{name: "all zero", raw: "westus3=0,centralus=0,canadacentral=0", wantError: "greater than zero"},
-		{name: "overflow", raw: "westus3=18446744073709551615,centralus=1,canadacentral=0", wantError: "overflows"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, total, err := parseLocationWeights(tc.raw, regions)
-			if tc.wantError != "" {
-				if err == nil {
-					t.Fatalf("expected weight parsing to fail with %q", tc.wantError)
-				}
-				if !strings.Contains(err.Error(), tc.wantError) {
-					t.Fatalf("expected error to contain %q, got %v", tc.wantError, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("expected weight parsing to succeed: %v", err)
-			}
-			if !equalLocationWeights(got, tc.want) {
-				t.Fatalf("unexpected parsed weights: got %v want %v", got, tc.want)
-			}
-			if total != tc.wantTotal {
-				t.Fatalf("expected total weight %d, got %d", tc.wantTotal, total)
-			}
-		})
-	}
-}
-
 func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 	t.Parallel()
 
@@ -535,7 +353,7 @@ func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 			SharedDir:           t.TempDir(),
 			CatalogPath:         catalogPath,
 			LeaseProxyServerURL: "http://lease-proxy.example.com",
-			LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
+			LeaseProxyTimeout:   lease.DefaultLeaseProxyTimeout,
 			MaxWaitForLease:     DefaultMaxWaitForLease,
 			LeaseWaitInterval:   DefaultLeaseWaitInterval,
 		}
@@ -708,7 +526,7 @@ environments:
 		t.Fatalf("expected no release calls, got %v", got)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -719,7 +537,7 @@ environments:
 		t.Fatalf("expected runtime region %q, got %q", "centralus", state.RuntimeRegion)
 	}
 
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path: %v", err)
 	}
@@ -799,7 +617,7 @@ environments:
 		t.Fatalf("expected no release calls, got %v", got)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -872,7 +690,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -955,7 +773,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	state, err := lease.LoadAcquiredSlotState(sharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -966,7 +784,7 @@ environments:
 		t.Fatalf("expected fallback subscription pool, got %q", state.Slot.ResourceType)
 	}
 
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path: %v", err)
 	}
@@ -1041,7 +859,7 @@ environments:
 	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); err == nil {
 		t.Fatal("expected no acquired slot state to be written on hard failure")
 	}
 }
@@ -1185,7 +1003,7 @@ environments:
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(completed.SharedDir)
+	state, err := lease.LoadAcquiredSlotState(completed.SharedDir)
 	if err != nil {
 		t.Fatalf("expected acquired slot state to load: %v", err)
 	}
@@ -1433,8 +1251,63 @@ environments:
 		t.Fatalf("expected lease to be released after post-acquire failure: got %v want %v", got, want)
 	}
 
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); err == nil {
 		t.Fatal("expected no acquired slot state to be written on post-acquire failure")
+	}
+}
+
+func TestAcquireRunDefaultsSubscriptionResolverAndRollsBack(t *testing.T) {
+	t.Parallel()
+
+	// The cluster profile names the pool's subscription but carries no
+	// credentials, so the production resolver fails after the lease is granted.
+	// Without a default resolver this path would dereference a nil function.
+	clusterProfileDir := writeAcquireTestClusterProfile(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
+environments:
+  dev:
+    deployment_environment: {name: ci01}
+    pools:
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+`)
+	server, _, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {successAcquireReply("aro-hcp-dev-centralus-a-slot-00")},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	options := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		AllowedLocations:    []string{"centralus"},
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
+	})
+	options.ResolveSubscriptions = nil
+
+	if err := options.Run(context.Background()); err == nil {
+		t.Fatal("expected the production subscription resolver to fail without credentials")
+	}
+	if got, want := *releaseCalls, []string{"aro-hcp-dev-centralus-a-slot-00"}; !equalStrings(got, want) {
+		t.Fatalf("expected lease to be released after resolver failure: got %v want %v", got, want)
+	}
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); err == nil {
+		t.Fatal("expected no acquired slot state after rollback")
 	}
 }
 
@@ -1468,7 +1341,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatalf("expected env file path resolution to succeed: %v", err)
 	}
@@ -1486,12 +1359,12 @@ environments:
 	})
 	calls := []string{}
 	options.AssetRegistry, err = assets.NewRegistry(&lifecycleHandler{
-		kind: slots.KindE2EIdentities, calls: &calls,
+		kind: catalog.KindE2EIdentities, calls: &calls,
 		before: func(phase string, _ assets.LeaseRequest) {
 			if phase != "publish" {
 				return
 			}
-			if _, err := slots.LoadAcquiredSlotState(sharedDir); err != nil {
+			if _, err := lease.LoadAcquiredSlotState(sharedDir); err != nil {
 				t.Fatalf("expected durable journal before publication: %v", err)
 			}
 			if err := os.Mkdir(envFile, 0o755); err != nil {
@@ -1517,12 +1390,12 @@ environments:
 		t.Fatalf("expected journaled rollback after publication failure, got %v", got)
 	}
 
-	if _, err := slots.LoadAcquiredSlotState(sharedDir); !errors.Is(err, os.ErrNotExist) {
+	if _, err := lease.LoadAcquiredSlotState(sharedDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected completed rollback to remove journal: %v", err)
 	}
 }
 
-func writeAcquireTestCatalog(t *testing.T, regionMode slots.RegionMode, region string) string {
+func writeAcquireTestCatalog(t *testing.T, regionMode catalog.RegionMode, region string) string {
 	t.Helper()
 
 	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 2
@@ -1567,22 +1440,12 @@ environments:
 `)
 }
 
-func loadWeightedAcquireTestCatalog(t *testing.T) *slots.Catalog {
-	t.Helper()
-
-	catalog, err := slots.LoadCatalog(writeWeightedAcquireTestCatalog(t))
-	if err != nil {
-		t.Fatalf("expected weighted catalog to load: %v", err)
-	}
-	return catalog
-}
-
-func writeAcquireTestCatalogFromYAML(t *testing.T, catalog string) string {
+func writeAcquireTestCatalogFromYAML(t *testing.T, slotCatalog string) string {
 	t.Helper()
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(slotCatalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 	return catalogPath
@@ -1632,13 +1495,13 @@ func noopSetupAzureGlobalLogger(string) (io.Closer, error) {
 
 func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	calls := []string{}
-	registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
+	registry, err := assets.NewRegistry(&lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls})
 	if err != nil {
 		return nil, err
 	}
 	raw.AssetRegistry = registry
-	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
-		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
+	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (catalog.ResolvedSubscriptions, error) {
+		return catalog.ResolvedSubscriptions{E2E: catalog.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 	}
 	// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
 	// written. It only needs to satisfy Validate's non-empty requirement.
@@ -1651,18 +1514,6 @@ func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 		return nil, err
 	}
 	return validated.Complete(context.Background())
-}
-
-func equalLocationWeights(left, right []locationWeight) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }
 
 type leaseProxyReply struct {

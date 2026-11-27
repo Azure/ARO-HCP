@@ -20,20 +20,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 func TestCompareIdentityPoolInventoryProvisionedReserve(t *testing.T) {
 	t.Parallel()
-	pool := slots.Pool{
+	pool := catalog.Pool{
 		Name: "int-westus3", SlotCount: 1, ResourceType: "int-slot",
 		IdentityContainerProvisioningCount: 100,
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
+		SlotAssets: catalog.SlotAssets{E2EIdentities: &catalog.E2EIdentitiesAsset{
 			ResourceGroupPrefix: "aro-hcp-msi-container-int", ResourceGroupCount: 70,
 		}},
 	}
-	expanded := slots.ExpandSlotsForPool("int", pool)
+	expanded := catalog.ExpandSlotsForPool("int", pool)
 	groups := expanded[0].ProvisionedIdentityContainerNames()
 	names := framework.NewDefaultIdentities().ToSlice()
 	if len(names) != 13 {
@@ -73,10 +73,10 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	pools := []identityPool{{
 		SubscriptionName:        "dev-sub",
 		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		Slots: []slots.ExpandedSlot{{
+		Slots: []catalog.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  2,
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00", "aro-hcp-msi-container-dev-00-01"},
 			}},
 		}},
@@ -140,10 +140,10 @@ func TestCompareIdentityPoolInventoryOptionalIdentityNotUnexpected(t *testing.T)
 	pools := []identityPool{{
 		SubscriptionName:        "dev-sub",
 		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		Slots: []slots.ExpandedSlot{{
+		Slots: []catalog.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
 			}},
 		}},
@@ -178,10 +178,10 @@ func TestCompareIdentityPoolInventoryUnknownIdentityStillUnexpected(t *testing.T
 	pools := []identityPool{{
 		SubscriptionName:        "dev-sub",
 		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		Slots: []slots.ExpandedSlot{{
+		Slots: []catalog.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
 			}},
 		}},
@@ -218,10 +218,10 @@ func TestCompareIdentityPoolInventoryMergesCaseVariantResourceGroups(t *testing.
 	pool := identityPool{
 		SubscriptionName:        "dev-sub",
 		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		Slots: []slots.ExpandedSlot{{
+		Slots: []catalog.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
 			}},
 		}},
@@ -253,10 +253,10 @@ func TestValidatePools(t *testing.T) {
 		SubscriptionName:        "dev-sub",
 		SubscriptionID:          "sub-id",
 		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		Slots: []slots.ExpandedSlot{{
+		Slots: []catalog.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
 			}},
 		}},

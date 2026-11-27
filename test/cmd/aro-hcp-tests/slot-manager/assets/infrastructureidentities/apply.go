@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type poolClients struct {
@@ -125,7 +125,7 @@ func resourceGroupTags(leaseName string, group azureResourceGroup) map[string]*s
 	return tags
 }
 
-func expectedBundleNames(inventory slots.AssetInventory) []string {
+func expectedBundleNames(inventory catalog.AssetInventory) []string {
 	names := make([]string, inventory.Capacity)
 	for index := 0; index < inventory.Capacity; index++ {
 		names[index] = inventory.ResourceName(index)

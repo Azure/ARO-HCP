@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/owners"
 )
@@ -232,7 +232,7 @@ func TestOwnerPreflightSkipsUnrelatedPools(t *testing.T) {
 		t.Fatal("owner preflight for unrelated pools")
 		return ownerSettings{}, nil
 	}}
-	for _, pools := range [][]slots.Pool{nil, {{}}, {{SlotAssets: slots.SlotAssets{MockIdentities: &slots.MockIdentitiesAsset{Allocation: slots.AllocationDedicated}}}}} {
+	for _, pools := range [][]catalog.Pool{nil, {{}}, {{SlotAssets: catalog.SlotAssets{MockIdentities: &catalog.MockIdentitiesAsset{Allocation: catalog.AllocationDedicated}}}}} {
 		for _, apply := range []bool{false, true} {
 			if err := handler.pools(t.Context(), assets.PoolRequest{Pools: pools}, apply); err != nil {
 				t.Fatal(err)

@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 const (
@@ -62,7 +62,7 @@ func applyPools(ctx context.Context, credential azcore.TokenCredential, pools []
 	return nil
 }
 
-func applySlot(ctx context.Context, logger logr.Logger, stackClient *armdeploymentstacks.Client, template map[string]interface{}, pool identityPool, slot slots.ExpandedSlot) error {
+func applySlot(ctx context.Context, logger logr.Logger, stackClient *armdeploymentstacks.Client, template map[string]interface{}, pool identityPool, slot catalog.ExpandedSlot) error {
 	parameters := map[string]*armdeploymentstacks.DeploymentParameter{
 		"poolSize": {
 			Value: slot.EffectiveIdentityContainerProvisioningCount(),

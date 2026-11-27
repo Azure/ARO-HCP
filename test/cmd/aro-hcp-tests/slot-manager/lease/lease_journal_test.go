@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package lease
 
 import (
 	"context"
@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 func journalTestState() *AcquiredSlotState {
@@ -28,7 +30,7 @@ func journalTestState() *AcquiredSlotState {
 		Version: 2,
 		Leases: LeaseSet{
 			Primary: Lease{ResourceType: "slot", ResourceName: "slot-00"},
-			Assets: map[AssetKind][]Lease{
+			Assets: map[catalog.AssetKind][]Lease{
 				"removed-handler": {
 					{ResourceType: "bundles", ResourceName: "bundle-04"},
 					{ResourceType: "bundles", ResourceName: "bundle-07"},
@@ -60,12 +62,12 @@ func TestJournalRejectsInvalidAssetNameWithoutPoisoningCleanup(t *testing.T) {
 					return nil
 				},
 			}
-			_, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities,
-				AssetInventory{AssetPool: AssetPool{ResourceType: "bundles", ResourceNamePrefix: "bundle"}, Capacity: 8})
+			_, err := journal.AcquireAsset(context.Background(), catalog.KindInfrastructureIdentities,
+				catalog.AssetInventory{AssetPool: catalog.AssetPool{ResourceType: "bundles", ResourceNamePrefix: "bundle"}, Capacity: 8})
 			if err == nil || !strings.Contains(err.Error(), "resource name") {
 				t.Fatalf("expected invalid or duplicate name rejection, got %v", err)
 			}
-			if writes != 0 || len(state.Leases.Assets[KindInfrastructureIdentities]) != 0 {
+			if writes != 0 || len(state.Leases.Assets[catalog.KindInfrastructureIdentities]) != 0 {
 				t.Fatal("invalid name was journaled")
 			}
 			if err := journal.ReleaseAll(context.Background()); err != nil {
@@ -149,7 +151,7 @@ func TestJournalInterruptedReturnCannotReturnReassignedName(t *testing.T) {
 func TestJournalIndependentAcquireDeadlineAndPersistence(t *testing.T) {
 	t.Parallel()
 	state := &AcquiredSlotState{Version: 2, Leases: LeaseSet{Primary: Lease{ResourceType: "slot", ResourceName: "slot-00"}}}
-	assetInventory := AssetInventory{AssetPool: AssetPool{ResourceType: "bundle-type", ResourceNamePrefix: "bundle"}, Capacity: 5}
+	assetInventory := catalog.AssetInventory{AssetPool: catalog.AssetPool{ResourceType: "bundle-type", ResourceNamePrefix: "bundle"}, Capacity: 5}
 	saved := false
 	journal := &LeaseJournal{
 		State: state, Timeout: 10 * time.Millisecond,
@@ -161,15 +163,15 @@ func TestJournalIndependentAcquireDeadlineAndPersistence(t *testing.T) {
 			return "bundle-04", nil
 		},
 	}
-	lease, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, assetInventory)
-	if err == nil || !saved || lease.ResourceName != "bundle-04" || len(state.Leases.Assets[KindInfrastructureIdentities]) != 1 {
+	lease, err := journal.AcquireAsset(context.Background(), catalog.KindInfrastructureIdentities, assetInventory)
+	if err == nil || !saved || lease.ResourceName != "bundle-04" || len(state.Leases.Assets[catalog.KindInfrastructureIdentities]) != 1 {
 		t.Fatalf("failed write lost exact acquired lease: %+v, %+v, %v", lease, state, err)
 	}
 	journal.Acquire = func(ctx context.Context, _ string, _ time.Duration) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
-	if _, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, assetInventory); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := journal.AcquireAsset(context.Background(), catalog.KindInfrastructureIdentities, assetInventory); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("independent acquisition waited without deadline: %v", err)
 	}
 }

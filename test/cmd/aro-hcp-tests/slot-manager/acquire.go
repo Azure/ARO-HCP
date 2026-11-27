@@ -18,23 +18,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"log/slog"
-	"math"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/acquire"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	testutilframework "github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -67,7 +64,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		AssetAdmissionOptions:  splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
-		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
+		LeaseProxyTimeout:   lease.DefaultLeaseProxyTimeout,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 		// AzureGlobalLoggerLogPath has a default of ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise
@@ -163,7 +160,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 }
 
 type RawAcquireOptions struct {
-	WriteState             func(string, *slots.AcquiredSlotState) error
+	WriteState             func(string, *lease.AcquiredSlotState) error
 	ClusterProfileDir      string
 	ClusterProfileDirs     []string
 	Environment            string
@@ -184,7 +181,7 @@ type RawAcquireOptions struct {
 	DisabledAssetAdmission []string
 	AdmissionTimeout       string
 	AssetAdmissionOptions  []string
-	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (catalog.ResolvedSubscriptions, error)
 	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
 	// to. See DefaultAcquireOptions for how the CLI computes a default.
 	AzureGlobalLoggerLogPath string
@@ -204,24 +201,8 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	AssetInventories       []slots.AssetInventory
-	WriteState             func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDirs     []string
-	DeployEnvironment      string
-	SharedDir              string
-	LeaseProxyURL          string
-	LeaseProxyTimeout      time.Duration
-	MaxWaitForLease        time.Duration
-	LeaseWaitInterval      time.Duration
-	RegionSelection        RegionSelection
-	CandidatePools         []slots.Pool
-	PoolEnvironment        string
-	AssetRegistry          *assets.Registry
-	DisabledAssetAdmission []assets.Kind
-	AdmissionTimeout       time.Duration
-	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
-	Now                    func() time.Time
-	Sleep                  func(context.Context, time.Duration) error
+	*acquire.Plan
+	acquire.RunConfig
 	// AzureGlobalLoggerCloser is the open azure-global-logger log file, produced
 	// by SetupAzureGlobalLogger during Complete. Run closes it, guarding against
 	// nil since it's reachable from code that doesn't call Complete.
@@ -316,34 +297,24 @@ func (o *RawAcquireOptions) effectiveClusterProfileDirs() []string {
 }
 
 func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, error) {
-	catalog, err := slots.LoadCatalog(o.CatalogPath)
+	slotCatalog, err := catalog.LoadCatalog(o.CatalogPath)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := acquire.NewPlan(acquire.PlanInput{
+		Catalog:              slotCatalog,
+		Environment:          o.Environment,
+		DeployEnv:            o.DeployEnv,
+		AllowedSubscriptions: o.AllowedSubscriptions,
+		AllowedLocations:     o.AllowedLocations,
+		SelectedLocation:     o.SelectedLocation,
+		LocationWeights:      o.LocationWeights,
+		BuildID:              o.BuildID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	selectedLocation := strings.TrimSpace(o.SelectedLocation)
-	environment := strings.TrimSpace(o.Environment)
-	if environment == "" {
-		environment, err = catalog.ResolveEnvironmentForDeployEnv(o.DeployEnv)
-		if err != nil {
-			return nil, err
-		}
-	} else if _, found := catalog.Environments[environment]; !found {
-		return nil, fmt.Errorf("unknown environment %q", environment)
-	}
-
-	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
-	if err != nil {
-		return nil, err
-	}
-	if o.DeployEnv != "" && o.DeployEnv != catalog.Environments[environment].DeploymentEnvironment.Name {
-		return nil, fmt.Errorf("environment %q has no candidate pool with deploy_env %q", environment, o.DeployEnv)
-	}
-
-	regionMode, err := catalog.RegionModeForEnvironment(environment)
-	if err != nil {
-		return nil, err
-	}
 	registry := o.AssetRegistry
 	if registry == nil {
 		registry, err = newAssetRegistry()
@@ -351,21 +322,13 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			return nil, err
 		}
 	}
-	if err := registry.ValidateRequirements(candidatePools); err != nil {
+	if err := registry.ValidateRequirements(plan.CandidatePools); err != nil {
 		return nil, err
 	}
 	if err := registry.ApplyOptions(o.AssetAdmissionOptions); err != nil {
 		return nil, fmt.Errorf("--asset-admission-option: %w", err)
 	}
-	assetInventories, err := catalog.AssetInventories()
-	if err != nil {
-		return nil, err
-	}
-	resolveSubscriptions := o.ResolveSubscriptions
-	if resolveSubscriptions == nil {
-		resolveSubscriptions = slots.ResolvePoolSubscriptions
-	}
-	regionSelection, err := resolveRegionSelection(catalog, environment, regionMode, selectedLocation, o.LocationWeights, o.BuildID)
+	assetInventories, err := slotCatalog.AssetInventories()
 	if err != nil {
 		return nil, err
 	}
@@ -385,450 +348,31 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			AssetInventories:        assetInventories,
-			WriteState:              o.WriteState,
-			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
-			DeployEnvironment:       o.DeployEnv,
-			SharedDir:               o.SharedDir,
-			LeaseProxyURL:           o.LeaseProxyServerURL,
-			LeaseProxyTimeout:       o.LeaseProxyTimeout,
-			MaxWaitForLease:         o.MaxWaitForLease,
-			LeaseWaitInterval:       o.LeaseWaitInterval,
-			RegionSelection:         regionSelection,
-			CandidatePools:          candidatePools,
-			PoolEnvironment:         environment,
-			AssetRegistry:           registry,
-			DisabledAssetAdmission:  disabledAssetAdmission,
-			AdmissionTimeout:        o.admissionTimeout,
-			ResolveSubscriptions:    resolveSubscriptions,
-			Now:                     o.Now,
-			Sleep:                   sleepContext,
+			Plan: plan,
+			RunConfig: acquire.RunConfig{
+				AssetInventories:       assetInventories,
+				WriteState:             o.WriteState,
+				ClusterProfileDirs:     o.effectiveClusterProfileDirs(),
+				DeployEnvironment:      o.DeployEnv,
+				SharedDir:              o.SharedDir,
+				LeaseProxyURL:          o.LeaseProxyServerURL,
+				LeaseProxyTimeout:      o.LeaseProxyTimeout,
+				MaxWaitForLease:        o.MaxWaitForLease,
+				LeaseWaitInterval:      o.LeaseWaitInterval,
+				AssetRegistry:          registry,
+				DisabledAssetAdmission: disabledAssetAdmission,
+				AdmissionTimeout:       o.admissionTimeout,
+				ResolveSubscriptions:   o.ResolveSubscriptions,
+				Now:                    o.Now,
+			},
 			AzureGlobalLoggerCloser: azureGlobalLoggerCloser,
 		},
 	}, nil
-}
-
-type RegionSelection struct {
-	Mode                 slots.RegionMode
-	RuntimeRegion        string
-	CatalogRegions       []string
-	NormalizedWeights    []string
-	LocationOverrideUsed bool
-	SelectionKeySource   string
-}
-
-type locationWeight struct {
-	Location string
-	Weight   uint64
-}
-
-func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMode slots.RegionMode, override, rawWeights, buildID string) (RegionSelection, error) {
-	selection := RegionSelection{
-		Mode:                 regionMode,
-		RuntimeRegion:        override,
-		LocationOverrideUsed: override != "",
-	}
-	if regionMode != slots.RegionModeWeighted {
-		return selection, nil
-	}
-
-	regions, err := catalog.RegionsForEnvironment(environment)
-	if err != nil {
-		return RegionSelection{}, err
-	}
-	selection.CatalogRegions = regions
-	if override != "" {
-		if !sets.New(regions...).Has(override) {
-			return RegionSelection{}, fmt.Errorf("location override %q is not allowed for weighted environment %q; allowed locations: %s", override, environment, strings.Join(regions, ","))
-		}
-		return selection, nil
-	}
-
-	weights, totalWeight, err := parseLocationWeights(rawWeights, regions)
-	if err != nil {
-		return RegionSelection{}, fmt.Errorf("invalid LOCATION_WEIGHTS for weighted environment %q: %w", environment, err)
-	}
-	buildID = strings.TrimSpace(buildID)
-	if buildID == "" {
-		return RegionSelection{}, fmt.Errorf("BUILD_ID must not be empty for weighted environment %q without a location override", environment)
-	}
-
-	hasher := fnv.New64a()
-	_, _ = hasher.Write([]byte(buildID))
-	bucket := hasher.Sum64() % totalWeight
-
-	var cumulative uint64
-	for _, weight := range weights {
-		cumulative += weight.Weight
-		if bucket < cumulative {
-			selection.RuntimeRegion = weight.Location
-			selection.NormalizedWeights = normalizedWeightsForCatalog(weights)
-			selection.SelectionKeySource = "BUILD_ID"
-			return selection, nil
-		}
-	}
-
-	return RegionSelection{}, errors.New("weighted location selection did not resolve a region")
-}
-
-func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint64, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, 0, errors.New("LOCATION_WEIGHTS must not be empty")
-	}
-
-	allowedRegions := sets.New(regions...)
-	parsedWeights := make(map[string]uint64, len(regions))
-	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
-	normalized = strings.ReplaceAll(normalized, "\r", "\n")
-	normalized = strings.ReplaceAll(normalized, "\n", ",")
-	for _, entry := range strings.Split(normalized, ",") {
-		location, rawWeight, found := strings.Cut(entry, "=")
-		location = strings.TrimSpace(location)
-		rawWeight = strings.TrimSpace(rawWeight)
-		switch {
-		case !found || location == "" || rawWeight == "":
-			return nil, 0, fmt.Errorf("entry %q must use location=weight format", strings.TrimSpace(entry))
-		case !allowedRegions.Has(location):
-			return nil, 0, fmt.Errorf("unknown location %q; allowed locations: %s", location, strings.Join(regions, ","))
-		}
-		if _, found := parsedWeights[location]; found {
-			return nil, 0, fmt.Errorf("location %q is declared more than once", location)
-		}
-
-		weight, err := strconv.ParseUint(rawWeight, 10, 64)
-		if err != nil {
-			return nil, 0, fmt.Errorf("weight for location %q must be a non-negative integer: %w", location, err)
-		}
-		parsedWeights[location] = weight
-	}
-
-	weights := make([]locationWeight, 0, len(regions))
-	var totalWeight uint64
-	for _, region := range regions {
-		weight, found := parsedWeights[region]
-		if !found {
-			return nil, 0, fmt.Errorf("missing weight for location %q", region)
-		}
-		if math.MaxUint64-totalWeight < weight {
-			return nil, 0, errors.New("location weight sum overflows uint64")
-		}
-		totalWeight += weight
-		weights = append(weights, locationWeight{Location: region, Weight: weight})
-	}
-	if totalWeight == 0 {
-		return nil, 0, errors.New("at least one location weight must be greater than zero")
-	}
-	return weights, totalWeight, nil
-}
-
-func normalizedWeightsForCatalog(weights []locationWeight) []string {
-	normalized := make([]string, 0, len(weights))
-	for _, weight := range weights {
-		normalized = append(normalized, fmt.Sprintf("%s=%d", weight.Location, weight.Weight))
-	}
-	return normalized
-}
-
-func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string) (*slots.ExpandedSlot, error) {
-	for _, slot := range slots.ExpandSlotsForPool(o.PoolEnvironment, pool) {
-		if slot.ResourceName == resourceName {
-			resolvedSlot := slot
-			return &resolvedSlot, nil
-		}
-	}
-
-	return nil, fmt.Errorf(
-		"leased resource %q is not part of selected pool %s in environment %q",
-		resourceName,
-		describePool(pool),
-		o.PoolEnvironment,
-	)
 }
 
 func (o *AcquireOptions) Run(ctx context.Context) error {
 	if o.AzureGlobalLoggerCloser != nil {
 		defer o.AzureGlobalLoggerCloser.Close()
 	}
-
-	if o.AssetRegistry == nil {
-		return errors.New("asset registry is nil")
-	}
-	if err := o.AssetRegistry.ValidateRequirements(o.CandidatePools); err != nil {
-		return err
-	}
-	if _, err := o.AssetRegistry.FilterHandlers(o.DisabledAssetAdmission); err != nil {
-		return fmt.Errorf("--disable-asset-admission: %w", err)
-	}
-	stateFile, err := slots.SlotStateFile(o.SharedDir)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(stateFile); err == nil {
-		return errors.New("acquired state already exists; release it before acquiring again")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	envFile, err := slots.EnvFile(o.SharedDir)
-	if err != nil {
-		return err
-	}
-	if err := os.Remove(envFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	logger := logr.FromContextOrDiscard(ctx)
-	now := o.Now
-	if now == nil {
-		now = time.Now
-	}
-	candidatePools := rotatedCandidatePools(o.CandidatePools, now())
-	sleep := o.Sleep
-	if sleep == nil {
-		sleep = sleepContext
-	}
-
-	var deadline time.Time
-	if o.MaxWaitForLease > 0 {
-		deadline = now().Add(o.MaxWaitForLease)
-	}
-
-	for pass := 1; ; pass++ {
-		unavailablePools := make([]string, 0, len(candidatePools))
-
-		for _, pool := range candidatePools {
-			leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, pool.ResourceType, o.LeaseProxyTimeout)
-			if err != nil {
-				if errors.Is(err, slots.ErrLeasePoolUnavailableNow) {
-					unavailablePools = append(unavailablePools, describePool(pool))
-					logger.Info(
-						"Candidate pool did not yield an immediate lease, trying next pool",
-						"pass", pass,
-						"environment", o.PoolEnvironment,
-						"pool", describePool(pool),
-						"resourceType", pool.ResourceType,
-						"error", err.Error(),
-					)
-					continue
-				}
-
-				logger.Error(
-					err,
-					"Failed to acquire lease from candidate pool",
-					"pass", pass,
-					"environment", o.PoolEnvironment,
-					"pool", describePool(pool),
-					"resourceType", pool.ResourceType,
-				)
-				return err
-			}
-
-			return o.finalizeAcquiredLease(ctx, pool, leasedName)
-		}
-
-		poolFailureSummary := strings.Join(unavailablePools, ", ")
-		waitMessage := "No candidate pool yielded an immediate lease, waiting before retrying full pass"
-
-		if o.MaxWaitForLease > 0 {
-			currentTime := now()
-			if !currentTime.Before(deadline) {
-				return fmt.Errorf(
-					"no candidate pool for environment %q yielded an immediate lease for %s across %d full pass(es): %s",
-					o.PoolEnvironment,
-					o.MaxWaitForLease,
-					pass,
-					poolFailureSummary,
-				)
-			}
-
-			remainingWait := deadline.Sub(currentTime)
-			sleepDuration := min(o.LeaseWaitInterval, deadline.Sub(currentTime))
-			logger.Info(
-				waitMessage,
-				"pass", pass,
-				"environment", o.PoolEnvironment,
-				"candidatePoolCount", len(candidatePools),
-				"candidatePoolFailures", poolFailureSummary,
-				"sleepDuration", sleepDuration,
-				"leaseWaitInterval", o.LeaseWaitInterval,
-				"remainingWait", remainingWait,
-				"maxWaitForLease", o.MaxWaitForLease,
-			)
-			if err := sleep(ctx, sleepDuration); err != nil {
-				return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
-			}
-			continue
-		}
-
-		logger.Info(
-			waitMessage,
-			"pass", pass,
-			"environment", o.PoolEnvironment,
-			"candidatePoolCount", len(candidatePools),
-			"candidatePoolFailures", poolFailureSummary,
-			"sleepDuration", o.LeaseWaitInterval,
-			"leaseWaitInterval", o.LeaseWaitInterval,
-			"maxWaitForLease", o.MaxWaitForLease,
-		)
-		if err := sleep(ctx, o.LeaseWaitInterval); err != nil {
-			return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
-		}
-	}
-}
-
-func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
-	if len(pools) < 2 {
-		return pools
-	}
-
-	startIndex := int(now.UnixNano() % int64(len(pools)))
-	if startIndex == 0 {
-		return pools
-	}
-
-	rotated := make([]slots.Pool, 0, len(pools))
-	rotated = append(rotated, pools[startIndex:]...)
-	rotated = append(rotated, pools[:startIndex]...)
-	return rotated
-}
-
-func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
-	if o.RegionSelection.RuntimeRegion != "" {
-		return o.RegionSelection.RuntimeRegion
-	}
-	return pool.Region
-}
-
-func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.Pool, leasedName string) (result error) {
-	if err := slots.ValidateLeasedResourceName(leasedName); err != nil {
-		return fmt.Errorf("primary lease acquisition returned an invalid name for type %q: %w", pool.ResourceType, err)
-	}
-	state := &slots.AcquiredSlotState{
-		Version:            2,
-		LeasedResourceName: leasedName,
-		Leases:             slots.LeaseSet{Primary: slots.Lease{ResourceType: pool.ResourceType, ResourceName: leasedName}},
-	}
-	writeState := o.WriteState
-	if writeState == nil {
-		writeState = slots.WriteAcquiredSlotState
-	}
-	journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
-	journal.Persist = func() error { return writeState(o.SharedDir, state) }
-	defer func() {
-		if result == nil {
-			return
-		}
-		// Acquisition's writer may have failed. Retry durable cleanup with the
-		// standard writer; never return a recorded resource without a journal.
-		journal.Persist = func() error { return slots.WriteAcquiredSlotState(o.SharedDir, state) }
-		cleanupErr := o.AssetRegistry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal})
-		if cleanupErr == nil {
-			cleanupErr = slots.RemoveStateFiles(o.SharedDir)
-		}
-		result = errors.Join(result, cleanupErr)
-	}()
-	// Write the primary immediately: even slot/profile resolution can fail.
-	if err := journal.Persist(); err != nil {
-		return err
-	}
-	logger := logr.FromContextOrDiscard(ctx).WithValues(
-		"slotName", leasedName,
-		"environment", o.PoolEnvironment,
-		"pool", describePool(pool),
-	)
-	logger.Info("Acquired primary slot lease")
-	slot, err := o.ResolveLeasedSlot(pool, leasedName)
-	if err != nil {
-		return err
-	}
-	state.Slot = *slot
-	state.DeployEnvironment = pool.DeployEnv
-	state.RuntimeRegion = o.runtimeRegionForPool(pool)
-	customerSubscription, profile, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDirs, pool.Subscriptions.E2E)
-	if err != nil {
-		return err
-	}
-	if o.DeployEnvironment != "" && o.DeployEnvironment != pool.DeployEnv {
-		return fmt.Errorf("acquired deploy environment %q does not match requested %q", pool.DeployEnv, o.DeployEnvironment)
-	}
-	state.Slot.Subscriptions, err = o.ResolveSubscriptions(ctx, profile, pool.DeployEnv, pool.Subscriptions.E2E, pool.InfrastructureSubscriptionName())
-	if err != nil {
-		return err
-	}
-	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
-	if err := o.AssetRegistry.AcquireLeases(ctx, request, o.AssetInventories); err != nil {
-		return err
-	}
-	if err := journal.Persist(); err != nil {
-		return err
-	}
-	if err := state.ValidateForAdmission(); err != nil {
-		return err
-	}
-	logger.Info("Starting asset admission",
-		"assetCount", len(state.Slot.AssetRequirements),
-		"runtimeRegion", state.RuntimeRegion,
-		"timeout", o.AdmissionTimeout,
-	)
-	admissionCtx, cancelAdmission := context.WithTimeout(ctx, o.AdmissionTimeout)
-	err = o.AssetRegistry.AdmitLease(admissionCtx, request, o.DisabledAssetAdmission...)
-	if err == nil {
-		err = admissionCtx.Err()
-	}
-	cancelAdmission()
-	if err != nil {
-		return err
-	}
-	if err := state.ValidateForPublication(); err != nil {
-		return err
-	}
-	if err := journal.Persist(); err != nil {
-		return err
-	}
-	contract := slots.NewRuntimeContractBuilder()
-	if err := slots.AddCoreRuntimeExports(contract, state, customerSubscription, profile); err != nil {
-		return err
-	}
-	if err := o.AssetRegistry.PublishLease(ctx, request, contract); err != nil {
-		return err
-	}
-	if err := slots.WriteRuntimeContract(o.SharedDir, contract); err != nil {
-		return err
-	}
-	logger.Info("Acquired slot and wrote shared artifacts",
-		"disabledAssetAdmission", o.DisabledAssetAdmission,
-		"regionMode", o.RegionSelection.Mode,
-		"catalogRegions", strings.Join(o.RegionSelection.CatalogRegions, ","),
-		"locationWeights", strings.Join(o.RegionSelection.NormalizedWeights, ","),
-		"locationOverrideUsed", o.RegionSelection.LocationOverrideUsed,
-		"selectionKeySource", o.RegionSelection.SelectionKeySource,
-		"runtimeRegion", state.RuntimeRegion,
-		"sharedDir", o.SharedDir,
-	)
-	return nil
-}
-
-func describePool(pool slots.Pool) string {
-	switch pool.EffectiveRegionMode() {
-	case slots.RegionModeRuntimeSelected:
-		return fmt.Sprintf("subscription_name=%q, region_mode=%q, default_region=%q", pool.Subscriptions.E2E, pool.EffectiveRegionMode(), pool.Region)
-	case slots.RegionModeWeighted:
-		return fmt.Sprintf("subscription_name=%q, region_mode=%q, regions=%q", pool.Subscriptions.E2E, pool.EffectiveRegionMode(), strings.Join(pool.Regions, ","))
-	default:
-		return fmt.Sprintf("subscription_name=%q, region=%q", pool.Subscriptions.E2E, pool.Region)
-	}
-}
-
-func sleepContext(ctx context.Context, duration time.Duration) error {
-	if duration <= 0 {
-		return nil
-	}
-
-	timer := time.NewTimer(duration)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
+	return o.Plan.Run(ctx, o.RunConfig)
 }

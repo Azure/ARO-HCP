@@ -12,33 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package lease
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 const acquiredSlotStateVersion = 2
 
 type AcquiredSlotState struct {
-	Leases             LeaseSet     `yaml:"leases,omitempty"`
-	Version            int          `yaml:"version"`
-	DeployEnvironment  string       `yaml:"deploy_environment"`
-	RuntimeRegion      string       `yaml:"runtime_region"`
-	Slot               ExpandedSlot `yaml:"slot"`
-	LeasedResourceName string       `yaml:"leased_resource_name"`
+	Leases             LeaseSet             `yaml:"leases,omitempty"`
+	Version            int                  `yaml:"version"`
+	DeployEnvironment  string               `yaml:"deploy_environment"`
+	RuntimeRegion      string               `yaml:"runtime_region"`
+	Slot               catalog.ExpandedSlot `yaml:"slot"`
+	LeasedResourceName string               `yaml:"leased_resource_name"`
 }
 
 type Lease struct {
@@ -48,8 +46,8 @@ type Lease struct {
 }
 
 type LeaseSet struct {
-	Primary Lease                 `yaml:"primary"`
-	Assets  map[AssetKind][]Lease `yaml:"assets,omitempty"`
+	Primary Lease                         `yaml:"primary"`
+	Assets  map[catalog.AssetKind][]Lease `yaml:"assets,omitempty"`
 }
 
 func EnsureStateDir(sharedDir string) (string, error) {
@@ -226,11 +224,11 @@ func (s *AcquiredSlotState) validateRuntimeInvariants() error {
 			}
 		}
 	}
-	if err := s.Slot.validateAssetInvariants(); err != nil {
+	if err := s.Slot.ValidateAssetInvariants(); err != nil {
 		return err
 	}
 	if s.Slot.RequiresInfrastructureSubscription() {
-		leases := s.Leases.Assets[KindInfrastructureIdentities]
+		leases := s.Leases.Assets[catalog.KindInfrastructureIdentities]
 		leaseNames := make([]string, len(leases))
 		for i, lease := range leases {
 			leaseNames[i] = lease.ResourceName
@@ -239,7 +237,7 @@ func (s *AcquiredSlotState) validateRuntimeInvariants() error {
 		sort.Strings(leaseNames)
 		sort.Strings(groups)
 		if !slices.Equal(groups, leaseNames) {
-			return fmt.Errorf("resolved demanded asset %q does not match acquired leases", KindInfrastructureIdentities)
+			return fmt.Errorf("resolved demanded asset %q does not match acquired leases", catalog.KindInfrastructureIdentities)
 		}
 	}
 	return nil
@@ -251,125 +249,7 @@ func (s *AcquiredSlotState) ValidateForPublication() error {
 	if err := s.validateRuntimeInvariants(); err != nil {
 		return err
 	}
-	return s.Slot.validateAssetPublicationReadiness()
-}
-
-func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {
-	if contract == nil {
-		return errors.New("runtime contract builder is nil")
-	}
-	if err := state.ValidateForPublication(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(customerSubscription) == "" {
-		return errors.New("customer subscription is empty")
-	}
-	if strings.TrimSpace(selectedClusterProfileDir) == "" {
-		return errors.New("selected cluster profile dir is empty")
-	}
-	if err := state.Slot.VMFamilyPolicy.Validate(); err != nil {
-		return fmt.Errorf("invalid slot vm_family_policy: %w", err)
-	}
-	policyJSON, err := json.Marshal(state.Slot.VMFamilyPolicy.Resolve(state.RuntimeRegion))
-	if err != nil {
-		return fmt.Errorf("failed to encode runtime VM family policy: %w", err)
-	}
-	coreExports := map[string]string{
-		leaseenv.SlotName:                  state.Slot.ResourceName,
-		leaseenv.SlotResourceType:          state.Slot.ResourceType,
-		leaseenv.CustomerSubscription:      customerSubscription,
-		leaseenv.SelectedClusterProfileDir: selectedClusterProfileDir,
-		leaseenv.SelectedLocation:          state.RuntimeRegion,
-		leaseenv.VMFamilyPolicy:            string(policyJSON),
-	}
-	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
-		return errors.New("customer subscription does not match resolved slot")
-	}
-	// Publication validation above already rejects an unresolved E2E
-	// subscription, so consumers can address the subscription by ID instead of
-	// re-reading a legacy subscription key from the cluster profile.
-	coreExports[leaseenv.CustomerSubscriptionID] = state.Slot.Subscriptions.E2E.ID
-	coreExports[leaseenv.RuntimeDeployEnvironment] = state.Slot.DeployEnvironment
-	if state.Slot.RequiresInfrastructureSubscription() {
-		coreExports[leaseenv.InfrastructureSubscriptionID] = state.Slot.Subscriptions.Infrastructure.ID
-	}
-	for key, value := range coreExports {
-		if err := contract.Add("core", key, value); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func WriteRuntimeContract(sharedDir string, contract *RuntimeContractBuilder) error {
-	if contract == nil {
-		return errors.New("runtime contract builder is nil")
-	}
-	if _, err := EnsureStateDir(sharedDir); err != nil {
-		return err
-	}
-	envFile, err := EnvFile(sharedDir)
-	if err != nil {
-		return err
-	}
-	if err := writeFileAtomically(envFile, contract.MarshalShell(), 0o644); err != nil {
-		return fmt.Errorf("failed to write env file %q: %w", envFile, err)
-	}
-	return nil
-}
-
-type runtimeExport struct {
-	owner string
-	value string
-}
-
-type RuntimeContractBuilder struct {
-	exports map[string]runtimeExport
-}
-
-func NewRuntimeContractBuilder() *RuntimeContractBuilder {
-	return &RuntimeContractBuilder{exports: map[string]runtimeExport{}}
-}
-
-var shellIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-// Add reserves an export and always replaces its value when the contract is sourced.
-func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
-	owner = strings.TrimSpace(owner)
-	if owner == "" {
-		return errors.New("runtime export owner is empty")
-	}
-	if key == "" {
-		return errors.New("runtime export key is empty")
-	}
-	if !shellIdentifier.MatchString(key) {
-		return fmt.Errorf("runtime export key %q is invalid", key)
-	}
-	if b.exports == nil {
-		b.exports = map[string]runtimeExport{}
-	}
-	if existing, found := b.exports[key]; found {
-		return fmt.Errorf("runtime export %q is already owned by %q and cannot be published by %q", key, existing.owner, owner)
-	}
-	b.exports[key] = runtimeExport{owner: owner, value: value}
-	return nil
-}
-
-// MarshalShell emits safely quoted exports.
-func (b *RuntimeContractBuilder) MarshalShell() []byte {
-	keys := make([]string, 0, len(b.exports))
-	for key := range b.exports {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var builder strings.Builder
-	for _, key := range keys {
-		export := b.exports[key]
-		value := strings.ReplaceAll(export.value, "'", "'\"'\"'")
-		fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
-	}
-	return []byte(builder.String())
+	return s.Slot.ValidateAssetPublicationReadiness()
 }
 
 func writeFileAtomically(path string, data []byte, mode os.FileMode) error {

@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 // ReconcileSubscriptionRoles grants (apply) or verifies (!apply) the mock
@@ -38,13 +38,13 @@ func (handler *Handler) ReconcileSubscriptionRoles(ctx context.Context, request 
 	if err != nil {
 		return fmt.Errorf("create mock identity client: %w", err)
 	}
-	var declared []slots.Pool
+	var declared []catalog.Pool
 	for _, pool := range request.Pools {
 		if handler.Declared(pool) {
 			declared = append(declared, pool)
 		}
 	}
-	return forEachSlot(ctx, resolveSubscriptionID, request.Environment, declared, func(_ slots.Pool, slot slots.ExpandedSlot) error {
+	return forEachSlot(ctx, resolveSubscriptionID, request.Environment, declared, func(_ catalog.Pool, slot catalog.ExpandedSlot) error {
 		bundle, err := reconcileIdentities(ctx, store, slot, false)
 		if err != nil {
 			return ownerRepair(slot, err)

@@ -26,14 +26,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 func DefaultReleaseOptions() *RawReleaseOptions {
 	return &RawReleaseOptions{
 		SharedDir:           strings.TrimSpace(os.Getenv("SHARED_DIR")),
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
-		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
+		LeaseProxyTimeout:   lease.DefaultLeaseProxyTimeout,
 	}
 }
 
@@ -124,7 +124,7 @@ func (o *ValidatedReleaseOptions) Complete(_ context.Context) (*ReleaseOptions, 
 
 func (o *ReleaseOptions) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	state, err := slots.LoadAcquiredSlotState(o.SharedDir)
+	state, err := lease.LoadAcquiredSlotState(o.SharedDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logger.Info("No acquired slot state found, nothing to release", "sharedDir", o.SharedDir)
@@ -132,7 +132,7 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		}
 		return err
 	}
-	journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
+	journal := lease.NewJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
 	registry, err := newAssetRegistry()
 	if err != nil {
 		return err
@@ -140,19 +140,5 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 	if err := registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal}); err != nil {
 		return err
 	}
-	return slots.RemoveStateFiles(o.SharedDir)
-}
-
-func newLeaseJournal(state *slots.AcquiredSlotState, sharedDir, proxyURL string, timeout time.Duration) *slots.LeaseJournal {
-	return &slots.LeaseJournal{
-		State:   state,
-		Timeout: timeout,
-		Persist: func() error { return slots.WriteAcquiredSlotState(sharedDir, state) },
-		Acquire: func(ctx context.Context, resourceType string, budget time.Duration) (string, error) {
-			return slots.AcquireLease(ctx, proxyURL, resourceType, budget)
-		},
-		Return: func(ctx context.Context, name string, budget time.Duration) error {
-			return slots.ReleaseLease(ctx, proxyURL, name, budget)
-		},
-	}
+	return lease.RemoveStateFiles(o.SharedDir)
 }

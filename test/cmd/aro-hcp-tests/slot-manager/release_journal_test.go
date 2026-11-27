@@ -26,17 +26,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 )
 
 func TestReleasePartialStateWithoutCatalogOrHandlerAndRetry(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	state := &slots.AcquiredSlotState{
+	state := &lease.AcquiredSlotState{
 		Version: 2,
-		Leases: slots.LeaseSet{
-			Primary: slots.Lease{ResourceType: "primary", ResourceName: "primary-00"},
-			Assets: map[slots.AssetKind][]slots.Lease{
+		Leases: lease.LeaseSet{
+			Primary: lease.Lease{ResourceType: "primary", ResourceName: "primary-00"},
+			Assets: map[catalog.AssetKind][]lease.Lease{
 				"unknown-kind": {{ResourceType: "secondary", ResourceName: "secondary-04"}, {ResourceType: "secondary", ResourceName: "secondary-07"}},
 			},
 		},
@@ -47,7 +48,7 @@ func TestReleasePartialStateWithoutCatalogOrHandlerAndRetry(t *testing.T) {
 	if err := state.ValidateForRelease(); err != nil {
 		t.Fatalf("partial journal must remain releasable: %v", err)
 	}
-	if err := slots.WriteAcquiredSlotState(dir, state); err != nil {
+	if err := lease.WriteAcquiredSlotState(dir, state); err != nil {
 		t.Fatal(err)
 	}
 	var mu sync.Mutex
@@ -95,7 +96,7 @@ func TestReleasePartialStateWithoutCatalogOrHandlerAndRetry(t *testing.T) {
 	if !reflect.DeepEqual(got, []string{"secondary-04"}) {
 		t.Fatalf("retry unsafely returned completed names: %v", got)
 	}
-	if _, err := slots.LoadAcquiredSlotState(dir); !errors.Is(err, os.ErrNotExist) {
+	if _, err := lease.LoadAcquiredSlotState(dir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("successful retry did not remove journal: %v", err)
 	}
 }

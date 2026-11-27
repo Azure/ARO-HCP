@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slots
+package lease
 
 import (
 	"encoding/json"
@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -42,7 +43,7 @@ func TestAssetRequirementsPreserveWireNames(t *testing.T) {
 		{"json", `{"Requirements":[{"AssetPool":"bundles"}]}`, `"Requirements":`, `"AssetPool":"bundles"`, json.Marshal, json.Unmarshal},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			var slot ExpandedSlot
+			var slot catalog.ExpandedSlot
 			if err := test.unmarshal([]byte(test.wire), &slot); err != nil {
 				t.Fatal(err)
 			}
@@ -134,17 +135,17 @@ func TestWriteAcquiredSlotStateAndRuntimeContract(t *testing.T) {
 
 	sharedDir := t.TempDir()
 	state := resolvedTestState()
-	state.Slot.AssetRequirements = []AssetRequirement{
-		{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
+	state.Slot.AssetRequirements = []catalog.AssetRequirement{
+		{Kind: catalog.KindInfrastructureIdentities, Allocation: catalog.AllocationLeased, UnitsPerSlot: 1},
 	}
-	state.Leases.Assets = map[AssetKind][]Lease{
-		KindInfrastructureIdentities: {{ResourceType: "bundle", ResourceName: "bundle-00"}},
+	state.Leases.Assets = map[catalog.AssetKind][]Lease{
+		catalog.KindInfrastructureIdentities: {{ResourceType: "bundle", ResourceName: "bundle-00"}},
 	}
-	state.Slot.Assets = ResolvedAssets{
-		InfrastructureIdentities: &ResolvedInfrastructureIdentities{
-			Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00"}, Identities: []string{"service"},
+	state.Slot.Assets = catalog.ResolvedAssets{
+		InfrastructureIdentities: &catalog.ResolvedInfrastructureIdentities{
+			Allocation: catalog.AllocationLeased, ResourceGroups: []string{"bundle-00"}, Identities: []string{"service"},
 		},
-		E2EIdentities: &ResolvedE2EIdentitiesAsset{
+		E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 			ProvisioningRegion: "westus3",
 			ResourceGroups:     []string{"identity-rg-00", "identity-rg-01"},
 		},
@@ -195,14 +196,14 @@ func TestRuntimeContractRejectsExportCollisions(t *testing.T) {
 
 func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 	t.Parallel()
-	for _, infrastructure := range []ResolvedSubscription{{}, {Name: "unused", ID: "unused-id"}} {
+	for _, infrastructure := range []catalog.ResolvedSubscription{{}, {Name: "unused", ID: "unused-id"}} {
 		state := resolvedTestState()
 		state.Slot.Subscriptions.Infrastructure = infrastructure
-		state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+		state.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated}}
 		state.Slot.IdentityContainerPrefix = "identities-00"
 		state.Slot.IdentityContainerCount = 1
-		state.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-			Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
+		state.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+			Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 		}
 		if err := state.ValidateForPublication(); err != nil {
 			t.Fatalf("E2E-only state required infrastructure: %v", err)
@@ -269,13 +270,13 @@ func TestAcquiredSlotStateRejectsInvalidJournals(t *testing.T) {
 		{"blank type", func(s *AcquiredSlotState) { s.Leases.Primary.ResourceType = " " }, "incomplete lease"},
 		{"invalid return state", func(s *AcquiredSlotState) { s.Leases.Primary.ReturnState = "invalid" }, "invalid return state"},
 		{"incomplete asset", func(s *AcquiredSlotState) {
-			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: " "}}}
+			s.Leases.Assets = map[catalog.AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: " "}}}
 		}, "incomplete lease"},
 		{"padded asset", func(s *AcquiredSlotState) {
-			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: " bundle-00 "}}}
+			s.Leases.Assets = map[catalog.AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: " bundle-00 "}}}
 		}, "leading or trailing whitespace"},
 		{"duplicate lease", func(s *AcquiredSlotState) {
-			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {s.Leases.Primary}}
+			s.Leases.Assets = map[catalog.AssetKind][]Lease{"unknown-kind": {s.Leases.Primary}}
 		}, "duplicate lease"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -311,15 +312,15 @@ func resolvedTestState() *AcquiredSlotState {
 		RuntimeRegion:      "centralus",
 		LeasedResourceName: "slot-00",
 		Leases:             LeaseSet{Primary: Lease{ResourceType: "slot", ResourceName: "slot-00"}},
-		Slot: ExpandedSlot{
+		Slot: catalog.ExpandedSlot{
 			Environment:       "dev",
 			PoolName:          "shard0",
 			DeployEnvironment: "ci01",
 			ResourceType:      "slot",
 			ResourceName:      "slot-00",
-			Subscriptions: ResolvedSubscriptions{
-				E2E:            ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
-				Infrastructure: ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
+			Subscriptions: catalog.ResolvedSubscriptions{
+				E2E:            catalog.ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
+				Infrastructure: catalog.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			},
 		},
 	}
@@ -336,10 +337,10 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			s.Slot.Assets.InfrastructureIdentities.ResourceGroups = []string{"bundle-01", "bundle-00"}
 		}, ""},
 		{"wrong resolved allocation", func(s *AcquiredSlotState) {
-			s.Slot.Assets.InfrastructureIdentities.Allocation = AllocationDedicated
+			s.Slot.Assets.InfrastructureIdentities.Allocation = catalog.AllocationDedicated
 		}, "requires leased allocation"},
 		{"wrong demanded allocation", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements[0].Allocation = AllocationDedicated
+			s.Slot.AssetRequirements[0].Allocation = catalog.AllocationDedicated
 		}, "requires leased allocation"},
 		{"foreign group", func(s *AcquiredSlotState) {
 			s.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
@@ -356,16 +357,16 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			s.Leases.Assets = nil
 		}, "unresolved demanded asset"},
 		{"extra lease", func(s *AcquiredSlotState) {
-			s.Leases.Assets[KindInfrastructureIdentities] = append(s.Leases.Assets[KindInfrastructureIdentities], Lease{ResourceType: "bundle", ResourceName: "bundle-02"})
+			s.Leases.Assets[catalog.KindInfrastructureIdentities] = append(s.Leases.Assets[catalog.KindInfrastructureIdentities], Lease{ResourceType: "bundle", ResourceName: "bundle-02"})
 		}, "does not match acquired leases"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := resolvedTestState()
-			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 2}}
-			state.Slot.Assets.InfrastructureIdentities = &ResolvedInfrastructureIdentities{
-				Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00", "bundle-01"}, Identities: []string{"service"},
+			state.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindInfrastructureIdentities, Allocation: catalog.AllocationLeased, UnitsPerSlot: 2}}
+			state.Slot.Assets.InfrastructureIdentities = &catalog.ResolvedInfrastructureIdentities{
+				Allocation: catalog.AllocationLeased, ResourceGroups: []string{"bundle-00", "bundle-01"}, Identities: []string{"service"},
 			}
-			state.Leases.Assets = map[AssetKind][]Lease{KindInfrastructureIdentities: {
+			state.Leases.Assets = map[catalog.AssetKind][]Lease{catalog.KindInfrastructureIdentities: {
 				{ResourceType: "bundle", ResourceName: "bundle-00"},
 				{ResourceType: "bundle", ResourceName: "bundle-01"},
 			}}
@@ -396,7 +397,7 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		mutate func(*AcquiredSlotState)
 		want   string
 	}{
-		{"partial journal", func(s *AcquiredSlotState) { s.Slot = ExpandedSlot{} }, "empty slot environment"},
+		{"partial journal", func(s *AcquiredSlotState) { s.Slot = catalog.ExpandedSlot{} }, "empty slot environment"},
 		{"deploy environment", func(s *AcquiredSlotState) { s.DeployEnvironment = " " }, "empty deploy_environment"},
 		{"runtime region", func(s *AcquiredSlotState) { s.RuntimeRegion = " " }, "empty runtime_region"},
 		{"runtime region is not inferred from provisioning region", func(s *AcquiredSlotState) {
@@ -416,57 +417,57 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		{"e2e name", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.Name = " " }, "unresolved E2E subscription"},
 		{"e2e ID", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.ID = " " }, "unresolved E2E subscription"},
 		{"infra name", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindInfrastructureIdentities}}
 			s.Slot.Subscriptions.Infrastructure.Name = " "
 		}, "unresolved infrastructure subscription"},
 		{"infra ID", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindInfrastructureIdentities}}
 			s.Slot.Subscriptions.Infrastructure.ID = " "
 		}, "unresolved infrastructure subscription"},
 		{"primary returning", func(s *AcquiredSlotState) { s.Leases.Primary.ReturnState = "returning" }, "primary lease is no longer held"},
 		{"primary returned", func(s *AcquiredSlotState) { s.Leases.Primary.ReturnState = "returned" }, "primary lease is no longer held"},
 		{"asset returning", func(s *AcquiredSlotState) {
-			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: "bundle-00", ReturnState: "returning"}}}
+			s.Leases.Assets = map[catalog.AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: "bundle-00", ReturnState: "returning"}}}
 		}, "asset lease \"bundle-00\" is no longer held"},
 		{"asset returned", func(s *AcquiredSlotState) {
-			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: "bundle-00", ReturnState: "returned"}}}
+			s.Leases.Assets = map[catalog.AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: "bundle-00", ReturnState: "returned"}}}
 		}, "asset lease \"bundle-00\" is no longer held"},
 		{"unresolved assets", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities}}
 		}, "unresolved demanded asset"},
 		{"truncated dedicated identities", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
-			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
+			s.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+				Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"foreign dedicated identity", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
-			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-				Allocation: AllocationDedicated, ResourceGroups: []string{"foreign-00-00"},
+			s.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+				Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"foreign-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"duplicate dedicated identities", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
-			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00", "identities-00-00"},
+			s.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+				Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"identities-00-00", "identities-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"wrong resolved identity allocation", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
-			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-				Allocation: AllocationLeased, ResourceGroups: []string{"identities-00-00"},
+			s.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+				Allocation: catalog.AllocationLeased, ResourceGroups: []string{"identities-00-00"},
 			}
 		}, "requires dedicated allocation"},
 		{"wrong demanded identity allocation", func(s *AcquiredSlotState) {
-			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationLeased}}
+			s.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationLeased}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
-			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
+			s.Slot.Assets.E2EIdentities = &catalog.ResolvedE2EIdentitiesAsset{
+				Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 			}
 		}, "requires dedicated allocation"},
 	} {
@@ -510,14 +511,14 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 
 func TestAdmissionDefersOnlyMockResolution(t *testing.T) {
 	state := resolvedTestState()
-	state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, AssetRequirement{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
+	state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, catalog.AssetRequirement{Kind: catalog.KindMockIdentities, Allocation: catalog.AllocationDedicated, UnitsPerSlot: 1})
 	if err := state.ValidateForAdmission(); err != nil {
 		t.Fatalf("unresolved mock prevented admission: %v", err)
 	}
 	if err := state.ValidateForPublication(); err == nil {
 		t.Fatal("unresolved mock permitted runtime publication")
 	}
-	state.Slot.AssetRequirements[len(state.Slot.AssetRequirements)-1].Allocation = AllocationLeased
+	state.Slot.AssetRequirements[len(state.Slot.AssetRequirements)-1].Allocation = catalog.AllocationLeased
 	if err := state.ValidateForAdmission(); err == nil {
 		t.Fatal("invalid mock allocation permitted admission")
 	}
@@ -541,13 +542,13 @@ func TestPublicationRechecksAdmissionMutations(t *testing.T) {
 		{"returning lease", func(state *AcquiredSlotState) { state.Leases.Primary.ReturnState = "returning" }, "no longer held"},
 		{"unresolved subscription", func(state *AcquiredSlotState) { state.Slot.Subscriptions.E2E.ID = "" }, "unresolved E2E subscription"},
 		{"unresolved nonmock", func(state *AcquiredSlotState) {
-			state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated})
+			state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, catalog.AssetRequirement{Kind: catalog.KindE2EIdentities, Allocation: catalog.AllocationDedicated})
 		}, "unresolved demanded asset"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			state := resolvedTestState()
 			state.Slot.Subscriptions.E2E.ID = "00000000-0000-0000-0000-000000000007"
-			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1}}
+			state.Slot.AssetRequirements = []catalog.AssetRequirement{{Kind: catalog.KindMockIdentities, Allocation: catalog.AllocationDedicated, UnitsPerSlot: 1}}
 			if err := state.ValidateForAdmission(); err != nil {
 				t.Fatalf("valid pre-admission state rejected: %v", err)
 			}

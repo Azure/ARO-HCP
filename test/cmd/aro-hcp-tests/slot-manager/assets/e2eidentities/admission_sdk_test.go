@@ -40,7 +40,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -198,9 +199,9 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				transport := &admissionTransport{scenario: scenario, role: dirty, latency: time.Millisecond}
 				clients := admissionSDKClients(t, transport)
 				groups := []string{"identity-rg-00", "identity-rg-01"}
-				request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-					Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
-						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
+				request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+					Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
+						Allocation: catalog.AllocationDedicated, ResourceGroups: groups,
 					}},
 				}}}
 				const driftMessage = "Unexpected identities in leased resource group; excluded from admission cleanup"
@@ -291,9 +292,9 @@ func TestAdmissionFailsClosed(t *testing.T) {
 		t.Run(tc.scenario, func(t *testing.T) {
 			transport := &admissionTransport{scenario: tc.scenario, role: true}
 			clients := admissionSDKClients(t, transport)
-			request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-				Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
-					Allocation: slots.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
+			request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
+				Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
+					Allocation: catalog.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
 				}},
 			}}}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)

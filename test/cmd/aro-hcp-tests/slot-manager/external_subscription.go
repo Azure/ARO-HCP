@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/azureclient"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/subscriptions"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
@@ -195,15 +195,15 @@ func (o *ValidatedReconcileExternalSubscriptionOptions) loadSelection() (*comple
 		ci.Dev.MockIdentities.ARMHelper.ApplicationName == "" || ci.Dev.MockIdentities.MSIMock.ApplicationName == "" {
 		return nil, fmt.Errorf("DEV CI configuration %q must declare the e2e providers, the bot and the three shared mock applications", o.ConfigFile)
 	}
-	catalog, err := slots.LoadCatalog(o.SlotCatalog)
+	slotCatalog, err := catalog.LoadCatalog(o.SlotCatalog)
 	if err != nil {
 		return nil, err
 	}
-	requests, err := selectExternalPools(catalog, o.Subscription)
+	requests, err := selectExternalPools(slotCatalog, o.Subscription)
 	if err != nil {
 		return nil, err
 	}
-	inventories, err := catalog.AssetInventories()
+	inventories, err := slotCatalog.AssetInventories()
 	if err != nil {
 		return nil, err
 	}
@@ -225,12 +225,12 @@ func (o *ValidatedReconcileExternalSubscriptionOptions) loadSelection() (*comple
 
 // selectExternalPools returns the pool request per slot environment for every
 // pool that uses the named subscription.
-func selectExternalPools(catalog *slots.Catalog, subscription string) ([]assets.PoolRequest, error) {
+func selectExternalPools(slotCatalog *catalog.Catalog, subscription string) ([]assets.PoolRequest, error) {
 	subscription = strings.TrimSpace(subscription)
 	var requests []assets.PoolRequest
-	for _, environment := range catalog.EnvironmentNames() {
+	for _, environment := range slotCatalog.EnvironmentNames() {
 		request := assets.PoolRequest{Environment: environment, IncludeUnmanaged: true}
-		for _, pool := range catalog.Environments[environment].Pools {
+		for _, pool := range slotCatalog.Environments[environment].Pools {
 			if pool.Subscriptions.E2E != subscription {
 				continue
 			}

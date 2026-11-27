@@ -33,7 +33,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -78,12 +79,12 @@ environments:
 `
 
 type lifecycleHandler struct {
-	kind             slots.AssetKind
+	kind             catalog.AssetKind
 	calls            *[]string
 	fail             string
 	before           func(string, assets.LeaseRequest)
 	admit            func(context.Context) error
-	assetInventories *[]slots.AssetInventory
+	assetInventories *[]catalog.AssetInventory
 	poolRequests     *[]assets.PoolRequest
 	// setting is bound to the "setting" option to observe --asset-admission-option.
 	setting int
@@ -93,7 +94,7 @@ func (h *lifecycleHandler) Kind() assets.Kind { return h.kind }
 func (h *lifecycleHandler) AttachOptions(flags *pflag.FlagSet) {
 	flags.IntVar(&h.setting, "setting", 0, "test option")
 }
-func (h *lifecycleHandler) Declared(pool slots.Pool) bool {
+func (h *lifecycleHandler) Declared(pool catalog.Pool) bool {
 	for _, assetRequirement := range pool.Requirements() {
 		if assetRequirement.Kind == h.kind {
 			return true
@@ -115,8 +116,8 @@ func (h *lifecycleHandler) AcquireLease(_ context.Context, request assets.LeaseR
 	if err := h.call("resolve", request); err != nil {
 		return err
 	}
-	if h.kind == slots.KindInfrastructureIdentities {
-		resolved := &slots.ResolvedInfrastructureIdentities{Allocation: slots.AllocationLeased, Identities: []string{"fake-service", "fake-management"}}
+	if h.kind == catalog.KindInfrastructureIdentities {
+		resolved := &catalog.ResolvedInfrastructureIdentities{Allocation: catalog.AllocationLeased, Identities: []string{"fake-service", "fake-management"}}
 		for _, lease := range request.AcquiredSlotState.Leases.Assets[h.kind] {
 			resolved.ResourceGroups = append(resolved.ResourceGroups, lease.ResourceName)
 		}
@@ -149,29 +150,29 @@ func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseR
 	}
 	return h.call("admit", request)
 }
-func (h *lifecycleHandler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+func (h *lifecycleHandler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *lease.RuntimeContractBuilder) error {
 	if err := h.call("publish", request); err != nil {
 		return err
 	}
 	return contract.Add(string(h.kind), "FAKE_"+string(h.kind), "ready")
 }
 
-func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Registry) *RawAcquireOptions {
+func lifecycleOptions(t *testing.T, slotCatalog, server string, registry *assets.Registry) *RawAcquireOptions {
 	t.Helper()
 	return &RawAcquireOptions{
 		ClusterProfileDir:   writeAcquireTestClusterProfile(t, "dev-e2e"),
 		Environment:         "dev",
 		SharedDir:           t.TempDir(),
-		CatalogPath:         writeAcquireTestCatalogFromYAML(t, catalog),
+		CatalogPath:         writeAcquireTestCatalogFromYAML(t, slotCatalog),
 		LeaseProxyServerURL: server,
 		LeaseProxyTimeout:   100 * time.Millisecond,
 		MaxWaitForLease:     0,
 		LeaseWaitInterval:   time.Millisecond,
 		AssetRegistry:       registry,
-		ResolveSubscriptions: func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error) {
-			return slots.ResolvedSubscriptions{
-				E2E:            slots.ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
-				Infrastructure: slots.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
+		ResolveSubscriptions: func(context.Context, string, string, string, string) (catalog.ResolvedSubscriptions, error) {
+			return catalog.ResolvedSubscriptions{
+				E2E:            catalog.ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
+				Infrastructure: catalog.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			}, nil
 		},
 		// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
@@ -185,9 +186,9 @@ func TestAdmissionPopulatesDedicatedBundleBeforePublication(t *testing.T) {
 	for _, failure := range []bool{false, true} {
 		t.Run(fmt.Sprintf("later-asset-fails-%t", failure), func(t *testing.T) {
 			calls := []string{}
-			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
-			mock := &lifecycleHandler{kind: slots.KindMockIdentities, calls: &calls}
-			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e := &lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls}
+			mock := &lifecycleHandler{kind: catalog.KindMockIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls}
 			if failure {
 				infra.fail = "admit"
 			}
@@ -200,10 +201,10 @@ func TestAdmissionPopulatesDedicatedBundleBeforePublication(t *testing.T) {
 				"bundle-type":             {successAcquireReply("bundle-04"), successAcquireReply("bundle-01")},
 			})
 			defer server.Close()
-			catalog := strings.Replace(lifecycleCatalog, "      slot_assets:\n", "      slot_assets:\n        mock_identities: {allocation: dedicated}\n", 1)
-			options := lifecycleOptions(t, catalog, server.URL, registry)
+			slotCatalog := strings.Replace(lifecycleCatalog, "      slot_assets:\n", "      slot_assets:\n        mock_identities: {allocation: dedicated}\n", 1)
+			options := lifecycleOptions(t, slotCatalog, server.URL, registry)
 			resolve := options.ResolveSubscriptions
-			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (slots.ResolvedSubscriptions, error) {
+			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (catalog.ResolvedSubscriptions, error) {
 				subscriptions, err := resolve(ctx, profile, deploy, e2e, infra)
 				subscriptions.E2E.ID = "11111111-1111-1111-1111-111111111111"
 				return subscriptions, err
@@ -227,14 +228,14 @@ func TestAdmissionPopulatesDedicatedBundleBeforePublication(t *testing.T) {
 			if (err != nil) != failure || admissions != 1 {
 				t.Fatalf("acquisition error=%v, admission count=%d", err, admissions)
 			}
-			env, _ := slots.EnvFile(options.SharedDir)
+			env, _ := lease.EnvFile(options.SharedDir)
 			if failure {
 				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
 					t.Fatal("published despite another asset failing admission")
 				}
 				return
 			}
-			state, err := slots.LoadAcquiredSlotState(options.SharedDir)
+			state, err := lease.LoadAcquiredSlotState(options.SharedDir)
 			if err != nil || state.Slot.Assets.MockIdentities == nil {
 				t.Fatalf("admitted bundle was not persisted: %v", err)
 			}
@@ -265,8 +266,8 @@ func TestAcquireAssetAdmissionOptions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
-			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
-			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e := &lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls}
 			registry, err := assets.NewRegistry(e2e, infra)
 			if err != nil {
 				t.Fatal(err)
@@ -312,8 +313,8 @@ func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
 			if expires {
 				wantTimeout = 20 * time.Millisecond
 			}
-			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
-			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e := &lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls}
 			e2e.admit = func(ctx context.Context) error {
 				deadline, ok := ctx.Deadline()
 				if !ok || time.Until(deadline) > wantTimeout || (!expires && time.Until(deadline) < wantTimeout-time.Second) {
@@ -358,7 +359,7 @@ func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
 						t.Fatalf("published after expired admission: %v", calls)
 					}
 				}
-				env, _ := slots.EnvFile(options.SharedDir)
+				env, _ := lease.EnvFile(options.SharedDir)
 				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("runtime exports exist after timeout: %v", err)
 				}
@@ -382,8 +383,8 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "foreign resolved asset", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
-			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
-			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e := &lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls}
 			skipE2E := scenario == "skip e2e admission" || scenario == "skip both admissions" || scenario == "unskipped admission fails"
 			skipInfra := scenario == "skip infra admission" || scenario == "skip both admissions"
 			if skipE2E {
@@ -439,44 +440,44 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			logger := funcr.New(func(_, message string) {
 				fmt.Fprintln(&logs, message)
 				if strings.Contains(message, "Acquired slot and wrote shared artifacts") {
-					env, _ := slots.EnvFile(options.SharedDir)
+					env, _ := lease.EnvFile(options.SharedDir)
 					if _, err := os.Stat(env); err != nil {
 						t.Fatalf("success logged before runtime contract was published: %v", err)
 					}
 				}
 			}, funcr.Options{})
 			writes := 0
-			options.WriteState = func(dir string, state *slots.AcquiredSlotState) error {
+			options.WriteState = func(dir string, state *lease.AcquiredSlotState) error {
 				writes++
 				if scenario == "foreign resolved asset" && state.Slot.Assets.InfrastructureIdentities != nil {
 					state.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
 				}
-				if (scenario == "primary state write" && writes == 1) || (scenario == "secondary state write" && len(state.Leases.Assets[slots.KindInfrastructureIdentities]) == 1) {
+				if (scenario == "primary state write" && writes == 1) || (scenario == "secondary state write" && len(state.Leases.Assets[catalog.KindInfrastructureIdentities]) == 1) {
 					return errors.New("state disk write failed")
 				}
-				return slots.WriteAcquiredSlotState(dir, state)
+				return lease.WriteAcquiredSlotState(dir, state)
 			}
 			resolve := options.ResolveSubscriptions
-			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (slots.ResolvedSubscriptions, error) {
-				state, err := slots.LoadAcquiredSlotState(options.SharedDir)
+			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (catalog.ResolvedSubscriptions, error) {
+				state, err := lease.LoadAcquiredSlotState(options.SharedDir)
 				if err != nil || state.Leases.Primary.ResourceName != "aro-hcp-dev-shard0-slot-00" {
 					t.Fatalf("primary not persisted before subscription resolution: %+v, %v", state, err)
 				}
 				if scenario == "subscription resolution" {
-					return slots.ResolvedSubscriptions{}, errors.New("profile binding mismatch")
+					return catalog.ResolvedSubscriptions{}, errors.New("profile binding mismatch")
 				}
 				if scenario == "invalid runtime state" {
-					return slots.ResolvedSubscriptions{}, nil
+					return catalog.ResolvedSubscriptions{}, nil
 				}
 				return resolve(ctx, profile, deploy, e2e, infra)
 			}
 			infra.before = func(phase string, request assets.LeaseRequest) {
-				state, err := slots.LoadAcquiredSlotState(options.SharedDir)
+				state, err := lease.LoadAcquiredSlotState(options.SharedDir)
 				if err != nil {
 					t.Fatal(err)
 				}
-				want := []slots.Lease{{ResourceType: "bundle-type", ResourceName: "bundle-04"}, {ResourceType: "bundle-type", ResourceName: "bundle-01"}}
-				if !reflect.DeepEqual(state.Leases.Assets[slots.KindInfrastructureIdentities], want) {
+				want := []lease.Lease{{ResourceType: "bundle-type", ResourceName: "bundle-04"}, {ResourceType: "bundle-type", ResourceName: "bundle-01"}}
+				if !reflect.DeepEqual(state.Leases.Assets[catalog.KindInfrastructureIdentities], want) {
 					t.Fatalf("%s ran without exact secondary names persisted: %+v", phase, state.Leases)
 				}
 				if phase == "admit" && request.AcquiredSlotState.Slot.Assets.InfrastructureIdentities == nil {
@@ -485,7 +486,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if phase == "admit" && (!strings.Contains(logs.String(), "Acquired primary slot lease") || !strings.Contains(logs.String(), "Starting asset admission")) {
 					t.Fatalf("missing progress logs before admission: %s", logs.String())
 				}
-				env, _ := slots.EnvFile(options.SharedDir)
+				env, _ := lease.EnvFile(options.SharedDir)
 				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
 					t.Fatal("runtime contract was visible before all admission/publication passed")
 				}
@@ -495,7 +496,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if loggedSuccess := strings.Contains(logs.String(), "Acquired slot and wrote shared artifacts"); loggedSuccess != wantSuccess {
 				t.Fatalf("success log does not match acquisition outcome: %s; error: %v", logs.String(), err)
 			}
-			for kind, skipped := range map[slots.AssetKind]bool{slots.KindE2EIdentities: skipE2E, slots.KindInfrastructureIdentities: skipInfra} {
+			for kind, skipped := range map[catalog.AssetKind]bool{catalog.KindE2EIdentities: skipE2E, catalog.KindInfrastructureIdentities: skipInfra} {
 				loggedSkip := false
 				for _, line := range strings.Split(logs.String(), "\n") {
 					if strings.Contains(line, "WARNING: asset admission explicitly disabled") && strings.Contains(line, string(kind)) {
@@ -521,7 +522,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if !reflect.DeepEqual(calls, wantCalls) {
 					t.Fatalf("incorrect admission order: %v", calls)
 				}
-				env, _ := slots.EnvFile(options.SharedDir)
+				env, _ := lease.EnvFile(options.SharedDir)
 				data, err := os.ReadFile(env)
 				if err != nil || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='ci01'") || !strings.Contains(string(data), "FAKE_infrastructure_identities='ready'") {
 					t.Fatalf("incomplete runtime contract: %s, %v", data, err)
@@ -574,10 +575,10 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if !reflect.DeepEqual(*released, wantReleased) {
 				t.Fatalf("rollback missed acquired leases: got %v want %v; error: %v", *released, wantReleased, err)
 			}
-			if _, err := slots.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
+			if _, err := lease.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("successful rollback did not remove state: %v", err)
 			}
-			envFile, _ := slots.EnvFile(options.SharedDir)
+			envFile, _ := lease.EnvFile(options.SharedDir)
 			if _, err := os.Stat(envFile); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("failed acquisition published a runtime contract: %v", err)
 			}
@@ -597,11 +598,11 @@ func TestUnsupportedAssetsAndConflictingSelectorsFailBeforeNetwork(t *testing.T)
 			case "missing demanded infra binding":
 				options.CatalogPath = writeAcquireTestCatalogFromYAML(t, strings.Replace(lifecycleCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: ci01", 1))
 			case "unknown admission kind":
-				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
+				options.CatalogPath = writeAcquireTestCatalog(t, catalog.RegionModeFixed, "westus3")
 				options.DisabledAssetAdmission = []string{"e2e-identities"}
 				expected = `--disable-asset-admission: unknown asset kind "e2e-identities"`
 			case "conflicting selector":
-				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
+				options.CatalogPath = writeAcquireTestCatalog(t, catalog.RegionModeFixed, "westus3")
 				options.DeployEnv = "prod"
 				expected = "no candidate pool with deploy_env"
 			}
@@ -620,10 +621,10 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	t.Parallel()
 	path := writeAcquireTestCatalogFromYAML(t, lifecycleCatalog)
 	calls := []string{}
-	var assetInventories []slots.AssetInventory
+	var assetInventories []catalog.AssetInventory
 	registry, err := assets.NewRegistry(
-		&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls},
-		&lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls, assetInventories: &assetInventories},
+		&lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls},
+		&lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls, assetInventories: &assetInventories},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -631,7 +632,7 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	for _, validate := range []bool{false, true} {
 		err := runPoolAssetsCommand(context.Background(), registry, assetCommandOptionsForTest(assetCommandOptions{
 			Environment: "dev", SlotCatalog: path, Pools: []string{"shard0"}, Subscriptions: []string{"dev-e2e"},
-			AssetKinds: []string{string(slots.KindInfrastructureIdentities)},
+			AssetKinds: []string{string(catalog.KindInfrastructureIdentities)},
 		}), validate)
 		if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 5 {
 			t.Fatalf("filtered command shrank full demand: %+v, %v", assetInventories, err)
@@ -648,11 +649,11 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 
 func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing.T) {
 	t.Parallel()
-	catalog, err := slots.LoadCatalog(writeAcquireTestCatalogFromYAML(t, lifecycleCatalog))
+	slotCatalog, err := catalog.LoadCatalog(writeAcquireTestCatalogFromYAML(t, lifecycleCatalog))
 	if err != nil {
 		t.Fatal(err)
 	}
-	assetInventories, err := catalog.AssetInventories()
+	assetInventories, err := slotCatalog.AssetInventories()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,14 +663,14 @@ func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing
 	calls := []string{}
 	var requests []assets.PoolRequest
 	registry, err := assets.NewRegistry(
-		&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls, poolRequests: &requests},
-		&lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls, poolRequests: &requests},
+		&lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls, poolRequests: &requests},
+		&lifecycleHandler{kind: catalog.KindInfrastructureIdentities, calls: &calls, poolRequests: &requests},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pools := append([]slots.Pool{}, catalog.Environments["dev"].Pools...)
-	pools = append(pools, catalog.Environments["other"].Pools...)
+	pools := append([]catalog.Pool{}, slotCatalog.Environments["dev"].Pools...)
+	pools = append(pools, slotCatalog.Environments["other"].Pools...)
 	e2eOnly := pools[0]
 	e2eOnly.Name = "e2e-only"
 	e2eOnly.SlotAssets.InfrastructureIdentities = nil
@@ -697,7 +698,7 @@ func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing
 
 func TestMissingE2EIdentitiesFailsBeforeAcquisition(t *testing.T) {
 	t.Parallel()
-	catalog := `version: 2
+	slotCatalog := `version: 2
 environments:
   dev:
     deployment_environment: {name: ci01, infrastructure_subscription: dev-infra}
@@ -711,10 +712,10 @@ environments:
 		"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
 	})
 	defer server.Close()
-	options := lifecycleOptions(t, catalog, server.URL, nil)
-	options.ResolveSubscriptions = func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error) {
+	options := lifecycleOptions(t, slotCatalog, server.URL, nil)
+	options.ResolveSubscriptions = func(context.Context, string, string, string, string) (catalog.ResolvedSubscriptions, error) {
 		t.Fatal("invalid catalog reached subscription resolution")
-		return slots.ResolvedSubscriptions{}, nil
+		return catalog.ResolvedSubscriptions{}, nil
 	}
 	if err := Acquire(context.Background(), options); err == nil || !strings.Contains(err.Error(), "must declare slot_assets.e2e_identities") {
 		t.Fatalf("expected missing required E2E identities rejection: %v", err)
@@ -722,10 +723,10 @@ environments:
 	if len(*acquired) != 0 || len(*released) != 0 {
 		t.Fatalf("invalid catalog reached lease proxy: %v / %v", *acquired, *released)
 	}
-	if _, err := slots.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
+	if _, err := lease.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("invalid catalog created acquired state: %v", err)
 	}
-	path, _ := slots.EnvFile(options.SharedDir)
+	path, _ := lease.EnvFile(options.SharedDir)
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("invalid catalog published a runtime contract: %v", err)
 	}
@@ -745,18 +746,18 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 `
 	for _, scenario := range []string{"public", "optional binding", "mixed pools"} {
 		t.Run(scenario, func(t *testing.T) {
-			catalog := "version: 2\nenvironments:\n  dev:\n    deployment_environment: {name: stg}\n    pools:\n" + e2ePool
+			slotCatalog := "version: 2\nenvironments:\n  dev:\n    deployment_environment: {name: stg}\n    pools:\n" + e2ePool
 			deploy := "stg"
 			switch scenario {
 			case "optional binding":
-				catalog = strings.Replace(catalog, "{name: stg}", "{name: stg, infrastructure_subscription: inaccessible-infra}", 1)
+				slotCatalog = strings.Replace(slotCatalog, "{name: stg}", "{name: stg, infrastructure_subscription: inaccessible-infra}", 1)
 			case "mixed pools":
 				deploy = "ci01"
-				catalog = strings.Replace(lifecycleCatalog, "    pools:\n", "    pools:\n"+e2ePool, 1)
-				catalog = strings.Replace(catalog, "subscriptions: {e2e: dev-e2e}\n      slot_assets:\n        e2e_identities:\n          allocation: dedicated\n          resource_group_prefix: identities", "subscriptions: {e2e: other-consumer}\n      slot_assets:\n        e2e_identities:\n          allocation: dedicated\n          resource_group_prefix: identities", 1)
+				slotCatalog = strings.Replace(lifecycleCatalog, "    pools:\n", "    pools:\n"+e2ePool, 1)
+				slotCatalog = strings.Replace(slotCatalog, "subscriptions: {e2e: dev-e2e}\n      slot_assets:\n        e2e_identities:\n          allocation: dedicated\n          resource_group_prefix: identities", "subscriptions: {e2e: other-consumer}\n      slot_assets:\n        e2e_identities:\n          allocation: dedicated\n          resource_group_prefix: identities", 1)
 			}
 			calls := []string{}
-			registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
+			registry, err := assets.NewRegistry(&lifecycleHandler{kind: catalog.KindE2EIdentities, calls: &calls})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -764,15 +765,15 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 				"aro-hcp-dev-e2e-only-slot": {successAcquireReply("aro-hcp-dev-e2e-only-slot-00")},
 			})
 			defer server.Close()
-			options := lifecycleOptions(t, catalog, server.URL, registry)
+			options := lifecycleOptions(t, slotCatalog, server.URL, registry)
 			options.AllowedSubscriptions = []string{"dev-e2e"}
 			resolutions := 0
-			options.ResolveSubscriptions = func(_ context.Context, profile, gotDeploy, e2e, infra string) (slots.ResolvedSubscriptions, error) {
+			options.ResolveSubscriptions = func(_ context.Context, profile, gotDeploy, e2e, infra string) (catalog.ResolvedSubscriptions, error) {
 				resolutions++
 				if gotDeploy != deploy || profile != options.ClusterProfileDir || e2e != "dev-e2e" || infra != "" {
 					t.Fatalf("E2E-only pool passed infrastructure demand or wrong target: %q %q %q %q", profile, gotDeploy, e2e, infra)
 				}
-				return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
+				return catalog.ResolvedSubscriptions{E2E: catalog.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 			}
 			if err := Acquire(t.Context(), options); err != nil {
 				t.Fatalf("E2E-only acquisition failed: %v", err)
@@ -780,14 +781,14 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			if resolutions != 1 || len(*acquired) != 1 || len(*released) != 0 {
 				t.Fatalf("unexpected resolutions/acquisitions/releases: %d %v %v", resolutions, *acquired, *released)
 			}
-			state, err := slots.LoadAcquiredSlotState(options.SharedDir)
-			if err != nil || state.Slot.Subscriptions.Infrastructure != (slots.ResolvedSubscription{}) {
+			state, err := lease.LoadAcquiredSlotState(options.SharedDir)
+			if err != nil || state.Slot.Subscriptions.Infrastructure != (catalog.ResolvedSubscription{}) {
 				t.Fatalf("E2E-only state retained infrastructure subscription: %+v, %v", state, err)
 			}
 			if err := state.ValidateForPublication(); err != nil {
 				t.Fatalf("E2E-only persisted state is not runtime-ready: %v", err)
 			}
-			path, _ := slots.EnvFile(options.SharedDir)
+			path, _ := lease.EnvFile(options.SharedDir)
 			data, err := os.ReadFile(path)
 			if err != nil || strings.Contains(string(data), leaseenv.InfrastructureSubscriptionID) || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
 				t.Fatalf("incorrect E2E-only runtime exports: %s, %v", data, err)

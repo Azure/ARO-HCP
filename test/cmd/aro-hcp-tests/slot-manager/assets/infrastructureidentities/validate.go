@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type validationResult struct {
@@ -67,7 +67,7 @@ func validateInventories(ctx context.Context, credential azcore.TokenCredential,
 	return nil
 }
 
-func compareInventory(ctx context.Context, clients *poolClients, inventory slots.AssetInventory, topology Topology) (validationResult, error) {
+func compareInventory(ctx context.Context, clients *poolClients, inventory catalog.AssetInventory, topology Topology) (validationResult, error) {
 	result := validationResult{}
 	for _, leaseName := range expectedBundleNames(inventory) {
 		groups, err := topology.AzureResourceGroups(leaseName)

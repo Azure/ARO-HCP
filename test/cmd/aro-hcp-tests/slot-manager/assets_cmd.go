@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/infrastructureidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/mockidentities"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 )
 
 type assetCommandOptions struct {
@@ -144,18 +144,18 @@ func runPoolAssetsCommand(ctx context.Context, registry *assets.Registry, option
 		defer azureGlobalLoggerCloser.Close()
 	}
 
-	catalog, err := slots.LoadCatalog(options.SlotCatalog)
+	slotCatalog, err := catalog.LoadCatalog(options.SlotCatalog)
 	if err != nil {
 		return err
 	}
-	environment, found := catalog.Environments[strings.TrimSpace(options.Environment)]
+	environment, found := slotCatalog.Environments[strings.TrimSpace(options.Environment)]
 	if !found {
 		return fmt.Errorf("unknown environment %q", options.Environment)
 	}
 
 	subscriptionFilter := stringSet(options.Subscriptions)
 	poolFilter := stringSet(options.Pools)
-	pools := make([]slots.Pool, 0, len(environment.Pools))
+	pools := make([]catalog.Pool, 0, len(environment.Pools))
 	for _, pool := range environment.Pools {
 		if len(subscriptionFilter) > 0 {
 			if _, found := subscriptionFilter[pool.Subscriptions.E2E]; !found {
@@ -183,7 +183,7 @@ func runPoolAssetsCommand(ctx context.Context, registry *assets.Registry, option
 		IncludeUnmanaged: len(subscriptionFilter) > 0 || len(poolFilter) > 0,
 		Out:              options.Out,
 	}
-	request.AssetInventories, err = catalog.AssetInventories()
+	request.AssetInventories, err = slotCatalog.AssetInventories()
 	if err != nil {
 		return err
 	}

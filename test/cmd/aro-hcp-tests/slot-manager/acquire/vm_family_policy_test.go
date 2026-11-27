@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slotmanager
+package acquire
 
 import (
 	"fmt"
@@ -20,7 +20,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
@@ -28,20 +29,20 @@ func TestSelectedRuntimeRegionDeterminesVMFamilyPolicy(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name         string
-		mode         slots.RegionMode
+		mode         catalog.RegionMode
 		regionConfig string
 		override     string
 		buildID      string
 		wantRegion   string
 		wantWorker   string
 	}{
-		{"runtime override", slots.RegionModeRuntimeSelected, "region: westus3", "centralus", "", "centralus", "standardDASv5Family"},
-		{"runtime override case insensitive", slots.RegionModeRuntimeSelected, "region: westus3", "CentralUS", "", "CentralUS", "standardDASv5Family"},
-		{"weighted central", slots.RegionModeWeighted, "regions: [westus3, centralus, canadacentral]", "", "1", "centralus", "standardDASv5Family"},
-		{"weighted default policy", slots.RegionModeWeighted, "regions: [westus3, centralus, canadacentral]", "", "0", "canadacentral", "standardDSv5Family"},
+		{"runtime override", catalog.RegionModeRuntimeSelected, "region: westus3", "centralus", "", "centralus", "standardDASv5Family"},
+		{"runtime override case insensitive", catalog.RegionModeRuntimeSelected, "region: westus3", "CentralUS", "", "CentralUS", "standardDASv5Family"},
+		{"weighted central", catalog.RegionModeWeighted, "regions: [westus3, centralus, canadacentral]", "", "1", "centralus", "standardDASv5Family"},
+		{"weighted default policy", catalog.RegionModeWeighted, "regions: [westus3, centralus, canadacentral]", "", "0", "canadacentral", "standardDSv5Family"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			catalog, err := slots.LoadCatalog(writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 2
+			slotCatalog := loadCatalogFromYAML(t, fmt.Sprintf(`version: 2
 environments:
   dev:
     deployment_environment: {name: ci01}
@@ -63,38 +64,35 @@ environments:
         regions:
           centralus:
             worker_families: [standardDASv5Family]
-`, tc.mode, tc.regionConfig)))
+`, tc.mode, tc.regionConfig))
+			selection, err := resolveRegionSelection(slotCatalog, "dev", tc.mode, tc.override, "westus3=1,centralus=1,canadacentral=1", tc.buildID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			selection, err := resolveRegionSelection(catalog, "dev", tc.mode, tc.override, "westus3=1,centralus=1,canadacentral=1", tc.buildID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			pool := catalog.Environments["dev"].Pools[0]
-			opts := &AcquireOptions{completedAcquireOptions: &completedAcquireOptions{RegionSelection: selection}}
-			slot := slots.ExpandSlotsForPool("dev", pool)[0]
+			pool := slotCatalog.Environments["dev"].Pools[0]
+			plan := &Plan{RegionSelection: selection}
+			slot := catalog.ExpandSlotsForPool("dev", pool)[0]
 			slot.Subscriptions.E2E.ID = "e2e-id"
-			state := &slots.AcquiredSlotState{
+			state := &lease.AcquiredSlotState{
 				Version:            2,
 				DeployEnvironment:  pool.DeployEnv,
-				RuntimeRegion:      opts.runtimeRegionForPool(pool),
+				RuntimeRegion:      plan.RuntimeRegionForPool(pool),
 				Slot:               slot,
 				LeasedResourceName: slot.ResourceName,
-				Leases:             slots.LeaseSet{Primary: slots.Lease{ResourceType: slot.ResourceType, ResourceName: slot.ResourceName}},
+				Leases:             lease.LeaseSet{Primary: lease.Lease{ResourceType: slot.ResourceType, ResourceName: slot.ResourceName}},
 			}
 			if state.RuntimeRegion != tc.wantRegion {
 				t.Fatalf("selected runtime region: got %q, want %q", state.RuntimeRegion, tc.wantRegion)
 			}
-			contract := slots.NewRuntimeContractBuilder()
-			if err := slots.AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err != nil {
+			contract := lease.NewRuntimeContractBuilder()
+			if err := lease.AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err != nil {
 				t.Fatal(err)
 			}
 			sharedDir := t.TempDir()
-			if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+			if err := lease.WriteRuntimeContract(sharedDir, contract); err != nil {
 				t.Fatal(err)
 			}
-			envFile, err := slots.EnvFile(sharedDir)
+			envFile, err := lease.EnvFile(sharedDir)
 			if err != nil {
 				t.Fatal(err)
 			}

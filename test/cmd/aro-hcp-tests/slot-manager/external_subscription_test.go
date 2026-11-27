@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/subscriptions"
 )
 
@@ -62,14 +62,14 @@ func TestExternalSubscriptionSelectsEveryDevPoolOfTheSubscription(t *testing.T) 
 
 func TestExternalSubscriptionRejectsUnsuitableSubscriptions(t *testing.T) {
 	t.Parallel()
-	catalog, err := slots.LoadCatalog("")
+	slotCatalog, err := catalog.LoadCatalog("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A managed DEV subscription is prepared by the dev-ci rollout, not by this command.
 	var managed string
-	for _, pool := range catalog.Environments["dev"].Pools {
-		if asset := pool.SlotAssets.E2EIdentities; asset == nil || asset.Provisioning != slots.IdentityProvisioningUnmanaged {
+	for _, pool := range slotCatalog.Environments["dev"].Pools {
+		if asset := pool.SlotAssets.E2EIdentities; asset == nil || asset.Provisioning != catalog.IdentityProvisioningUnmanaged {
 			managed = pool.Subscriptions.E2E
 			break
 		}
@@ -79,7 +79,7 @@ func TestExternalSubscriptionRejectsUnsuitableSubscriptions(t *testing.T) {
 		"managed":  {managed, "not an unmanaged E2E identity pool"},
 		"id given": {externalTestSubscriptionID, "no dev or dev-xs pool uses subscription"},
 	} {
-		if _, err := selectExternalPools(catalog, test.subscription); err == nil || !strings.Contains(err.Error(), test.want) {
+		if _, err := selectExternalPools(slotCatalog, test.subscription); err == nil || !strings.Contains(err.Error(), test.want) {
 			t.Fatalf("%s: want %q, got %v", name, test.want, err)
 		}
 	}

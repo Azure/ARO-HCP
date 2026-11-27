@@ -24,33 +24,34 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/catalog"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/lease"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 	t.Parallel()
 
-	managed := slots.Pool{
-		Subscriptions: slots.PoolSubscriptions{E2E: "managed"},
-		SlotAssets:    slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{}},
+	managed := catalog.Pool{
+		Subscriptions: catalog.PoolSubscriptions{E2E: "managed"},
+		SlotAssets:    catalog.SlotAssets{E2EIdentities: &catalog.E2EIdentitiesAsset{}},
 	}
-	unmanaged := slots.Pool{
-		Subscriptions: slots.PoolSubscriptions{E2E: "unmanaged"},
-		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
-			Provisioning: slots.IdentityProvisioningUnmanaged,
+	unmanaged := catalog.Pool{
+		Subscriptions: catalog.PoolSubscriptions{E2E: "unmanaged"},
+		SlotAssets: catalog.SlotAssets{E2EIdentities: &catalog.E2EIdentitiesAsset{
+			Provisioning: catalog.IdentityProvisioningUnmanaged,
 		}},
 	}
 	for _, operation := range []string{"apply", "validate"} {
 		for _, test := range []struct {
 			name             string
-			pools            []slots.Pool
+			pools            []catalog.Pool
 			includeUnmanaged bool
 			wantSubscription string
 		}{
-			{"default skips unmanaged", []slots.Pool{unmanaged, managed}, false, "managed"},
-			{"explicit selection includes unmanaged", []slots.Pool{unmanaged, managed}, true, "unmanaged"},
-			{"only unmanaged default", []slots.Pool{unmanaged}, false, ""},
+			{"default skips unmanaged", []catalog.Pool{unmanaged, managed}, false, "managed"},
+			{"explicit selection includes unmanaged", []catalog.Pool{unmanaged, managed}, true, "unmanaged"},
+			{"only unmanaged default", []catalog.Pool{unmanaged}, false, ""},
 		} {
 			t.Run(operation+"/"+test.name, func(t *testing.T) {
 				// Stop at subscription resolution so neither operation can reach Azure.
@@ -91,14 +92,14 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "99")
 
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+	request := assets.LeaseRequest{AcquiredSlotState: &lease.AcquiredSlotState{Slot: catalog.ExpandedSlot{
 		DeployEnvironment:      "int",
 		IdentityContainerCount: 10,
-		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+		Assets: catalog.ResolvedAssets{E2EIdentities: &catalog.ResolvedE2EIdentitiesAsset{
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
 	}}}
-	contract := slots.NewRuntimeContractBuilder()
+	contract := lease.NewRuntimeContractBuilder()
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
 	}
@@ -106,10 +107,10 @@ func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 		t.Fatal("identity export ownership must not be reassigned")
 	}
 	sharedDir := t.TempDir()
-	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+	if err := lease.WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatal(err)
 	}
-	envFile, err := slots.EnvFile(sharedDir)
+	envFile, err := lease.EnvFile(sharedDir)
 	if err != nil {
 		t.Fatal(err)
 	}
