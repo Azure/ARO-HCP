@@ -11,6 +11,12 @@ set -o pipefail
 : "${ARTIFACT_DIR:?ARTIFACT_DIR must be set}"
 : "${LOCATION:?LOCATION must be set}"
 
+# Temporary, draft-only ARM diagnostics demonstration. The leased E2E job
+# still owns slot acquisition/release; this branch just skips the underlay.
+if [[ ${JOB_NAME:-} == pull-ci-Azure-ARO-HCP-main-e2e-parallel ]]; then
+    exec bash "$(dirname "$0")/arm-diagnostics-demo.sh" run
+fi
+
 # shellcheck source=hack/ci/az-login.sh
 source "$(dirname "$0")/az-login.sh"
 oc version

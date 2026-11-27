@@ -705,7 +705,11 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-entrypoint/,$(entrypoints)):
 endif
 cleanup-entrypoint/%:
-	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"
+	@if [ "$(notdir $@)" = Region ] && [ -n "$${SHARED_DIR:-}" ] && [ -f "$$SHARED_DIR/arm-diagnostics-demo" ]; then \
+		bash hack/ci/arm-diagnostics-demo.sh cleanup; \
+	else \
+		$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"; \
+	fi
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-pipeline/,$(pipelines)):

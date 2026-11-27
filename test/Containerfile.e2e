@@ -6,5 +6,6 @@ ENV GOFLAGS='-mod=vendor'
 RUN make build-hcpctl && \
     make -C tooling/templatize templatize && \
     make -C test/ build && \
+    go test -C tooling/templatize -c -o /usr/local/bin/arm-diagnostics-demo.test ./pkg/pipeline && \
     go clean -cache -modcache && rm -f go.work.sum
 RUN chmod 777 /opt/app-root/src/github.com/Azure/ARO-HCP
