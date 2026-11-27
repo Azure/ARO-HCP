@@ -507,7 +507,7 @@ hcpRecovery:
     replicas: 2
     serviceAccountName: hcp-recovery
 hypershift:
-  additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
+  additionalInstallArg: --enable-cpo-overrides
   image:
     digest: sha256:253aec94d67f93a5a9fe93382d6b187611306e4beaab56199111df81119e53b7
     registry: quay.io
