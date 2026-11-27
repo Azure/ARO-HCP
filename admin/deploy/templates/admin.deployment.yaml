@@ -38,6 +38,7 @@ spec:
           matchLabels:
             app: admin-api
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: service
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"

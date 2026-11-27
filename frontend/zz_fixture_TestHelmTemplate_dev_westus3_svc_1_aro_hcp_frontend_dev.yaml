@@ -110,6 +110,7 @@ spec:
           matchLabels:
             app: aro-hcp-frontend
       serviceAccountName: 'frontend'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: aro-hcp-frontend
         image: 'arohcpsvcdev.azurecr.io/arohcpfrontend@sha256:1234567890'

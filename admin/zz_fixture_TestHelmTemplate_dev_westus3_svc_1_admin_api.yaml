@@ -111,6 +111,7 @@ spec:
           matchLabels:
             app: admin-api
       serviceAccountName: admin-api
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: service
         image: "arohcpsvcdev.azurecr.io/arohcpadminapi@sha256:1234567890"

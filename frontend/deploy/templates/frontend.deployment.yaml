@@ -38,6 +38,7 @@ spec:
           matchLabels:
             app: aro-hcp-frontend
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: aro-hcp-frontend
         image: '{{ .Values.deployment.imageName }}'
