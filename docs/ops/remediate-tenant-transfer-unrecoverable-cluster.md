@@ -1,0 +1,460 @@
+# Remediation: Potentially Unrecoverable Cluster Due to Azure AD Tenant Transfer or Expiration
+
+## Overview
+
+When a customer's Azure AD (Entra ID) tenant expires or their subscription is transferred to a different tenant, running ARO HCP clusters may become **unrecoverable**. Recovery depends on whether the Key Vault was transferred with the subscription and whether identity access can be restored. KMS/identity subject matter experts must assess each case before declaring the cluster unrecoverable.
+
+### Why This Breaks the Cluster
+
+User-Assigned Managed Identities (UAMIs) have Azure resources in the subscription, but their backing service principal lives in the Entra tenant. When a subscription is transferred to a new tenant or the original tenant expires, all existing UAMIs become invalid because the new tenant has no record of their service principals.
+
+The failure cascade:
+
+1. **Managed identity invalidation** — All UAMIs associated with the cluster are now invalid in the new tenant
+2. **KMS encryption failure** — The KMS sidecar can no longer access the encryption key in Azure Key Vault (`403 Forbidden` / `ForbiddenByRbac`)
+3. **etcd encryption key inaccessible** — The KMS cannot decrypt the etcd encryption key
+4. **kube-apiserver health failure** — KAS readiness checks fail because the KMS health check fails
+5. **All operators fail** — Loss of API server causes all cluster operators to report unavailable
+6. **ClusterVersion stuck Partial** — The CVO cannot complete any upgrade; both current and target versions remain Partial indefinitely
+
+**Why recovery may not be possible**: The managed identities can no longer authenticate to Azure Key Vault, blocking access to the encryption key needed to decrypt etcd data. Recovery depends on whether the Key Vault was transferred with the subscription and whether the identity access can be restored. In tenant expiration scenarios where the Key Vault and identities are inaccessible, recovery is not possible. Consult KMS/identity owners for recovery assessment in your specific scenario.
+
+## Tracking
+
+This issue was first systematically observed across multiple incidents in October 2026:
+
+- **Incident A** — Central India region, ClusterVersion 4.22.19 stuck Partial for ~42 hours before detection
+- **Incident B** — Similar pattern, AADSTS5000229 errors in KMS/kube-apiserver logs
+- **Multiple incidents observed** — Tenant transfer/expiration pattern reported across different regions in October 2026
+
+Related issues:
+- **ARO-30258** — Cluster deletion stalls on AADSTS5000229 (deletion path)
+- **ARO-30096** — Cluster deletion stuck when subscription moved to different tenant (deletion path)
+- **ARO-30031** — Subscription tenant transfer is unsupported (documentation)
+
+## Symptoms
+
+All of the following will be present on an affected cluster:
+
+| Signal | Detail |
+|---|---|
+| **ClusterVersion** | Stuck in `Partial` state, unable to complete any upgrade (including z-stream patches initiated by SRE) |
+| **kube-apiserver** | `KubeAPIServerAvailable=False`, readiness checks failing |
+| **KMS errors** | `403 Forbidden`, `ForbiddenByRbac`, AADSTS5000229 in kube-apiserver and KMS logs |
+| **Operator status** | All cluster operators report unavailable or degraded |
+| **Duration** | Can persist for days before detection if no upgrade is attempted; often only surfaces when an SRE-initiated z-stream upgrade triggers an IcM alert |
+| **Error signature** | `AADSTS5000229: The tenant '<tenant-id>' is not available due to expiration`, `InvalidAuthenticationTokenTenant` |
+
+## Diagnosis
+
+### 1. Confirm AADSTS5000229 / InvalidAuthenticationTokenTenant in Logs
+
+Check KMS and kube-apiserver logs for tenant-related authentication failures:
+
+```bash
+# On the management cluster (via hcpctl mc breakglass <mc-name>)
+export HOSTED_CLUSTER_NAME="<hostedcluster-metadata-name>"  # Cluster Service domain prefix, not the ARM cluster name
+export CLUSTER_NAMESPACE="ocm-<prefix>-<cluster-id>-${HOSTED_CLUSTER_NAME}"
+
+# Check kube-apiserver logs (increase --tail if errors aren't found in recent logs)
+kubectl logs -n ${CLUSTER_NAMESPACE} deployment/kube-apiserver --tail=500 | grep -i "AADSTS\|InvalidAuthenticationTokenTenant\|ForbiddenByRbac"
+
+# Check KMS sidecar logs (azure-kms-provider-active is the active KMS container)
+kubectl logs -n ${CLUSTER_NAMESPACE} deployment/kube-apiserver -c azure-kms-provider-active --tail=500 | grep -i "AADSTS\|InvalidAuthenticationTokenTenant\|403\|Forbidden"
+```
+
+Look for error patterns like:
+- `AADSTS5000229: The tenant '<tenant-id>' is not available due to expiration`
+- `InvalidAuthenticationTokenTenant`
+- `403 Forbidden` / `ForbiddenByRbac` on Key Vault operations
+
+### 2. Confirm Tenant Mismatch
+
+Verify that the subscription's current tenant does not match the tenant ID in the error logs:
+
+```bash
+# Get the subscription's current tenant (force refresh to detect transfers)
+az account list --refresh --query "[?id=='<subscription-id>'].tenantId | [0]" -o tsv
+
+# If the subscription is absent from the list, determine its current tenant:
+# Option 1: Use Azure Portal (requires access to the subscription)
+#   - Navigate to portal.azure.com
+#   - Search for the subscription ID
+#   - The "Directory + subscription" dropdown will show which tenant it's in
+#
+# Option 2: Contact the customer or subscription owner to confirm the current tenant
+#   - Ask: "Which Azure AD tenant does subscription <subscription-id> currently belong to?"
+#
+# Once you know the tenant, sign in to it:
+# az login --tenant <tenant-id>
+# az account list --query "[?id=='<subscription-id>'].tenantId | [0]" -o tsv
+#
+# Do not infer expiration from a missing subscription result alone.
+
+# Compare the subscription's current tenant ID with the tenant ID from the AADSTS5000229 error
+# If they differ, the subscription was transferred
+```
+
+### 3. Check ClusterVersion Status
+
+```bash
+# On the hosted cluster (if API server is still accessible)
+kubectl get clusterversion version -o yaml
+
+# Look for:
+# - status.desired.version stuck for extended period
+# - status.history showing Partial state for both current and target versions
+```
+
+If the API server is completely inaccessible, check the HyperShift HostedCluster status from the management cluster:
+
+```bash
+# On the management cluster
+# Note: HostedCluster lives in namespace ocm-<prefix>-<cluster-id> (without the cluster name suffix)
+# The control plane resources (kube-apiserver, etcd) live in the child namespace with the cluster name suffix
+kubectl get hostedcluster -n ocm-<prefix>-<cluster-id> ${HOSTED_CLUSTER_NAME} -o jsonpath='{.status.version}' | jq .
+```
+
+### 4. Rule Out Other Causes
+
+Before concluding this is a tenant transfer issue, rule out:
+
+**Azure Policy interference** (e.g., AROSLSRE-2701 pattern — publicNetworkAccess disabled on storage accounts):
+```bash
+# List policy assignments without excluding older assignments.
+# Include inherited (management group) and resource-level assignments to comprehensively rule out policy interference.
+az policy assignment list --subscription <subscription-id> --disable-scope-strict-match --query "[].{name:name, policy:policyDefinitionId, createdOn:metadata.createdOn}" -o table
+```
+
+**General Key Vault access issues** (firewall, RBAC, deny assignments):
+
+```bash
+# Get the Key Vault name and KMS identity from the cluster properties
+export KEY_VAULT_NAME="<vault-name-from-cluster-spec>"
+export KMS_IDENTITY_RESOURCE_ID="<kms-identity-resource-id-from-cluster-spec>"
+
+# Check Key Vault firewall and network rules
+az keyvault show --name ${KEY_VAULT_NAME} --subscription "<key-vault-subscription-id>" \
+  --query "{networkAcls: properties.networkAcls, publicAccess: properties.publicNetworkAccess}" -o json
+
+# Check if the KMS identity has "Key Vault Crypto User" role on the vault
+# Extract principal ID from the identity
+export KMS_PRINCIPAL_ID=$(az identity show --ids ${KMS_IDENTITY_RESOURCE_ID} --query principalId -o tsv)
+
+# List role assignments for the KMS identity on the Key Vault
+# Use --assignee-object-id to bypass Graph lookup (which fails if principal is from a transferred/expired tenant)
+az role assignment list --scope /subscriptions/<subscription-id>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/${KEY_VAULT_NAME} \
+  --assignee-object-id ${KMS_PRINCIPAL_ID} --include-inherited --fill-principal-name false -o table
+
+# Check for deny assignments that might block access
+az rest --method GET \
+  --url "/subscriptions/<subscription-id>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/${KEY_VAULT_NAME}/providers/Microsoft.Authorization/denyAssignments?api-version=2022-04-01&%24filter=atScope()" \
+  -o json
+# Inspect permissions, principals, excludePrincipals, and doNotApplyToChildScopes.
+# If nextLink is present, fetch it with az rest --method GET --url "<nextLink>" and repeat.
+
+# Note: Testing secret-list access with the operator's Azure CLI credentials does not validate KMS key access.
+# The KMS identity needs cryptographic-operation permissions (encrypt, decrypt), not secret access.
+```
+
+**Network connectivity** (if KMS errors show timeout rather than 403):
+```bash
+# Test connectivity to Key Vault from the management cluster
+# Replace <vault-name> with the actual vault name
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+  curl -v https://<vault-name>.vault.azure.net
+
+# If the test pod cannot resolve DNS or connect, the issue is network/firewall, not authentication
+```
+
+Once alternative causes have been ruled out, proceed to Remediation Step 1 and evaluate either the transfer evidence path or the expiration evidence path.
+
+## Remediation Procedure
+
+### Step 1: Confirm the Cluster is Unrecoverable
+
+Before engaging the customer, confirm evidence of tenant transfer or expiration:
+
+**Transfer evidence (subscription moved to different tenant):**
+- [ ] Subscription tenant ID mismatch confirmed (current tenant ID ≠ tenant ID in AADSTS errors)
+- [ ] AADSTS5000229 or InvalidAuthenticationTokenTenant confirmed in logs
+
+**Expiration evidence (tenant disabled/deleted, subscription still in same tenant):**
+- [ ] AADSTS5000229 with "not available due to expiration" or similar tenant-unavailable error
+- [ ] Subscription tenant ID matches the tenant in error logs (tenant not transferred, but unavailable)
+
+**Supporting evidence (not required, but strengthens diagnosis):**
+- ClusterVersion stuck Partial with no progress
+- KMS denied key access by Key Vault (403 / ForbiddenByRbac)
+- Extended outage duration (>24 hours)
+
+**Decision gate**: Either the transfer evidence path OR the expiration evidence path must be satisfied. If neither path is clear, do not proceed with customer communication about cluster recreation — investigate alternative causes first.
+
+**Recovery confirmation required**: Before declaring the cluster unrecoverable to the customer, confirm with the service team and Azure Key Vault/identity owners that no recovery path exists. Authentication failures alone do not prove that the encryption key is permanently inaccessible — verify that identity restoration or key access restoration is not possible.
+
+### Step 2: Engage Customer Support
+
+Notify the customer through the appropriate support channel (TAM, support case, or escalation path depending on the customer's support tier).
+
+**Template message** (adapt to your support process):
+
+```
+Subject: ARO HCP Cluster Unrecoverable Due to Azure AD Tenant Transfer or Expiration
+
+Hello [Customer Name],
+
+We have identified that your ARO HCP cluster "<cluster-name>" (ID: <cluster-id>)
+in subscription <subscription-id> is in an unrecoverable state due to Azure AD
+(Entra ID) tenant [transfer/expiration].
+
+What happened:
+- The subscription's Azure AD tenant was [transferred to a different tenant / expired] on approximately [date]
+- The cluster's managed identities can no longer authenticate to Azure Key Vault
+- Access to the encryption key needed to decrypt etcd data has been lost
+- Our Key Vault and identity subject matter experts have assessed the recovery options
+  and confirmed that recovery is not possible in this scenario
+
+Impact:
+- The cluster API server is unavailable or degraded
+- All cluster operators are failing
+- The cluster cannot be upgraded or repaired
+
+Required action:
+- Workloads must be migrated off this cluster
+- A new cluster must be created in a supported, active tenant
+- The existing cluster should be deleted once migration is complete
+
+We understand this is disruptive and are available to assist with the migration
+process. Please reply to this message or contact [escalation contact] for further
+assistance.
+
+Best regards,
+[SRE Team / Support Team]
+```
+
+**Key points to communicate:**
+1. The cluster is unrecoverable (this is not a configuration issue)
+2. The customer must migrate workloads and recreate the cluster
+3. Support is available to assist with the migration
+4. The underlying cause was the subscription tenant change, not a cluster configuration issue
+
+### Step 3: Suppress or Resolve Stuck Upgrade Alerts
+
+If the cluster is stuck in Partial state due to an SRE-initiated z-stream upgrade, the IcM alert will continue firing until resolved.
+
+**Option A: Suppress the alert** (if the customer migration will take days/weeks)
+
+```bash
+# Suppress the IcM alert with a note linking to this runbook and the customer engagement
+# Example (adapt to your alerting system):
+# "Cluster unrecoverable due to tenant transfer (ARO-30499). Customer engaged [date].
+#  Migration in progress. Suppressing alert until cluster deletion."
+```
+
+**Option B: Resolve the alert** (if customer has confirmed deletion timeline)
+
+If the customer has acknowledged the situation and scheduled cluster deletion, resolve the alert with a note explaining the resolution path:
+
+```
+Cluster is unrecoverable due to Azure AD tenant transfer/expiration (ARO-30499).
+Customer notified [date], deletion scheduled [date]. Alert resolved as cluster
+will be decommissioned rather than repaired.
+```
+
+### Step 4: Record Information for Post-Deletion Verification
+
+Before initiating cluster deletion, record the managed resource group name from the cluster document in Cosmos. This information will be needed to verify Azure resources are cleaned up after deletion.
+
+```bash
+# Get the cluster document and extract the managed resource group name
+export SUBSCRIPTION_ID="<subscription-id>"
+export RESOURCE_GROUP="<resource-group>"
+export CLUSTER_NAME="<cluster-name>"
+
+# Record this value - you'll need it after cluster deletion
+# NOTE: In tenant expiration scenarios, ARM API may fail due to authentication.
+# If this lookup fails or returns empty, retrieve the value from Cosmos CustomerProperties.Platform.ManagedResourceGroup instead.
+export MANAGED_RESOURCE_GROUP=$(az resource show \
+  --ids "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}" \
+  --api-version 2024-06-10-preview --query "properties.platform.managedResourceGroup" -o tsv)
+
+echo "Managed Resource Group: ${MANAGED_RESOURCE_GROUP}"
+# IMPORTANT: Verify this value is not empty before proceeding with deletion.
+# Save this value to your incident notes - you'll need it for cleanup verification.
+```
+
+### Step 5: Coordinate Cluster Deletion
+
+Once the customer has migrated workloads and is ready to delete the cluster:
+
+- [ ] Confirm with customer that all workloads have been migrated
+- [ ] Confirm a replacement cluster has been created (if applicable)
+- [ ] Record managed resource group name (Step 4 above)
+- [ ] Initiate cluster deletion via standard ARM API (customer-initiated or SRE-assisted)
+- [ ] Monitor for stuck deletion issues (see [Cleanup Procedure for Stuck Deletions](cleanup-stuck-cluster-deletion.md) if deletion stalls due to AADSTS5000229)
+
+**Note**: The cluster deletion itself may also encounter AADSTS5000229 errors (tracked in ARO-30258, ARO-30096). If the deletion becomes stuck, use the manual cleanup procedures documented in the stuck-deletion runbook.
+
+### Step 6: Document the Incident
+
+Update the IcM, Jira, or internal tracking system with:
+- Customer engagement timeline
+- Migration completion date
+- Cluster deletion date
+- Any lessons learned specific to this customer's scenario
+
+## Post-Resolution
+
+### 1. Verify Cluster Deletion Completed
+
+```bash
+# Confirm the cluster is gone from Clusters Service on the service cluster
+hcpctl sc breakglass <svc-name>
+export KUBECONFIG="<service-cluster-path-from-output>"
+export CLUSTER_ID="<cluster-id>"
+kubectl exec -n clusters-service deployment/clusters-service -c clusters-service-server -- \
+  curl -sS -o /dev/null -w 'HTTP %{http_code}\n' "http://localhost:8000/api/clusters_mgmt/v1/clusters/${CLUSTER_ID}"
+# Expected: HTTP 404
+
+# Before declaring cleanup complete, also perform the service-cluster Maestro
+# ResourceBundle verification in "Cleanup Procedure for Stuck Deletions", Phase 4.
+# No bundles for this cluster should remain, including namespace-only bundles.
+
+# Confirm no orphaned resources remain on the management cluster
+hcpctl mc breakglass <mc-name>
+export KUBECONFIG="<management-cluster-path-from-output>"
+kubectl get namespaces | grep -F -- "${CLUSTER_ID}"
+kubectl get manifestwork -n local-cluster | grep -F -- "${CLUSTER_ID}"
+kubectl get managedcluster | grep -F -- "${CLUSTER_ID}"
+kubectl get appliedmanifestwork | grep -F -- "${CLUSTER_ID}"
+
+# Verify Azure resources are cleaned up
+# Use the MANAGED_RESOURCE_GROUP value you recorded in Step 4 before deletion
+export SUBSCRIPTION_ID="<subscription-id>"
+export MANAGED_RESOURCE_GROUP="<value-from-step-4>"
+
+# Check for remaining VMs, NICs, disks, and other resources in the managed resource group
+az resource list --resource-group ${MANAGED_RESOURCE_GROUP} --subscription ${SUBSCRIPTION_ID} -o table
+
+# If resources remain, check for deny assignments or RBAC issues preventing cleanup
+# Consult the cleanup runbook for manual resource deletion if needed
+```
+
+### 2. Close Related Alerts
+
+Resolve or close any related alerts that fired during the incident:
+- Stuck upgrade alerts
+- KubeAPIServerAvailable alerts
+- Operator degraded alerts
+
+### 3. Update Customer Communication
+
+Send a closure message confirming:
+- Cluster deletion completed
+- Azure resources verified clean (or document any intentionally retained customer resources)
+- Migration validated (if applicable)
+
+## Prevention and Future Work
+
+This runbook addresses remediation only. The following preventive measures are tracked separately:
+
+1. **Automated detection** (ARO-30499) — A controller that detects AADSTS5000229 / tenant mismatch on running clusters and surfaces it as a cluster condition or alert **before** an upgrade monitor fires days later.
+
+2. **Upgrade guard rails** (ARO-30499) — Pre-check tenant/identity health before initiating z-stream upgrades, to avoid triggering IcM alerts on already-broken clusters.
+
+3. **Customer documentation** (ARO-30031) — Public documentation that subscription tenant transfer is unsupported and will result in cluster loss.
+
+## Common Scenarios
+
+### Scenario 1: Customer Unaware of Tenant Transfer
+
+**Symptoms**: Customer opens a support case reporting that their cluster is "broken" or "won't upgrade" but has no knowledge of a tenant transfer.
+
+**Diagnosis**: Work backward from the subscription's current tenant ID and the AADSTS errors to determine when the transfer occurred. Azure subscription activity logs may show the transfer event.
+
+**Remediation**: Follow the standard remediation procedure but include an explanation of how the tenant transfer occurred (if discoverable) in the customer communication.
+
+### Scenario 2: Cluster Partially Functional (Some Operators Still Working)
+
+**Symptoms**: Some operators are still reporting available, or the API server is intermittently accessible.
+
+**Cause**: Not all cluster components may have attempted to use the invalidated identities yet. The failure is progressive as components try to authenticate.
+
+**Remediation**: Follow Remediation Step 1, including confirmation from the service team and Key Vault/identity owners that no recovery path exists. Partial functionality alone does not establish that the cluster is terminal. If unrecoverability is confirmed, proceed with customer engagement and migration.
+
+### Scenario 3: Deletion Also Stuck (ARO-30258 / ARO-30096)
+
+**Symptoms**: Customer agrees to delete the cluster, but the deletion stalls indefinitely with AADSTS5000229 errors.
+
+**Cause**: The cluster deletion flow also requires managed identity authentication to clean up Azure resources. The invalidated identities block deletion just as they blocked cluster operations.
+
+**Remediation**: Use the [Cleanup Procedure for Stuck Deletions](cleanup-stuck-cluster-deletion.md) to manually clean up Maestro ResourceBundles, ManifestWorks, and Kubernetes resources. Azure resource cleanup may require manual intervention from the subscription owner if deny assignments prevent automated cleanup.
+
+### Scenario 4: Multiple Clusters Affected (Subscription-Wide Tenant Transfer)
+
+**Symptoms**: Multiple clusters in the same subscription all showing AADSTS5000229 simultaneously.
+
+**Cause**: A subscription-wide tenant transfer affects all clusters in that subscription.
+
+**Remediation**: Batch the customer communication to cover all affected clusters. Adapt the template message:
+- Replace single cluster details with a table listing all affected clusters (name, ID, region)
+- Prioritize clusters by customer workload criticality (production > staging > dev)
+- In the message, state: "We have identified that **N clusters** in subscription <subscription-id> are affected"
+- Include a prioritized migration plan: "We recommend migrating production workloads first, followed by..."
+
+Expect a longer migration timeline as the customer will need to recreate multiple clusters. Consider offering SRE assistance for the migration coordination.
+
+## Lessons Learned
+
+### Detection lag can be 40+ hours
+
+An observed incident went undetected for 42+ hours, only surfacing when an SRE-initiated z-stream upgrade triggered an alert. Without automated detection, these failures are silent until an upgrade is attempted.
+
+### Stuck upgrade alerts are symptoms, not the root cause
+
+When an IcM fires for a stuck upgrade on a cluster with AADSTS errors, the root cause is the tenant transfer, not the upgrade process. Investigating the upgrade controller is a dead end — check identity/tenant health first.
+
+### Customer communication is critical
+
+Many customers are unaware that tenant transfer can make their clusters unrecoverable. After confirming with KMS/identity owners that no recovery path exists, clear and empathetic communication about the migration path is essential to avoid customer frustration or escalation.
+
+### Deletion may also require manual intervention
+
+The deletion path has its own tenant-related failure modes (ARO-30258, ARO-30096). Plan for manual cleanup even after the customer agrees to delete.
+
+### Automated detection is essential
+
+Until automated detection is implemented (ARO-30499), rely on proactive monitoring of AADSTS errors in centralized logging (Kusto) to catch these cases early.
+
+## Quick Reference: Error Signatures
+
+| Error | Meaning | Action |
+|---|---|---|
+| `AADSTS5000229: The tenant '<tenant-id>' is not available due to expiration` | Authentication is blocked because the tenant has expired; this does not establish a subscription transfer or key deletion | Confirm tenant status and recovery options with the tenant owner before applying the remediation decision gate |
+| `InvalidAuthenticationTokenTenant` | The identity's tenant does not match the subscription's current tenant | Confirm tenant mismatch (Diagnosis Step 2) |
+| `403 Forbidden` / `ForbiddenByRbac` (KMS → Key Vault) | Key Vault denied the KMS operation; this alone does not establish an authentication failure | Inspect key-operation permissions, deny assignments, and vault network restrictions; confirm tenant-related errors separately (Diagnosis Steps 1–4) |
+| `ClusterVersion Partial` for >24h with no progress | Upgrade cannot complete due to API server unavailability | Check if KMS/KAS logs show tenant errors (Diagnosis Step 1) |
+
+## Quick Reference: Customer Communication Checklist
+
+Before engaging the customer:
+
+- [ ] Transfer evidence: Subscription tenant ID mismatch confirmed + AADSTS errors **OR**
+- [ ] Expiration evidence: AADSTS5000229 "not available due to expiration" + subscription still in same tenant
+- [ ] Alternative causes ruled out (Azure Policy, RBAC, network)
+- [ ] Recovery confirmation: Service team and Key Vault/identity owners confirm no recovery path exists
+
+Customer communication should include:
+
+- [ ] Clear statement that the cluster is unrecoverable (after KMS/identity SMEs confirm no recovery path)
+- [ ] Explanation of why (tenant transfer/expiration blocked Key Vault access, SMEs assessed and confirmed recovery is not possible)
+- [ ] Required action (migrate workloads, recreate cluster)
+- [ ] Offer of support/assistance with migration
+- [ ] Timeline expectations for migration and deletion
+
+## Related Documentation
+
+- [Cleanup Procedure for Stuck Deletions](cleanup-stuck-cluster-deletion.md) — Manual cleanup if cluster deletion stalls due to AADSTS errors
+- [ARO-30031](https://issues.redhat.com/browse/ARO-30031) — Document that subscription tenant transfer is unsupported
+- [ARO-30258](https://issues.redhat.com/browse/ARO-30258) — Cluster deletion stalls on AADSTS5000229
+- [ARO-30096](https://issues.redhat.com/browse/ARO-30096) — Cluster deletion stuck when subscription moved to different tenant
