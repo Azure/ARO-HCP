@@ -24,6 +24,8 @@ import (
 	"github.com/go-logr/logr"
 	abstractions "github.com/microsoft/kiota-abstractions-go"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models/odataerrors"
 )
 
@@ -32,6 +34,20 @@ const (
 	deletedItemPropagationTimeout = 30 * time.Second
 	deletedItemRestoreTimeout     = 30 * time.Second
 )
+
+// applicationDeleteConfirmBackoff paces the DELETE and confirmation GET while
+// Graph still returns the application: 6 attempts with about 31s of waiting
+// between them, to stay inside Graph's low throttling budget. There is no
+// separate deadline: app cleanup is the last cleanup step, and giving up early
+// under throttling would only leak the application.
+var applicationDeleteConfirmBackoff = wait.Backoff{
+	Duration: time.Second,
+	Factor:   2,
+	Jitter:   0.1,
+	Steps:    6,
+}
+
+var errApplicationStillExists = errors.New("application still exists after delete")
 
 // ApplicationCleanupTarget identifies an application registration and its
 // associated service principal by their directory object IDs.
@@ -109,12 +125,9 @@ func (c *Client) DeleteApplicationPermanently(ctx context.Context, target Applic
 		}
 	}
 
-	applicationWasDeleted := true
-	if err := c.DeleteApplication(ctx, target.ApplicationObjectID); err != nil {
-		if !isODataStatus(err, http.StatusNotFound) {
-			return err
-		}
-		applicationWasDeleted = false
+	applicationWasDeleted, err := c.deleteApplicationAndConfirm(ctx, target.ApplicationObjectID, applicationDeleteConfirmBackoff)
+	if err != nil {
+		return err
 	}
 
 	if err := c.permanentlyDeleteDirectoryObject(
@@ -142,6 +155,53 @@ func (c *Client) DeleteApplicationPermanently(ctx context.Context, target Applic
 	}
 
 	return nil
+}
+
+// deleteApplicationAndConfirm deletes an application and confirms with a GET
+// that it is gone. Right after its service principal is deleted, Graph can
+// answer the application DELETE with 404 while the application stays active,
+// so neither the DELETE response nor a 404 is proof of deletion. It repeats the
+// DELETE, with backoff, until the GET returns 404 or the attempts run out. The
+// returned bool reports whether any DELETE call succeeded, which tells the
+// purge step to wait for the object to appear in deletedItems.
+func (c *Client) deleteApplicationAndConfirm(ctx context.Context, objectID string, backoff wait.Backoff) (bool, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	deleted := false
+	// requestErr records a DELETE/GET failure, so that a request error that
+	// looks like a timeout (the HTTP client's own timeout matches
+	// context.DeadlineExceeded) is never reported as the attempts running out.
+	var requestErr error
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+		deleteErr := c.DeleteApplication(ctx, objectID)
+		if deleteErr == nil {
+			deleted = true
+		} else if !isODataStatus(deleteErr, http.StatusNotFound) {
+			requestErr = deleteErr
+			return false, requestErr
+		}
+
+		_, getErr := c.graphClient.Applications().ByApplicationId(objectID).Get(ctx, nil)
+		if isODataStatus(getErr, http.StatusNotFound) {
+			return true, nil
+		}
+		if getErr != nil {
+			requestErr = fmt.Errorf("confirm deletion of application %q: %w", objectID, odataErrorWithDiagnostics(getErr))
+			return false, requestErr
+		}
+
+		logger.Info(
+			"Application still exists after delete; retrying",
+			"applicationObjectID", objectID,
+			"deleteReturnedNotFound", deleteErr != nil,
+		)
+		return false, nil
+	})
+	// Without a request error or a canceled context, an error means every
+	// attempt ran and the application was still there.
+	if err != nil && requestErr == nil && ctx.Err() == nil {
+		return deleted, fmt.Errorf("application %q not confirmed deleted after %d attempts: %w", objectID, backoff.Steps, errApplicationStillExists)
+	}
+	return deleted, err
 }
 
 func (c *Client) restoreDeletedDirectoryObject(ctx context.Context, objectID string) error {

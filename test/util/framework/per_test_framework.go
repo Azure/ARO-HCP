@@ -391,7 +391,9 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments after resource group deletion")
 	}
 
-	err = graphClient.CleanupApplications(ctx, appRegistrations)
+	// The spec context carries no logger; pass Ginkgo's so the Graph cleanup
+	// logs (e.g. a delete Graph did not apply) reach the test output.
+	err = graphClient.CleanupApplications(logr.NewContext(ctx, ginkgo.GinkgoLogr), appRegistrations)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete and purge")
 	}
