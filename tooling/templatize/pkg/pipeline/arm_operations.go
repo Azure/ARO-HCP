@@ -393,12 +393,11 @@ type FailedOperation struct {
 	Operation      Operation
 }
 
-// FailedOperations walks the operation tree and returns the failed operations that explain the failure. Children
-// are always searched, since ARM may leave a failed parent's state and error out. A failed nested deployment is
-// reported itself only while something beneath it is still unexplained: either nothing beneath it failed, or a bare
-// "Failed" beneath it has no closer error, or the operations beneath it could not all be fetched. A generic wrapper over explained failures is left out, but an error that
-// may be the only explanation for a bare failure (e.g. a nested status wrapped as JSON text) is kept, and it then
-// explains that failure for every ancestor.
+// FailedOperations walks the operation tree and returns the failed operations that explain the failure.
+// It skips successful branches and searches children with an unknown state, since ARM may leave a failed
+// parent's state and error out. A failed nested deployment's own error is kept if no child failed, a child
+// failed without an explanation, or the children could not all be fetched. That error then explains the
+// failure for every ancestor.
 func FailedOperations(ops []Operation) []FailedOperation {
 	// walk returns the failures to report and whether any of them is still without an explaining error.
 	var walk func(ops []Operation, path []string) ([]FailedOperation, bool)
@@ -406,16 +405,17 @@ func FailedOperations(ops []Operation) []FailedOperation {
 		var out []FailedOperation
 		unexplained := false
 		for _, op := range ops {
+			// A branch that ultimately succeeded may contain failed attempts, but they do not explain its parent's failure.
+			if strings.EqualFold(op.ProvisioningState, string(armresources.ProvisioningStateSucceeded)) {
+				continue
+			}
 			childPath := path
 			if op.Resource != nil {
 				childPath = append(slices.Clone(path), op.Resource.Name)
 			}
 			beneath, beneathUnexplained := walk(op.Children, childPath)
 			failed := op.Error != nil || strings.EqualFold(op.ProvisioningState, string(armresources.ProvisioningStateFailed))
-			// the operations we couldn't fetch may hold failures that nothing beneath explains, unless the deployment is
-			// known to have succeeded (a sparse one, without a state, may still be the failed one)
-			succeeded := strings.EqualFold(op.ProvisioningState, string(armresources.ProvisioningStateSucceeded))
-			beneathUnexplained = beneathUnexplained || (!succeeded && op.ChildrenIncomplete)
+			beneathUnexplained = beneathUnexplained || op.ChildrenIncomplete
 			report := false
 			switch {
 			case !failed:

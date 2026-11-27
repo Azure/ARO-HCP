@@ -277,7 +277,7 @@ func startAndWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient
 	}
 	if pollErr != nil {
 		// details lists the deployment's operations, which carry the per-resource errors behind a DeploymentFailed.
-		return nil, details, fmt.Errorf("failed to poll deployment %s: %w", deploymentName, pollErr)
+		return nil, details, fmt.Errorf("failed to poll deployment: %w", pollErr)
 	}
 
 	return output, details, commit(output)

@@ -393,7 +393,6 @@ func TestFreshDeploymentPollFailureKeepsDetails(t *testing.T) {
 			ctx, cancel := context.WithTimeout(logr.NewContext(t.Context(), logr.Discard()), 10*time.Second)
 			defer cancel()
 			var mu sync.Mutex
-			var deploymentPath string
 			operations := 0
 			transport := &fakeTransport{interceptor: func(request *http.Request) (*http.Response, error) {
 				mu.Lock()
@@ -410,7 +409,6 @@ func TestFreshDeploymentPollFailureKeepsDetails(t *testing.T) {
 				case request.Method == http.MethodGet && strings.Contains(request.URL.Path, "/deployments/"):
 					status, body = http.StatusNotFound, `{"error":{"code":"DeploymentNotFound"}}`
 				case request.Method == http.MethodPut && strings.Contains(request.URL.Path, "/deployments/"):
-					deploymentPath = request.URL.Path
 					status, body = http.StatusCreated, `{"properties":{"provisioningState":"Accepted"}}`
 					header.Set("Azure-AsyncOperation", (&url.URL{Scheme: request.URL.Scheme, Host: request.URL.Host, Path: request.URL.Path + "/operationStatuses/synthetic", RawQuery: "api-version=2021-04-01"}).String())
 				default:
@@ -437,10 +435,7 @@ func TestFreshDeploymentPollFailureKeepsDetails(t *testing.T) {
 			output, details, err := client.runArmStep(ctx, &StepRunOptions{BaseRunOptions: BaseRunOptions{NoPersist: true, DeploymentTimeoutSeconds: 30}, PipelineDirectory: directory}, "rg", graph.Identifier{}, step, NewExecutionState())
 			require.Error(t, err)
 			assert.Nil(t, output)
-			mu.Lock()
-			name := deploymentPath[strings.LastIndex(deploymentPath, "/")+1:]
-			mu.Unlock()
-			assert.Contains(t, err.Error(), "failed to poll deployment "+name+": ")
+			assert.ErrorContains(t, err, "failed to poll deployment: ")
 			require.NotNil(t, details, "the operations explain the failure, so they must be fetched on this path, too")
 			result, err := details(ctx)
 			require.NoError(t, err)
@@ -552,11 +547,20 @@ func TestFailedOperationsSelection(t *testing.T) {
 			expected: []string{":first:FirstCause", ":second:SecondCause"},
 		},
 		{
-			name: "an unexplained failure beneath a non-failed parent keeps the outer error",
+			name: "an unexplained failure beneath an unknown state keeps the outer error",
 			ops: []Operation{{ProvisioningState: "Failed", Error: &OperationError{Code: "DeploymentFailed"}, Resource: deployment("outer"), Children: []Operation{
-				{ProvisioningState: "Succeeded", Resource: deployment("middle"), Children: []Operation{{ProvisioningState: "Failed", Resource: leaf}}},
+				{Resource: deployment("middle"), Children: []Operation{{ProvisioningState: "Failed", Resource: leaf}}},
 			}}},
 			expected: []string{":outer:DeploymentFailed", "outer/middle:thing:"},
+		},
+		{
+			name: "a recovered deployment does not hide the parent's failure",
+			ops: []Operation{{ProvisioningState: "Failed", Error: cause, Resource: deployment("outer"), Children: []Operation{
+				{ProvisioningState: "Succeeded", Resource: deployment("middle"), Children: []Operation{
+					{ProvisioningState: "Failed", Error: &OperationError{Code: "EarlierFailure"}, Resource: leaf},
+				}},
+			}}},
+			expected: []string{":outer:SyntheticCause"},
 		},
 		{
 			name:     "operations without a resource",
