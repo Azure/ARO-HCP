@@ -4,12 +4,16 @@
 package toolchain
 
 import (
+	"bytes"
 	"context"
 	"go/version"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/repository"
+	"github.com/Azure/ARO-HCP/tooling/depctl/internal/testkit"
 )
 
 func TestPrepareManifests(t *testing.T) {
@@ -100,5 +104,64 @@ func TestAllowedCandidatePathAzureModels(t *testing.T) {
 		if got := allowedCandidatePath(path); got != want {
 			t.Errorf("allowedCandidatePath(%q) = %t, want %t", path, got, want)
 		}
+	}
+}
+
+func TestCandidateStepUsesCandidateWorkspace(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "go.work")
+	t.Setenv("GOWORK", filepath.Join(t.TempDir(), "go.work"))
+	if err := os.WriteFile(workspace, []byte("go 1.26.0\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runCandidateStep(t.Context(), root, &out, "go", "env", "GOWORK"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(out.String()); got != workspace {
+		t.Fatalf("step used workspace %q, want %q", got, workspace)
+	}
+}
+
+func TestCompilerPinDiffIncludesNeighboringSettings(t *testing.T) {
+	fixture, err := testkit.CreateFixture(t.Context(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := repository.Open(fixture.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{generatorRecipe, devcontainerPath, nestedPodmanPath} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(fixture.Dir, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("go=1.26.0\nneighbor=original\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := fixture.Commit(t.Context(), "record compiler pin file"); err != nil {
+				t.Fatal(err)
+			}
+			base, err := repo.Head(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := compilerPinDiff(t.Context(), repo, base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("go=1.26.0\nneighbor=changed\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			after, err := compilerPinDiff(t.Context(), repo, base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(before, after) {
+				t.Fatalf("pin diff missed a neighboring edit in %s", name)
+			}
+		})
 	}
 }

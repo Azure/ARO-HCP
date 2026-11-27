@@ -35,9 +35,9 @@ func PrepareCandidate(ctx context.Context, root, base, target string, output io.
 	if err := PrepareManifests(ctx, root, target); err != nil {
 		return fmt.Errorf("prepare scoped compiler pins: %w", err)
 	}
-	manifests, err := manifestDiff(ctx, repo, base)
+	pins, err := compilerPinDiff(ctx, repo, base)
 	if err != nil {
-		return fmt.Errorf("capture compiler-only manifest edits: %w", err)
+		return fmt.Errorf("capture compiler pin edits: %w", err)
 	}
 	if err := runCandidateStep(ctx, root, output, "npm", "ci", "--prefix", "api", "--legacy-peer-deps"); err != nil {
 		return err
@@ -65,12 +65,12 @@ func PrepareCandidate(ctx context.Context, root, base, target string, output io.
 			return fmt.Errorf("toolchain regeneration did not produce a stable candidate")
 		}
 	}
-	after, err := manifestDiff(ctx, repo, base)
+	after, err := compilerPinDiff(ctx, repo, base)
 	if err != nil {
-		return fmt.Errorf("check generated manifest changes: %w", err)
+		return fmt.Errorf("check generated compiler pin changes: %w", err)
 	}
-	if !bytes.Equal(manifests, after) {
-		return fmt.Errorf("generation changed module or workspace declarations beyond compiler pins")
+	if !bytes.Equal(pins, after) {
+		return fmt.Errorf("generation changed compiler pin files beyond the prepared edits")
 	}
 	changed, err := repo.ChangedPaths(ctx, base)
 	if err != nil {
@@ -91,15 +91,16 @@ func PrepareCandidate(ctx context.Context, root, base, target string, output io.
 	return nil
 }
 
-// ManifestDiff isolates module and workspace declarations from generated content.
-func manifestDiff(ctx context.Context, repo *repository.Repo, base string) ([]byte, error) {
-	return repo.NativeGit(ctx, nil, "", "diff", "--binary", "--no-ext-diff", base, "--", "*.mod", "*.work")
+// CompilerPinDiff isolates the files preparation edits from generated content.
+func compilerPinDiff(ctx context.Context, repo *repository.Repo, base string) ([]byte, error) {
+	return repo.NativeGit(ctx, nil, "", "diff", "--binary", "--no-ext-diff", base, "--",
+		"*.mod", "*.work", generatorRecipe, devcontainerPath, nestedPodmanPath)
 }
 
 // AllowedCandidatePath permits scoped pins, checksum changes, and existing generator outputs.
 func allowedCandidatePath(path string) bool {
 	switch path {
-	case "go.work", "go.work.sum", "api/Makefile", ".devcontainer/devcontainer.json", "dev-infrastructure/openshift-ci/Dockerfile.nested-podman", "vendor/modules.txt", "image-sync/oc-mirror/acrauth/vendor/modules.txt":
+	case "go.work", "go.work.sum", generatorRecipe, devcontainerPath, nestedPodmanPath, "vendor/modules.txt", "image-sync/oc-mirror/acrauth/vendor/modules.txt":
 		return true
 	}
 	if strings.HasPrefix(path, ".bingo/") {
@@ -154,11 +155,15 @@ func requireCleanCandidate(ctx context.Context, repo *repository.Repo) error {
 	return nil
 }
 
-// RunCandidateStep executes a fixed validation recipe without auto-selecting another Go toolchain.
+// RunCandidateStep runs workspace recipes with the candidate's Go workspace and the installed toolchain.
 func runCandidateStep(ctx context.Context, root string, output io.Writer, program string, args ...string) error {
+	workspace, err := filepath.Abs(filepath.Join(root, "go.work"))
+	if err != nil {
+		return fmt.Errorf("resolve candidate workspace: %w", err)
+	}
 	cmd := exec.CommandContext(ctx, program, args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local")
+	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK="+workspace)
 	cmd.Stdout, cmd.Stderr = output, output
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s %s: %w", program, strings.Join(args, " "), err)
