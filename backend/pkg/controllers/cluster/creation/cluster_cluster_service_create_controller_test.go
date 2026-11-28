@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -525,7 +526,20 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			if tt.existingServiceProviderCluster != nil {
 				listerSPCs = []*coreapi.ServiceProviderCluster{tt.existingServiceProviderCluster}
 			}
+			stackLister := &fakeDeploymentStackDesireLister{err: cosmosstorageutils.NewNotFoundError()}
+			if tt.dbCluster != nil && tt.existingServiceProviderCluster != nil && len(controllerutils.ClusterServiceIDForCluster(tt.dbCluster)) > 0 {
+				tt.existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + tt.dbCluster.CustomerProperties.Platform.ManagedResourceGroup))
+				reserveTestNodePoolEgressPublicIPs(tt.existingServiceProviderCluster, tt.dbCluster)
+				spec, err := azureresources.NodePoolEgressPublicIPsDesiredSpec(tt.dbCluster, tt.existingServiceProviderCluster, subscription)
+				require.NoError(t, err)
+				require.NotNil(t, spec)
+				hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(*spec)
+				require.NoError(t, err)
+				stackLister = &fakeDeploymentStackDesireLister{desire: &azureresourcesapi.DeploymentStackDesire{Spec: *spec, Status: azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}}}}
+				stackLister.desire.Status.Stack = testManagedNodePoolEgressPublicIPs(tt.existingServiceProviderCluster)
+			}
 			syncer := &clusterClusterServiceCreateSyncer{
+				deploymentStackDesireLister:  stackLister,
 				resourcesDBClient:            mockDB,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: listerClusters},
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: listerSPCs},
@@ -552,6 +566,243 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			if tt.verifyDB != nil {
 				tt.verifyDB(t, ctx, mockDB)
 			}
+		})
+	}
+}
+
+func reserveTestNodePoolEgressPublicIPs(spc *coreapi.ServiceProviderCluster, cluster *coreapi.Cluster) {
+	for index := 0; index < 9; index++ {
+		spc.Status.ReservedNodePoolEgressPublicIPResourceIDs = append(spc.Status.ReservedNodePoolEgressPublicIPResourceIDs, metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/providers/Microsoft.Network/publicIPAddresses/%s-%d", spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String(), controllerutils.ClusterServiceIDForCluster(cluster), index))))
+	}
+}
+
+func testManagedNodePoolEgressPublicIPs(spc *coreapi.ServiceProviderCluster) *armdeploymentstacks.DeploymentStack {
+	stack := &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded)}}
+	for _, resourceID := range spc.Status.ReservedNodePoolEgressPublicIPResourceIDs {
+		stack.Properties.Resources = append(stack.Properties.Resources, &armdeploymentstacks.ManagedResourceReference{ID: ptr.To(resourceID.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)})
+	}
+	return stack
+}
+
+func TestCreatePreconditionNodePoolEgressPublicIPsAlwaysFPA(t *testing.T) {
+	cluster := newTestCluster(func(cluster *coreapi.Cluster) {
+		cluster.ServiceProviderProperties.PendingClusterServiceID = ptr.To(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+		cluster.CustomerProperties.Platform.ManagedResourceGroup = testManagedResourceGroup
+		cluster.CustomerProperties.Platform.OutboundType = metadataapi.OutboundTypeLoadBalancer
+	})
+	spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.AzureResources.ManagedResourceGroup.AzureResource = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup))
+	})
+	reserveTestNodePoolEgressPublicIPs(spc, cluster)
+	subscription := newTestSubscription()
+	expected, err := azureresources.NodePoolEgressPublicIPsDesiredSpec(cluster, spc, subscription)
+	require.NoError(t, err)
+	require.NotNil(t, expected)
+	require.Equal(t, azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, expected.Authentication.Type)
+	require.Equal(t, *subscription.Properties.TenantId, expected.Authentication.FirstPartyApplication.TenantID)
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(*expected)
+	require.NoError(t, err)
+	for _, mockFPA := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mockFPA=%t", mockFPA), func(t *testing.T) {
+			for _, state := range []string{"FPA", "permissions manager", "stale permissions manager", "missing managed IP"} {
+				t.Run(state, func(t *testing.T) {
+					desire := &azureresourcesapi.DeploymentStackDesire{Spec: *expected.DeepCopy(), Status: azureresourcesapi.DeploymentStackDesireStatus{
+						ObservedSpecHash: hash, Stack: testManagedNodePoolEgressPublicIPs(spc),
+						Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}},
+					}}
+					if strings.Contains(state, "permissions manager") {
+						desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager}
+						desire.Status.ObservedSpecHash, err = azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
+						require.NoError(t, err)
+						if state == "stale permissions manager" {
+							desire.Spec = *expected.DeepCopy()
+						}
+					}
+					if state == "missing managed IP" {
+						desire.Status.Stack.Properties.Resources = desire.Status.Stack.Properties.Resources[:8]
+					}
+					syncer := &clusterClusterServiceCreateSyncer{
+						denyAssignmentsEnabled: !mockFPA, mockFirstPartyApplicationRoleAssignmentsEnabled: mockFPA,
+						deploymentStackDesireLister: &fakeDeploymentStackDesireLister{desire: desire},
+					}
+					ready, err := syncer.createPreconditionNodePoolEgressPublicIPs(t.Context(), cluster, spc, subscription)
+					require.NoError(t, err)
+					require.Equal(t, state == "FPA", ready)
+				})
+			}
+		})
+	}
+}
+
+func TestClusterClusterServiceCreate_NodePoolEgressGate(t *testing.T) {
+	for _, state := range []string{"success", "extra records", "case insensitive", "missing stack", "missing properties", "missing resources", "subset", "wrong ID", "duplicate ID", "nil resource", "nil ID", "nil status", "delete failed", "remove deny failed", "unknown status", "deleted only", "missing observed hash", "stored hash mismatch", "missing reservations", "missing", "pending", "stale", "changed intent", "failed", "failed resources", "failed resources without error", "degraded", "incomplete stack", "UDR", "unconfirmed MRG", "adoption", "adoption different ID", "conflicting adoption", "recorded ID", "deleting"} {
+		t.Run(state, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			pendingID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+			cluster := newTestCluster(func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.PendingClusterServiceID = &pendingID
+				cluster.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
+				cluster.CustomerProperties.Platform.ManagedResourceGroup = testManagedResourceGroup
+				cluster.CustomerProperties.Platform.OutboundType = metadataapi.OutboundTypeLoadBalancer
+			})
+			spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup))
+				setDataPlaneOIDCFederationCreated(spc)
+			})
+			subscription := newTestSubscription()
+			reserveTestNodePoolEgressPublicIPs(spc, cluster)
+			spec, err := azureresources.NodePoolEgressPublicIPsDesiredSpec(cluster, spc, subscription)
+			require.NoError(t, err)
+			require.NotNil(t, spec, "reserved ID and confirmed MRG must suffice before CS POST")
+			hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(*spec)
+			require.NoError(t, err)
+			desire := &azureresourcesapi.DeploymentStackDesire{Spec: *spec, Status: azureresourcesapi.DeploymentStackDesireStatus{
+				ObservedSpecHash: hash,
+				Stack:            testManagedNodePoolEgressPublicIPs(spc),
+				Conditions:       []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded"}},
+			}}
+			lister := &fakeDeploymentStackDesireLister{desire: desire}
+			canPost := state == "success" || state == "extra records" || state == "case insensitive"
+			switch state {
+			case "extra records":
+				desire.Status.Stack.Properties.Resources = append(desire.Status.Stack.Properties.Resources, nil, &armdeploymentstacks.ManagedResourceReference{ID: ptr.To("/unrelated"), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)})
+			case "case insensitive":
+				for _, resource := range desire.Status.Stack.Properties.Resources {
+					resource.ID = ptr.To(strings.ToUpper(*resource.ID))
+				}
+			case "missing stack":
+				desire.Status.Stack = nil
+			case "missing properties":
+				desire.Status.Stack.Properties = nil
+			case "missing resources":
+				desire.Status.Stack.Properties.Resources = nil
+			case "subset":
+				desire.Status.Stack.Properties.Resources = desire.Status.Stack.Properties.Resources[:8]
+			case "wrong ID":
+				desire.Status.Stack.Properties.Resources[0].ID = ptr.To("/unrelated")
+			case "duplicate ID":
+				desire.Status.Stack.Properties.Resources[0] = desire.Status.Stack.Properties.Resources[1]
+			case "nil resource":
+				desire.Status.Stack.Properties.Resources[0] = nil
+			case "nil ID":
+				desire.Status.Stack.Properties.Resources[0].ID = nil
+			case "nil status":
+				desire.Status.Stack.Properties.Resources[0].Status = nil
+			case "delete failed":
+				desire.Status.Stack.Properties.Resources[0].Status = ptr.To(armdeploymentstacks.ResourceStatusModeDeleteFailed)
+			case "remove deny failed":
+				desire.Status.Stack.Properties.Resources[0].Status = ptr.To(armdeploymentstacks.ResourceStatusModeRemoveDenyFailed)
+			case "unknown status":
+				desire.Status.Stack.Properties.Resources[0].Status = ptr.To(armdeploymentstacks.ResourceStatusMode("unknown"))
+			case "deleted only":
+				for _, resource := range desire.Status.Stack.Properties.Resources {
+					desire.Status.Stack.Properties.DeletedResources = append(desire.Status.Stack.Properties.DeletedResources, &armdeploymentstacks.ResourceReference{ID: resource.ID})
+				}
+				desire.Status.Stack.Properties.Resources = nil
+			case "missing observed hash":
+				desire.Status.ObservedSpecHash = ""
+			case "stored hash mismatch":
+				desire.Spec.Stack.Properties.Template = map[string]any{"changed": true}
+			case "missing reservations":
+				spc.Status.ReservedNodePoolEgressPublicIPResourceIDs = nil
+			case "adoption different ID":
+				spc.Status.ReservedNodePoolEgressPublicIPResourceIDs = nil
+				lister.desire = nil
+				lister.err = cosmosstorageutils.NewNotFoundError()
+			case "missing", "adoption":
+				lister.desire = nil
+				lister.err = cosmosstorageutils.NewNotFoundError()
+			case "pending":
+				desire.Status.Conditions[0].Status = metav1.ConditionFalse
+			case "stale":
+				desire.Status.ObservedSpecHash = "previous-intent"
+			case "changed intent":
+				cluster.Location = "changed-location"
+			case "failed":
+				desire.Status.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("Conflict"), Message: ptr.To("raw transport diagnostic")}
+			case "failed resources", "failed resources without error":
+				resource := &armdeploymentstacks.ResourceReferenceExtended{ID: ptr.To(spc.Status.ReservedNodePoolEgressPublicIPResourceIDs[0].String())}
+				if state == "failed resources" {
+					resource.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("AuthorizationFailed"), Message: ptr.To("permission missing")}
+				}
+				desire.Status.Stack = &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{
+					ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded),
+					FailedResources:   []*armdeploymentstacks.ResourceReferenceExtended{resource},
+				}}
+			case "degraded":
+				desire.Status.Conditions = append(desire.Status.Conditions, metav1.Condition{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue})
+			case "incomplete stack":
+				desire.Status.Stack = &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateCreating)}}
+			case "UDR":
+				cluster.CustomerProperties.Platform.OutboundType = metadataapi.OutboundType("UserDefinedRouting")
+				lister.desire = nil
+			case "unconfirmed MRG":
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+			case "recorded ID":
+				cluster.ServiceProviderProperties.ClusterServiceID = &pendingID
+				cluster.ServiceProviderProperties.PendingClusterServiceID = nil
+			case "deleting":
+				cluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription, spc})
+			require.NoError(t, err)
+			mockCS := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+			foundID := pendingID
+			if state == "adoption different ID" || state == "conflicting adoption" {
+				foundID = metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/adopted-cluster"))
+			}
+			csCluster, err := arohcpv1alpha1.NewCluster().ID(foundID.ClusterID()).HREF(foundID.String()).
+				Azure(arohcpv1alpha1.NewAzure().SubscriptionID(testSubscriptionID).ResourceGroupName(testResourceGroupName).ResourceName(testClusterName).TenantID(testTenantID).ManagedResourceGroupName(testManagedResourceGroup)).Build()
+			require.NoError(t, err)
+			if state != "recorded ID" && state != "deleting" {
+				var found []*arohcpv1alpha1.Cluster
+				if state == "adoption" || state == "adoption different ID" || state == "conflicting adoption" {
+					found = []*arohcpv1alpha1.Cluster{csCluster}
+				}
+				mockCS.EXPECT().ListClusters(gomock.Any()).Return(ocm.NewSimpleClusterListIterator(found, nil))
+			}
+			if canPost {
+				mockCS.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+					built, err := builder.Build()
+					require.NoError(t, err)
+					require.Equal(t, pendingID.ClusterID(), built.ID())
+					return csCluster, nil
+				})
+			}
+			syncer := &clusterClusterServiceCreateSyncer{
+				resourcesDBClient:            db,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()}},
+				deploymentStackDesireLister:  lister,
+				clustersServiceClient:        mockCS,
+			}
+			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName})
+			switch state {
+			case "UDR":
+				ready, gateErr := syncer.createPreconditionNodePoolEgressPublicIPs(ctx, cluster, spc, subscription)
+				require.NoError(t, gateErr)
+				require.True(t, ready)
+				require.ErrorContains(t, err, "unknown value")
+			case "conflicting adoption":
+				require.ErrorContains(t, err, "reserved node-pool public IP identities conflict")
+			default:
+				require.NoError(t, err)
+			}
+			stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+			require.NoError(t, err)
+			if canPost || state == "adoption" || state == "adoption different ID" || state == "recorded ID" {
+				require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID)
+				require.Equal(t, foundID, *stored.ServiceProviderProperties.ClusterServiceID)
+			} else {
+				require.Nil(t, stored.ServiceProviderProperties.ClusterServiceID)
+			}
+			storedSPC, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			require.Equal(t, spc.Status.ReservedNodePoolEgressPublicIPResourceIDs, storedSPC.Status.ReservedNodePoolEgressPublicIPResourceIDs)
 		})
 	}
 }

@@ -37,7 +37,9 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -45,6 +47,8 @@ import (
 )
 
 type operationClusterCreate struct {
+	subscriptionLister                    corelisters.SubscriptionLister
+	deploymentStackDesireLister           azureresourceslisters.DeploymentStackDesireLister
 	statusCalculators                     operationbase.OperationStatusCalculators[struct{}]
 	clock                                 utilsclock.PassiveClock
 	activeOperationLister                 corelisters.ActiveOperationLister
@@ -81,12 +85,17 @@ func NewOperationClusterCreateController(
 	activeOperationInformer cache.SharedIndexInformer,
 	informers coreinformers.BackendInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
+	_, subscriptionLister := informers.Subscriptions()
+	_, stackLister := azureResourcesInformers.DeploymentStackDesires()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
+		subscriptionLister:                    subscriptionLister,
+		deploymentStackDesireLister:           stackLister,
 		clock:                                 clock,
 		activeOperationLister:                 activeOperationLister,
 		clusterLister:                         clusterLister,
@@ -118,6 +127,7 @@ func NewOperationClusterCreateController(
 // the controller and every test that builds a registry.
 func (c *operationClusterCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[struct{}], error) {
 	return operationbase.NewOperationStatusCalculators[struct{}](
+		&clusterCreateNodePoolEgressPublicIPsCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, subscriptionLister: c.subscriptionLister, desireLister: c.deploymentStackDesireLister},
 		&clusterCreateValidationCheck{clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateHostedClusterCheck{readDesireLister: c.readDesireLister},
 		&clusterCreateResourceCheck{clusterLister: c.clusterLister},

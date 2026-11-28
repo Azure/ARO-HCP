@@ -77,3 +77,93 @@ func TestSummarizePartialOperationStates(t *testing.T) {
 	require.Contains(t, got.Message, "waiting for rollout")
 	require.Contains(t, got.Message, "Some operation states could not be determined")
 }
+
+func TestOperationDeadlineStructuredDiagnostics(t *testing.T) {
+	for _, status := range []coreapi.ProvisioningState{coreapi.ProvisioningStateProvisioning, coreapi.ProvisioningStateUpdating, coreapi.ProvisioningStateDeleting, coreapi.ProvisioningStateAccepted} {
+		t.Run(string(status), func(t *testing.T) {
+			diagnostic := &coreapi.CloudErrorBody{Code: "AuthorizationFailed", Message: "permission missing", Target: "resource", Details: []coreapi.CloudErrorBody{{Code: "Denied", Target: "child", Details: []coreapi.CloudErrorBody{{Message: "role missing"}}}}}
+			original := diagnostic.DeepCopy()
+			pending := NewOperationState(status, "waiting").WithCloudErrorCode(diagnostic.Code)
+			pending.DeadlineError = diagnostic
+			calculators, err := NewOperationStatusCalculators[struct{}](&stubOperationStatusCalculator[struct{}]{source: "pending", state: pending})
+			require.NoError(t, err)
+			summary, err := calculators.CalculateOperationStatus(t.Context(), &coreapi.Operation{}, struct{}{})
+			require.NoError(t, err)
+			require.Nil(t, summary.Error)
+			require.Equal(t, original, summary.DeadlineError)
+			now := time.Unix(100, 0)
+			before, err := ApplyOperationDeadline(summary, nil, &metav1.Time{Time: now.Add(time.Second)}, now, "expired")
+			require.NoError(t, err)
+			require.Equal(t, status, before.ProvisioningState)
+			require.Nil(t, before.Error)
+			for _, observationErr := range []error{nil, errors.New("raw diagnostic to omit")} {
+				failed, err := ApplyOperationDeadline(summary, observationErr, &metav1.Time{Time: now.Add(-time.Second)}, now, "expired")
+				require.NoError(t, err)
+				require.Equal(t, coreapi.ProvisioningStateFailed, failed.ProvisioningState)
+				require.Equal(t, "AuthorizationFailed", failed.CloudErrorCode)
+				require.Equal(t, failed.Message, failed.Error.Message)
+				require.Contains(t, failed.Message, "expired; ")
+				require.Contains(t, failed.Message, "[pending] waiting")
+				require.NotContains(t, failed.Message, "raw diagnostic")
+				require.Equal(t, original.Target, failed.Error.Target)
+				require.Equal(t, original.Details, failed.Error.Details)
+				failed.Error.Details[0].Details[0].Message = "mutated result"
+				require.Equal(t, original, summary.DeadlineError)
+			}
+			summary.DeadlineError.Details[0].Details[0].Message = "mutated summary"
+			require.Equal(t, original, diagnostic)
+		})
+	}
+}
+
+func TestOperationDeadlineDiagnosticAggregation(t *testing.T) {
+	first := &coreapi.CloudErrorBody{Code: "AuthorizationFailed", Target: "first", Details: []coreapi.CloudErrorBody{{Message: "first detail"}}}
+	second := &coreapi.CloudErrorBody{Code: "Conflict", Target: "second"}
+	for _, scenario := range []string{"multiple", "terminal wins", "success clears", "no diagnostics"} {
+		t.Run(scenario, func(t *testing.T) {
+			firstState := NewOperationState(coreapi.ProvisioningStateProvisioning, "a").WithCloudErrorCode(first.Code)
+			firstState.DeadlineError = first
+			secondState := NewOperationState(coreapi.ProvisioningStateProvisioning, "b").WithCloudErrorCode(second.Code)
+			secondState.DeadlineError = second
+			switch scenario {
+			case "terminal wins":
+				secondState = NewFailedOperationState("InvalidTemplate", "invalid", second)
+			case "success clears":
+				firstState.ProvisioningState = coreapi.ProvisioningStateSucceeded
+				secondState.ProvisioningState = coreapi.ProvisioningStateSucceeded
+			case "no diagnostics":
+				firstState.DeadlineError = nil
+				secondState.DeadlineError = nil
+			}
+			calculators, err := NewOperationStatusCalculators[struct{}](
+				&stubOperationStatusCalculator[struct{}]{source: "first", state: firstState},
+				&stubOperationStatusCalculator[struct{}]{source: "second", state: secondState},
+			)
+			require.NoError(t, err)
+			summary, err := calculators.CalculateOperationStatus(t.Context(), &coreapi.Operation{}, struct{}{})
+			require.NoError(t, err)
+			failed, err := ApplyOperationDeadline(summary, nil, &metav1.Time{Time: time.Unix(1, 0)}, time.Unix(2, 0), "expired")
+			require.NoError(t, err)
+			switch scenario {
+			case "multiple":
+				require.Nil(t, summary.Error)
+				require.Equal(t, "AuthorizationFailed", failed.Error.Code)
+				require.Equal(t, "expired; [first] a; [second] b", failed.Error.Message)
+				require.Equal(t, []coreapi.CloudErrorBody{*first, *second}, failed.Error.Details)
+			case "terminal wins":
+				require.Equal(t, coreapi.ProvisioningStateFailed, failed.ProvisioningState)
+				require.Equal(t, "InvalidTemplate", failed.Error.Code)
+				require.Equal(t, "second", failed.Error.Target)
+				require.Nil(t, failed.DeadlineError)
+			case "success clears":
+				require.Equal(t, coreapi.ProvisioningStateSucceeded, failed.ProvisioningState)
+				require.Nil(t, failed.Error)
+				require.Nil(t, failed.DeadlineError)
+			case "no diagnostics":
+				require.Equal(t, coreapi.ProvisioningStateFailed, failed.ProvisioningState)
+				require.Nil(t, failed.Error)
+				require.Nil(t, failed.DeadlineError)
+			}
+		})
+	}
+}
