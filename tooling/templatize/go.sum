@@ -75,8 +75,8 @@ github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c h1:j5PEu8
 github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c/go.mod h1:3V54ocLMfucVYAQaEsmnctLTIZZrlcJYqJ1kIpWGvgI=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c h1:gzCt2e73oBHQNUyqBYg/2OR8oSpw3sDFtmFxv0fkoOg=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c/go.mod h1:0sAsLmwMYWCYtSU2sVMUsp4nWZq7ZDXxwZl5u74aj74=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c h1:10WbPuWBaagfgesJJxlOTNrzqHpNv0rKidiv/eAbelA=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c/go.mod h1:UIkeuBd553++TX5b1miwLA+pgHrWX0rXqlvWUsRaAWg=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5 h1:4hCjOpTBLHFaFHt+wVqWhVHq0uZq9ZmEqWdfnrWet9A=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5/go.mod h1:UIkeuBd553++TX5b1miwLA+pgHrWX0rXqlvWUsRaAWg=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c h1:DfBV5XW+LB7hiUjVfX5Vt0RdU9juevvI2Ad92mK23SE=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c/go.mod h1:f8Y6Wc4LEuLQUzQcpPUNpCosuErnoDjAdWNZt+sqFcE=
 github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261119152653-bc31149d518c h1:gyUb430T+Gd1ncEXLjbIuB5Maq5+ws5Una2GzGwbEAw=

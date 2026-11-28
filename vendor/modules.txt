@@ -131,10 +131,12 @@ github.com/Azure/ARO-Tools/testutil
 # github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/cmdutils
-# github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c
+# github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/base
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean
+github.com/Azure/ARO-Tools/tools/grafanactl/cmd/dashboard
+github.com/Azure/ARO-Tools/tools/grafanactl/cmd/folder
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/list
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/manage
 github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify

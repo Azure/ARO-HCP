@@ -8,7 +8,7 @@ require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261119152653-bc31149d518c
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261119152653-bc31149d518c
 	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261119152653-bc31149d518c
 	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261119152653-bc31149d518c

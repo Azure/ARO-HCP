@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,7 +165,7 @@ func (s *DashboardSyncer) getOrCreateFolder(ctx context.Context, name string, ex
 		return Folder{Title: name, UID: "dry-run-" + name}, nil
 	}
 
-	folder, err := s.client.CreateFolder(ctx, name)
+	folder, err := s.client.CreateFolder(ctx, "", name)
 	if err != nil {
 		return Folder{}, fmt.Errorf("failed to create folder %q: %w", name, err)
 	}
@@ -310,21 +309,9 @@ func areDashboardsEqual(remote, local []byte) bool {
 }
 
 func normalizeDashboard(raw []byte) ([]byte, error) {
-	var dashboard map[string]interface{}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&dashboard); err != nil {
+	dashboard, err := decodeDashboardObject(raw)
+	if err != nil {
 		return nil, err
-	}
-	if dashboard == nil {
-		return nil, fmt.Errorf("dashboard is not a JSON object")
-	}
-	var trailing interface{}
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return nil, fmt.Errorf("dashboard contains multiple JSON values")
-		}
-		return nil, fmt.Errorf("dashboard contains trailing data: %w", err)
 	}
 
 	dashboard["id"] = json.Number("0")

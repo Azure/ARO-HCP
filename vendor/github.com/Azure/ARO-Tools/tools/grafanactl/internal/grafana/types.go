@@ -27,8 +27,9 @@ import (
 // Folder is a Grafana folder. Folders are identified by UID; Grafana's numeric
 // folder IDs are deprecated and intentionally not modeled here.
 type Folder struct {
-	UID   string
-	Title string
+	UID     string
+	Title   string
+	Created time.Time
 }
 
 // FoundBoard is a single result from Grafana's search API. It represents either
