@@ -753,7 +753,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					}
 					if details != nil {
 						consumerWg.Add(1)
-						go func(step graph.Identifier, logger logr.Logger) {
+						go func(step graph.Identifier, logger logr.Logger, stepFailed bool) {
 							defer utilruntime.HandleCrash()
 							defer consumerWg.Done()
 							logger.V(4).Info("Fetching execution details.")
@@ -766,6 +766,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							if err != nil {
 								logger.Error(err, "error fetching execution details")
 							}
+							if stepFailed {
+								// An operation can fail even when the deployment succeeds overall.
+								logFailedARMOperations(logger, d)
+							}
 							logger.V(4).Info("Finished fetching execution details.")
 							state.Lock()
 							state.Details[step] = d
@@ -773,7 +777,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							// diagnostics (and their errors) end up in the JUnit output.
 							state.Logging[step] = stepLogs.Snapshot()
 							state.Unlock()
-						}(step, stepLogger)
+						}(step, stepLogger, err != nil)
 					}
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -934,7 +938,8 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 			}, state)
 			attemptCancel()
 			runCount++
-			if shouldRetryError(logger, step, stepRunErr) {
+			if shouldRetryError(step, stepRunErr) {
+				logger.Info("Retrying step", "step", step.StepName(), "error", stepErrorForReporting(step, stepRunErr, subscriptionID).Error())
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
@@ -948,6 +953,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 	}
 	if stepRunErr != nil {
+		stepRunErr = stepErrorForReporting(step, stepRunErr, subscriptionID)
 		if node.Stamp.IsSet() {
 			return details, runCount, fmt.Errorf("stamp %s: %w", node.Stamp, stepRunErr)
 		}
@@ -1000,17 +1006,50 @@ func shouldExecuteStep(step types.Step, runCount int) bool {
 	return runCount < step.AutomatedRetries().MaximumRetryCount
 }
 
-func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
+func shouldRetryError(step types.Step, err error) bool {
 	if step.AutomatedRetries() == nil || err == nil {
 		return false
 	}
 	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
 		if strings.Contains(err.Error(), retry) {
-			logger.Info("Retrying step", "step", step.StepName(), "error", err.Error())
 			return true
 		}
 	}
 	return false
+}
+
+// Render ARM errors only after retry matching, which must see the original error text. Both step
+// logs (including JUnit) and callers of the runner can publish the final error.
+func stepErrorForReporting(step types.Step, err error, subscriptionID string) error {
+	if _, ok := step.(*types.ARMStep); ok {
+		return redactSubscriptionError(err, []string{subscriptionID})
+	}
+	return err
+}
+
+// logFailedARMOperations reports the operation errors that explain ARM's generic DeploymentFailed.
+func logFailedARMOperations(logger logr.Logger, details *ExecutionDetails) {
+	if details == nil || details.ARM == nil {
+		return
+	}
+	for _, failed := range FailedOperations(details.ARM.Operations) {
+		op := failed.Operation
+		values := []any{
+			"deploymentPath", strings.Join(failed.DeploymentPath, "/"),
+			"operationType", op.OperationType,
+			"provisioningState", op.ProvisioningState,
+			"statusCode", op.StatusCode,
+			"startTimestamp", op.StartTimestamp,
+			"duration", op.Duration,
+		}
+		if op.Resource != nil {
+			values = append(values, "resourceType", op.Resource.ResourceType, "resourceGroup", op.Resource.ResourceGroup, "resourceName", op.Resource.Name)
+		}
+		if op.Error != nil {
+			values = append(values, "errorCodes", strings.Join(op.Error.innermostCodes(), ","), "error", op.Error.String())
+		}
+		logger.Info("ARM deployment operation failed.", values...)
+	}
 }
 
 // lockedBuffer is a bytes.Buffer that is safe to write to from the step goroutine and the execution-details

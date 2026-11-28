@@ -1257,6 +1257,59 @@ func TestMultiStampErrorPropagation(t *testing.T) {
 	assert.Contains(t, err.Error(), "stamp 2", "error should contain stamp context")
 }
 
+func TestARMErrorRedactionPreservesRetryMatching(t *testing.T) {
+	const temporaryFailure = "temporary failure in "
+	const permanentFailure = "permanent failure in "
+	var logs lockedBuffer
+	ctx := logr.NewContext(t.Context(), testr.NewWithInterface(&bufferT{T: t, out: &logs}, testr.Options{}))
+	step := &types.ARMStep{StepMeta: types.StepMeta{
+		Name: "deployment",
+		AutomatedRetry: &types.AutomatedRetry{
+			// The retry must match the raw error, not the redacted version that is reported.
+			ErrorContainsAny:       []string{temporaryFailure + syntheticSubscription},
+			MaximumRetryCount:      2,
+			DurationBetweenRetries: "0s",
+		},
+	}}
+	pipeline := &types.Pipeline{ServiceGroup: "test", ResourceGroups: []*types.ResourceGroup{{
+		ResourceGroupMeta: &types.ResourceGroupMeta{Name: "rg", ResourceGroup: "rg", Subscription: "subscription"},
+		Steps:             []types.Step{step},
+	}}}
+	var attempts []int
+	executor := func(_ graph.Identifier, _ types.Step, _ context.Context, _ ExecutionTarget, options *StepRunOptions, _ *ExecutionState) (Output, DetailsProducer, error) {
+		attempts = append(attempts, options.RetryAttempt)
+		if options.RetryAttempt == 0 {
+			return nil, nil, errors.New(temporaryFailure + syntheticSubscription)
+		}
+		return nil, nil, errors.New(permanentFailure + syntheticSubscription)
+	}
+	junitFile := filepath.Join(t.TempDir(), "junit.xml")
+	_, err := RunPipeline(&topology.Service{ServiceGroup: "test"}, pipeline, ctx, &PipelineRunOptions{
+		Concurrency:           1,
+		JUnitOutputFile:       junitFile,
+		SubsciptionLookupFunc: func(context.Context, string) (string, error) { return syntheticSubscription, nil },
+		TopoDirLookupFunc:     func(string) (string, error) { return ".", nil },
+	}, executor)
+	require.Equal(t, []int{0, 1}, attempts)
+	require.ErrorContains(t, err, permanentFailure+"<redacted>")
+	assert.NotContains(t, err.Error(), syntheticSubscription)
+
+	report, err := os.ReadFile(junitFile)
+	require.NoError(t, err)
+	var suites junit.TestSuites
+	require.NoError(t, xml.Unmarshal(report, &suites))
+	require.Len(t, suites.Suites, 1)
+	require.Len(t, suites.Suites[0].TestCases, 1)
+	failure := suites.Suites[0].TestCases[0].FailureOutput
+	require.NotNil(t, failure)
+	for name, output := range map[string]string{"run log": string(logs.Snapshot()), "JUnit": failure.Output} {
+		assert.Contains(t, output, "Retrying step", name)
+		assert.Contains(t, output, temporaryFailure+"<redacted>", name)
+		assert.Contains(t, output, permanentFailure+"<redacted>", name)
+		assert.NotContains(t, output, syntheticSubscription, name)
+	}
+}
+
 func TestShouldRetryError(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -1313,7 +1366,7 @@ func TestShouldRetryError(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := shouldRetryError(testr.New(t), tc.step, tc.err)
+			result := shouldRetryError(tc.step, tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

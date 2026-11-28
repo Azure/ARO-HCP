@@ -276,7 +276,8 @@ func startAndWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	}
 	if pollErr != nil {
-		return nil, nil, fmt.Errorf("failed to poll deployment: %w", pollErr)
+		// details lists the deployment's operations, which carry the per-resource errors behind a DeploymentFailed.
+		return nil, details, fmt.Errorf("failed to poll deployment: %w", pollErr)
 	}
 
 	return output, details, commit(output)
@@ -313,6 +314,10 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	notFound := errors.As(err, &azerror) && azerror.StatusCode == http.StatusNotFound
 	if notFound {
 		return false, nil, nil, nil
+	}
+	if err != nil {
+		// The initial lookup couldn't read the deployment; don't make a second request for its operations.
+		return false, nil, nil, fmt.Errorf("failed to look up pre-existing deployment: %w", err)
 	}
 
 	logger.V(2).Info("Waiting for existing deployment to complete")
