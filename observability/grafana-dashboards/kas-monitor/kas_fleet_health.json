@@ -1,0 +1,2115 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "KAS Availability SLO",
+      "type": "link",
+      "url": "/d/fezhc0hbfefb4f/kas-api-slo"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "KAS Golden Signals",
+      "type": "link",
+      "url": "/d/hcp-kas-golden-signals/kas-golden-signals"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Overview",
+      "type": "row"
+    },
+    {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### KAS Fleet Health Dashboard\n\nFleet-wide view of kube-apiserver health across all HCP clusters: **error rates** and **traffic**.\n\nUses pre-computed recording rules (`kas:apiserver_request_*`). Error rate = 5xx responses / total requests.\n\n**Related dashboards**: [KAS Availability SLO](/d/fezhc0hbfefb4f/kas-api-slo) · [KAS Golden Signals](/d/hcp-kas-golden-signals/kas-golden-signals) (per-cluster drill-in)\n\nError-rate buckets and the fleet rate stats add the selected regional workspaces together. Each datasource is already one region. Latency panels are not on this dashboard until the latency recording rules exist.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.3",
+      "title": "KAS Fleet Health",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Error Rate Distribution",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "< 0.01%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "< 0.01%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.01% – 0.1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.01% – 0.1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.1% – 0.5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.1% – 0.5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.5% – 1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.5% – 1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1% – 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "1% – 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "> 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "> 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2,
+      "maxDataPoints": 949,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.6.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.01) or vector(0)",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "< 0.01%",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.01) and ((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.01% – 0.1%",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.1) and ((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.1% – 0.5%",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.5) and ((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 < 1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.5% – 1%",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 >= 1) and ((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 < 5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "1% – 5%",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_30d{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_30d{cluster=~\"$cluster\"}, 1e-10) * 100 >= 5) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "> 5%",
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "title": "Error Rate Distribution — 30 Days",
+      "type": "bargauge",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "< 0.01%": 0,
+              "0.01% – 0.1%": 1,
+              "0.1% – 0.5%": 2,
+              "0.5% – 1%": 3,
+              "1% – 5%": 4,
+              "> 5%": 5
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "description": "Clusters in each error-rate bucket. Each selected regional workspace is counted, then the counts for the same bucket are added together."
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "< 0.01%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "< 0.01%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.01% – 0.1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.01% – 0.1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.1% – 0.5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.1% – 0.5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.5% – 1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.5% – 1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1% – 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "1% – 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "> 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "> 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 6
+      },
+      "id": 3,
+      "maxDataPoints": 949,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.6.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.01) or vector(0)",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "< 0.01%",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.01) and ((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.01% – 0.1%",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.1) and ((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.1% – 0.5%",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.5) and ((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 < 1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.5% – 1%",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 1) and ((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 < 5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "1% – 5%",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 5) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "> 5%",
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "title": "Error Rate Distribution — 6 Hours",
+      "type": "bargauge",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "< 0.01%": 0,
+              "0.01% – 0.1%": 1,
+              "0.1% – 0.5%": 2,
+              "0.5% – 1%": 3,
+              "1% – 5%": 4,
+              "> 5%": 5
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "description": "Clusters in each error-rate bucket. Each selected regional workspace is counted, then the counts for the same bucket are added together."
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "< 0.01%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "< 0.01%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.01% – 0.1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.01% – 0.1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.1% – 0.5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.1% – 0.5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "0.5% – 1%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "0.5% – 1%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1% – 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "1% – 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "> 5%"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "> 5%"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "id": 4,
+      "maxDataPoints": 949,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.6.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.01) or vector(0)",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "< 0.01%",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.01) and ((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.01% – 0.1%",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.1) and ((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 < 0.5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.1% – 0.5%",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 0.5) and ((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 < 1)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "0.5% – 1%",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 1) and ((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 < 5)) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "1% – 5%",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count((kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100 >= 5) or vector(0)",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "> 5%",
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "title": "Error Rate Distribution — 1 Hour",
+      "type": "bargauge",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "< 0.01%": 0,
+              "0.01% – 0.1%": 1,
+              "0.1% – 0.5%": 2,
+              "0.5% – 1%": 3,
+              "1% – 5%": 4,
+              "> 5%": 5
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "description": "Clusters in each error-rate bucket. Each selected regional workspace is counted, then the counts for the same bucket are added together."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 102,
+      "title": "Fleet Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Sum of kube-apiserver request rates across the selected regional workspaces.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 15
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kas:apiserver_request_total:rate5m{cluster=~\"$cluster\"})",
+          "instant": true,
+          "legendFormat": "Fleet request rate",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet request rate",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Sum of kube-apiserver 5xx rates across the selected regional workspaces. A workspace with traffic and no 5xx series contributes 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 15
+      },
+      "id": 17,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum((kas:apiserver_request_5xx:rate5m{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate5m{cluster=~\"$cluster\"}))",
+          "instant": true,
+          "legendFormat": "Fleet 5xx rate",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet 5xx rate",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "requests/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx req/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 15
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kas:apiserver_request_total:rate5m{cluster=~\"$cluster\"})",
+          "legendFormat": "Total req/s",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum((kas:apiserver_request_5xx:rate5m{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate5m{cluster=~\"$cluster\"}))",
+          "hide": false,
+          "legendFormat": "5xx req/s",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Fleet Total Request Rate",
+      "type": "timeseries",
+      "description": "Request rate for each selected regional workspace. The stats beside this chart add those rates across workspaces."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 103,
+      "title": "Top Offenders",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background",
+              "applyToRow": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent"
+              },
+              {
+                "color": "semi-dark-yellow",
+                "value": 0.1
+              },
+              {
+                "color": "semi-dark-orange",
+                "value": 0.5
+              },
+              {
+                "color": "semi-dark-red",
+                "value": 1
+              },
+              {
+                "color": "dark-red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "namespace"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 450
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 250
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "region"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Error Rate %"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "topk(10, (kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\"} or 0 * kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}) / clamp_min(kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\"}, 1e-10) * 100)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 Clusters by Error Rate (1h)",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "microsoft.amwresourceid": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "cluster": 1,
+              "region": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "Error Rate %"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 105,
+      "title": "Saturation & Terminations (expand for details)",
+      "type": "row",
+      "panels": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Mixed --"
+          },
+          "description": "Average number of requests currently being processed by the kube-apiserver (5-minute average), broken down by request kind (mutating vs read-only). High values approaching the max-inflight limit indicate the API server is close to capacity.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "requests",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 35
+          },
+          "id": 12,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.6.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum by (request_kind) (kas:apiserver_inflight_requests:avg_5m{cluster=~\"$cluster\"})",
+              "legendFormat": "{{request_kind}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "In-Flight Requests (Fleet Total)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Mixed --"
+          },
+          "description": "Rate at which the kube-apiserver forcibly terminates requests because max-inflight limits are exceeded. Non-zero values mean the API server is rejecting customer traffic — this is a customer-visible outage signal.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "terminations/sec",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "area"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "transparent"
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.001
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 35
+          },
+          "id": 13,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.6.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(kas:apiserver_request_terminations:rate5m{cluster=~\"$cluster\"})",
+              "legendFormat": "Terminations/s",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Request Terminations (Fleet Total)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Mixed --"
+          },
+          "description": "Top 10 clusters by in-flight requests. The value sums mutating and read-only requests across every kube-apiserver pod. Production sizing sets two per-pod caps by node count: small 50 and 150, medium 300 and 900, large 400 and 1200, xlarge 600 and 2400, xxlarge 1000 and 3000. The column is that raw sum, not a percentage of either cap.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "transparent"
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "namespace"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 450
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 250
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "region"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 120
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 43
+          },
+          "id": 14,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "In-Flight Requests"
+              }
+            ]
+          },
+          "pluginVersion": "11.6.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "topk(10, sum by (namespace, cluster) (kas:apiserver_inflight_requests:avg_5m{cluster=~\"$cluster\"}))",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 Clusters by In-Flight Saturation",
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "microsoft.amwresourceid": true
+                },
+                "indexByName": {
+                  "namespace": 0,
+                  "cluster": 1,
+                  "region": 2,
+                  "Value": 3
+                },
+                "renameByName": {
+                  "Value": "In-Flight Requests"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Mixed --"
+          },
+          "description": "Clusters where the API server is forcibly terminating requests. Any entry here means customer traffic is being dropped on that cluster.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-background",
+                  "applyToRow": false
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "semi-dark-red"
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "namespace"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 450
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 250
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "region"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 120
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 43
+          },
+          "id": 15,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "Terminations/s"
+              }
+            ]
+          },
+          "pluginVersion": "11.6.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "kas:apiserver_request_terminations:rate5m{cluster=~\"$cluster\"} > 0",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters with Non-Zero Terminations",
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "microsoft.amwresourceid": true
+                },
+                "indexByName": {
+                  "namespace": 0,
+                  "cluster": 1,
+                  "region": 2,
+                  "Value": 3
+                },
+                "renameByName": {
+                  "Value": "Terminations/s"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        }
+      ]
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 41,
+  "tags": [
+    "kas",
+    "fleet-health"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_hcps-.*$",
+        "type": "datasource",
+        "multi": true
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(kas:apiserver_request_total:rate5m, cluster)",
+        "includeAll": true,
+        "multi": true,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kas:apiserver_request_total:rate5m, cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "KAS Fleet Health",
+  "uid": "kas-fleet-health",
+  "version": 1
+}
