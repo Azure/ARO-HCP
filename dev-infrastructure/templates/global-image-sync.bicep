@@ -46,7 +46,7 @@ param ocpPullSecretName string
 @description('The versions of the operator to mirror')
 param operatorVersionsToMirror string
 
-resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource kv 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 

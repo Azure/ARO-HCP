@@ -18,11 +18,11 @@ var keyVaultSecretUserRoleId = subscriptionResourceId(
   '4633458b-17de-408a-b874-0445c86b69e6'
 )
 
-resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource kv 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
-resource secret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = {
+resource secret 'Microsoft.KeyVault/vaults/secrets@2026-02-01' existing = {
   parent: kv
   name: secretName
 }

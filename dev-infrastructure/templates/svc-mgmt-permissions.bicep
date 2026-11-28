@@ -16,11 +16,11 @@ param rpBackendMIResourceId string
 @description('Admin API MI resource ID, used to grant resource group introspection access')
 param adminApiMIResourceId string
 
-resource cxKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource cxKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: cxKeyVaultName
 }
 
-resource msiKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource msiKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: msiKeyVaultName
 }
 

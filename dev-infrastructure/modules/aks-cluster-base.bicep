@@ -142,11 +142,11 @@ module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
-resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource aks_keyvault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: aks_keyvault_builder.name
 }
 
-resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
+resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2026-02-01' = {
   parent: aks_keyvault
   name: 'aks-etcd-encryption'
   properties: {

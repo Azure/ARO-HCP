@@ -64,7 +64,7 @@
   },
   "resources": {
     "customerKeyVault": {
-      "apiVersion": "2024-12-01-preview",
+      "apiVersion": "2026-02-01",
       "location": "[resourceGroup().location]",
       "name": "[variables('customerKeyVaultName')]",
       "properties": {
@@ -134,7 +134,7 @@
       "type": "Microsoft.Network/virtualNetworks"
     },
     "etcdEncryptionKey": {
-      "apiVersion": "2024-12-01-preview",
+      "apiVersion": "2026-02-01",
       "dependsOn": [
         "customerKeyVault"
       ],

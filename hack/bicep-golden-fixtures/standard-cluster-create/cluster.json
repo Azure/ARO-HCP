@@ -652,7 +652,7 @@
               "kms": {
                 "activeKey": {
                   "name": "[variables('etcdEncryptionKeyName')]",
-                  "version": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', parameters('keyVaultName'), variables('etcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
+                  "version": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', parameters('keyVaultName'), variables('etcdEncryptionKeyName')), '2026-02-01').keyUriWithVersion, '/'))]"
                 },
                 "vaultName": "[parameters('keyVaultName')]",
                 "visibility": "[if(parameters('privateKeyVault'), 'Private', 'Public')]"

@@ -76,7 +76,7 @@
                 "description": "The version of the etcd encryption key"
               },
               "type": "string",
-              "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
+              "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2026-02-01').keyUriWithVersion, '/'))]"
             },
             "keyVaultName": {
               "metadata": {
@@ -262,7 +262,7 @@
               "type": "Microsoft.Network/virtualNetworks"
             },
             {
-              "apiVersion": "2024-12-01-preview",
+              "apiVersion": "2026-02-01",
               "location": "[resourceGroup().location]",
               "name": "[variables('customerKeyVaultName')]",
               "properties": {
@@ -280,7 +280,7 @@
               "type": "Microsoft.KeyVault/vaults"
             },
             {
-              "apiVersion": "2024-12-01-preview",
+              "apiVersion": "2026-02-01",
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]"
               ],
@@ -1848,7 +1848,7 @@
                       "type": "Microsoft.Authorization/roleAssignments"
                     },
                     "keyVault": {
-                      "apiVersion": "2024-12-01-preview",
+                      "apiVersion": "2026-02-01",
                       "existing": true,
                       "name": "[parameters('keyVaultName')]",
                       "type": "Microsoft.KeyVault/vaults"
@@ -3061,7 +3061,7 @@
                       "type": "Microsoft.Authorization/roleAssignments"
                     },
                     "keyVault": {
-                      "apiVersion": "2024-12-01-preview",
+                      "apiVersion": "2026-02-01",
                       "existing": true,
                       "name": "[parameters('keyVaultName')]",
                       "type": "Microsoft.KeyVault/vaults"
@@ -3380,7 +3380,7 @@
           },
           "resources": {
             "etcdEncryptionKey": {
-              "apiVersion": "2024-12-01-preview",
+              "apiVersion": "2026-02-01",
               "existing": true,
               "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('etcdEncryptionKeyName'))]",
               "type": "Microsoft.KeyVault/vaults/keys"
@@ -3437,7 +3437,7 @@
               "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
             },
             "keyVault": {
-              "apiVersion": "2024-12-01-preview",
+              "apiVersion": "2026-02-01",
               "existing": true,
               "name": "[parameters('keyVaultName')]",
               "type": "Microsoft.KeyVault/vaults"

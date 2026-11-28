@@ -68,11 +68,11 @@ var roleResourceIds = {
   )
 }
 
-resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource kv 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
-resource secret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = if (secretName != '') {
+resource secret 'Microsoft.KeyVault/vaults/secrets@2026-02-01' existing = if (secretName != '') {
   parent: kv
   name: secretName
 }

@@ -26,19 +26,19 @@ param serviceClusterSubscriptionId string
 @description('The name of the HCP Backups Storage Account.')
 param hcpBackupsStorageAccountName string = ''
 
-resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: mgmtKeyVaultName
 }
 
-resource cxKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource cxKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: cxKeyVaultName
 }
 
-resource msiKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource msiKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: msiKeyVaultName
 }
 
-resource aksKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource aksKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: aksKeyVaultName
 }
 

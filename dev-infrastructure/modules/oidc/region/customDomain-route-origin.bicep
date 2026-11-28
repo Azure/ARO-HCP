@@ -62,7 +62,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing 
   scope: resourceGroup(storageSubscription, storageResourceGroup)
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = if (!useManagedCertificates) {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = if (!useManagedCertificates) {
   name: keyVaultName
 
   resource secret 'secrets' existing = {

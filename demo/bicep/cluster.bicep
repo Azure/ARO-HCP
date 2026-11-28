@@ -56,11 +56,11 @@ resource vnetIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-0
   parent: vnet
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
-resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' existing = {
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2026-02-01' existing = {
   parent: keyVault
   name: etcdEncryptionKeyName
 }
