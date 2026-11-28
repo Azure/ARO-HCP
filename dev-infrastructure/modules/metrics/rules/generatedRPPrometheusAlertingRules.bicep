@@ -1839,7 +1839,7 @@ resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusR
           summary: 'MSI credential close to expiry (7 days or less left)'
           title: 'MSI credential close to expiry (7 days or less left)'
         }
-        expression: '(workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) - ((sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) - sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))) or sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h]))) * 0) > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

@@ -20,7 +20,7 @@ tests:
   alert_rule_test:
   - eval_time: 30m
     alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
-    exp_alerts:
+    exp_alerts: &critical-alert
     - exp_labels:
         cluster: svc-1
         component: slo
@@ -30,6 +30,120 @@ tests:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
         runbook_url: "https://aka.ms/arohcp-runbook-workload-identity"
+- name: customer_blocked_credentials_do_not_fire
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: firing-to-recovery. The refresher observes every credential in the
+# main histogram on every pass and additionally observes customer-blocked
+# credentials in the customer_blocked histogram (subset contract), so a
+# credential that becomes blocked keeps appearing in both. The alert fires
+# on the live expiring credential, the credential becomes blocked at t=30m,
+# and the alert clears once the blocked observations catch up inside the
+# trailing 1h increase() window (blocked at 30m + 1h window).
+- name: firing_alert_clears_when_credential_becomes_blocked
+  interval: 1m
+  input_series:
+  # Observed in the main histogram on every pass, blocked or not.
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x120"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x120"
+  # Additionally observed in the customer_blocked histogram from t=30m,
+  # with the same expiry value as the main histogram observation.
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x30 0+2x90"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x120"
+  alert_rule_test:
+  # Firing before the block (for: 15m already satisfied).
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+  # Still firing: inside the trailing 1h increase() window the blocked
+  # observations trail the total, so live (not-yet-caught-up) expiry
+  # signal remains.
+  - eval_time: 60m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+  # Cleared: the blocked observations have caught up with the total
+  # inside the window, leaving no non-blocked expiry signal.
+  - eval_time: 105m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: a customer-blocked credential in the same expiry bucket as a
+# genuinely failing credential must not hide the real failure: the
+# subtraction removes exactly the blocked observations and no more.
+- name: blocked_in_same_bucket_does_not_hide_real_failure
+  interval: 1m
+  input_series:
+  # kv-1: customer-blocked credential with 5 days left, observed in both
+  # histograms (subset contract).
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  # kv-2: genuine renewal failure with 5 days left, main histogram only.
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-2",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-2",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+- name: blocked_at_twenty_days_does_not_hide_real_failure_at_five_days
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30.0"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7.0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0.0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30.0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7.0"}'
+    values: "0x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0.0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
+- name: expired_blocked_credential_does_not_hide_live_failure
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+1x60"
+  - series: 'credential_refresher_customer_blocked_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0+1x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: *critical-alert
 # Test: the alert waits 15m (its for: duration) before firing.
 - name: critical_waits_for_duration
   interval: 1m
