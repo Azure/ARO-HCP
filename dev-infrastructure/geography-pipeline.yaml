@@ -54,17 +54,10 @@ resourceGroups:
     parameters: configurations/subscription-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-# Detach ringless and default-ring INT stack records before their ARM deployments.
+# Detach matching ringless and default-ring stack records before their ARM deployments.
 - name: kustoDetach
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    environments:
-    - int
-    regions:
-    - westus3
   steps:
   - name: detach-ringless
     action: ARMStack
