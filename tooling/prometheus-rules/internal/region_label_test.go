@@ -15,6 +15,7 @@
 package internal
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -93,4 +94,43 @@ func TestPreserveLabelInAggregations(t *testing.T) {
 func TestPreserveLabelInAggregations_InvalidExpr(t *testing.T) {
 	_, err := preserveLabelInAggregations("sum(", "region")
 	require.Error(t, err)
+}
+
+// TestUnlessOnMatchesWithoutRegion checks the rewrite of
+// hostedClusterAPI_kubeapiserver_available:sli_sum_15m. region is added to
+// every by clause but left off the unless on matching set, so the
+// deletion-timestamp series (which has no region label) still matches and
+// suppresses the deleting cluster.
+func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
+	const source = `(
+		sum by (name, namespace, _id, resource_id, cluster) (
+			sum_over_time(
+				(
+					hostedClusterAPI_kubeapiserver_available{status="True"}
+					and on (name, namespace, _id, resource_id, cluster)
+					max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+				)[15m:1m]
+			)
+		)
+		and on (name, namespace, _id, resource_id, cluster)
+		count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+	)
+	unless on (name, namespace, _id, resource_id, cluster)
+	(hostedClusterAPI_deletion_timestamp_seconds > 0)`
+	rewritten, err := preserveLabelInAggregations(source, "region")
+	require.NoError(t, err)
+	again, err := preserveLabelInAggregations(rewritten, "region")
+	require.NoError(t, err)
+	require.Equal(t, rewritten, again)
+
+	flat := strings.Join(strings.Fields(rewritten), " ")
+	require.Contains(t, flat, "sum by (name, namespace, _id, resource_id, cluster, region)")
+	require.Contains(t, flat, "max by (name, namespace, _id, resource_id, cluster, region)")
+	require.Contains(t, flat, "count by (name, namespace, _id, resource_id, cluster, region)")
+	require.Contains(t, flat, "sum_over_time")
+	require.Contains(t, flat, "offset 15m")
+	require.Contains(t, flat, "and on (name, namespace, _id, resource_id, cluster)")
+	const unlessOn = "unless on (name, namespace, _id, resource_id, cluster)"
+	require.Contains(t, flat, unlessOn+" (hostedClusterAPI_deletion_timestamp_seconds > 0)")
+	require.NotContains(t, flat, "unless on (name, namespace, _id, resource_id, cluster, region)")
 }
