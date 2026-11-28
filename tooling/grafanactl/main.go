@@ -26,11 +26,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/dashboard"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/folder"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/list"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/manage"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/sync"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/verify"
+
+	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/preview"
 )
 
 const (
@@ -79,9 +83,12 @@ and other operational tasks.`,
 
 	mainCommands := []func(string) (*cobra.Command, error){
 		clean.NewCleanCommand,
+		dashboard.NewDashboardCommand,
+		folder.NewFolderCommand,
 		list.NewListCommand,
 		manage.NewManageCommand,
 		modify.NewModifyCommand,
+		preview.NewPreviewCommand,
 		sync.NewSyncCommand,
 		verify.NewVerifyCommand,
 	}

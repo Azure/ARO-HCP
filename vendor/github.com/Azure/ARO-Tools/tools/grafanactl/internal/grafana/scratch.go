@@ -28,7 +28,7 @@ import (
 
 type scratchGrafanaClient interface {
 	ListFolders(ctx context.Context) ([]Folder, error)
-	CreateFolder(ctx context.Context, title string) (Folder, error)
+	CreateFolder(ctx context.Context, uid, title string) (Folder, error)
 	UpdateFolderPermissions(ctx context.Context, folderUID string, permissions ...FolderPermission) error
 	ListDashboards(ctx context.Context) ([]FoundBoard, error)
 	GetDashboardByUID(ctx context.Context, uid string) (BoardProperties, error)
@@ -229,7 +229,7 @@ func findOrCreateFolder(ctx context.Context, client scratchGrafanaClient, name s
 		return Folder{Title: name, UID: "dry-run-" + name}, nil
 	}
 
-	folder, err := client.CreateFolder(ctx, name)
+	folder, err := client.CreateFolder(ctx, "", name)
 	if err != nil {
 		return Folder{}, fmt.Errorf("failed to create scratch folder %q: %w", name, err)
 	}

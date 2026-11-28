@@ -145,6 +145,44 @@ The config file (e.g., `observability.yaml`) defines:
 
 Sync only touches the folders named in the config file. It leaves every other folder in the instance alone, including the `PR-<number>` preview folders that CI creates for dashboard PRs (See [PR preview](../../docs/grafana-dashboards.md#pr-preview)).
 
+### Preview Commands
+
+Preview commands deploy the dashboards a pull request changes, so that a reviewer can see
+them before they merge. CI runs them; you rarely run them by hand. See
+[PR preview](../../docs/grafana-dashboards.md#pr-preview).
+
+#### Create a Preview
+
+Upload the dashboards the pull request changed into a folder named `PR-<number>`, and
+report the links in the job log and in a comment on the pull request.
+
+```bash
+GITHUB_TOKEN="your-token" grafanactl preview create \
+  --pr 1234 \
+  --base-sha "${PULL_BASE_SHA}" \
+  --head-sha "${PULL_PULL_SHA}" \
+  --subscription "your-subscription-id" \
+  --resource-group "your-resource-group" \
+  --grafana-name "your-grafana-instance"
+```
+
+Which dashboards changed is read from git, by comparing the head commit with the merge
+base of the two commits. The command does nothing and succeeds when the pull request
+changes no dashboard.
+
+Each dashboard is stored under `pr-<number>-<its own uid>`, so a preview never replaces
+a dashboard that main deployed, nor the preview of another pull request. A UID longer
+than the 40 characters Grafana accepts is shortened, and stays the same across runs.
+
+The comment is found by the `<!-- grafana-preview -->` marker it opens with, so a second
+push updates the comment the first push left. Only a comment from an app counts, because
+anyone can open a comment with that marker. The links are printed before the comment is
+written, so a pull request still reports them when GitHub cannot be reached.
+
+`GITHUB_TOKEN` holds the credential, which keeps it out of the process arguments. Without
+it the command uploads the dashboards and writes no comment. `--dry-run` uploads nothing
+and writes no comment.
+
 ## Error Handling
 
 - The tool includes retry logic for transient Azure API failures

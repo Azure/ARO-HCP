@@ -2,8 +2,8 @@ github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c h1:j5PEu8
 github.com/Azure/ARO-Tools/testutil v0.0.0-20261119152653-bc31149d518c/go.mod h1:3V54ocLMfucVYAQaEsmnctLTIZZrlcJYqJ1kIpWGvgI=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c h1:gzCt2e73oBHQNUyqBYg/2OR8oSpw3sDFtmFxv0fkoOg=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261119152653-bc31149d518c/go.mod h1:0sAsLmwMYWCYtSU2sVMUsp4nWZq7ZDXxwZl5u74aj74=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c h1:10WbPuWBaagfgesJJxlOTNrzqHpNv0rKidiv/eAbelA=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c/go.mod h1:UIkeuBd553++TX5b1miwLA+pgHrWX0rXqlvWUsRaAWg=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5 h1:4hCjOpTBLHFaFHt+wVqWhVHq0uZq9ZmEqWdfnrWet9A=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5/go.mod h1:UIkeuBd553++TX5b1miwLA+pgHrWX0rXqlvWUsRaAWg=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3 h1:qgnWTiWs1G7AqcKZegFvkJD1bmXJcaDU3uC0ELSgZ5U=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3/go.mod h1:XtxD48QPInqoj+GMlcRlXHEYsoOxFnP6w2JgIZ9rDS4=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0 h1:w3gDUJlJ0BfBsHH02DCBDwbkmMSXJqBj6nBOCo9iocY=
@@ -90,8 +90,13 @@ github.com/go-viper/mapstructure/v2 v2.5.0 h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPE
 github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
+github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+github.com/google/go-github/v69 v69.2.0 h1:wR+Wi/fN2zdUx9YxSmYE0ktiX9IAR/BeePzeaUUbEHE=
+github.com/google/go-github/v69 v69.2.0/go.mod h1:xne4jymxLR6Uj9b7J7PyTpkMYstEMMwGZa0Aehh1azM=
+github.com/google/go-querystring v1.2.0 h1:yhqkPbu2/OH+V9BfpCVPZkNmUXhb2gBxJArfhIxNtP0=
+github.com/google/go-querystring v1.2.0/go.mod h1:8IFJqpSRITyJ8QhQ13bmbeMBDfmeEJZD5A0egEOmkqU=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/grafana/grafana-openapi-client-go v0.0.0-20260724161645-6029e6c64947 h1:BwK2FvzEsq/Wqpu+oA0IujBZt+NB9URm9ojs/Iq/56U=

@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -56,7 +57,47 @@ const (
 	// grafanaDashboardMaxBytes caps a dashboard GET so a runaway response
 	// cannot OOM the process. Managed dashboards are well below this.
 	grafanaDashboardMaxBytes int64 = 8 << 20
+	// folderListLimit is the number of folders ListFolders() will request and return from Grafana.
+	// Grafana returns at most 1000 folders per call.
+	folderListLimit int64 = 1000
 )
+
+// ErrFolderNotFound tells the caller that Grafana has no folder with the given
+// UID. Callers compare with errors.Is to tell "the folder is absent" from "the
+// call failed", which lets them make folder creation idempotent and folder
+// deletion tolerant of a folder that something else already removed.
+var ErrFolderNotFound = errors.New("folder not found")
+
+// ErrFolderAlreadyExists tells the caller that Grafana refused the folder
+// because one with the same UID is already there. Callers compare with
+// errors.Is to keep folder creation idempotent when a second writer creates
+// the folder between the lookup and the create.
+var ErrFolderAlreadyExists = errors.New("folder already exists")
+
+// MaxUIDLength is the longest UID Grafana accepts for a folder or a dashboard.
+const MaxUIDLength = 40
+
+// uidPattern is the charset Grafana accepts in a folder or dashboard UID.
+var uidPattern = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
+
+// ValidateUID checks that uid is short enough for Grafana to accept and holds
+// only the characters Grafana permits. An empty uid is not an error here:
+// folder and dashboard UIDs are frequently optional, since Grafana generates
+// one on create, or a dashboard document supplies its own. Callers that
+// require a UID to be present check that separately, before calling
+// ValidateUID.
+func ValidateUID(uid string) error {
+	if uid == "" {
+		return nil
+	}
+	if len(uid) > MaxUIDLength {
+		return fmt.Errorf("uid %q is too long: must be %d characters or fewer", uid, MaxUIDLength)
+	}
+	if !uidPattern.MatchString(uid) {
+		return fmt.Errorf("invalid uid %q; must match %s", uid, uidPattern.String())
+	}
+	return nil
+}
 
 // grafanaAPIRetryStatusCodes lists the HTTP status codes the transport retries.
 // "5xx" is a single-digit wildcard understood by the transport config.
@@ -70,11 +111,19 @@ type grafanaAPILocation struct {
 	BasePath string
 }
 
+// GetBaseURL returns the browser-facing Grafana URL for this location: the API
+// base path without its "/api" suffix. An endpoint behind a reverse-proxy
+// prefix keeps that prefix.
+func (l grafanaAPILocation) GetBaseURL() string {
+	return l.Scheme + "://" + l.Host + strings.TrimSuffix(l.BasePath, "/api")
+}
+
 // Client provides methods to interact with Azure Managed Grafana instances.
 type Client struct {
 	grafanaClient *goapi.GrafanaHTTPAPI
 	httpClient    *http.Client
 	apiBase       *url.URL
+	baseURL       string
 	token         string
 }
 
@@ -91,6 +140,14 @@ func NewClient(ctx context.Context, credential azcore.TokenCredential, managedGr
 		return nil, fmt.Errorf("failed to get API token: %w", err)
 	}
 
+	return newClient(endpoint, token)
+}
+
+// NewClientForEndpoint creates a Grafana client for an endpoint the caller
+// already knows, authenticated with the supplied bearer token. Use NewClient
+// for an Azure Managed Grafana instance; this entry point serves callers that
+// hold no Azure credentials, such as tests that run against a local server.
+func NewClientForEndpoint(endpoint, token string) (*Client, error) {
 	return newClient(endpoint, token)
 }
 
@@ -130,8 +187,15 @@ func newClient(endpoint, token string) (*Client, error) {
 		grafanaClient: api,
 		httpClient:    httpClient,
 		apiBase:       apiBase,
+		baseURL:       loc.GetBaseURL(),
 		token:         token,
 	}, nil
+}
+
+// GetBaseURL returns the browser-facing Grafana URL, with no trailing slash and no
+// "/api" suffix. Callers build dashboard and folder links from it.
+func (c *Client) GetBaseURL() string {
+	return c.baseURL
 }
 
 // parseGrafanaAPILocation splits a Grafana endpoint into scheme, host, and API
@@ -395,16 +459,28 @@ func WorkspaceNamesFromResourceIDs(ids set.Set[string]) set.Set[string] {
 	return names
 }
 
-// ListFolders returns all folders in the Grafana instance.
+// ListFolders returns the folders in the Grafana instance, up to
+// folderListLimit. The returned folders have a zero Created value because
+// Grafana omits the timestamp from list results; call GetFolderByUID if
+// you need a folder's creation time.
 func (c *Client) ListFolders(ctx context.Context) ([]Folder, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)
 	defer cancel()
 
+	limit := folderListLimit
 	resp, err := c.grafanaClient.Folders.GetFolders(
-		folders.NewGetFoldersParamsWithContext(ctx),
+		folders.NewGetFoldersParamsWithContext(ctx).WithLimit(&limit),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get folders: %w", err)
+	}
+
+	// Not paginating is a deliberate design choice for simplicity as it is highly unlikely
+	// we'll hit over 1000 folders in a single instance, but this logs the edge case just in case.
+	if int64(len(resp.Payload)) >= limit {
+		logger.Info("Folder list reached the request limit and may be incomplete", "limit", limit)
 	}
 
 	result := make([]Folder, 0, len(resp.Payload))
@@ -412,6 +488,26 @@ func (c *Client) ListFolders(ctx context.Context) ([]Folder, error) {
 		result = append(result, Folder{UID: f.UID, Title: f.Title})
 	}
 	return result, nil
+}
+
+// GetFolderByUID returns the folder with the given UID.
+// It returns an error that matches ErrFolderNotFound when Grafana has no such folder.
+func (c *Client) GetFolderByUID(ctx context.Context, uid string) (Folder, error) {
+	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)
+	defer cancel()
+
+	resp, err := c.grafanaClient.Folders.GetFolderByUIDWithParams(
+		folders.NewGetFolderByUIDParamsWithContext(ctx).WithFolderUID(uid),
+	)
+	if err != nil {
+		var notFound *folders.GetFolderByUIDNotFound
+		if errors.As(err, &notFound) {
+			return Folder{}, fmt.Errorf("failed to get folder %q: %w", uid, ErrFolderNotFound)
+		}
+		return Folder{}, fmt.Errorf("failed to get folder %q: %w", uid, err)
+	}
+
+	return buildFolder(resp.Payload), nil
 }
 
 // ListDashboards returns all dashboards in the Grafana instance.
@@ -454,20 +550,24 @@ func (c *Client) searchByType(ctx context.Context, searchType, errMsg string) ([
 	return result, nil
 }
 
-// CreateFolder creates a new folder in Grafana.
-func (c *Client) CreateFolder(ctx context.Context, title string) (Folder, error) {
+// CreateFolder creates a new folder in Grafana. An empty uid lets Grafana
+// generate one.
+func (c *Client) CreateFolder(ctx context.Context, uid, title string) (Folder, error) {
 	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)
 	defer cancel()
 
 	resp, err := c.grafanaClient.Folders.CreateFolderWithParams(
-		folders.NewCreateFolderParamsWithContext(ctx).WithBody(&models.CreateFolderCommand{Title: title}),
+		folders.NewCreateFolderParamsWithContext(ctx).WithBody(&models.CreateFolderCommand{UID: uid, Title: title}),
 	)
 	if err != nil {
+		var conflict *folders.CreateFolderConflict
+		if errors.As(err, &conflict) {
+			return Folder{}, fmt.Errorf("failed to create folder %q: %w", title, ErrFolderAlreadyExists)
+		}
 		return Folder{}, fmt.Errorf("failed to create folder %q: %w", title, err)
 	}
 
-	f := resp.Payload
-	return Folder{UID: f.UID, Title: f.Title}, nil
+	return buildFolder(resp.Payload), nil
 }
 
 // GetDashboardByUID retrieves the metadata Grafana returns for a dashboard by
@@ -653,7 +753,9 @@ func (c *Client) UpdateFolderPermissions(ctx context.Context, folderUID string, 
 	return nil
 }
 
-// DeleteFolderByUID removes a folder by its UID.
+// DeleteFolderByUID removes a folder by its UID. It returns an error that
+// matches ErrFolderNotFound when Grafana has no such folder, so a caller
+// deleting a folder that something else already removed can ignore it.
 func (c *Client) DeleteFolderByUID(ctx context.Context, uid string) error {
 	ctx, cancel := context.WithTimeout(ctx, grafanaAPITimeout)
 	defer cancel()
@@ -662,9 +764,22 @@ func (c *Client) DeleteFolderByUID(ctx context.Context, uid string) error {
 		folders.NewDeleteFolderParamsWithContext(ctx).WithFolderUID(uid),
 	)
 	if err != nil {
+		var notFound *folders.DeleteFolderNotFound
+		if errors.As(err, &notFound) {
+			return fmt.Errorf("failed to delete folder %q: %w", uid, ErrFolderNotFound)
+		}
 		return fmt.Errorf("failed to delete folder %q: %w", uid, err)
 	}
 	return nil
+}
+
+// buildFolder converts the folder representation returned by the single-folder
+// endpoints into the internal Folder type.
+func buildFolder(f *models.Folder) Folder {
+	if f == nil {
+		return Folder{}
+	}
+	return Folder{UID: f.UID, Title: f.Title, Created: time.Time(f.Created)}
 }
 
 // toBoardProperties converts the dashboard metadata envelope returned by the API

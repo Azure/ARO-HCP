@@ -3,9 +3,10 @@ module github.com/Azure/ARO-HCP/tooling/grafanactl
 go 1.26.0
 
 require (
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261119152653-bc31149d518c
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261127115645-e99cc045bbb5
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.4
+	github.com/google/go-github/v69 v69.2.0
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -45,6 +46,7 @@ require (
 	github.com/go-openapi/validate v1.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grafana/grafana-openapi-client-go v0.0.0-20260724161645-6029e6c64947 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
