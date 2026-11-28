@@ -1,0 +1,152 @@
+rule_files:
+- backup-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# 75% success / 25% failure at steady rate on mgmt-1 (recurring schedules only).
+# Key-rotation schedule must not be counted. attempt_total anchors zero-fills.
+- interval: 1m
+  input_series:
+  - series: 'velero_hcp_backup_success_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="a"}'
+    values: "0+3x20"
+  - series: 'velero_hcp_backup_success_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="b"}'
+    values: "0+3x20"
+  - series: 'velero_hcp_backup_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="a"}'
+    values: "0+1x20"
+  - series: 'velero_hcp_backup_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="b"}'
+    values: "0+1x20"
+  - series: 'velero_hcp_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="a"}'
+    values: "0+0x20"
+  - series: 'velero_hcp_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="a"}'
+    values: "0+0x20"
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="a"}'
+    values: "0+4x20"
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-6-hourly", prometheus_replica="b"}'
+    values: "0+4x20"
+  # Key-rotation noise — must not affect the recorded rates.
+  - series: 'velero_hcp_backup_failure_total{cluster="mgmt-1", schedule="ns-a-keyrotation-20261117", prometheus_replica="a"}'
+    values: "0+100x20"
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-keyrotation-20261117", prometheus_replica="a"}'
+    values: "0+100x20"
+  promql_expr_test:
+  - expr: errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-1"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:rate5m", cluster="mgmt-1"}'
+      value: 1.6666666666666667e-2
+  - expr: sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-1"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:velero_hcp_backup:completed_outcomes:rate5m", cluster="mgmt-1"}'
+      value: 6.666666666666667e-2
+  # Success rate from the 5m rates: 1 - failed/completed = 0.75
+  - expr: 1 - errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-1"} / sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-1"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-1"}'
+      value: 0.75
+  # sum30d[:1m] at 5m integrates the steady rate5m samples (promtool: 3 samples).
+  - expr: errors:velero_hcp_backup:failed_outcomes:sum30d{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:sum30d", cluster="mgmt-1"}'
+      value: 5e-2
+  - expr: sli:velero_hcp_backup:completed_outcomes:sum30d{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:velero_hcp_backup:completed_outcomes:sum30d", cluster="mgmt-1"}'
+      value: 2e-1
+  # Success rate from sum30d matches the 5m rate ratio.
+  - expr: 1 - errors:velero_hcp_backup:failed_outcomes:sum30d{cluster="mgmt-1"} / sli:velero_hcp_backup:completed_outcomes:sum30d{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{cluster="mgmt-1"}'
+      value: 0.75
+# All successes — failed rate pins to 0 via attempt-based zero fill.
+- interval: 1m
+  input_series:
+  - series: 'velero_hcp_backup_success_total{cluster="mgmt-2", schedule="ns-b-daily", prometheus_replica="a"}'
+    values: "0+2x15"
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-2", schedule="ns-b-daily", prometheus_replica="a"}'
+    values: "0+2x15"
+  promql_expr_test:
+  - expr: errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-2"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:rate5m", cluster="mgmt-2"}'
+      value: 0
+  - expr: sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-2"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:velero_hcp_backup:completed_outcomes:rate5m", cluster="mgmt-2"}'
+      value: 3.3333333333333335e-2
+# Failure-only cluster (no success series, missing partial/validation series).
+# attempt-based zero fill must keep the cluster in both recorded rates.
+- interval: 1m
+  input_series:
+  - series: 'velero_hcp_backup_failure_total{cluster="mgmt-fail", schedule="ns-c-6-hourly", prometheus_replica="a"}'
+    values: "0+1x15"
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-fail", schedule="ns-c-6-hourly", prometheus_replica="a"}'
+    values: "0+1x15"
+  promql_expr_test:
+  - expr: errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-fail"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:rate5m", cluster="mgmt-fail"}'
+      value: 1.6666666666666667e-2
+  # Success portion of completed_outcomes is 0 (analogous to failed=0 above).
+  - expr: |
+      sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-fail"}
+      - errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-fail"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-fail"}'
+      value: 0
+  - expr: sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-fail"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:velero_hcp_backup:completed_outcomes:rate5m", cluster="mgmt-fail"}'
+      value: 1.6666666666666667e-2
+  - expr: 1 - errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-fail"} / sli:velero_hcp_backup:completed_outcomes:rate5m{cluster="mgmt-fail"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-fail"}'
+      value: 0
+# Sparse boundary failure between 5m subquery points (bump at t=7m).
+# rate() windows are (t-5m, t], so a bump exactly on a 5m boundary is excluded
+# from the next boundary sample; land it strictly inside (5m, 10m].
+# :1m sum30d must retain the failure so gauges do not report 100% success.
+- interval: 1m
+  input_series:
+  - series: 'velero_hcp_backup_success_total{cluster="mgmt-sparse", schedule="ns-d-6-hourly", prometheus_replica="a"}'
+    values: "0+1x15"
+  - series: 'velero_hcp_backup_failure_total{cluster="mgmt-sparse", schedule="ns-d-6-hourly", prometheus_replica="a"}'
+    values: "0+0x6 1+0x9"
+  # Monotonic attempt = success path then +1 when the failure lands at t=7m.
+  - series: 'velero_hcp_backup_attempt_total{cluster="mgmt-sparse", schedule="ns-d-6-hourly", prometheus_replica="a"}'
+    values: "0+1x6 8+1x8"
+  promql_expr_test:
+  - expr: errors:velero_hcp_backup:failed_outcomes:rate5m{cluster="mgmt-sparse"} > bool 0
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-sparse"}'
+      value: 1
+  # After the spike is fully inside the rate5m window, assert exact sum30d
+  # integrals / success ratio (not :1m vs :5m raw sums — an unscaled :1m sum
+  # has ~5x more samples and would pass even for a constant rate).
+  - expr: errors:velero_hcp_backup:failed_outcomes:sum30d{cluster="mgmt-sparse"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="errors:velero_hcp_backup:failed_outcomes:sum30d", cluster="mgmt-sparse"}'
+      value: 1.3333333333333334e-2
+  - expr: sli:velero_hcp_backup:completed_outcomes:sum30d{cluster="mgmt-sparse"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:velero_hcp_backup:completed_outcomes:sum30d", cluster="mgmt-sparse"}'
+      value: 1.4666666666666667e-1
+  - expr: |
+      1 - errors:velero_hcp_backup:failed_outcomes:sum30d{cluster="mgmt-sparse"}
+          / sli:velero_hcp_backup:completed_outcomes:sum30d{cluster="mgmt-sparse"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-sparse"}'
+      value: 0.9090909090909091
