@@ -108,17 +108,10 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-# Detach ringless and default-ring INT stack records before their ARM deployments.
+# Detach matching ringless and default-ring stack records before their ARM deployments.
 - name: kustoDetach
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    environments:
-    - int
-    regions:
-    - westus3
   steps:
   - name: detach-ringless
     action: ARMStack
@@ -230,13 +223,6 @@ resourceGroups:
 - name: auditDetach
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    environments:
-    - int
-    regions:
-    - westus3
   steps:
   - name: detach-ringless
     action: ARMStack
@@ -285,13 +271,6 @@ resourceGroups:
 - name: regionDetach
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    environments:
-    - int
-    regions:
-    - westus3
   steps:
   - name: detach-ringless
     action: ARMStack
