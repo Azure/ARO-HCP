@@ -14,6 +14,7 @@ Key points to remember:
 - Screenshots are required for graph, UI, metrics, and performance changes.
 - The PR checklist is built into `.github/PULL_REQUEST_TEMPLATE.md` — it appears automatically.
 - For a PR that claims to be a revert, verify that it is a clean revert created with `git revert`. The description must explicitly say so and identify the reverted commit or PR; otherwise, flag a critical issue.
+- When reviewing, rate each new or changed unit test high, medium, or low value and list the lows to drop; flag README or docs additions that only describe implementation detail; note whether a real end-to-end run is reported as passing; flag descriptions that do not fit in a few short paragraphs. See "Workflow — Reviewing a PR" in `.claude/skills/pr-standards/SKILL.md`.
 
 ## Security Review (Mandatory for all PR reviews)
 
