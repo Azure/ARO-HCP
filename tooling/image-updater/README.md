@@ -6,6 +6,7 @@ A tool that automatically fetches the latest container image digests from regist
 
 - [Quick Start](#quick-start)
 - [Bundle Partition](#bundle-partition)
+- [Run Summary](#run-summary)
 - [Supported Registries](#supported-registries)
 - [How It Works](#how-it-works)
 - [Key Features](#key-features)
@@ -91,6 +92,36 @@ make validate
 
 The repository `make verify` target runs the same check, so a component whose
 group belongs to no bundle fails CI.
+
+## Run Summary
+
+`image-updater summary` turns the artifacts of a completed run into a
+self-contained HTML page and an optional JSON file, so a run records what it
+did instead of leaving only transient log lines.
+
+```bash
+./image-updater summary \
+  --updates /tmp/image-updater-output.json \
+  --receipt /tmp/image-updater-publish.out \
+  --revision "$(git rev-parse HEAD)" \
+  --branch main \
+  --prebuilt \
+  --output "${ARTIFACT_DIR}/image-updater-summary.html" \
+  --json-output "${ARTIFACT_DIR}/image-updater-summary.json" \
+  --body-output /tmp/image-updater-body.md \
+  --job-url "${PROW_JOB_URL}"
+```
+
+The input is the JSON output of `update` (`--output-format json`). The page
+shows the revision, the templatize source, the changed components with their
+old and new digests, and the pull request.
+
+The receipt is optional: generate the body before publishing with
+`--updates` and `--body-output` only (no revision is needed), then pass
+`--receipt` after `publish` so the page links the pull request. Without a receipt, `--pull-request-url` still
+links an existing pull request, and `--job-url` links the run that produced the
+card. The markdown body lists only changed components; the HTML and JSON
+artifacts keep the complete result set.
 
 ## Supported Registries
 
