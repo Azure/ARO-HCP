@@ -413,3 +413,113 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs'
 ```
 
 No rows — no Endpoints Events for `etcd-client` in this window.
+
+> **Note:** `Endpoints`/`EndpointSlice` membership changes are *not* emitted as Kubernetes `Events`, so the `kubernetesEvents` queries above return no rows for the etcd Services. To observe an etcd member entering or leaving a Service's endpoints, query the resource snapshots instead.
+
+#### Proof 3: Log Snippet
+
+`etcd-client` `Endpoints` membership over time. kube-apiserver connects to the `etcd-client` Service, so filter to it exactly — `name has 'etcd'` would also match the separate `etcd-discovery` Service and interleave two timelines. Keep `name` in the projection so rows stay attributable:
+
+```kql
+// manifest.json: hosted_control_plane_namespace
+let hcpNamespace = '<hosted_control_plane_namespace>';
+// manifest.json: kusto_cluster  (selects the Kusto endpoint; pin it so an unqualified database() does not run against the routing cluster)
+cluster('<kusto_cluster>').database('ServiceLogs').table('kubernetesResourceSnapshots')
+// manifest.json: time_window (widen to cover the full create / upgrade window)
+| where timestamp between (datetime(2026-06-24T17:00:00Z) .. datetime(2026-06-24T18:10:00Z))
+| where namespace == hcpNamespace
+| where objectKind == 'Endpoints' and name == 'etcd-client'
+| project timestamp, name, object, event
+| order by timestamp asc
+```
+
+The `object` column holds the full `Endpoints` resource. Track `subsets[].addresses` versus `subsets[].notReadyAddresses` across rows to see a specific member (for example `etcd-1`) drop to NotReady and later recover. Each address entry also carries `nodeName` and `targetRef.name`, which lets you tie a member's readiness flap to the node it runs on. These snapshots are recorded on informer add/update/delete events, not at a fixed interval, so treat a gap between rows as "no change observed," not missing data.
+
+The `Service` resource is captured in the snapshots too, which lets you confirm a Service's type and endpoint-publishing behavior (for example that `etcd-client` is `ClusterIP` with `publishNotReadyAddresses` unset/false, versus the headless `etcd-discovery`):
+
+```kql
+let hcpNamespace = '<hosted_control_plane_namespace>';
+// manifest.json: kusto_cluster
+cluster('<kusto_cluster>').database('ServiceLogs').table('kubernetesResourceSnapshots')
+| where timestamp between (datetime(2026-06-24T17:00:00Z) .. datetime(2026-06-24T18:10:00Z))
+| where namespace == hcpNamespace
+| where objectKind == 'Service' and name == 'etcd-client'
+| project timestamp, name, clusterIP = tostring(object.spec.clusterIP), publishNotReadyAddresses = tobool(object.spec.publishNotReadyAddresses)
+| order by timestamp asc
+```
+
+## How the etcd Services relate to kube-apiserver
+
+The `etcd-client` (`ClusterIP`) and `etcd-discovery` (headless) Services — and why a single member's readiness drop can fail a kube-apiserver replica's `/readyz` even while etcd keeps quorum — are described in the `Etcd Services` section of the Service Components reference. To diagnose that failure mode in an incident, correlate: (1) the kube-apiserver pod's node and events (look for `NodeNotReady`), (2) the `etcd-client` `Endpoints` snapshots for a co-located member flapping to `notReadyAddresses`, and (3) the kube-apiserver container logs for etcd dial / `context deadline exceeded` errors in the same window. The Endpoints change alone shows the member left rotation; the container logs are what confirm a broken or stalled connection.
+
+## Check the node when a control-plane pod won't become Ready
+
+If a `kube-apiserver` (or `etcd`) replica fails readiness while etcd keeps quorum, check whether the pod's **node** went `NotReady` — a node blip removes every pod on it from its Services' ready endpoints at once. Find the node from the pod's `Scheduled` event (or the pod snapshot's `spec.nodeName`), then query the node's events and conditions. Node names are **not** unique across management clusters in the shared store, so scope these queries to the node's management cluster via the `cluster` column (its AKS name).
+
+Node events (look for `NodeNotReady`, a `Starting kubelet` restart, the `NodeReady` recovery, and node-health `NodeHealthLabeled` "wedged" markers — the detector name, e.g. `swift-vf-teardown`, identifies the observed failure pattern):
+
+```kql
+// the node hosting the pod -- from the pod's Scheduled event / spec.nodeName (not a manifest field)
+let nodeName = '<node_name>';
+// the node's management-cluster AKS name (node names are not globally unique across clusters)
+let managementClusterName = '<management_cluster_name>';
+// manifest.json: kusto_cluster
+cluster('<kusto_cluster>').database('ServiceLogs').table('kubernetesEvents')
+// manifest.json: time_window
+| where timestamp between (datetime(2026-06-24T17:00:00Z) .. datetime(2026-06-24T18:10:00Z))
+| where cluster == managementClusterName
+| where objectKind == 'Node' and objectName == nodeName
+| project firstSeen, lastSeen, reason, message, objectName
+| order by firstSeen asc
+```
+
+Order by the event's `firstSeen` occurrence field, not the ingestion `timestamp` or `lastSeen`: Kubernetes aggregates repeated Events, so an earlier `NodeNotReady` can have a later `lastSeen` than a one-off `Starting kubelet` / `NodeReady`; `firstSeen` preserves the `NodeNotReady` -> `Starting kubelet` -> `NodeReady` sequence the interpretation relies on.
+
+Node conditions over time (read `status.conditions`: the `Ready` condition's reason/message, and the `MemoryPressure` / `DiskPressure` / `PIDPressure` / `NetworkUnavailable` conditions' `status`):
+
+```kql
+let nodeName = '<node_name>';
+let managementClusterName = '<management_cluster_name>';
+// manifest.json: kusto_cluster
+cluster('<kusto_cluster>').database('ServiceLogs').table('kubernetesResourceSnapshots')
+| where timestamp between (datetime(2026-06-24T17:00:00Z) .. datetime(2026-06-24T18:10:00Z))
+| where cluster == managementClusterName
+| where objectKind == 'Node' and name == nodeName
+| project timestamp, name, object, event
+| order by timestamp asc
+```
+
+Interpretation:
+
+- A `Starting kubelet` event between `NodeNotReady` and `NodeReady` shows the kubelet restarted during the NotReady interval. Treat this as correlational: the restart coincides with the blip and is the likely proximate cause, but a node reboot or another underlying fault can produce both signals — confirm with the node's kubelet / azure-cns logs before asserting causation.
+- A node-health `wedged` label (for example detector `swift-vf-teardown`) reports an *observed* stuck-teardown / sandbox-failure pattern on the node. It is a strong lead toward the Azure delegated-NIC teardown path — the same subsystem behind `NodeCapacityExceeded: no unassigned NICs` router sandbox failures — but it is a detector signal, not direct proof of the physical cause; confirm with the node's kubelet / azure-cns logs.
+- In the node-conditions snapshot, the `MemoryPressure`, `DiskPressure`, and `PIDPressure` conditions all holding `status: "False"` across the window point away from resource pressure. (The `NodeHasSufficientMemory` / `NodeHasNoDiskPressure` / `NodeHasSufficientPID` strings are Event *reasons*, not `status.conditions` entries, and a few such transition events do not by themselves prove pressure stayed absent for the whole window — read the condition statuses in the snapshots.)
+
+### Corroborate with azure-cns (delegated-NIC) logs
+
+When a node went `NotReady`, the kube-system `azure-cns` logs on that management cluster can show device-plugin re-registration and API-throttling symptoms around a kubelet restart. These symptoms do not confirm the physical cause. The `azure-cns` log lines carry `hostname=<node>`, so scope to the affected node.
+
+As described in [the node-health detector guidance](../../../../../../docs/controllers/node-health.md#swift-vf-teardown), `swift-vf-teardown` reports an observed sandbox-failure pattern, not proof of a physical cause. [The SWIFT v2 wedged-node runbook](../../../../../../docs/ops/mitigate-swiftv2-wedged-node.md#overview) explicitly states that CNS itself is not the culprit in the analyzed cases: CNS assigned and released IPs successfully, while the failure was in the `azure-vnet` CNI plugin's endpoint-creation step. To investigate and confirm the physical NIC-provisioning cause, inspect the node's `azure-vnet` host logs as directed by that runbook. See [Azure VNet CNI Logs](../../../../../../docs/logging.md#azure-vnet-cni-logs) for `/var/log/azure-vnet.log` collection and `ServiceLogs.azureVnetLogs` queries scoped by both `cluster` and `hostname`; forwarding does not backfill earlier incidents or rotated files.
+
+```kql
+// the node hosting the pod -- from the pod's Scheduled event / spec.nodeName (not a manifest field)
+let nodeName = '<node_name>';
+// the node's management-cluster AKS name
+let managementClusterName = '<management_cluster_name>';
+// manifest.json: kusto_cluster
+cluster('<kusto_cluster>').database('ServiceLogs').table('containerLogs')
+// manifest.json: time_window
+| where timestamp between (datetime(2026-06-24T17:00:00Z) .. datetime(2026-06-24T18:10:00Z))
+| where cluster == managementClusterName
+| where namespace_name == 'kube-system' and pod_name contains 'azure-cns'
+| where log contains nodeName
+| where log has_any ('failed to stat socket', 'registering with kubelet', 'vnet-nic', 'rate limit exceeded')
+| project timestamp, log, pod_name
+| order by timestamp asc
+```
+
+Signals to read:
+
+- `failed to stat socket ... acn.azure.com_vnet-nic-*.sock: no such file` followed by `registering with kubelet ... resourceName=acn.azure.com/vnet-nic` shows the device plugin cycling after the kubelet restart: the socket re-stat failure and re-registration are symptoms, not proof of the physical NIC-provisioning cause. Check the node's `azure-vnet` host logs for NIC endpoint-creation evidence, as described in [docs/ops/mitigate-swiftv2-wedged-node.md](../../../../../../docs/ops/mitigate-swiftv2-wedged-node.md#overview), rather than attributing the failure to CNS from these messages.
+- Repeated `rate limit exceeded` from `component=pod-watcher` indicates API/control-plane throttling around the same window (a contributing-pressure signal, not proof of root cause).
+- The `ipam-pool-monitor` lines (`demand` / `target` / `max`, `NNC already at target IPs, no scaling required`) tell you whether the node is actually at its IP/NIC address ceiling versus merely missing the device plugin during re-registration.
