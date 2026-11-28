@@ -35,6 +35,10 @@ All cluster and node pool operations are tied to a specific API version. This me
 * **HTTPS Requests:** To interact with RP/ARM, use the hcp client.. Use context with timeout to cancel requests which are asynchronous.
 * **Code location:** Such helper functions should be located in the util module `framework` in file `hcp_helper.go`. ([https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/hcp\_helper.go](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/hcp_helper.go))
 
+## Entra external authentication
+
+Use `tc.SetupExternalAuthAccess20240610` for an uninterrupted setup, such as feature aggregation, when the runner can bind cluster-admin and use the returned OIDC config. Use `tc.SetupEntraExternalAuth20240610` and the individual grant and token steps when a scenario needs assertions between operations (such as `external_auth_create`), custom claims or a non-admin role. With authorized CIDRs, the runner may need to create the binding from an allowed VM using the returned `Subject`.
+
 ## Kubernetes verifiers
 
 * **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster20240610` with 10 minutes timeout.

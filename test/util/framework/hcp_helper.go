@@ -35,6 +35,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -157,20 +158,29 @@ func (e *NonConformingClustersError) Error() string {
 	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing, e.clusters)
 }
 
+// CreateClusterRoleBinding grants cluster-admin to subject using the entra-admins binding.
 func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {
+	return CreateClusterRoleBindingForSubject(ctx, "entra-admins", subject, "cluster-admin", adminRESTConfig)
+}
+
+// CreateClusterRoleBindingForSubject binds a named cluster role to a single Kubernetes user.
+func CreateClusterRoleBindingForSubject(ctx context.Context, bindingName, subject, clusterRoleName string, adminRESTConfig *rest.Config) error {
+	if adminRESTConfig == nil {
+		return fmt.Errorf("admin REST config is required to create cluster role binding %q", bindingName)
+	}
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return consoleFixtureAPIError("create Kubernetes client for role binding", err)
 	}
 
 	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &v1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "entra-admins",
+			Name: bindingName,
 		},
 		RoleRef: v1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "cluster-admin",
+			Name:     clusterRoleName,
 		},
 		Subjects: []v1.Subject{
 			{
@@ -182,7 +192,17 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	}, metav1.CreateOptions{})
 
 	if err != nil {
-		return fmt.Errorf("failed to create cluster role binding: %w", err)
+		// Preserve the API status for callers such as apierrors.IsAlreadyExists,
+		// while keeping response bodies out of test failure output.
+		var status apierrors.APIStatus
+		if errors.As(err, &status) {
+			s := status.Status()
+			return &apierrors.StatusError{ErrStatus: metav1.Status{
+				Code: s.Code, Reason: s.Reason,
+				Message: fmt.Sprintf("create cluster role binding %q: HTTP %d (%s)", bindingName, s.Code, s.Reason),
+			}}
+		}
+		return consoleFixtureAPIError("create cluster role binding", err)
 	}
 
 	return nil
